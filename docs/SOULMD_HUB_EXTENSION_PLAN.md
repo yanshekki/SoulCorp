@@ -1,1 +1,0 @@
-Plan for extending soulmd-hub.
