@@ -1,0 +1,1 @@
+Tauri desktop client specification.

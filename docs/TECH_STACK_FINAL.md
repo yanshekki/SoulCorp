@@ -1,0 +1,1 @@
+Final technology stack for SoulCorp.
