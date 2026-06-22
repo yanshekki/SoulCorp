@@ -1,0 +1,1 @@
+Technical spec for workspace folders.

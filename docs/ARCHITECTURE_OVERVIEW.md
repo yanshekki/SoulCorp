@@ -1,1 +1,1 @@
-High level architecture overview for SoulCorp.
+High-level architecture overview with diagrams.

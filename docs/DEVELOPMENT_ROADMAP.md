@@ -1,1 +1,1 @@
-Development roadmap for SoulCorp project.
+Full development roadmap.
