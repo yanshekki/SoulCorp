@@ -1,0 +1,1 @@
+God Mode / CEO powers specification.

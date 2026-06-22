@@ -1,0 +1,1 @@
+Visual style specification (Option 2).
