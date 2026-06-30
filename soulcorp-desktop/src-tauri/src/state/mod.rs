@@ -147,6 +147,15 @@ pub struct InternalProject {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GodModeLogEntry {
+    pub id: String,
+    pub action: String,
+    pub message: String,
+    pub day_number: u32,
+    pub reality_cost: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameEvent {
     pub id: String,
     pub title: String,
@@ -186,6 +195,8 @@ pub struct AppState {
     pub finance: FinanceState,
     pub agents: HashMap<String, AgentRecord>,
     pub events: Vec<GameEvent>,
+    #[serde(default)]
+    pub god_mode_history: Vec<GodModeLogEntry>,
     pub meetings: HashMap<String, MeetingState>,
     pub achievements: Vec<Achievement>,
     pub endings: Vec<Ending>,
@@ -206,6 +217,7 @@ impl Default for AppState {
             finance: FinanceState::default(),
             agents: HashMap::new(),
             events: Vec::new(),
+            god_mode_history: Vec::new(),
             meetings: HashMap::new(),
             achievements: Vec::new(),
             endings: Vec::new(),

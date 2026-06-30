@@ -492,6 +492,28 @@ body,
 }
 
 .panel-actions button,
+.god-mode-history {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.god-mode-history h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+  opacity: 0.8;
+}
+
+.god-mode-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
 .god-mode button {
   background: #5d8a67;
   color: #f6f1e8;

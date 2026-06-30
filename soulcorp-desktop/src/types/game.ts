@@ -190,3 +190,11 @@ export interface GodModeActionResult {
   cash_balance: number;
   average_morale: number;
 }
+
+export interface GodModeLogEntry {
+  id: string;
+  action: string;
+  message: string;
+  day_number: number;
+  reality_cost: number;
+}
