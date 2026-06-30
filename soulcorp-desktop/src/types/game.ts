@@ -25,9 +25,28 @@ export interface HubStatus {
   base_url: string;
   user_tier: string;
   soul_balance: number;
+  soul_staked: number;
+  near_wallet_address?: string | null;
   pure_local_mode: boolean;
   pending_queue_items: number;
   last_sync_at?: string | null;
+}
+
+export interface NearUpgradeConfig {
+  soul_contract_id: string;
+  usdt_contract_id: string;
+  usdc_contract_id: string;
+  vip_amount_raw: string;
+  pro_amount_raw: string;
+  vip_amount_usd: string;
+  pro_amount_usd: string;
+  upgrade_page_url: string;
+}
+
+export interface ClaimNearUpgradeResult {
+  tier: string;
+  message: string;
+  benefits: TierBenefits;
 }
 
 export interface HubSyncPull {

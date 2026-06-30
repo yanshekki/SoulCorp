@@ -514,6 +514,22 @@ body,
   font-size: 0.8rem;
 }
 
+.near-wallet-line {
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.near-upgrade-block {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.near-upgrade-block h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
 .god-mode button {
   background: #5d8a67;
   color: #f6f1e8;

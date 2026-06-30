@@ -94,6 +94,36 @@ impl HubClient {
         self.get_json(&url, true).await
     }
 
+    pub async fn stake_soul_for_tier(&self, tier: &str, amount: f64) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/user-stake-soul.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(
+            &url,
+            serde_json::json!({
+                "tier": tier,
+                "amount": amount,
+            }),
+        )
+        .await
+    }
+
+    pub async fn claim_near_upgrade(&self, tier: &str, token: &str) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/near-upgrade.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(
+            &url,
+            serde_json::json!({
+                "tier": tier,
+                "token": token,
+            }),
+        )
+        .await
+    }
+
     async fn get_json(&self, url: &str, require_auth: bool) -> Result<Value, String> {
         if require_auth && self.api_key.is_none() {
             return Err("Hub API key is required.".to_string());

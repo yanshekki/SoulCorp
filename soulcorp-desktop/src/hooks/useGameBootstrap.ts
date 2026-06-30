@@ -41,6 +41,8 @@ export function useGameBootstrap() {
               base_url: "https://soulmd-hub.ysk.hk",
               user_tier: "free",
               soul_balance: 0,
+              soul_staked: 0,
+              near_wallet_address: null,
               pure_local_mode: false,
               pending_queue_items: 0,
               last_sync_at: null,

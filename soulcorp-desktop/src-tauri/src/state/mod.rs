@@ -51,6 +51,10 @@ pub struct HubState {
     pub api_key: Option<String>,
     pub user_tier: String,
     pub soul_balance: f64,
+    #[serde(default)]
+    pub soul_staked: f64,
+    #[serde(default)]
+    pub near_wallet_address: Option<String>,
     pub last_sync_at: Option<String>,
 }
 
@@ -62,6 +66,8 @@ impl Default for HubState {
             api_key: None,
             user_tier: "free".to_string(),
             soul_balance: 0.0,
+            soul_staked: 0.0,
+            near_wallet_address: None,
             last_sync_at: None,
         }
     }

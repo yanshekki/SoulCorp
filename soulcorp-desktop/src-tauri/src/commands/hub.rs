@@ -28,6 +28,8 @@ pub struct HubStatus {
     pub base_url: String,
     pub user_tier: String,
     pub soul_balance: f64,
+    pub soul_staked: f64,
+    pub near_wallet_address: Option<String>,
     pub pure_local_mode: bool,
     pub pending_queue_items: u32,
     pub last_sync_at: Option<String>,
@@ -47,6 +49,8 @@ fn hub_status_from(state: &AppState) -> HubStatus {
         base_url: state.hub.base_url.clone(),
         user_tier: state.hub.user_tier.clone(),
         soul_balance: state.hub.soul_balance,
+        soul_staked: state.hub.soul_staked,
+        near_wallet_address: state.hub.near_wallet_address.clone(),
         pure_local_mode: state.settings.pure_local_mode,
         pending_queue_items: state.sync_queue.len() as u32,
         last_sync_at: state.hub.last_sync_at.clone(),
@@ -215,11 +219,20 @@ pub async fn fetch_soul_balance(
             .get("soul_balance")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
+        state.hub.soul_staked = body
+            .get("soul_staked")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
         state.hub.user_tier = body
             .get("tier")
             .and_then(|v| v.as_str())
             .unwrap_or("free")
             .to_string();
+        state.hub.near_wallet_address = body
+            .get("near_wallet_address")
+            .and_then(|v| v.as_str())
+            .map(|value| value.to_string())
+            .filter(|value| !value.is_empty());
         state.hub.connected = true;
         commit(app, &state)?;
     }
