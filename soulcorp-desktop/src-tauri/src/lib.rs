@@ -3,6 +3,7 @@ mod ai;
 mod commands;
 mod db;
 mod finance;
+mod gigs;
 mod hub;
 mod report;
 mod soul;
@@ -47,6 +48,10 @@ pub fn run() {
             commands::update_hub_config,
             commands::list_hub_gigs,
             commands::create_hub_gig,
+            commands::list_gig_contracts,
+            commands::accept_hub_gig,
+            commands::start_gig_work,
+            commands::complete_hub_gig,
             commands::sync_with_hub,
             commands::fetch_soul_balance,
             commands::get_tier_benefits,

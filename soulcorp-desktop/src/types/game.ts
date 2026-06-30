@@ -20,6 +20,22 @@ export interface HubGig {
   required_skills: string[];
 }
 
+export interface GigContract {
+  contract_id: string;
+  gig_id: number;
+  title: string;
+  description: string;
+  budget_usdt: number;
+  required_skills: string[];
+  status: string;
+  progress: number;
+  payout_usdt: number;
+  platform_fee_usdt: number;
+  accepted_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
 export interface HubStatus {
   connected: boolean;
   base_url: string;

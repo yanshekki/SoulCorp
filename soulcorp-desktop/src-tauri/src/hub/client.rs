@@ -74,6 +74,33 @@ impl HubClient {
         self.post_json(&url, payload).await
     }
 
+    pub async fn assign_gig(&self, gig_id: u64) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-assign.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(&url, serde_json::json!({ "gig_id": gig_id }))
+            .await
+    }
+
+    pub async fn start_gig(&self, gig_id: u64) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-start.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(&url, serde_json::json!({ "gig_id": gig_id }))
+            .await
+    }
+
+    pub async fn complete_gig(&self, gig_id: u64) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-complete.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(&url, serde_json::json!({ "gig_id": gig_id }))
+            .await
+    }
+
     pub async fn pull_sync(&self) -> Result<HubSyncPull, String> {
         let url = format!("{}/api/sync-pull.php", self.base_url.trim_end_matches('/'));
         let response = self.get_json(&url, true).await?;

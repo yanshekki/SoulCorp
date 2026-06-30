@@ -4,6 +4,7 @@ use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
 use crate::finance::apply_tick_finance;
+use crate::gigs::apply_gig_contract_ticks;
 use crate::state::{AppState, GameEvent};
 use crate::workspace::{write_daily_activity_docs, write_event_activity_doc};
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,7 @@ pub fn run_simulation_tick(
     apply_chaos_mode_tick(&mut state);
 
     let finance_result = apply_tick_finance(&mut state);
+    let gig_result = apply_gig_contract_ticks(&mut state);
 
     let event = if state.tick % 15 == 0 {
         maybe_roll_event(&mut state)
@@ -85,6 +87,11 @@ pub fn run_simulation_tick(
         format!(
             "Day {} tick {}: event triggered — {}",
             state.day_number, state.tick, event.title
+        )
+    } else if gig_result.contracts_completed > 0 {
+        format!(
+            "Day {}: gig contract completed — payout added to cash balance.",
+            state.day_number
         )
     } else if finance_result.daily_salary_paid > 0.0 {
         format!(

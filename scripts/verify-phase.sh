@@ -113,6 +113,21 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  10)
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/gigs.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/gigs/mod.rs"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-start.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-complete.php"
+    grep -q "accept_hub_gig" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "assign_gig" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "start_gig" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "complete_gig" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "listGigContracts" "${DESKTOP_DIR}/src/services/hubClient.ts"
+    grep -q "marketplace-tabs" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "startGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
+    grep -q "completeGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
+    echo "Phase 10 gig lifecycle checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

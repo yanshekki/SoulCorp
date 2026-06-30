@@ -80,6 +80,27 @@ pub struct GameStats {
     pub god_mode_uses: u32,
     pub pages_created: u32,
     pub exports_created: u32,
+    #[serde(default)]
+    pub gigs_completed: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GigContract {
+    pub contract_id: String,
+    pub gig_id: u64,
+    pub title: String,
+    pub description: String,
+    pub budget_usdt: f64,
+    pub required_skills: Vec<String>,
+    pub status: String,
+    pub progress: f32,
+    pub payout_usdt: f64,
+    pub platform_fee_usdt: f64,
+    pub accepted_at: String,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -226,6 +247,8 @@ pub struct AppState {
     pub hub: HubState,
     pub sync_queue: Vec<serde_json::Value>,
     #[serde(default)]
+    pub gig_contracts: Vec<GigContract>,
+    #[serde(default)]
     pub projects: Vec<InternalProject>,
     pub day_number: u32,
     pub tick: u64,
@@ -248,6 +271,7 @@ impl Default for AppState {
             stats: GameStats::default(),
             hub: HubState::default(),
             sync_queue: Vec::new(),
+            gig_contracts: Vec::new(),
             projects: Vec::new(),
             day_number: 1,
             tick: 0,

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { HubGig, HubStatus, HubSyncPull } from "../types/game";
+import type { GigContract, HubGig, HubStatus, HubSyncPull } from "../types/game";
 
 export interface HubConfigUpdate {
   base_url?: string;
@@ -27,6 +27,22 @@ export async function listHubGigs(): Promise<HubGig[]> {
 
 export async function createHubGig(request: CreateHubGigRequest): Promise<Record<string, unknown>> {
   return invoke<Record<string, unknown>>("create_hub_gig", { request });
+}
+
+export async function listGigContracts(): Promise<GigContract[]> {
+  return invoke<GigContract[]>("list_gig_contracts");
+}
+
+export async function acceptHubGig(gigId: number): Promise<GigContract> {
+  return invoke<GigContract>("accept_hub_gig", { request: { gig_id: gigId } });
+}
+
+export async function startGigWork(contractId: string): Promise<GigContract> {
+  return invoke<GigContract>("start_gig_work", { request: { contract_id: contractId } });
+}
+
+export async function completeHubGig(contractId: string): Promise<GigContract> {
+  return invoke<GigContract>("complete_hub_gig", { request: { contract_id: contractId } });
 }
 
 export async function syncWithHub(): Promise<HubSyncPull> {

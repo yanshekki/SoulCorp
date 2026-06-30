@@ -1217,6 +1217,97 @@ body,
   font-size: 0.9rem;
 }
 
+.marketplace-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+}
+
+.marketplace-tabs button {
+  flex: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d9c8b4;
+  font-size: 0.78rem;
+}
+
+.marketplace-tabs button.active {
+  background: rgba(109, 159, 120, 0.28);
+  border-color: rgba(109, 159, 120, 0.55);
+  color: #e8f5ea;
+}
+
+.gig-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.gig-status-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gig-status-badge.status-open {
+  background: rgba(120, 170, 255, 0.2);
+  color: #c8dcff;
+}
+
+.gig-status-badge.status-accepted {
+  background: rgba(255, 214, 130, 0.2);
+  color: #f0dca8;
+}
+
+.gig-status-badge.status-in_progress {
+  background: rgba(255, 180, 90, 0.2);
+  color: #f0d2a8;
+}
+
+.gig-status-badge.status-completed {
+  background: rgba(109, 159, 120, 0.25);
+  color: #c8e6cc;
+}
+
+.gig-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.gig-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.gig-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6d9f78, #9fd0a8);
+}
+
+.gig-progress-label {
+  font-size: 0.72rem;
+  color: #c8b6a3;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.gig-card-history p {
+  margin-bottom: 0.35rem;
+}
+
 .primary-action {
   background: #6d9f78 !important;
 }

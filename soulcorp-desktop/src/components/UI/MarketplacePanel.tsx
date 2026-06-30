@@ -1,7 +1,31 @@
-import { useCallback, useEffect, useState } from "react";
-import { createHubGig, listHubGigs, syncWithHub } from "../../services/hubClient";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  acceptHubGig,
+  completeHubGig,
+  createHubGig,
+  listGigContracts,
+  listHubGigs,
+  startGigWork,
+  syncWithHub,
+} from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
-import type { HubGig } from "../../types/game";
+import type { FinanceState, GigContract, HubGig } from "../../types/game";
+import { invoke } from "@tauri-apps/api/core";
+
+type MarketplaceTab = "browse" | "contracts" | "history";
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "accepted":
+      return "Accepted";
+    case "in_progress":
+      return "In progress";
+    case "completed":
+      return "Completed";
+    default:
+      return status;
+  }
+}
 
 export function MarketplacePanel() {
   const settings = useGameStore((state) => state.settings);
@@ -9,19 +33,34 @@ export function MarketplacePanel() {
   const tierBenefits = useGameStore((state) => state.tierBenefits);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
+  const setFinance = useGameStore((state) => state.setFinance);
 
+  const [activeTab, setActiveTab] = useState<MarketplaceTab>("browse");
   const [gigs, setGigs] = useState<HubGig[]>([]);
+  const [contracts, setContracts] = useState<GigContract[]>([]);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(250);
   const [skills, setSkills] = useState("react, tailwind");
 
+  const refreshFinance = useCallback(async () => {
+    const finance = await invoke<FinanceState>("get_finance_state");
+    setFinance(finance);
+  }, [setFinance]);
+
+  const refreshContracts = useCallback(async () => {
+    const next = await listGigContracts();
+    setContracts(next);
+    return next;
+  }, []);
+
   const refreshGigs = useCallback(async () => {
     setLoading(true);
     try {
-      const next = await listHubGigs();
-      setGigs(next);
+      const [nextGigs, nextContracts] = await Promise.all([listHubGigs(), listGigContracts()]);
+      setGigs(nextGigs);
+      setContracts(nextContracts);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -32,6 +71,34 @@ export function MarketplacePanel() {
   useEffect(() => {
     void refreshGigs();
   }, [refreshGigs]);
+
+  const activeContractGigIds = useMemo(
+    () =>
+      new Set(
+        contracts
+          .filter((contract) => contract.status !== "completed")
+          .map((contract) => contract.gig_id),
+      ),
+    [contracts],
+  );
+
+  const browseGigs = useMemo(
+    () => gigs.filter((gig) => gig.status === "open" && !activeContractGigIds.has(gig.gig_id)),
+    [gigs, activeContractGigIds],
+  );
+
+  const activeContracts = useMemo(
+    () => contracts.filter((contract) => contract.status === "accepted" || contract.status === "in_progress"),
+    [contracts],
+  );
+
+  const historyContracts = useMemo(
+    () =>
+      [...contracts]
+        .filter((contract) => contract.status === "completed")
+        .sort((left, right) => (right.completed_at ?? "").localeCompare(left.completed_at ?? "")),
+    [contracts],
+  );
 
   const handleSync = async () => {
     try {
@@ -46,6 +113,7 @@ export function MarketplacePanel() {
         last_sync_at: new Date().toISOString(),
       });
       setStatusMessage(`Synced with hub. Tier: ${pull.tier}, $SOUL: ${pull.soul_balance.toFixed(2)}`);
+      await refreshContracts();
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -76,11 +144,46 @@ export function MarketplacePanel() {
     }
   };
 
+  const handleAccept = async (gigId: number) => {
+    try {
+      const contract = await acceptHubGig(gigId);
+      setStatusMessage(`Accepted gig: ${contract.title}`);
+      await refreshGigs();
+      setActiveTab("contracts");
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const handleStart = async (contractId: string) => {
+    try {
+      const contract = await startGigWork(contractId);
+      setStatusMessage(`Started work on ${contract.title}. Progress advances each simulation tick.`);
+      await refreshContracts();
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const handleComplete = async (contractId: string) => {
+    try {
+      const contract = await completeHubGig(contractId);
+      await refreshFinance();
+      setStatusMessage(
+        `Completed ${contract.title}. Net payout $${contract.payout_usdt.toFixed(2)} USDT (fee $${contract.platform_fee_usdt.toFixed(2)}).`,
+      );
+      await refreshContracts();
+      setActiveTab("history");
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   return (
     <section className="panel-card marketplace-panel">
       <h2>Marketplace</h2>
       <p className="muted">
-        Browse open gigs from soulmd-hub or publish work for other companies.
+        Post gigs, accept work, and collect payouts after delivery.
         Platform fee: {tierBenefits.platform_fee_percent.toFixed(0)}%.
       </p>
       {tierBenefits.executive_lounge ? (
@@ -97,39 +200,138 @@ export function MarketplacePanel() {
 
       {settings.pure_local_mode ? (
         <p className="hub-warning">
-          Pure Local Mode is on. Showing mock marketplace data only.
+          Pure Local Mode is on. Gig lifecycle runs locally with mock marketplace data.
         </p>
       ) : null}
 
       <div className="panel-actions">
         <button type="button" onClick={() => void refreshGigs()} disabled={loading}>
-          {loading ? "Loading..." : "Refresh gigs"}
+          {loading ? "Loading..." : "Refresh"}
         </button>
         <button type="button" onClick={() => void handleSync()} disabled={settings.pure_local_mode}>
           Sync with hub
         </button>
       </div>
 
-      <div className="gig-list">
-        {gigs.length === 0 ? (
-          <p className="muted">No open gigs found.</p>
-        ) : (
-          gigs.map((gig) => (
-            <article key={gig.gig_id} className="gig-card">
-              <header>
-                <strong>{gig.title}</strong>
-                <span>${gig.budget_usdt.toFixed(0)} USDT</span>
-              </header>
-              <p>{gig.description}</p>
-              <div className="skill-tags">
-                {gig.required_skills.map((skill) => (
-                  <span key={skill}>{skill}</span>
-                ))}
-              </div>
-            </article>
-          ))
-        )}
+      <div className="marketplace-tabs">
+        <button
+          type="button"
+          className={activeTab === "browse" ? "active" : ""}
+          onClick={() => setActiveTab("browse")}
+        >
+          Browse ({browseGigs.length})
+        </button>
+        <button
+          type="button"
+          className={activeTab === "contracts" ? "active" : ""}
+          onClick={() => setActiveTab("contracts")}
+        >
+          My contracts ({activeContracts.length})
+        </button>
+        <button
+          type="button"
+          className={activeTab === "history" ? "active" : ""}
+          onClick={() => setActiveTab("history")}
+        >
+          History ({historyContracts.length})
+        </button>
       </div>
+
+      {activeTab === "browse" ? (
+        <div className="gig-list">
+          {browseGigs.length === 0 ? (
+            <p className="muted">No open gigs available.</p>
+          ) : (
+            browseGigs.map((gig) => (
+              <article key={gig.gig_id} className="gig-card">
+                <header>
+                  <strong>{gig.title}</strong>
+                  <span>${gig.budget_usdt.toFixed(0)} USDT</span>
+                </header>
+                <p>{gig.description}</p>
+                <div className="skill-tags">
+                  {gig.required_skills.map((skill) => (
+                    <span key={skill}>{skill}</span>
+                  ))}
+                </div>
+                <footer className="gig-card-footer">
+                  <span className={`gig-status-badge status-open`}>Open</span>
+                  <button type="button" className="primary-action" onClick={() => void handleAccept(gig.gig_id)}>
+                    Accept gig
+                  </button>
+                </footer>
+              </article>
+            ))
+          )}
+        </div>
+      ) : null}
+
+      {activeTab === "contracts" ? (
+        <div className="gig-list">
+          {activeContracts.length === 0 ? (
+            <p className="muted">No active contracts. Accept a gig from Browse.</p>
+          ) : (
+            activeContracts.map((contract) => (
+              <article key={contract.contract_id} className="gig-card">
+                <header>
+                  <strong>{contract.title}</strong>
+                  <span>${contract.budget_usdt.toFixed(0)} USDT</span>
+                </header>
+                <p>{contract.description}</p>
+                <div className="gig-progress-row">
+                  <div className="gig-progress-bar" aria-hidden="true">
+                    <span style={{ width: `${Math.round(contract.progress * 100)}%` }} />
+                  </div>
+                  <span className="gig-progress-label">{Math.round(contract.progress * 100)}%</span>
+                </div>
+                <footer className="gig-card-footer">
+                  <span className={`gig-status-badge status-${contract.status}`}>
+                    {statusLabel(contract.status)}
+                  </span>
+                  {contract.status === "accepted" ? (
+                    <button type="button" onClick={() => void handleStart(contract.contract_id)}>
+                      Start work
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => void handleComplete(contract.contract_id)}
+                      disabled={contract.progress < 0.95}
+                    >
+                      Complete &amp; payout
+                    </button>
+                  )}
+                </footer>
+              </article>
+            ))
+          )}
+        </div>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <div className="gig-list">
+          {historyContracts.length === 0 ? (
+            <p className="muted">Completed gigs will appear here with payout details.</p>
+          ) : (
+            historyContracts.map((contract) => (
+              <article key={contract.contract_id} className="gig-card gig-card-history">
+                <header>
+                  <strong>{contract.title}</strong>
+                  <span>+${contract.payout_usdt.toFixed(2)}</span>
+                </header>
+                <p>
+                  Budget ${contract.budget_usdt.toFixed(0)} · Fee ${contract.platform_fee_usdt.toFixed(2)} ·{" "}
+                  {contract.completed_at
+                    ? new Date(contract.completed_at).toLocaleString()
+                    : "Completed"}
+                </p>
+                <span className="gig-status-badge status-completed">Completed</span>
+              </article>
+            ))
+          )}
+        </div>
+      ) : null}
 
       <div className="gig-form">
         <h3>Post a gig</h3>
