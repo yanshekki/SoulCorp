@@ -1,4 +1,6 @@
+import { BUILDING_ENTRANCES, deskForAgent } from "./worldLayout";
 import type { Agent, Building } from "../types/world";
+import { generateAgentAppearance } from "../utils/agentAppearance";
 
 export const INITIAL_BUILDINGS: Building[] = [
   {
@@ -6,9 +8,10 @@ export const INITIAL_BUILDINGS: Building[] = [
     name: "Company HQ",
     department: "Executive",
     position: [0, 0, 0],
-    size: [4, 3, 4],
+    size: [4.2, 3.2, 4.2],
     color: "#8b6f5c",
     roofColor: "#5f8a72",
+    accentColor: "#ffd166",
     description: "Main office hub with strategy rooms and CEO suite.",
   },
   {
@@ -16,9 +19,10 @@ export const INITIAL_BUILDINGS: Building[] = [
     name: "Engineering Lab",
     department: "Engineering",
     position: [-6, 0, 2],
-    size: [3.5, 2.5, 3],
+    size: [3.8, 2.8, 3.4],
     color: "#6d7f9b",
     roofColor: "#4a6fa5",
+    accentColor: "#5ec8ff",
     description: "Where agents ship code, prototypes, and experiments.",
   },
   {
@@ -26,9 +30,10 @@ export const INITIAL_BUILDINGS: Building[] = [
     name: "HR Lounge",
     department: "Human Resources",
     position: [6, 0, -2],
-    size: [3, 2, 3.5],
+    size: [3.2, 2.4, 3.8],
     color: "#9b7a8d",
     roofColor: "#c97b84",
+    accentColor: "#ff9bd5",
     description: "Recruitment interviews and team morale events.",
   },
   {
@@ -36,57 +41,49 @@ export const INITIAL_BUILDINGS: Building[] = [
     name: "Hub Plaza",
     department: "Marketplace",
     position: [0, 0, -7],
-    size: [5, 1.2, 3],
+    size: [5.4, 1.4, 3.4],
     color: "#a6896b",
     roofColor: "#d4b896",
+    accentColor: "#f2c879",
     description: "Gig board and cross-company marketplace area.",
   },
 ];
 
-export const INITIAL_AGENTS: Agent[] = [
-  {
-    id: "agent-1",
-    name: "Mira",
-    department: "Engineering",
-    role: "Senior Dev",
-    color: "#5ec8ff",
-    status: "walking",
-    statusLabel: "Coding...",
-    position: [-4, 0.6, 1],
-    target: [-6, 0.6, 2],
-    speed: 1.2,
-  },
-  {
-    id: "agent-2",
-    name: "Kai",
-    department: "Human Resources",
-    role: "HR Lead",
-    color: "#ff9bd5",
-    status: "walking",
-    statusLabel: "In Meeting",
-    position: [4, 0.6, -1],
-    target: [6, 0.6, -2],
-    speed: 1.0,
-  },
-  {
-    id: "agent-3",
-    name: "Ren",
-    department: "Executive",
-    role: "COO",
-    color: "#ffd166",
-    status: "walking",
-    statusLabel: "Reviewing KPIs",
-    position: [1, 0.6, 2],
-    target: [0, 0.6, 0],
-    speed: 0.9,
-  },
-];
+function seedAgent(
+  id: string,
+  name: string,
+  department: string,
+  role: string,
+  buildingId: string,
+): Agent {
+  const appearance = generateAgentAppearance(id);
+  const desk = deskForAgent(buildingId, id);
+  const entrance = BUILDING_ENTRANCES[buildingId] ?? desk;
 
-export const WAYPOINTS: [number, number, number][] = [
-  [0, 0.6, 0],
-  [-6, 0.6, 2],
-  [6, 0.6, -2],
-  [0, 0.6, -7],
-  [-4, 0.6, 1],
-  [4, 0.6, -1],
+  return {
+    id,
+    name,
+    department,
+    role,
+    color: appearance.shirtColor,
+    status: "walking",
+    statusLabel: "Heading to desk",
+    position: [entrance[0], 0, entrance[2]],
+    target: [desk[0], 0, desk[2]],
+    speed: 1.1,
+    appearance,
+    behavior: {
+      intent: "commute_to_desk",
+      waitSeconds: 0,
+      homeDesk: [desk[0], 0, desk[2]],
+      buildingId,
+    },
+    walkPhase: 0,
+  };
+}
+
+export const INITIAL_AGENTS: Agent[] = [
+  seedAgent("agent-1", "Mira", "Engineering", "Senior Dev", "engineering"),
+  seedAgent("agent-2", "Kai", "Human Resources", "HR Lead", "hr"),
+  seedAgent("agent-3", "Ren", "Executive", "COO", "hq"),
 ];

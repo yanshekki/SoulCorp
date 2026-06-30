@@ -31,6 +31,9 @@ export function useSimulationLoop() {
 
       const {
         agents,
+        agentRecords,
+        buildings,
+        simulation,
         setAgents,
         setSimulation,
         setStatusMessage,
@@ -41,7 +44,7 @@ export function useSimulationLoop() {
         setEndings,
       } = useGameStore.getState();
 
-      setAgents(advanceAgents(agents, delta));
+      setAgents(advanceAgents(agents, agentRecords, buildings, delta, simulation.tick));
 
       tickAccumulatorRef.current += delta;
       if (tickAccumulatorRef.current >= 1) {

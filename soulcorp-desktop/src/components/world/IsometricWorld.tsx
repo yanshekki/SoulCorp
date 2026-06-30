@@ -1,23 +1,37 @@
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, SoftShadows } from "@react-three/drei";
 import { useGameStore } from "../../stores/gameStore";
-import { AgentMesh } from "./AgentMesh";
 import { BuildingMesh } from "./BuildingMesh";
 import { CameraController } from "./CameraController";
+import { HumanoidCharacter } from "./HumanoidCharacter";
+import { OfficeEnvironment } from "./OfficeEnvironment";
 import { OfficeTilemap } from "./OfficeTilemap";
 
 export function IsometricWorld() {
   const agents = useGameStore((state) => state.agents);
   const buildings = useGameStore((state) => state.buildings);
+  const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
   const selectBuilding = useGameStore((state) => state.selectBuilding);
 
   return (
     <>
-      <color attach="background" args={["#87b8e8"]} />
-      <ambientLight intensity={0.85} />
-      <directionalLight intensity={1.15} position={[10, 16, 8]} />
-      <hemisphereLight args={["#fff2d9", "#4f674c", 0.4]} />
+      <color attach="background" args={["#8ec8ef"]} />
+      <fog attach="fog" args={["#b7daf5", 22, 58]} />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={["#fff5df", "#567552", 0.45]} />
+      <directionalLight
+        castShadow={!lowPowerMode}
+        intensity={1.35}
+        position={[12, 20, 8]}
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-18}
+        shadow-camera-right={18}
+        shadow-camera-top={18}
+        shadow-camera-bottom={-18}
+      />
+      {!lowPowerMode ? <SoftShadows size={12} focus={0.5} samples={8} /> : null}
       <CameraController />
       <OfficeTilemap />
+      <OfficeEnvironment />
       {buildings.map((building) => (
         <BuildingMesh
           key={building.id}
@@ -26,15 +40,15 @@ export function IsometricWorld() {
         />
       ))}
       {agents.map((agent) => (
-        <AgentMesh key={agent.id} agent={agent} />
+        <HumanoidCharacter key={agent.id} agent={agent} />
       ))}
       <OrbitControls
         enablePan
         enableZoom
         target={[0, 0, 0]}
-        maxPolarAngle={Math.PI / 2.15}
-        minZoom={35}
-        maxZoom={90}
+        maxPolarAngle={Math.PI / 2.12}
+        minZoom={38}
+        maxZoom={95}
       />
     </>
   );

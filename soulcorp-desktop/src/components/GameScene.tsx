@@ -4,7 +4,6 @@ import { useContainerSize } from "../hooks/useContainerSize";
 import { useGameStore } from "../stores/gameStore";
 import { IsometricWorld } from "./world/IsometricWorld";
 import { OfficeMapFallback } from "./world/OfficeMapFallback";
-import { WorldLabels } from "./world/WorldLabels";
 
 export function GameScene() {
   const containerRef = useRef<HTMLElement>(null);
@@ -47,13 +46,12 @@ export function GameScene() {
           >
             <IsometricWorld />
           </Canvas>
-          <WorldLabels />
         </>
       )}
       <div className="scene-hint">
         {webglFailed
           ? "3D renderer unavailable. Showing 2D fallback map."
-          : "3D office view. Click a building to zoom into its department."}
+          : "3D office world. Agents commute to desks, meetings, and breaks with purpose."}
       </div>
     </section>
   );

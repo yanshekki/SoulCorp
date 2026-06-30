@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import { getHubStatus } from "../services/hubClient";
 import { useGameStore } from "../stores/gameStore";
+import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import type {
   AgentRecord,
   FinanceState,
@@ -24,6 +25,8 @@ export function useGameBootstrap() {
   const setSimulation = useGameStore((state) => state.setSimulation);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setTierBenefits = useGameStore((state) => state.setTierBenefits);
+  const setAgents = useGameStore((state) => state.setAgents);
+
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -46,6 +49,7 @@ export function useGameBootstrap() {
         ]);
 
         setAgentRecords(agents);
+        setAgents(syncAgentsFromRecords(agents, []));
         setFinance(finance);
         setSettings(settings);
         setHubStatus(hubStatus);
@@ -80,6 +84,9 @@ export function useGameBootstrap() {
 
         const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
         setAgentRecords(refreshedAgents);
+        setAgents(
+          syncAgentsFromRecords(refreshedAgents, useGameStore.getState().agents),
+        );
         setSimulation({ dayNumber: 1 });
         setStatusMessage("SOUL.md profiles loaded. Office simulation ready.");
       } catch (error) {
@@ -90,6 +97,7 @@ export function useGameBootstrap() {
     void bootstrap();
   }, [
     setAgentRecords,
+    setAgents,
     setFinance,
     setHubStatus,
     setTierBenefits,
