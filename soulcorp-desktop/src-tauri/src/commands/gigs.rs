@@ -1,6 +1,6 @@
 use crate::db::persistence::commit;
 use crate::gigs::{finalize_contract_at_index, payout_for_budget};
-use crate::hub::{mock_gigs, HubClient, HubGig};
+use crate::hub::{filter_gigs_for_tier, mock_gigs, HubClient, HubGig};
 use crate::state::{AppState, GigContract};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -30,10 +30,11 @@ async fn resolve_gig_for_accept(
     pure_local: bool,
     base_url: String,
     api_key: Option<String>,
+    tier: &str,
     gig_id: u64,
 ) -> Result<HubGig, String> {
     if pure_local {
-        return mock_gigs()
+        return filter_gigs_for_tier(mock_gigs(), tier)
             .into_iter()
             .find(|gig| gig.gig_id == gig_id)
             .ok_or_else(|| format!("Gig {gig_id} not found in local marketplace."));
@@ -41,11 +42,11 @@ async fn resolve_gig_for_accept(
 
     let client = HubClient::new(base_url, api_key);
     match client.list_open_gigs().await {
-        Ok(gigs) => gigs
+        Ok(gigs) => filter_gigs_for_tier(gigs, tier)
             .into_iter()
             .find(|gig| gig.gig_id == gig_id)
             .ok_or_else(|| format!("Gig {gig_id} is no longer open.")),
-        Err(error) if allow_mock_hub_fallback() => mock_gigs()
+        Err(error) if allow_mock_hub_fallback() => filter_gigs_for_tier(mock_gigs(), tier)
             .into_iter()
             .find(|gig| gig.gig_id == gig_id)
             .ok_or_else(|| format!("Gig {gig_id} not found. Hub error: {error}")),
@@ -85,7 +86,7 @@ pub async fn accept_hub_gig(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GigContract, String> {
-    let (client, pure_local, base_url, api_key) = {
+    let (client, pure_local, base_url, api_key, tier) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if contract_exists_for_gig(&state, request.gig_id) {
             return Err("You already have an active contract for this gig.".to_string());
@@ -101,10 +102,11 @@ pub async fn accept_hub_gig(
             pure_local,
             state.hub.base_url.clone(),
             state.hub.api_key.clone(),
+            state.hub.user_tier.clone(),
         )
     };
 
-    let gig = resolve_gig_for_accept(pure_local, base_url, api_key, request.gig_id).await?;
+    let gig = resolve_gig_for_accept(pure_local, base_url, api_key, &tier, request.gig_id).await?;
 
     if !pure_local {
         if let Some(client) = client {

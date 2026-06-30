@@ -1431,6 +1431,57 @@ body,
   margin-bottom: 0.35rem;
 }
 
+.foresight-block {
+  margin-bottom: 0.75rem;
+}
+
+.foresight-card {
+  border-style: dashed;
+}
+
+.foresight-meta {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: #c8b6a3;
+}
+
+.morale-heatmap h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.9rem;
+}
+
+.heatmap-grid {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.heatmap-cell {
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.heatmap-cell strong {
+  font-size: 0.86rem;
+}
+
+.heatmap-cell.band-healthy {
+  background: rgba(109, 159, 120, 0.18);
+}
+
+.heatmap-cell.band-watch {
+  background: rgba(255, 214, 130, 0.16);
+}
+
+.heatmap-cell.band-critical {
+  background: rgba(220, 100, 90, 0.2);
+}
+
 .primary-action {
   background: #6d9f78 !important;
 }

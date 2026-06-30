@@ -1,5 +1,5 @@
 use crate::achievements::evaluate;
-use crate::commands::events::maybe_roll_event;
+use crate::commands::events::{apply_god_mode_reality_debt, maybe_roll_event};
 use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
@@ -35,6 +35,7 @@ pub fn run_simulation_tick(
 
     let finance_result = apply_tick_finance(&mut state);
     let gig_result = apply_gig_contract_ticks(&mut state);
+    let reality_note = apply_god_mode_reality_debt(&mut state);
 
     let event = if state.tick % 15 == 0 {
         maybe_roll_event(&mut state)
@@ -88,6 +89,8 @@ pub fn run_simulation_tick(
             "Day {} tick {}: event triggered — {}",
             state.day_number, state.tick, event.title
         )
+    } else if let Some(note) = reality_note {
+        note
     } else if gig_result.contracts_completed > 0 {
         format!(
             "Day {}: gig contract completed — payout added to cash balance.",

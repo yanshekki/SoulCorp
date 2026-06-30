@@ -74,6 +74,8 @@ pub fn run() {
             commands::hire_candidate,
             commands::import_company_backup,
             commands::get_recent_events,
+            commands::get_event_foresight,
+            commands::get_morale_heatmap,
             commands::start_meeting,
             commands::advance_meeting,
             commands::god_mode_time_warp,

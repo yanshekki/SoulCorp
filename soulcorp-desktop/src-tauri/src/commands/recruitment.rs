@@ -3,7 +3,7 @@ use crate::db::persistence::commit;
 use crate::finance::total_monthly_salary;
 use crate::hub::{mock_gigs, HubClient};
 use crate::soul::parse_soul_content;
-use crate::state::{AgentRecord, AppState};
+use crate::state::{AgentRecord, AppState, MeetingState};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -21,6 +21,16 @@ pub struct RecruitmentCandidate {
     pub verified: bool,
     pub hourly_rate_usdt: f64,
     pub soul_md_content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoraleHeatmapEntry {
+    pub agent_id: String,
+    pub name: String,
+    pub department: String,
+    pub morale: f32,
+    pub energy: f32,
+    pub risk_band: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,6 +166,75 @@ fn merge_bonus_candidates(mut base: Vec<RecruitmentCandidate>, state: &AppState)
 }
 
 #[tauri::command]
+pub fn get_morale_heatmap(state: State<'_, Mutex<AppState>>) -> Result<Vec<MoraleHeatmapEntry>, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    let mut entries: Vec<MoraleHeatmapEntry> = state
+        .agents
+        .values()
+        .map(|agent| MoraleHeatmapEntry {
+            agent_id: agent.id.clone(),
+            name: agent.name.clone(),
+            department: agent.department.clone(),
+            morale: agent.morale,
+            energy: agent.energy,
+            risk_band: morale_risk_band(agent.morale, agent.energy).to_string(),
+        })
+        .collect();
+    entries.sort_by(|left, right| {
+        left.morale
+            .partial_cmp(&right.morale)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(entries)
+}
+
+fn morale_risk_band(morale: f32, energy: f32) -> &'static str {
+    if morale < 0.45 || energy < 0.4 {
+        "critical"
+    } else if morale < 0.65 || energy < 0.6 {
+        "watch"
+    } else {
+        "healthy"
+    }
+}
+
+fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
+    let hr_id = state
+        .agents
+        .iter()
+        .find(|(_, agent)| {
+            agent.department.to_lowercase().contains("human")
+                || agent.role.to_lowercase().contains("hr")
+        })
+        .map(|(id, _)| id.clone())
+        .unwrap_or_else(|| "agent-2".to_string());
+
+    let meeting_id = Uuid::new_v4().to_string();
+    state.meetings.insert(
+        meeting_id.clone(),
+        MeetingState {
+            id: meeting_id,
+            meeting_type: "Onboarding".to_string(),
+            participant_ids: vec![hr_id.clone(), new_agent_id.to_string()],
+            messages: Vec::new(),
+            turn: 0,
+            completed: false,
+            morale_delta: 0.06,
+            outcome_summary: None,
+            project_progress_delta: 0.02,
+            revenue_delta: 0.0,
+            notes_generated: false,
+        },
+    );
+
+    for agent_id in [hr_id.as_str(), new_agent_id] {
+        if let Some(agent) = state.agents.get_mut(agent_id) {
+            agent.status = "meeting".to_string();
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn list_recruitment_candidates(
     query: Option<String>,
     app_state: State<'_, Mutex<AppState>>,
@@ -248,6 +327,7 @@ pub async fn hire_candidate(
     state.agents.insert(agent_id.clone(), record.clone());
     state.finance.monthly_burn =
         total_monthly_salary(&state.agents) + state.agents.len() as f64 * 75.0;
+    spawn_onboarding_meeting(&mut state, &agent_id);
 
     commit(app, &state)?;
     Ok(record)

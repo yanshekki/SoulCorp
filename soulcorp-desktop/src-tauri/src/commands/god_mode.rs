@@ -26,6 +26,7 @@ fn ensure_enabled(state: &AppState) -> Result<(), String> {
 
 fn record_use(state: &mut AppState, action: &str, message: String, reality_cost: f32) -> GodModeActionResult {
     state.stats.god_mode_uses += 1;
+    state.god_mode_reality_debt = (state.god_mode_reality_debt + reality_cost).min(1.0);
     state.god_mode_history.push(GodModeLogEntry {
         id: Uuid::new_v4().to_string(),
         action: action.to_string(),

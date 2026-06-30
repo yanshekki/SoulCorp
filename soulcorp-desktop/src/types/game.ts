@@ -18,6 +18,27 @@ export interface HubGig {
   budget_usdt: number;
   status: string;
   required_skills: string[];
+  executive_lounge?: boolean;
+}
+
+export interface ForesightEvent {
+  id: string;
+  title: string;
+  description: string;
+  tone: string;
+  expected_day: number;
+  confidence: number;
+  morale_delta: number;
+  cash_delta: number;
+}
+
+export interface MoraleHeatmapEntry {
+  agent_id: string;
+  name: string;
+  department: string;
+  morale: number;
+  energy: number;
+  risk_band: string;
 }
 
 export interface GigContract {

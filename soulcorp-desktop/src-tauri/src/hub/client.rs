@@ -9,6 +9,8 @@ pub struct HubGig {
     pub budget_usdt: f64,
     pub status: String,
     pub required_skills: Vec<String>,
+    #[serde(default)]
+    pub executive_lounge: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,6 +270,12 @@ fn encode_query_component(value: &str) -> String {
 }
 
 pub fn mock_gigs() -> Vec<HubGig> {
+    let mut gigs = mock_standard_gigs();
+    gigs.extend(mock_executive_gigs());
+    gigs
+}
+
+pub fn mock_standard_gigs() -> Vec<HubGig> {
     vec![
         HubGig {
             gig_id: 1001,
@@ -276,6 +284,7 @@ pub fn mock_gigs() -> Vec<HubGig> {
             budget_usdt: 450.0,
             status: "open".into(),
             required_skills: vec!["react".into(), "tailwind".into()],
+            executive_lounge: false,
         },
         HubGig {
             gig_id: 1002,
@@ -284,6 +293,25 @@ pub fn mock_gigs() -> Vec<HubGig> {
             budget_usdt: 220.0,
             status: "open".into(),
             required_skills: vec!["copywriting".into(), "hr".into()],
+            executive_lounge: false,
         },
     ]
+}
+
+pub fn mock_executive_gigs() -> Vec<HubGig> {
+    vec![HubGig {
+        gig_id: 2101,
+        title: "Enterprise AI platform rewrite".into(),
+        description: "VIP Executive Lounge — 6-week platform modernization".into(),
+        budget_usdt: 2800.0,
+        status: "open".into(),
+        required_skills: vec!["rust".into(), "architecture".into(), "leadership".into()],
+        executive_lounge: true,
+    }]
+}
+
+pub fn filter_gigs_for_tier(mut gigs: Vec<HubGig>, tier: &str) -> Vec<HubGig> {
+    let lounge = crate::tier::can_use_feature(tier, "executive_lounge");
+    gigs.retain(|gig| !gig.executive_lounge || lounge);
+    gigs
 }

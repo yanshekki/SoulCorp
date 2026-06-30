@@ -1,5 +1,5 @@
 use crate::db::persistence::commit;
-use crate::hub::{mock_gigs, HubClient, HubGig, HubSyncPull};
+use crate::hub::{filter_gigs_for_tier, mock_gigs, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
 use crate::tier::can_use_feature;
 use chrono::Utc;
@@ -88,24 +88,31 @@ pub fn update_hub_config(
 
 #[tauri::command]
 pub async fn list_hub_gigs(app_state: State<'_, Mutex<AppState>>) -> Result<Vec<HubGig>, String> {
-    let client = {
+    let (client, tier, pure_local) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
-        if state.settings.pure_local_mode {
-            return Ok(mock_gigs());
-        }
-        client_from_state(&state)
+        let tier = state.hub.user_tier.clone();
+        let pure_local = state.settings.pure_local_mode;
+        let client = if pure_local {
+            None
+        } else {
+            Some(client_from_state(&state))
+        };
+        (client, tier, pure_local)
     };
 
-    match client.list_open_gigs().await {
-        Ok(gigs) => Ok(gigs),
-        Err(error) => {
-            if allow_mock_hub_fallback() {
-                Ok(mock_gigs())
-            } else {
-                Err(format!("Failed to load marketplace gigs: {error}"))
-            }
+    let gigs = if pure_local {
+        mock_gigs()
+    } else if let Some(client) = client {
+        match client.list_open_gigs().await {
+            Ok(gigs) => gigs,
+            Err(error) if allow_mock_hub_fallback() => mock_gigs(),
+            Err(error) => return Err(format!("Failed to load marketplace gigs: {error}")),
         }
-    }
+    } else {
+        mock_gigs()
+    };
+
+    Ok(filter_gigs_for_tier(gigs, &tier))
 }
 
 #[tauri::command]
@@ -189,6 +196,12 @@ pub async fn sync_with_hub(
         commit(app, &state)?;
     }
 
+    let tier = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        state.hub.user_tier.clone()
+    };
+    let mut pull = pull;
+    pull.open_gigs = filter_gigs_for_tier(pull.open_gigs, &tier);
     Ok(pull)
 }
 

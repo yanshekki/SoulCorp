@@ -248,6 +248,8 @@ pub struct AppState {
     pub god_mode_bonus_recruits: Vec<GodModeBonusRecruit>,
     #[serde(default)]
     pub chaos_mode_ticks_remaining: u32,
+    #[serde(default)]
+    pub god_mode_reality_debt: f32,
     pub meetings: HashMap<String, MeetingState>,
     pub achievements: Vec<Achievement>,
     pub endings: Vec<Ending>,
@@ -275,6 +277,7 @@ impl Default for AppState {
             god_mode_history: Vec::new(),
             god_mode_bonus_recruits: Vec::new(),
             chaos_mode_ticks_remaining: 0,
+            god_mode_reality_debt: 0.0,
             meetings: HashMap::new(),
             achievements: Vec::new(),
             endings: Vec::new(),

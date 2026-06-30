@@ -112,6 +112,24 @@ a:hover { text-decoration: underline; }
 }"#
 }
 
+pub fn build_netlify_toml() -> &'static str {
+    r#"[build]
+publish = "."
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+"#
+}
+
+pub fn build_vercel_json() -> &'static str {
+    r#"{
+  "cleanUrls": true,
+  "trailingSlash": false
+}"#
+}
+
 pub fn build_deploy_readme(company_name: &str) -> String {
     format!(
         r#"# Deploy {company_name} static site

@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { AgentRecord, RecruitmentCandidate } from "../../types/game";
+import type {
+  AgentRecord,
+  MeetingSnapshot,
+  MoraleHeatmapEntry,
+  RecruitmentCandidate,
+} from "../../types/game";
 
 const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
 
@@ -13,8 +18,11 @@ export function RecruitmentPanel() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
   const setFinance = useGameStore((state) => state.setFinance);
+  const setActiveMeeting = useGameStore((state) => state.setActiveMeeting);
+  const agentRecords = useGameStore((state) => state.agentRecords);
 
   const [skillFilter, setSkillFilter] = useState("");
+  const [heatmap, setHeatmap] = useState<MoraleHeatmapEntry[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<RecruitmentCandidate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,10 +31,14 @@ export function RecruitmentPanel() {
     const load = async () => {
       setLoading(true);
       try {
-        const result = await invoke<RecruitmentCandidate[]>("list_recruitment_candidates", {
-          query: skillFilter.trim() || null,
-        });
+        const [result, morale] = await Promise.all([
+          invoke<RecruitmentCandidate[]>("list_recruitment_candidates", {
+            query: skillFilter.trim() || null,
+          }),
+          invoke<MoraleHeatmapEntry[]>("get_morale_heatmap"),
+        ]);
         setCandidates(result);
+        setHeatmap(morale);
       } catch (error) {
         setStatusMessage(String(error));
       } finally {
@@ -34,7 +46,7 @@ export function RecruitmentPanel() {
       }
     };
     void load();
-  }, [skillFilter, setStatusMessage]);
+  }, [skillFilter, setStatusMessage, agentRecords.length]);
 
   const filteredCandidates = useMemo(() => {
     const query = skillFilter.trim().toLowerCase();
@@ -62,15 +74,28 @@ export function RecruitmentPanel() {
     });
   };
 
-  const startInterview = () => {
+  const startInterview = async () => {
     if (selectedIds.length === 0) {
       setStatusMessage("Pick at least one candidate to interview.");
       return;
     }
-    setActivePanel("meeting");
-    setStatusMessage(
-      `Interview scheduled with ${selectedIds.length} candidate(s). Open Meeting panel to begin.`,
-    );
+    const names = selectedIds
+      .map((id) => candidates.find((candidate) => candidate.id === id)?.name)
+      .filter(Boolean)
+      .join(", ");
+    try {
+      const meeting = await invoke<MeetingSnapshot>("start_meeting", {
+        request: {
+          agent_ids: ["agent-2", "agent-3"],
+          meeting_type: `Interview: ${names}`,
+        },
+      });
+      setActiveMeeting(meeting);
+      setActivePanel("meeting");
+      setStatusMessage(`Interview started for ${names}. HR and COO are leading the panel.`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const hireCandidate = async (candidate: RecruitmentCandidate) => {
@@ -121,6 +146,25 @@ export function RecruitmentPanel() {
         <p className="hub-warning">Pure Local Mode: showing offline candidate samples.</p>
       ) : null}
 
+      <div className="morale-heatmap">
+        <h3>Team morale heatmap</h3>
+        {heatmap.length === 0 ? (
+          <p className="muted">No agents to analyze yet.</p>
+        ) : (
+          <div className="heatmap-grid">
+            {heatmap.map((entry) => (
+              <article key={entry.agent_id} className={`heatmap-cell band-${entry.risk_band}`}>
+                <strong>{entry.name}</strong>
+                <span>{entry.department}</span>
+                <span>
+                  Morale {(entry.morale * 100).toFixed(0)}% · Energy {(entry.energy * 100).toFixed(0)}%
+                </span>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+
       <label className="field-label">
         Filter by skill or name
         <input
@@ -169,7 +213,7 @@ export function RecruitmentPanel() {
       </div>
 
       <div className="panel-actions">
-        <button type="button" className="primary-action" onClick={startInterview}>
+        <button type="button" className="primary-action" onClick={() => void startInterview()}>
           Start interview ({selectedIds.length}/3)
         </button>
       </div>

@@ -255,7 +255,9 @@ export function MarketplacePanel() {
                   ))}
                 </div>
                 <footer className="gig-card-footer">
-                  <span className={`gig-status-badge status-open`}>Open</span>
+                  <span className={`gig-status-badge status-open`}>
+                    {gig.executive_lounge ? "Executive Lounge" : "Open"}
+                  </span>
                   <button type="button" className="primary-action" onClick={() => void handleAccept(gig.gig_id)}>
                     Accept gig
                   </button>

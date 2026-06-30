@@ -4,8 +4,9 @@ use crate::report::{
 };
 use crate::state::AppState;
 use crate::static_site::{
-    build_deploy_readme, build_index_html, build_manifest_json, build_report_page_html,
-    build_site_css, build_workspace_index_html, build_workspace_page_html,
+    build_deploy_readme, build_index_html, build_manifest_json, build_netlify_toml,
+    build_report_page_html, build_site_css, build_vercel_json, build_workspace_index_html,
+    build_workspace_page_html,
 };
 use crate::tier::can_use_feature;
 use crate::workspace::{storage::workspace_root, WorkspaceStorage};
@@ -292,6 +293,8 @@ pub fn export_static_site_zip(
     zip_write_text(&mut zip, "report.html", &report_html, options)?;
     zip_write_text(&mut zip, "assets/site.css", build_site_css(), options)?;
     zip_write_text(&mut zip, "DEPLOY.md", &deploy_readme, options)?;
+    zip_write_text(&mut zip, "netlify.toml", build_netlify_toml(), options)?;
+    zip_write_text(&mut zip, "vercel.json", build_vercel_json(), options)?;
     zip_write_text(&mut zip, "manifest.json", &manifest_json, options)?;
 
     let tree = workspace_tree_for(&app)?;

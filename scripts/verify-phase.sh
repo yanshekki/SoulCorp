@@ -113,6 +113,16 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  13)
+    grep -q "get_event_foresight" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "get_morale_heatmap" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "executive_lounge" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "god_mode_reality_debt" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "morale-heatmap" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
+    grep -q "foresight-block" "${DESKTOP_DIR}/src/components/UI/EventFeed.tsx"
+    grep -q "build_netlify_toml" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    echo "Phase 13 Pro/VIP depth checks passed."
+    ;;
   12)
     test -f "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
     grep -q "export_static_site_zip" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
