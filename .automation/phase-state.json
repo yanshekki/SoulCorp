@@ -1,5 +1,5 @@
 {
-  "current_phase": 4,
+  "current_phase": 5,
   "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
@@ -28,8 +28,9 @@
     },
     "4": {
       "branch": "phase-4/local-polish",
-      "status": "pending",
-      "description": "Achievements, export, offline polish, performance"
+      "status": "merged",
+      "description": "Achievements, export, offline polish, performance",
+      "merged_at": "2026-06-30T03:46:51.704707+00:00"
     },
     "5": {
       "branch": "phase-5/hub-integration",
