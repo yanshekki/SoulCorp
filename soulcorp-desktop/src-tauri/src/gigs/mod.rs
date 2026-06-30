@@ -3,7 +3,49 @@ use crate::tier::benefits_for_tier;
 
 pub struct GigTickResult {
     pub contracts_advanced: u32,
-    pub contracts_completed: u32,
+    pub contracts_submitted_for_qc: u32,
+}
+
+pub fn compute_qc_score(state: &AppState, contract: &GigContract) -> f32 {
+    let skill_match = contract
+        .required_skills
+        .iter()
+        .filter(|skill| {
+            let needle = skill.to_lowercase();
+            state.agents.values().any(|agent| {
+                agent.role.to_lowercase().contains(&needle)
+                    || agent.department.to_lowercase().contains(&needle)
+                    || agent
+                        .soul
+                        .as_ref()
+                        .map(|soul| {
+                            soul.name.to_lowercase().contains(&needle)
+                                || soul.raw_content.to_lowercase().contains(&needle)
+                        })
+                        .unwrap_or(false)
+            })
+        })
+        .count() as f32;
+    let skill_factor = if contract.required_skills.is_empty() {
+        0.75
+    } else {
+        (skill_match / contract.required_skills.len() as f32).min(1.0)
+    };
+
+    let morale_avg = if state.agents.is_empty() {
+        0.7
+    } else {
+        state
+            .agents
+            .values()
+            .map(|agent| agent.morale)
+            .sum::<f32>()
+            / state.agents.len() as f32
+    };
+
+    let progress_factor = contract.progress.clamp(0.0, 1.0);
+    let score = (progress_factor * 0.45 + skill_factor * 0.35 + morale_avg * 0.2).clamp(0.55, 0.99);
+    (score * 100.0).round() / 100.0
 }
 
 pub fn payout_for_budget(tier: &str, budget_usdt: f64) -> (f64, f64) {
@@ -15,7 +57,7 @@ pub fn payout_for_budget(tier: &str, budget_usdt: f64) -> (f64, f64) {
 
 pub fn apply_gig_contract_ticks(state: &mut AppState) -> GigTickResult {
     let mut contracts_advanced = 0;
-    let mut completed_indices = Vec::new();
+    let mut qc_indices = Vec::new();
 
     let working_agents = state
         .agents
@@ -42,19 +84,38 @@ pub fn apply_gig_contract_ticks(state: &mut AppState) -> GigTickResult {
         }
 
         if contract.progress >= 1.0 {
-            completed_indices.push(index);
+            qc_indices.push(index);
         }
     }
 
-    let contracts_completed = completed_indices.len() as u32;
-    for index in completed_indices {
-        finalize_contract_at_index(state, index);
+    let contracts_submitted_for_qc = qc_indices.len() as u32;
+    for index in qc_indices {
+        submit_contract_for_qc_at_index(state, index);
     }
 
     GigTickResult {
         contracts_advanced,
-        contracts_completed,
+        contracts_submitted_for_qc,
     }
+}
+
+pub fn submit_contract_for_qc_at_index(state: &mut AppState, index: usize) {
+    let snapshot = state.gig_contracts.get(index).cloned();
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if snapshot.status != "in_progress" {
+        return;
+    }
+
+    let qc_score = compute_qc_score(state, &snapshot);
+    let Some(contract) = state.gig_contracts.get_mut(index) else {
+        return;
+    };
+    contract.qc_score = Some(qc_score);
+    contract.status = "in_qc".to_string();
+    contract.submitted_at = Some(chrono::Utc::now().to_rfc3339());
+    contract.qc_notes = None;
 }
 
 pub fn finalize_contract_at_index(state: &mut AppState, index: usize) {

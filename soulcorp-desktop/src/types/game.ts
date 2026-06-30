@@ -54,7 +54,10 @@ export interface GigContract {
   platform_fee_usdt: number;
   accepted_at: string;
   started_at?: string | null;
+  submitted_at?: string | null;
   completed_at?: string | null;
+  qc_score?: number | null;
+  qc_notes?: string | null;
 }
 
 export interface HubStatus {

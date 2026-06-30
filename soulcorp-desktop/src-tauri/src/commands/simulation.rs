@@ -91,9 +91,9 @@ pub fn run_simulation_tick(
         )
     } else if let Some(note) = reality_note {
         note
-    } else if gig_result.contracts_completed > 0 {
+    } else if gig_result.contracts_submitted_for_qc > 0 {
         format!(
-            "Day {}: gig contract completed — payout added to cash balance.",
+            "Day {}: gig deliverable submitted for QC review.",
             state.day_number
         )
     } else if finance_result.daily_salary_paid > 0.0 {

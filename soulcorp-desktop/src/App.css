@@ -1393,9 +1393,35 @@ body,
   color: #f0d2a8;
 }
 
+.gig-status-badge.status-in_qc {
+  background: rgba(150, 130, 255, 0.22);
+  color: #d8d0ff;
+}
+
+.gig-status-badge.status-disputed {
+  background: rgba(255, 120, 120, 0.22);
+  color: #ffc8c8;
+}
+
 .gig-status-badge.status-completed {
   background: rgba(109, 159, 120, 0.25);
   color: #c8e6cc;
+}
+
+.gig-qc-score {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: #d0c8ff;
+}
+
+.gig-qc-notes {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: #f0c8c8;
+}
+
+.gig-card-footer-qc {
+  flex-wrap: wrap;
 }
 
 .gig-progress-row {

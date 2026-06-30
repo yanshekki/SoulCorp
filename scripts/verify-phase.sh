@@ -113,6 +113,22 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  14)
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-submit-qc.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-reject-qc.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-dispute.php"
+    grep -q "submitGigForQc" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
+    grep -q "rejectGigQc" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
+    grep -q "disputeGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
+    grep -q "submit_gig_for_qc" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "reject_gig_qc" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "dispute_hub_gig" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "submitGigForQc" "${DESKTOP_DIR}/src/services/hubClient.ts"
+    grep -q "Submit for QC" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "qc_score" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "submit_contract_for_qc_at_index" "${DESKTOP_DIR}/src-tauri/src/gigs/mod.rs"
+    echo "Phase 14 gig QC / disputed flow checks passed."
+    ;;
   13)
     grep -q "get_event_foresight" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "get_morale_heatmap" "${DESKTOP_DIR}/src-tauri/src/lib.rs"

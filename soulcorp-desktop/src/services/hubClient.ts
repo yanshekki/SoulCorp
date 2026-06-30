@@ -41,8 +41,30 @@ export async function startGigWork(contractId: string): Promise<GigContract> {
   return invoke<GigContract>("start_gig_work", { request: { contract_id: contractId } });
 }
 
+export async function submitGigForQc(contractId: string): Promise<GigContract> {
+  return invoke<GigContract>("submit_gig_for_qc", { request: { contract_id: contractId } });
+}
+
 export async function completeHubGig(contractId: string): Promise<GigContract> {
   return invoke<GigContract>("complete_hub_gig", { request: { contract_id: contractId } });
+}
+
+export async function rejectGigQc(
+  contractId: string,
+  qcNotes?: string,
+): Promise<GigContract> {
+  return invoke<GigContract>("reject_gig_qc", {
+    request: { contract_id: contractId, qc_notes: qcNotes ?? null },
+  });
+}
+
+export async function disputeHubGig(
+  contractId: string,
+  qcNotes?: string,
+): Promise<GigContract> {
+  return invoke<GigContract>("dispute_hub_gig", {
+    request: { contract_id: contractId, qc_notes: qcNotes ?? null },
+  });
 }
 
 export async function syncWithHub(): Promise<HubSyncPull> {

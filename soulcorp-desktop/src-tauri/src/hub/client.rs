@@ -94,6 +94,55 @@ impl HubClient {
             .await
     }
 
+    pub async fn submit_gig_for_qc(&self, gig_id: u64, qc_score: f32) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-submit-qc.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(
+            &url,
+            serde_json::json!({
+                "gig_id": gig_id,
+                "qc_score": { "overall": qc_score },
+            }),
+        )
+        .await
+    }
+
+    pub async fn reject_gig_qc(
+        &self,
+        gig_id: u64,
+        qc_notes: Option<String>,
+    ) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-reject-qc.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(
+            &url,
+            serde_json::json!({
+                "gig_id": gig_id,
+                "qc_notes": qc_notes,
+            }),
+        )
+        .await
+    }
+
+    pub async fn dispute_gig(&self, gig_id: u64, qc_notes: Option<String>) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-dispute.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(
+            &url,
+            serde_json::json!({
+                "gig_id": gig_id,
+                "qc_notes": qc_notes,
+            }),
+        )
+        .await
+    }
+
     pub async fn complete_gig(&self, gig_id: u64) -> Result<Value, String> {
         let url = format!(
             "{}/api/market-gig-complete.php",

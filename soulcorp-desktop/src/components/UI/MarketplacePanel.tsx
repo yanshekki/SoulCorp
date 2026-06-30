@@ -3,9 +3,12 @@ import {
   acceptHubGig,
   completeHubGig,
   createHubGig,
+  disputeHubGig,
   listGigContracts,
   listHubGigs,
+  rejectGigQc,
   startGigWork,
+  submitGigForQc,
   syncWithHub,
 } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
@@ -20,6 +23,10 @@ function statusLabel(status: string): string {
       return "Accepted";
     case "in_progress":
       return "In progress";
+    case "in_qc":
+      return "QC review";
+    case "disputed":
+      return "Disputed";
     case "completed":
       return "Completed";
     default:
@@ -88,7 +95,10 @@ export function MarketplacePanel() {
   );
 
   const activeContracts = useMemo(
-    () => contracts.filter((contract) => contract.status === "accepted" || contract.status === "in_progress"),
+    () =>
+      contracts.filter((contract) =>
+        ["accepted", "in_progress", "in_qc", "disputed"].includes(contract.status),
+      ),
     [contracts],
   );
 
@@ -165,15 +175,49 @@ export function MarketplacePanel() {
     }
   };
 
+  const handleSubmitQc = async (contractId: string) => {
+    try {
+      const contract = await submitGigForQc(contractId);
+      setStatusMessage(
+        `Submitted ${contract.title} for QC. Score ${((contract.qc_score ?? 0) * 100).toFixed(0)}%.`,
+      );
+      await refreshContracts();
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   const handleComplete = async (contractId: string) => {
     try {
       const contract = await completeHubGig(contractId);
       await refreshFinance();
       setStatusMessage(
-        `Completed ${contract.title}. Net payout $${contract.payout_usdt.toFixed(2)} USDT (fee $${contract.platform_fee_usdt.toFixed(2)}).`,
+        `QC approved — ${contract.title}. Net payout $${contract.payout_usdt.toFixed(2)} USDT (fee $${contract.platform_fee_usdt.toFixed(2)}).`,
       );
       await refreshContracts();
       setActiveTab("history");
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const handleRejectQc = async (contractId: string) => {
+    try {
+      const contract = await rejectGigQc(contractId);
+      setStatusMessage(
+        `QC rejected for ${contract.title}. Revision required — ${contract.qc_notes ?? "Improve deliverable."}`,
+      );
+      await refreshContracts();
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const handleDispute = async (contractId: string) => {
+    try {
+      const contract = await disputeHubGig(contractId);
+      setStatusMessage(`Dispute opened for ${contract.title}. Platform mediation pending.`);
+      await refreshContracts();
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -286,7 +330,16 @@ export function MarketplacePanel() {
                   </div>
                   <span className="gig-progress-label">{Math.round(contract.progress * 100)}%</span>
                 </div>
-                <footer className="gig-card-footer">
+                {contract.qc_score != null ? (
+                  <p className="gig-qc-score">
+                    QC score: {(contract.qc_score * 100).toFixed(0)}%
+                    {contract.submitted_at
+                      ? ` · Submitted ${new Date(contract.submitted_at).toLocaleString()}`
+                      : null}
+                  </p>
+                ) : null}
+                {contract.qc_notes ? <p className="gig-qc-notes">{contract.qc_notes}</p> : null}
+                <footer className="gig-card-footer gig-card-footer-qc">
                   <span className={`gig-status-badge status-${contract.status}`}>
                     {statusLabel(contract.status)}
                   </span>
@@ -294,16 +347,42 @@ export function MarketplacePanel() {
                     <button type="button" onClick={() => void handleStart(contract.contract_id)}>
                       Start work
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="primary-action"
-                      onClick={() => void handleComplete(contract.contract_id)}
-                      disabled={contract.progress < 0.95}
-                    >
-                      Complete &amp; payout
-                    </button>
-                  )}
+                  ) : null}
+                  {contract.status === "in_progress" ? (
+                    <>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => void handleSubmitQc(contract.contract_id)}
+                        disabled={contract.progress < 0.95}
+                      >
+                        Submit for QC
+                      </button>
+                      <button type="button" onClick={() => void handleDispute(contract.contract_id)}>
+                        Dispute
+                      </button>
+                    </>
+                  ) : null}
+                  {contract.status === "in_qc" ? (
+                    <>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => void handleComplete(contract.contract_id)}
+                      >
+                        Approve QC &amp; payout
+                      </button>
+                      <button type="button" onClick={() => void handleRejectQc(contract.contract_id)}>
+                        Request revision
+                      </button>
+                      <button type="button" onClick={() => void handleDispute(contract.contract_id)}>
+                        Dispute
+                      </button>
+                    </>
+                  ) : null}
+                  {contract.status === "disputed" ? (
+                    <span className="muted">Awaiting platform mediation</span>
+                  ) : null}
                 </footer>
               </article>
             ))

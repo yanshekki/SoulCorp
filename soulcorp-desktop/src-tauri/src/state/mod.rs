@@ -104,7 +104,13 @@ pub struct GigContract {
     #[serde(default)]
     pub started_at: Option<String>,
     #[serde(default)]
+    pub submitted_at: Option<String>,
+    #[serde(default)]
     pub completed_at: Option<String>,
+    #[serde(default)]
+    pub qc_score: Option<f32>,
+    #[serde(default)]
+    pub qc_notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
