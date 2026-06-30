@@ -2,6 +2,7 @@ mod achievements;
 mod ai;
 mod commands;
 mod db;
+mod hub;
 mod soul;
 mod state;
 mod workspace;
@@ -31,9 +32,13 @@ pub fn run() {
             commands::run_simulation_tick,
             commands::get_simulation_snapshot,
             commands::get_local_queue_status,
+            commands::get_hub_status,
+            commands::update_hub_config,
+            commands::list_hub_gigs,
+            commands::create_hub_gig,
             commands::sync_with_hub,
+            commands::fetch_soul_balance,
             commands::sign_near_transaction,
-            commands::submit_gig_to_hub,
             commands::get_game_settings,
             commands::update_game_settings,
             commands::get_finance_state,

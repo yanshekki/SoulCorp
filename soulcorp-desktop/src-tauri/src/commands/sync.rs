@@ -1,4 +1,7 @@
+use crate::state::AppState;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueueStatus {
@@ -7,21 +10,12 @@ pub struct QueueStatus {
 }
 
 #[tauri::command]
-pub fn get_local_queue_status() -> Result<QueueStatus, String> {
-    Ok(QueueStatus {
-        pending_items: 0,
-        last_sync_at: None,
-    })
-}
-
-#[tauri::command]
-pub fn sync_with_hub(
-    _jwt_or_signature: String,
-    state: tauri::State<'_, std::sync::Mutex<crate::state::AppState>>,
-) -> Result<String, String> {
+pub fn get_local_queue_status(state: State<'_, Mutex<AppState>>) -> Result<QueueStatus, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.pure_local_mode {
-        return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
-    }
-    Err("Hub sync is not available until Phase 5".to_string())
+    let pending_items = state.sync_queue.len() as u32;
+
+    Ok(QueueStatus {
+        pending_items,
+        last_sync_at: state.hub.last_sync_at.clone(),
+    })
 }

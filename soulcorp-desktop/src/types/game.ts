@@ -4,9 +4,46 @@ export type SidebarPanel =
   | "workspace"
   | "meeting"
   | "finance"
+  | "marketplace"
+  | "recruitment"
   | "achievements"
   | "settings"
   | "god_mode";
+
+export interface HubGig {
+  gig_id: number;
+  title: string;
+  description: string;
+  budget_usdt: number;
+  status: string;
+  required_skills: string[];
+}
+
+export interface HubStatus {
+  connected: boolean;
+  base_url: string;
+  user_tier: string;
+  soul_balance: number;
+  pure_local_mode: boolean;
+  pending_queue_items: number;
+  last_sync_at?: string | null;
+}
+
+export interface HubSyncPull {
+  tier: string;
+  soul_balance: number;
+  open_gigs: HubGig[];
+}
+
+export interface RecruitmentCandidate {
+  id: string;
+  name: string;
+  headline: string;
+  skills: string[];
+  vibe: string;
+  verified: boolean;
+  hourly_rate_usdt: number;
+}
 
 export interface SoulProfile {
   name: string;

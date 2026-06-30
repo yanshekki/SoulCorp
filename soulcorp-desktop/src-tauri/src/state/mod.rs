@@ -44,6 +44,29 @@ impl Default for GameSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubState {
+    pub connected: bool,
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub user_tier: String,
+    pub soul_balance: f64,
+    pub last_sync_at: Option<String>,
+}
+
+impl Default for HubState {
+    fn default() -> Self {
+        Self {
+            connected: false,
+            base_url: "https://soulmd-hub.ysk.hk".to_string(),
+            api_key: None,
+            user_tier: "free".to_string(),
+            soul_balance: 0.0,
+            last_sync_at: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameStats {
     pub meetings_completed: u32,
@@ -113,7 +136,7 @@ pub struct MeetingState {
     pub morale_delta: f32,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     pub settings: GameSettings,
     pub finance: FinanceState,
@@ -123,9 +146,31 @@ pub struct AppState {
     pub achievements: Vec<Achievement>,
     pub endings: Vec<Ending>,
     pub stats: GameStats,
+    pub hub: HubState,
+    pub sync_queue: Vec<serde_json::Value>,
     pub day_number: u32,
     pub tick: u64,
     pub last_backup_tick: u64,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            settings: GameSettings::default(),
+            finance: FinanceState::default(),
+            agents: HashMap::new(),
+            events: Vec::new(),
+            meetings: HashMap::new(),
+            achievements: Vec::new(),
+            endings: Vec::new(),
+            stats: GameStats::default(),
+            hub: HubState::default(),
+            sync_queue: Vec::new(),
+            day_number: 1,
+            tick: 0,
+            last_backup_tick: 0,
+        }
+    }
 }
 
 impl AppState {
