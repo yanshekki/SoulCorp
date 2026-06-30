@@ -4,10 +4,15 @@ use crate::tier::can_use_feature;
 use crate::workspace::WorkspaceTree;
 
 pub fn company_name_for(state: &AppState) -> String {
-    if can_use_feature(&state.hub.user_tier, "white_label_export") {
-        "SoulCorp Company Report (White-label)".to_string()
+    let base = if state.company_name.trim().is_empty() {
+        "SoulCorp".to_string()
     } else {
-        "SoulCorp Company Report".to_string()
+        state.company_name.trim().to_string()
+    };
+    if can_use_feature(&state.hub.user_tier, "white_label_export") {
+        format!("{base} (White-label)")
+    } else {
+        base
     }
 }
 

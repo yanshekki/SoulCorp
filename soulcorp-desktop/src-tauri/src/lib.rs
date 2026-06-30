@@ -63,6 +63,8 @@ pub fn run() {
             commands::claim_near_tier_upgrade,
             commands::get_game_settings,
             commands::update_game_settings,
+            commands::get_onboarding_state,
+            commands::complete_onboarding,
             commands::get_finance_state,
             commands::list_internal_projects,
             commands::update_budget_allocations,

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import { getHubStatus } from "../services/hubClient";
+import { getOnboardingState } from "../services/onboardingClient";
 import { useGameStore } from "../stores/gameStore";
 import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import type {
@@ -26,15 +27,18 @@ export function useGameBootstrap() {
   const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setTierBenefits = useGameStore((state) => state.setTierBenefits);
   const setAgents = useGameStore((state) => state.setAgents);
-
+  const setCompanyName = useGameStore((state) => state.setCompanyName);
+  const setOnboardingCompleted = useGameStore((state) => state.setOnboardingCompleted);
+  const setOnboardingReady = useGameStore((state) => state.setOnboardingReady);
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const [agents, finance, settings, hubStatus] = await Promise.all([
+        const [agents, finance, settings, onboarding, hubStatus] = await Promise.all([
           invoke<AgentRecord[]>("list_agents"),
           invoke<FinanceState>("get_finance_state"),
           invoke<GameSettings>("get_game_settings"),
+          getOnboardingState(),
           getHubStatus().catch(
             (): HubStatus => ({
               connected: false,
@@ -54,6 +58,9 @@ export function useGameBootstrap() {
         setAgents(syncAgentsFromRecords(agents, []));
         setFinance(finance);
         setSettings(settings);
+        setCompanyName(onboarding.company_name);
+        setOnboardingCompleted(onboarding.completed);
+        setOnboardingReady(true);
         setHubStatus(hubStatus);
         const tierBenefits = await invoke<TierBenefits>("get_tier_benefits").catch(
           (): TierBenefits => ({
@@ -92,6 +99,7 @@ export function useGameBootstrap() {
         setSimulation({ dayNumber: 1 });
         setStatusMessage("SOUL.md profiles loaded. Office simulation ready.");
       } catch (error) {
+        setOnboardingReady(true);
         setStatusMessage(`Bootstrap fallback: ${String(error)}`);
       }
     };
@@ -100,6 +108,9 @@ export function useGameBootstrap() {
   }, [
     setAgentRecords,
     setAgents,
+    setCompanyName,
+    setOnboardingCompleted,
+    setOnboardingReady,
     setFinance,
     setHubStatus,
     setTierBenefits,

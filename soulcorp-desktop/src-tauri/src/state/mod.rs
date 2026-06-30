@@ -29,6 +29,10 @@ pub struct GameSettings {
     pub backup_interval_minutes: u32,
 }
 
+pub fn default_onboarding_completed() -> bool {
+    true
+}
+
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
@@ -230,6 +234,10 @@ pub struct MeetingState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppState {
+    #[serde(default)]
+    pub company_name: String,
+    #[serde(default = "default_onboarding_completed")]
+    pub onboarding_completed: bool,
     pub settings: GameSettings,
     pub finance: FinanceState,
     pub agents: HashMap<String, AgentRecord>,
@@ -258,6 +266,8 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
+            company_name: "SoulCorp".to_string(),
+            onboarding_completed: false,
             settings: GameSettings::default(),
             finance: FinanceState::default(),
             agents: HashMap::new(),

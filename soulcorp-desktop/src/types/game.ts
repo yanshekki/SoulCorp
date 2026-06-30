@@ -139,6 +139,18 @@ export interface FinanceState {
   cash_crisis: boolean;
 }
 
+export interface OnboardingState {
+  company_name: string;
+  completed: boolean;
+}
+
+export interface CompleteOnboardingRequest {
+  company_name: string;
+  event_mode: EventMode;
+  pure_local_mode: boolean;
+  random_events_enabled: boolean;
+}
+
 export interface GameSettings {
   random_events_enabled: boolean;
   event_mode: EventMode;

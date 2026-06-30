@@ -35,6 +35,11 @@ function TierBadge() {
   return <span className={`sidebar-tier tier-${tier}`}>{tier.toUpperCase()}</span>;
 }
 
+function SidebarTitle() {
+  const companyName = useGameStore((state) => state.companyName);
+  return <h1>{companyName}</h1>;
+}
+
 function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
   switch (panel) {
     case "workspace":
@@ -76,7 +81,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>SoulCorp</h1>
+          <SidebarTitle />
           <p className="tagline">AI Company Simulator</p>
           <TierBadge />
         </div>

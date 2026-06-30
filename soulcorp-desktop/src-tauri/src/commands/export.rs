@@ -3,7 +3,6 @@ use crate::report::{
     build_html, build_markdown, build_pdf_lines, company_name_for, slugify, workspace_index,
 };
 use crate::state::AppState;
-use crate::tier::can_use_feature;
 use crate::workspace::{storage::workspace_root, WorkspaceStorage};
 use chrono::Utc;
 use printpdf::{BuiltinFont, Mm, PdfDocument};
@@ -28,6 +27,8 @@ pub struct ExportResult {
 pub struct CompanyBackup {
     pub exported_at: String,
     pub company_name: String,
+    #[serde(default = "crate::state::default_onboarding_completed")]
+    pub onboarding_completed: bool,
     pub day_number: u32,
     #[serde(default)]
     pub tick: u64,
@@ -42,15 +43,12 @@ pub struct CompanyBackup {
 }
 
 pub fn build_company_backup(state: &AppState) -> CompanyBackup {
-    let company_name = if can_use_feature(&state.hub.user_tier, "white_label_export") {
-        "SoulCorp (White-label)".to_string()
-    } else {
-        "SoulCorp".to_string()
-    };
+    let company_name = company_name_for(state);
 
     CompanyBackup {
         exported_at: Utc::now().to_rfc3339(),
         company_name,
+        onboarding_completed: state.onboarding_completed,
         day_number: state.day_number,
         tick: state.tick,
         finance: state.finance.clone(),
@@ -316,6 +314,10 @@ pub fn import_company_backup(
     let backup: CompanyBackup = serde_json::from_str(&content).map_err(|e| e.to_string())?;
 
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    if !backup.company_name.trim().is_empty() {
+        state.company_name = backup.company_name.trim().to_string();
+    }
+    state.onboarding_completed = backup.onboarding_completed;
     state.day_number = backup.day_number;
     state.tick = backup.tick;
     state.finance = backup.finance;

@@ -113,6 +113,17 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  11)
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/onboarding.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
+    test -f "${DESKTOP_DIR}/src/services/onboardingClient.ts"
+    grep -q "get_onboarding_state" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "complete_onboarding" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "onboarding_completed" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "OnboardingWizard" "${DESKTOP_DIR}/src/App.tsx"
+    grep -q "onboarding-overlay" "${DESKTOP_DIR}/src/App.css"
+    echo "Phase 11 onboarding checks passed."
+    ;;
   10)
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/gigs.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/gigs/mod.rs"

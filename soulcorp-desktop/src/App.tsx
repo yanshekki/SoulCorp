@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { BuildingModal } from "./components/BuildingModal";
 import { GameScene } from "./components/GameScene";
+import { OnboardingWizard } from "./components/UI/OnboardingWizard";
 import { ShellLayout } from "./components/UI/ShellLayout";
 import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
@@ -29,6 +30,7 @@ function App() {
         {activePanel === "workspace" ? <WorkspaceShell /> : <GameScene />}
       </ShellLayout>
       <BuildingModal />
+      <OnboardingWizard />
     </>
   );
 }

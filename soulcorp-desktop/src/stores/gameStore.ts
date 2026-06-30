@@ -16,6 +16,8 @@ import type { Agent, Building, SimulationState } from "../types/world";
 
 interface GameStore {
   companyName: string;
+  onboardingCompleted: boolean;
+  onboardingReady: boolean;
   statusMessage: string;
   activePanel: SidebarPanel;
   agents: Agent[];
@@ -48,10 +50,15 @@ interface GameStore {
   setEndings: (endings: Ending[]) => void;
   setHubStatus: (hubStatus: HubStatus) => void;
   setTierBenefits: (tierBenefits: TierBenefits) => void;
+  setCompanyName: (companyName: string) => void;
+  setOnboardingCompleted: (completed: boolean) => void;
+  setOnboardingReady: (ready: boolean) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
   companyName: "SoulCorp",
+  onboardingCompleted: true,
+  onboardingReady: false,
   statusMessage: "Initializing agent systems...",
   activePanel: "office",
   agents: INITIAL_AGENTS,
@@ -133,4 +140,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setEndings: (endings) => set({ endings }),
   setHubStatus: (hubStatus) => set({ hubStatus }),
   setTierBenefits: (tierBenefits) => set({ tierBenefits }),
+  setCompanyName: (companyName) => set({ companyName }),
+  setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
+  setOnboardingReady: (ready) => set({ onboardingReady: ready }),
 }));
