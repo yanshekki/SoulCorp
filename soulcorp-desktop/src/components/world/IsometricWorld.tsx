@@ -1,4 +1,4 @@
-import { OrbitControls, SoftShadows } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { useGameStore } from "../../stores/gameStore";
 import { BuildingMesh } from "./BuildingMesh";
 import { CameraController } from "./CameraController";
@@ -28,7 +28,6 @@ export function IsometricWorld() {
         shadow-camera-top={18}
         shadow-camera-bottom={-18}
       />
-      {!lowPowerMode ? <SoftShadows size={12} focus={0.5} samples={8} /> : null}
       <CameraController />
       <OfficeTilemap />
       <OfficeEnvironment />
