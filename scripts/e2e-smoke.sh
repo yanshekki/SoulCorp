@@ -8,6 +8,14 @@ echo "==> SoulCorp E2E smoke tests"
 
 "${REPO_ROOT}/scripts/verify-phase.sh" 6
 
+BUNDLE_DIR="${DESKTOP_DIR}/src-tauri/target/release/bundle"
+if [[ -f "${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb" ]]; then
+  echo "Release .deb bundle present ($(du -h "${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb" | cut -f1))."
+fi
+if [[ -f "${BUNDLE_DIR}/appimage/SoulCorp_1.0.0_amd64.AppImage" ]]; then
+  echo "Release AppImage present ($(du -h "${BUNDLE_DIR}/appimage/SoulCorp_1.0.0_amd64.AppImage" | cut -f1))."
+fi
+
 # Rust module presence checks (no full cargo build required on minimal Linux)
 for file in \
   "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs" \

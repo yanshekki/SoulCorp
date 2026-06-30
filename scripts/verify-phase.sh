@@ -81,11 +81,14 @@ case "${PHASE}" in
   6)
     test -f "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/tier.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/near.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/report/mod.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/TierPanel.tsx"
     test -f "${REPO_ROOT}/scripts/build-release.sh"
     test -f "${REPO_ROOT}/scripts/e2e-smoke.sh"
     grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/package.json"
     grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
+    grep -q '"devtools": false' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
     echo "Phase 6 checks passed."
     ;;
   *)
