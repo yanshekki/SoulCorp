@@ -6,6 +6,7 @@ import type { HubGig } from "../../types/game";
 export function MarketplacePanel() {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
+  const tierBenefits = useGameStore((state) => state.tierBenefits);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
@@ -80,7 +81,11 @@ export function MarketplacePanel() {
       <h2>Marketplace</h2>
       <p className="muted">
         Browse open gigs from soulmd-hub or publish work for other companies.
+        Platform fee: {tierBenefits.platform_fee_percent.toFixed(0)}%.
       </p>
+      {tierBenefits.executive_lounge ? (
+        <p className="tier-highlight">Executive Lounge gigs are visible on your tier.</p>
+      ) : null}
 
       <div className="hub-status-row">
         <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>

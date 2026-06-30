@@ -10,6 +10,7 @@ import { MeetingPanel } from "./MeetingPanel";
 import { PauseMenu } from "./PauseMenu";
 import { RecruitmentPanel } from "./RecruitmentPanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { TierPanel } from "./TierPanel";
 
 interface ShellLayoutProps {
   children: ReactNode;
@@ -23,10 +24,16 @@ const PANELS: { id: SidebarPanel; label: string }[] = [
   { id: "finance", label: "Finance" },
   { id: "marketplace", label: "Marketplace" },
   { id: "recruitment", label: "Recruitment" },
+  { id: "tier", label: "Pro / VIP" },
   { id: "achievements", label: "Achievements" },
   { id: "settings", label: "Settings" },
   { id: "god_mode", label: "God Mode" },
 ];
+
+function TierBadge() {
+  const tier = useGameStore((state) => state.tierBenefits.tier);
+  return <span className={`sidebar-tier tier-${tier}`}>{tier.toUpperCase()}</span>;
+}
 
 function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
   switch (panel) {
@@ -45,6 +52,8 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <MarketplacePanel />;
     case "recruitment":
       return <RecruitmentPanel />;
+    case "tier":
+      return <TierPanel />;
     case "achievements":
       return <AchievementsPanel />;
     case "settings":
@@ -69,6 +78,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
         <div className="sidebar-header">
           <h1>SoulCorp</h1>
           <p className="tagline">AI Company Simulator</p>
+          <TierBadge />
         </div>
         <SidebarPanelContent panel={activePanel} />
         <nav className="sidebar-actions">

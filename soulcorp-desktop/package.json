@@ -1,7 +1,7 @@
 {
   "name": "soulcorp-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "verify": "pnpm typecheck && pnpm build"
+    "verify": "pnpm typecheck && pnpm build",
+    "release:bundle": "pnpm build && pnpm tauri build"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

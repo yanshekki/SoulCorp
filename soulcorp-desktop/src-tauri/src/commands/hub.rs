@@ -1,5 +1,6 @@
 use crate::hub::{mock_gigs, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
+use crate::tier::can_use_feature;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -117,6 +118,12 @@ pub async fn sync_with_hub(state: State<'_, Mutex<AppState>>) -> Result<HubSyncP
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if state.settings.pure_local_mode {
         return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
+    }
+    if !can_use_feature(&state.hub.user_tier, "cloud_sync") {
+        return Err(
+            "Cloud sync requires Pro or VIP tier. Stake $SOUL on soulmd-hub to upgrade."
+                .to_string(),
+        );
     }
 
     let client = client_from_state(&state);

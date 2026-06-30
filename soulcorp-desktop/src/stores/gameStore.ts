@@ -10,6 +10,7 @@ import type {
   HubStatus,
   MeetingSnapshot,
   SidebarPanel,
+  TierBenefits,
 } from "../types/game";
 import type { Agent, Building, SimulationState } from "../types/world";
 
@@ -30,6 +31,7 @@ interface GameStore {
   achievements: Achievement[];
   endings: Ending[];
   hubStatus: HubStatus;
+  tierBenefits: TierBenefits;
   setStatusMessage: (message: string) => void;
   setAgents: (agents: Agent[]) => void;
   setAgentRecords: (records: AgentRecord[]) => void;
@@ -45,6 +47,7 @@ interface GameStore {
   setAchievements: (achievements: Achievement[]) => void;
   setEndings: (endings: Ending[]) => void;
   setHubStatus: (hubStatus: HubStatus) => void;
+  setTierBenefits: (tierBenefits: TierBenefits) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -90,6 +93,16 @@ export const useGameStore = create<GameStore>((set) => ({
     pending_queue_items: 0,
     last_sync_at: null,
   },
+  tierBenefits: {
+    tier: "free",
+    platform_fee_percent: 10,
+    max_agents: 50,
+    cloud_sync_enabled: false,
+    priority_gig_matching: false,
+    event_foresight_days: 0,
+    white_label_export: false,
+    executive_lounge: false,
+  },
   setStatusMessage: (message) => set({ statusMessage: message }),
   setAgents: (agents) => set({ agents }),
   setAgentRecords: (records) => set({ agentRecords: records }),
@@ -109,4 +122,5 @@ export const useGameStore = create<GameStore>((set) => ({
   setAchievements: (achievements) => set({ achievements }),
   setEndings: (endings) => set({ endings }),
   setHubStatus: (hubStatus) => set({ hubStatus }),
+  setTierBenefits: (tierBenefits) => set({ tierBenefits }),
 }));

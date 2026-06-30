@@ -10,6 +10,7 @@ pub mod near;
 pub mod settings;
 pub mod simulation;
 pub mod sync;
+pub mod tier;
 pub mod workspace;
 
 pub use achievements_cmd::*;
@@ -24,4 +25,5 @@ pub use near::*;
 pub use settings::*;
 pub use simulation::*;
 pub use sync::*;
+pub use tier::*;
 pub use workspace::*;

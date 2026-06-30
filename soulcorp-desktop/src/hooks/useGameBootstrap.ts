@@ -1,8 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { useGameStore } from "../stores/gameStore";
 import { getHubStatus } from "../services/hubClient";
-import type { AgentRecord, FinanceState, GameSettings, HubStatus } from "../types/game";
+import { useGameStore } from "../stores/gameStore";
+import type {
+  AgentRecord,
+  FinanceState,
+  GameSettings,
+  HubStatus,
+  TierBenefits,
+} from "../types/game";
 
 const SAMPLE_SOULS = [
   { agentId: "agent-1", path: "/samples/mira.soul.md" },
@@ -17,6 +23,7 @@ export function useGameBootstrap() {
   const setSettings = useGameStore((state) => state.setSettings);
   const setSimulation = useGameStore((state) => state.setSimulation);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
+  const setTierBenefits = useGameStore((state) => state.setTierBenefits);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -42,6 +49,19 @@ export function useGameBootstrap() {
         setFinance(finance);
         setSettings(settings);
         setHubStatus(hubStatus);
+        const tierBenefits = await invoke<TierBenefits>("get_tier_benefits").catch(
+          (): TierBenefits => ({
+            tier: "free",
+            platform_fee_percent: 10,
+            max_agents: 50,
+            cloud_sync_enabled: false,
+            priority_gig_matching: false,
+            event_foresight_days: 0,
+            white_label_export: false,
+            executive_lounge: false,
+          }),
+        );
+        setTierBenefits(tierBenefits);
         setStatusMessage("Agent systems online. Sample SOUL profiles loading...");
 
         await Promise.all(
@@ -72,6 +92,7 @@ export function useGameBootstrap() {
     setAgentRecords,
     setFinance,
     setHubStatus,
+    setTierBenefits,
     setSettings,
     setSimulation,
     setStatusMessage,
