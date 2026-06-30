@@ -186,6 +186,19 @@ export function SettingsPanel() {
     <section className="panel-card settings-panel">
       <h2>Settings</h2>
 
+      <div className="offline-capabilities">
+        <h3>Offline capabilities</h3>
+        <ul>
+          <li>Simulation, meetings, and workspace run without network access.</li>
+          <li>Pure Local Mode disables hub sync and marketplace calls.</li>
+          <li>
+            Auto-backup writes to the local exports folder every{" "}
+            {settings.backup_interval_minutes || "—"} minutes.
+          </li>
+          <li>Low power mode uses map view and slower simulation ticks.</li>
+        </ul>
+      </div>
+
       <label className="checkbox-row">
         <input
           type="checkbox"

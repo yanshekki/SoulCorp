@@ -597,10 +597,19 @@ body,
 }
 
 .status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   padding: 0.75rem 1rem;
   border-top: 1px solid #5a4638;
   color: #d9c8b4;
   font-size: 0.9rem;
+}
+
+.status-message {
+  flex: 1;
+  min-width: 0;
 }
 
 .panel-card {
@@ -1426,9 +1435,96 @@ body,
   background: radial-gradient(circle at center, transparent 55%, rgba(18, 28, 36, 0.28) 100%);
 }
 
+.offline-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.offline-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.offline-pill.pure-local {
+  border-color: rgba(157, 210, 164, 0.45);
+  color: #9dd2a4;
+}
+
+.offline-pill.hybrid {
+  border-color: rgba(147, 197, 253, 0.45);
+  color: #93c5fd;
+}
+
+.offline-pill.online {
+  border-color: rgba(157, 210, 164, 0.45);
+  color: #9dd2a4;
+}
+
+.offline-pill.offline {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fbbf24;
+}
+
+.offline-pill.performance {
+  border-color: rgba(196, 181, 253, 0.45);
+  color: #c4b5fd;
+}
+
+.offline-pill.backup {
+  border-color: rgba(255, 214, 130, 0.45);
+  color: #ffd682;
+}
+
+.offline-capabilities {
+  margin-bottom: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.offline-capabilities h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+
+.offline-capabilities ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: #c8b6a3;
+  display: grid;
+  gap: 0.25rem;
+}
+
 .achievements-panel h3 {
   margin: 0.75rem 0 0.35rem;
   font-size: 0.95rem;
+}
+
+.achievement-progress {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+}
+
+.achievement-category {
+  margin-bottom: 0.65rem;
+}
+
+.achievement-date {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+}
+
+.endings-list {
+  max-height: 220px;
 }
 
 .achievement-list {

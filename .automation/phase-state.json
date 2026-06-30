@@ -1,5 +1,5 @@
 {
-  "current_phase": 4,
+  "current_phase": 5,
   "repo_root": "/home/ki/文件/SoulCorp",
   "phases": {
     "0": {
@@ -35,7 +35,7 @@
       "status": "merged",
       "description": "Achievements, export, offline polish, performance",
       "merged_at": "2026-06-30T03:46:51.704707+00:00",
-      "completion": 90
+      "completion": 100
     },
     "5": {
       "branch": "phase-5/hub-integration",

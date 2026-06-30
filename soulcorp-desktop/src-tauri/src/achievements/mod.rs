@@ -94,6 +94,46 @@ pub fn default_achievements() -> Vec<Achievement> {
             unlocked: false,
             unlocked_at: None,
         },
+        Achievement {
+            id: "first_export".into(),
+            title: "Ship It".into(),
+            description: "Export your first backup, report, or deliverable.".into(),
+            category: "productivity".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
+        Achievement {
+            id: "export_artisan".into(),
+            title: "Export Artisan".into(),
+            description: "Create at least 5 exports.".into(),
+            category: "productivity".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
+        Achievement {
+            id: "ten_agents".into(),
+            title: "Growing Team".into(),
+            description: "Run a company with at least 10 agents.".into(),
+            category: "growth".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
+        Achievement {
+            id: "gig_finisher".into(),
+            title: "Gig Finisher".into(),
+            description: "Complete your first gig contract.".into(),
+            category: "economic".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
+        Achievement {
+            id: "auto_backup".into(),
+            title: "Backup Guardian".into(),
+            description: "Enable periodic auto-backup in settings.".into(),
+            category: "offline".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
     ]
 }
 
@@ -120,6 +160,13 @@ pub fn default_endings() -> Vec<Ending> {
             unlocked: false,
             unlocked_at: None,
         },
+        Ending {
+            id: "self_sustaining".into(),
+            title: "Self-Sustaining Collective".into(),
+            description: "Complete 10 gigs with a team of at least 5 agents.".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
     ]
 }
 
@@ -136,6 +183,7 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
 
     let checks: Vec<(&str, bool)> = vec![
         ("three_agents", state.agents.len() >= 3),
+        ("ten_agents", state.agents.len() >= 10),
         ("first_meeting", state.stats.meetings_completed >= 1),
         (
             "serious_mode",
@@ -149,6 +197,10 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
             state.finance.monthly_revenue > state.finance.monthly_burn,
         ),
         ("workspace_builder", state.stats.pages_created >= 5),
+        ("first_export", state.stats.exports_created >= 1),
+        ("export_artisan", state.stats.exports_created >= 5),
+        ("gig_finisher", state.stats.gigs_completed >= 1),
+        ("auto_backup", state.settings.backup_interval_minutes > 0),
     ];
 
     for (id, condition) in checks {
@@ -167,6 +219,9 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
         && state.settings.event_mode == crate::state::EventMode::Fun
     {
         unlock_ending(state, "maximum_chaos", &now, &mut newly_unlocked);
+    }
+    if state.stats.gigs_completed >= 10 && state.agents.len() >= 5 {
+        unlock_ending(state, "self_sustaining", &now, &mut newly_unlocked);
     }
 
     AchievementSnapshot {
@@ -193,5 +248,72 @@ fn unlock_ending(state: &mut AppState, id: &str, now: &str, newly_unlocked: &mut
             ending.unlocked_at = Some(now.to_string());
             newly_unlocked.push(format!("ending:{id}"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{AppState, EventMode, GameSettings};
+
+    fn sample_state() -> AppState {
+        let mut state = AppState::default();
+        state.settings = GameSettings::default();
+        state
+    }
+
+    #[test]
+    fn unlocks_first_export_when_exports_exist() {
+        let mut state = sample_state();
+        state.stats.exports_created = 1;
+        let snapshot = evaluate(&mut state);
+        assert!(snapshot
+            .achievements
+            .iter()
+            .find(|item| item.id == "first_export")
+            .is_some_and(|item| item.unlocked));
+        assert!(snapshot.newly_unlocked.contains(&"first_export".to_string()));
+    }
+
+    #[test]
+    fn unlocks_self_sustaining_ending_for_gig_milestones() {
+        let mut state = sample_state();
+        state.stats.gigs_completed = 10;
+        for index in 1..=5 {
+            let id = format!("a{index}");
+            state.agents.insert(
+                id.clone(),
+                crate::state::AgentRecord {
+                    id,
+                    name: format!("Agent {index}"),
+                    role: "Engineer".into(),
+                    department: "Engineering".into(),
+                    morale: 0.8,
+                    energy: 0.8,
+                    salary: 1000.0,
+                    status: "idle".into(),
+                    soul: None,
+                    soul_id: None,
+                },
+            );
+        }
+        let snapshot = evaluate(&mut state);
+        assert!(snapshot
+            .endings
+            .iter()
+            .find(|item| item.id == "self_sustaining")
+            .is_some_and(|item| item.unlocked));
+    }
+
+    #[test]
+    fn serious_mode_unlocks_serious_work_achievement() {
+        let mut state = sample_state();
+        state.settings.event_mode = EventMode::Serious;
+        let snapshot = evaluate(&mut state);
+        assert!(snapshot
+            .achievements
+            .iter()
+            .find(|item| item.id == "serious_mode")
+            .is_some_and(|item| item.unlocked));
     }
 }

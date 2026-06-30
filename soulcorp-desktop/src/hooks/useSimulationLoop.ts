@@ -12,11 +12,18 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { WorkspaceTree } from "../types/workspace";
 import { advanceAgents } from "../utils/agentMovement";
 
+const TICK_INTERVAL_SECONDS = 1;
+const LOW_POWER_TICK_INTERVAL_SECONDS = 2;
+
 export function useSimulationLoop() {
   const isPaused = useGameStore((state) => state.isPaused);
+  const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
   const tickAccumulatorRef = useRef(0);
+  const tickInterval = lowPowerMode
+    ? LOW_POWER_TICK_INTERVAL_SECONDS
+    : TICK_INTERVAL_SECONDS;
 
   useEffect(() => {
     if (isPaused) {
@@ -49,7 +56,7 @@ export function useSimulationLoop() {
       setAgents(advanceAgents(agents, agentRecords, buildings, delta, simulation.tick));
 
       tickAccumulatorRef.current += delta;
-      if (tickAccumulatorRef.current >= 1) {
+      if (tickAccumulatorRef.current >= tickInterval) {
         tickAccumulatorRef.current = 0;
         invoke<SimulationTickResult>("run_simulation_tick")
           .then(async (result) => {
@@ -94,5 +101,5 @@ export function useSimulationLoop() {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, [isPaused]);
+  }, [isPaused, tickInterval]);
 }

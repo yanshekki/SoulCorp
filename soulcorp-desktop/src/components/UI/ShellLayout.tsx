@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
 import { AchievementsPanel } from "./AchievementsPanel";
+import { OfflineStatusBar } from "./OfflineStatusBar";
 import { Dashboard } from "./Dashboard";
 import { FinancePanel } from "./FinancePanel";
 import { GodModePanel } from "./GodModePanel";
@@ -110,7 +111,10 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
       </aside>
       <main className="main-panel">
         <div className="main-panel-viewport">{children}</div>
-        <footer className="status-bar">{statusMessage}</footer>
+        <footer className="status-bar">
+          <OfflineStatusBar />
+          <span className="status-message">{statusMessage}</span>
+        </footer>
       </main>
       <PauseMenu />
     </div>
