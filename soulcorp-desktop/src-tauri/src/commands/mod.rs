@@ -1,9 +1,19 @@
 pub mod agent;
+pub mod events;
+pub mod finance;
+pub mod god_mode;
+pub mod meeting;
 pub mod near;
+pub mod settings;
 pub mod simulation;
 pub mod sync;
 
 pub use agent::*;
+pub use events::*;
+pub use finance::*;
+pub use god_mode::*;
+pub use meeting::*;
 pub use near::*;
+pub use settings::*;
 pub use simulation::*;
 pub use sync::*;

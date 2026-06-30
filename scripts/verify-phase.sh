@@ -30,6 +30,15 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src/components/world/IsometricWorld.tsx"
     echo "Phase 1 checks passed."
     ;;
+  2)
+    test -f "${DESKTOP_DIR}/src-tauri/src/ai/provider.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/soul/mod.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/FinancePanel.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/GodModePanel.tsx"
+    echo "Phase 2 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

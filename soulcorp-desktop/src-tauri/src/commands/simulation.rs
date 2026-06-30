@@ -1,22 +1,82 @@
+use crate::commands::events::maybe_roll_event;
+use crate::state::{AppState, GameEvent};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static TICK_COUNTER: AtomicU64 = AtomicU64::new(0);
+use std::sync::Mutex;
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SimulationTickResult {
     pub tick: u64,
     pub agents_active: u32,
+    pub day_number: u32,
+    pub cash_balance: f64,
     pub message: String,
+    pub event: Option<GameEvent>,
 }
 
 #[tauri::command]
-pub fn run_simulation_tick() -> Result<SimulationTickResult, String> {
-    let tick = TICK_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
+pub fn run_simulation_tick(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<SimulationTickResult, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    state.tick += 1;
+
+    let compute_cost = state.agents.len() as f64 * 2.5;
+    state.finance.compute_tokens = (state.finance.compute_tokens - compute_cost).max(0.0);
+    state.finance.cash_balance -= compute_cost * 0.15;
+
+    if state.tick % 30 == 0 {
+        state.day_number += 1;
+        state.finance.cash_balance += state.finance.monthly_revenue / 30.0;
+    }
+
+    for agent in state.agents.values_mut() {
+        if agent.status != "meeting" {
+            agent.energy = (agent.energy - 0.01).max(0.2);
+            if agent.energy < 0.35 {
+                agent.morale = (agent.morale - 0.02).max(0.0);
+            }
+        }
+    }
+
+    let event = if state.tick % 15 == 0 {
+        maybe_roll_event(&mut state)
+    } else {
+        None
+    };
+
+    let agents_active = state
+        .agents
+        .values()
+        .filter(|agent| agent.status == "working" || agent.status == "meeting")
+        .count() as u32;
+
+    let message = if let Some(event) = &event {
+        format!(
+            "Day {} tick {}: event triggered — {}",
+            state.day_number, state.tick, event.title
+        )
+    } else {
+        format!(
+            "Day {} tick {}: simulation running with {} agents.",
+            state.day_number,
+            state.tick,
+            state.agents.len()
+        )
+    };
 
     Ok(SimulationTickResult {
-        tick,
-        agents_active: 3,
-        message: format!("Simulation tick {tick}: agents are moving through the office."),
+        tick: state.tick,
+        agents_active,
+        day_number: state.day_number,
+        cash_balance: state.finance.cash_balance,
+        message,
+        event,
     })
+}
+
+#[tauri::command]
+pub fn get_simulation_snapshot(state: State<'_, Mutex<AppState>>) -> Result<AppState, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    Ok(state.clone())
 }
