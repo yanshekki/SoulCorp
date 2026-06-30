@@ -624,6 +624,10 @@ pub async fn hire_candidate(
         .unwrap_or_else(|| request.candidate_id.replace("hub-soul-", "Candidate "));
 
     let department = request.department.clone();
+    let soul_id = request
+        .candidate_id
+        .strip_prefix("hub-soul-")
+        .and_then(|id| id.parse::<u64>().ok());
     let record = AgentRecord {
         id: agent_id.clone(),
         name,
@@ -634,6 +638,7 @@ pub async fn hire_candidate(
         salary: offered_salary,
         status: "idle".to_string(),
         soul,
+        soul_id,
     };
 
     state.finance.cash_balance -= offered_salary as f64 * 0.5;

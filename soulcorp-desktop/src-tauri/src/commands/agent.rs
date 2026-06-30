@@ -60,6 +60,7 @@ pub fn start_local_agent(
             salary: 3500.0,
             status: "idle".to_string(),
             soul,
+            soul_id: None,
         },
     );
 

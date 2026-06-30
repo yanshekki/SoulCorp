@@ -83,6 +83,7 @@ pub fn run() {
             commands::get_recent_events,
             commands::get_event_foresight,
             commands::get_morale_heatmap,
+            commands::get_meeting_ai_status,
             commands::start_meeting,
             commands::advance_meeting,
             commands::god_mode_time_warp,

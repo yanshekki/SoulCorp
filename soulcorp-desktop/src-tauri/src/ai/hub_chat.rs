@@ -11,6 +11,21 @@ pub struct HubChatProvider {
 }
 
 impl HubChatProvider {
+    pub fn is_reachable(&self) -> bool {
+        let api_key = match self.api_key.as_ref().filter(|key| !key.trim().is_empty()) {
+            Some(key) => key,
+            None => return false,
+        };
+
+        let url = format!("{}/api/souls.php?limit=1", self.base_url.trim_end_matches('/'));
+        self.client
+            .get(url)
+            .header("Authorization", format!("Bearer {api_key}"))
+            .send()
+            .map(|response| response.status().is_success())
+            .unwrap_or(false)
+    }
+
     pub fn new(base_url: String, api_key: Option<String>) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(180))
@@ -41,14 +56,25 @@ impl AiProvider for HubChatProvider {
 
         let url = format!("{}/api/chat", self.base_url.trim_end_matches('/'));
         let session_token = format!("soulcorp-{}", Uuid::new_v4());
-        let content = format!(
-            "{}\n\nUser request:\n{}",
-            request.system_prompt, request.user_prompt
-        );
+        let transcript = request
+            .conversation_turns
+            .iter()
+            .map(|turn| format!("{}: {}", turn.role, turn.content))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let content = if transcript.is_empty() {
+            format!("{}\n\nUser request:\n{}", request.system_prompt, request.user_prompt)
+        } else {
+            format!(
+                "{}\n\nMeeting transcript so far:\n{}\n\nNow respond as the active speaker:\n{}",
+                request.system_prompt, transcript, request.user_prompt
+            )
+        };
+        let soul_id = request.soul_id.unwrap_or(1);
 
         let body = json!({
             "action": "chat",
-            "soul_id": 1,
+            "soul_id": soul_id,
             "session_token": session_token,
             "content": content,
             "is_private": true

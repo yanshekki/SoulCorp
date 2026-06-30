@@ -23,6 +23,14 @@ pub struct GameSettings {
     pub event_mode: EventMode,
     pub god_mode_enabled: bool,
     pub ai_provider: String,
+    #[serde(default = "default_ollama_base_url")]
+    pub ollama_base_url: String,
+    #[serde(default = "default_ollama_model")]
+    pub ollama_model: String,
+    #[serde(default = "default_meeting_turns_per_agent")]
+    pub meeting_turns_per_agent: u32,
+    #[serde(default = "default_true")]
+    pub meeting_llm_fallback: bool,
     pub pure_local_mode: bool,
     pub pixel_filter_enabled: bool,
     pub low_power_mode: bool,
@@ -33,6 +41,22 @@ pub fn default_onboarding_completed() -> bool {
     true
 }
 
+fn default_ollama_base_url() -> String {
+    "http://127.0.0.1:11434".to_string()
+}
+
+fn default_ollama_model() -> String {
+    "llama3.2".to_string()
+}
+
+fn default_meeting_turns_per_agent() -> u32 {
+    3
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
@@ -40,6 +64,10 @@ impl Default for GameSettings {
             event_mode: EventMode::Fun,
             god_mode_enabled: true,
             ai_provider: "mock".to_string(),
+            ollama_base_url: default_ollama_base_url(),
+            ollama_model: default_ollama_model(),
+            meeting_turns_per_agent: default_meeting_turns_per_agent(),
+            meeting_llm_fallback: true,
             pure_local_mode: false,
             pixel_filter_enabled: false,
             low_power_mode: false,
@@ -138,6 +166,8 @@ pub struct AgentRecord {
     pub salary: f32,
     pub status: String,
     pub soul: Option<SoulProfile>,
+    #[serde(default)]
+    pub soul_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,6 +261,8 @@ pub struct MeetingMessage {
     pub speaker_id: String,
     pub speaker_name: String,
     pub content: String,
+    #[serde(default)]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -357,6 +389,7 @@ impl AppState {
                     salary,
                     status: "idle".to_string(),
                     soul: None,
+                    soul_id: None,
                 },
             );
         }

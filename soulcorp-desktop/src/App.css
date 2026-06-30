@@ -700,19 +700,60 @@ body,
   cursor: not-allowed;
 }
 
+.meeting-ai-status {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.meeting-ai-status .hub-pill {
+  margin-right: 0.35rem;
+}
+
 .meeting-log {
   display: grid;
   gap: 0.5rem;
-  max-height: 180px;
+  max-height: 260px;
   overflow: auto;
   padding-top: 0.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.meeting-log h3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.meeting-provider-pill {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(120, 170, 255, 0.18);
+  color: #c8dcff;
 }
 
 .meeting-message {
   padding: 0.55rem 0.65rem;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
+}
+
+.meeting-message-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.meeting-message-provider {
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b8c8e8;
 }
 
 .meeting-message p {

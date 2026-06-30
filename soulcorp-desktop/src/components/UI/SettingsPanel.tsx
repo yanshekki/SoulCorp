@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
-import type { EventMode, ExportResult, GameSettings } from "../../types/game";
+import type { EventMode, ExportResult, GameSettings, MeetingAiStatus } from "../../types/game";
 
 export function SettingsPanel() {
   const settings = useGameStore((state) => state.settings);
@@ -26,6 +26,10 @@ export function SettingsPanel() {
           event_mode: patch.event_mode,
           god_mode_enabled: patch.god_mode_enabled,
           ai_provider: patch.ai_provider,
+          ollama_base_url: patch.ollama_base_url,
+          ollama_model: patch.ollama_model,
+          meeting_turns_per_agent: patch.meeting_turns_per_agent,
+          meeting_llm_fallback: patch.meeting_llm_fallback,
           pure_local_mode: patch.pure_local_mode,
           pixel_filter_enabled: patch.pixel_filter_enabled,
           low_power_mode: patch.low_power_mode,
@@ -237,6 +241,66 @@ export function SettingsPanel() {
           <option value="soulmd-hub">soulmd-hub API</option>
         </select>
       </label>
+
+      <label className="field-label">
+        Ollama base URL
+        <input
+          type="url"
+          value={settings.ollama_base_url}
+          onChange={(event) => void updateSettings({ ollama_base_url: event.target.value })}
+          disabled={settings.pure_local_mode}
+        />
+      </label>
+
+      <label className="field-label">
+        Ollama model
+        <input
+          type="text"
+          value={settings.ollama_model}
+          onChange={(event) => void updateSettings({ ollama_model: event.target.value })}
+          disabled={settings.pure_local_mode}
+        />
+      </label>
+
+      <label className="field-label">
+        Meeting turns per agent
+        <input
+          type="number"
+          min={1}
+          max={6}
+          value={settings.meeting_turns_per_agent}
+          onChange={(event) =>
+            void updateSettings({ meeting_turns_per_agent: Number(event.target.value) })
+          }
+        />
+      </label>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.meeting_llm_fallback}
+          onChange={(event) =>
+            void updateSettings({ meeting_llm_fallback: event.target.checked })
+          }
+        />
+        <span>Fall back to mock dialogue if live LLM fails</span>
+      </label>
+
+      <div className="panel-actions">
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const status = await invoke<MeetingAiStatus>("get_meeting_ai_status");
+              setStatusMessage(status.message);
+            } catch (error) {
+              setStatusMessage(String(error));
+            }
+          }}
+        >
+          Test meeting AI connection
+        </button>
+      </div>
 
       <label className="field-label">
         Restore backup path

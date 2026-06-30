@@ -1,7 +1,8 @@
-use crate::ai::{self, provider::ChatRequest};
+use crate::ai::{self, provider::ChatRequest, provider::ChatTurn, MeetingAiStatus};
 use crate::db::persistence::commit;
+use crate::relationships::{relationship_label, upsert_relationship};
 use crate::soul::build_system_prompt;
-use crate::state::{AppState, InternalProject, MeetingMessage, MeetingState};
+use crate::state::{AgentRecord, AppState, InternalProject, MeetingMessage, MeetingState};
 use crate::workspace::write_meeting_notes_from_state;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -25,6 +26,14 @@ pub struct MeetingSnapshot {
     pub outcome_summary: Option<String>,
     pub project_progress_delta: f32,
     pub revenue_delta: f64,
+    pub active_provider: String,
+    pub turns_per_agent: u32,
+}
+
+#[tauri::command]
+pub fn get_meeting_ai_status(state: State<'_, Mutex<AppState>>) -> Result<MeetingAiStatus, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    Ok(ai::probe_meeting_ai(&state.settings, &state.hub))
 }
 
 #[tauri::command]
@@ -40,6 +49,7 @@ pub fn start_meeting(
     }
 
     let meeting_id = Uuid::new_v4().to_string();
+    let ai_status = ai::probe_meeting_ai(&state.settings, &state.hub);
     let meeting = MeetingState {
         id: meeting_id.clone(),
         meeting_type: request.meeting_type.clone(),
@@ -66,128 +76,120 @@ pub fn start_meeting(
             .meetings
             .get(&meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?,
+        &ai_status,
+        state.settings.meeting_turns_per_agent,
     );
     commit(app, &state)?;
     Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn advance_meeting(
+pub async fn advance_meeting(
     meeting_id: String,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<MeetingSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    let provider = {
-        let settings = state.settings.clone();
-        let hub = state.hub.clone();
-        ai::provider_for(&settings, &hub)
-    };
-
-    let (speaker_id, speaker, meeting_type, should_complete, morale_delta, participant_ids, history) = {
+    let turn_plan = {
+        let state = state.lock().map_err(|e| e.to_string())?;
         let meeting = state
             .meetings
             .get(&meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?;
 
         if meeting.completed {
-            return Ok(snapshot_from_meeting(meeting));
+            let ai_status = ai::probe_meeting_ai(&state.settings, &state.hub);
+            return Ok(snapshot_from_meeting(
+                meeting,
+                &ai_status,
+                state.settings.meeting_turns_per_agent,
+            ));
         }
 
-        let turns_per_agent = 2;
+        let turns_per_agent = state.settings.meeting_turns_per_agent.max(1);
         let should_complete =
-            meeting.turn >= meeting.participant_ids.len() * turns_per_agent;
-        let speaker_id = if should_complete {
-            String::new()
-        } else {
-            meeting.participant_ids[meeting.turn % meeting.participant_ids.len()].clone()
-        };
-
-        let speaker = if should_complete {
+            meeting.turn >= meeting.participant_ids.len() * turns_per_agent as usize;
+        if should_complete {
             None
         } else {
-            Some(
-                state
-                    .agents
-                    .get(&speaker_id)
-                    .ok_or_else(|| "Speaker not found.".to_string())?
-                    .clone(),
-            )
-        };
-
-        let history = meeting
-            .messages
-            .iter()
-            .map(|message| format!("{}: {}", message.speaker_name, message.content))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        (
-            speaker_id,
-            speaker,
-            meeting.meeting_type.clone(),
-            should_complete,
-            meeting.morale_delta,
-            meeting.participant_ids.clone(),
-            history,
-        )
+            Some(prepare_meeting_turn(&state, meeting)?)
+        }
     };
 
-    if should_complete {
-        let meeting_type_for_outcome = state
-            .meetings
-            .get(&meeting_id)
-            .map(|meeting| meeting.meeting_type.clone())
-            .ok_or_else(|| "Meeting not found.".to_string())?;
-
-        {
-            let meeting = state
-                .meetings
-                .get_mut(&meeting_id)
-                .ok_or_else(|| "Meeting not found.".to_string())?;
-            meeting.completed = true;
-            let (progress_delta, revenue_delta, summary, spawn_project) =
-                meeting_outcome_plan(&meeting_type_for_outcome);
-            meeting.project_progress_delta = progress_delta;
-            meeting.revenue_delta = revenue_delta;
-            meeting.outcome_summary = Some(summary);
-            if spawn_project {
-                meeting.outcome_summary = Some(
-                    "Strategy meeting created a new internal project and raised revenue outlook."
-                        .to_string(),
-                );
-            }
-        }
-
-        apply_meeting_outcome_to_state(&mut state, &meeting_type_for_outcome);
-
-        for agent_id in &participant_ids {
-            if let Some(agent) = state.agents.get_mut(agent_id) {
-                agent.morale = (agent.morale + morale_delta).min(1.0);
-                agent.status = "idle".to_string();
-            }
-        }
-
-        state.stats.meetings_completed += 1;
-
-        let _ = write_meeting_notes_from_state(&app, &mut state, &meeting_id);
-
-        let snapshot = snapshot_from_meeting(
-            state
-                .meetings
-                .get(&meeting_id)
-                .ok_or_else(|| "Meeting not found.".to_string())?,
-        );
-        commit(app, &state)?;
-        return Ok(snapshot);
+    if turn_plan.is_none() {
+        return finalize_meeting(&meeting_id, state, app).await;
     }
 
-    let speaker = speaker.ok_or_else(|| "Speaker not found.".to_string())?;
+    let turn_plan = turn_plan.expect("turn plan exists");
+    let settings = turn_plan.settings.clone();
+    let hub = turn_plan.hub.clone();
+    let chat_request = turn_plan.chat_request;
 
-    if let Some(agent) = state.agents.get_mut(&speaker_id) {
+    let response = tokio::task::spawn_blocking(move || {
+        ai::chat_with_fallback(&settings, &hub, chat_request)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    if let Some(agent) = state.agents.get_mut(&turn_plan.speaker_id) {
         agent.status = "meeting".to_string();
     }
 
+    let meeting_snapshot = {
+        let meeting = state
+            .meetings
+            .get_mut(&meeting_id)
+            .ok_or_else(|| "Meeting not found.".to_string())?;
+        meeting.messages.push(MeetingMessage {
+            speaker_id: turn_plan.speaker_id,
+            speaker_name: turn_plan.speaker_name,
+            content: response.content,
+            provider: Some(response.provider),
+        });
+        meeting.turn += 1;
+        meeting.clone()
+    };
+
+    let settings = state.settings.clone();
+    let hub = state.hub.clone();
+    let turns_per_agent = settings.meeting_turns_per_agent;
+    let ai_status = ai::probe_meeting_ai(&settings, &hub);
+    let snapshot = snapshot_from_meeting(&meeting_snapshot, &ai_status, turns_per_agent);
+    commit(app, &state)?;
+    Ok(snapshot)
+}
+
+struct MeetingTurnPlan {
+    speaker_id: String,
+    speaker_name: String,
+    chat_request: ChatRequest,
+    settings: crate::state::GameSettings,
+    hub: crate::state::HubState,
+}
+
+fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<MeetingTurnPlan, String> {
+    let speaker_id = meeting.participant_ids[meeting.turn % meeting.participant_ids.len()].clone();
+    let speaker = state
+        .agents
+        .get(&speaker_id)
+        .ok_or_else(|| "Speaker not found.".to_string())?
+        .clone();
+
+    let roster = meeting
+        .participant_ids
+        .iter()
+        .filter_map(|agent_id| {
+            state.agents.get(agent_id).map(|agent| {
+                format!(
+                    "- {} ({}, {})",
+                    agent.name, agent.role, agent.department
+                )
+            })
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let relationship_context = relationship_context_for_participants(state, &meeting.participant_ids);
     let project_context = state
         .projects
         .iter()
@@ -202,56 +204,214 @@ pub fn advance_meeting(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let system_prompt = if let Some(soul) = &speaker.soul {
-        build_system_prompt(
-            soul,
-            &format!(
-                "meeting:{meeting_type}\nActive projects:\n{project_context}\nSpeak naturally in 2-4 sentences."
-            ),
-        )
-    } else {
-        format!(
-            "You are {} from {} in a {} meeting.\nActive projects:\n{project_context}\nSpeak naturally in 2-4 sentences.",
-            speaker.name, speaker.department, meeting_type
-        )
-    };
+    let meeting_context = format!(
+        "Company: {}\nMeeting type: {}\nParticipants:\n{roster}\nRelationships:\n{relationship_context}\nActive projects:\n{project_context}\nSpeak naturally in 2-4 sentences. Reference teammates by name when useful.",
+        state.company_name, meeting.meeting_type
+    );
+
+    let system_prompt = build_speaker_prompt(&speaker, &meeting_context);
+    let conversation_turns: Vec<ChatTurn> = meeting
+        .messages
+        .iter()
+        .map(|message| ChatTurn {
+            role: if message.speaker_id == speaker.id {
+                "assistant".to_string()
+            } else {
+                "user".to_string()
+            },
+            content: format!("{}: {}", message.speaker_name, message.content),
+        })
+        .collect();
+
+    let history = meeting
+        .messages
+        .iter()
+        .map(|message| format!("{}: {}", message.speaker_name, message.content))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let user_prompt = if history.is_empty() {
         format!(
-            "{} opens the {} meeting with a concrete update about priorities.",
-            speaker.name, meeting_type
+            "{} opens the {} meeting with a concrete update about priorities and blockers.",
+            speaker.name, meeting.meeting_type
         )
     } else {
         format!(
-            "Meeting transcript so far:\n{history}\n\nNow {} continues the {} meeting with a specific response that references prior points.",
-            speaker.name, meeting_type
+            "Meeting transcript so far:\n{history}\n\nNow {} continues the {} meeting with a specific response that references prior points and proposes next actions.",
+            speaker.name, meeting.meeting_type
         )
     };
 
-    let response = ai::chat(
-        provider.as_ref(),
-        ChatRequest {
+    Ok(MeetingTurnPlan {
+        speaker_id: speaker.id.clone(),
+        speaker_name: speaker.name.clone(),
+        chat_request: ChatRequest {
             system_prompt,
             user_prompt,
-            temperature: 0.75,
+            temperature: temperature_for_meeting(&meeting.meeting_type),
+            soul_id: speaker.soul_id,
+            conversation_turns,
         },
-    )?;
+        settings: state.settings.clone(),
+        hub: state.hub.clone(),
+    })
+}
 
-    let meeting = state
+async fn finalize_meeting(
+    meeting_id: &str,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<MeetingSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let meeting_type = state
         .meetings
-        .get_mut(&meeting_id)
+        .get(meeting_id)
+        .map(|meeting| meeting.meeting_type.clone())
         .ok_or_else(|| "Meeting not found.".to_string())?;
 
-    meeting.messages.push(MeetingMessage {
-        speaker_id: speaker.id,
-        speaker_name: speaker.name,
-        content: response.content,
-    });
-    meeting.turn += 1;
+    {
+        let meeting = state
+            .meetings
+            .get_mut(meeting_id)
+            .ok_or_else(|| "Meeting not found.".to_string())?;
+        meeting.completed = true;
+        let (progress_delta, revenue_delta, summary, spawn_project) =
+            meeting_outcome_plan(&meeting_type);
+        meeting.project_progress_delta = progress_delta;
+        meeting.revenue_delta = revenue_delta;
+        meeting.outcome_summary = Some(if spawn_project {
+            "Strategy meeting created a new internal project and raised revenue outlook.".to_string()
+        } else {
+            summary
+        });
+    }
 
-    let snapshot = snapshot_from_meeting(meeting);
+    let participant_ids = state
+        .meetings
+        .get(meeting_id)
+        .map(|meeting| meeting.participant_ids.clone())
+        .ok_or_else(|| "Meeting not found.".to_string())?;
+    let morale_delta = state
+        .meetings
+        .get(meeting_id)
+        .map(|meeting| meeting.morale_delta)
+        .unwrap_or(0.05);
+
+    apply_meeting_outcome_to_state(&mut state, &meeting_type);
+    apply_meeting_relationship_effects(&mut state, &meeting_type, &participant_ids);
+
+    for agent_id in &participant_ids {
+        if let Some(agent) = state.agents.get_mut(agent_id) {
+            agent.morale = (agent.morale + morale_delta).min(1.0);
+            agent.status = "idle".to_string();
+        }
+    }
+
+    state.stats.meetings_completed += 1;
+    let _ = write_meeting_notes_from_state(&app, &mut state, meeting_id);
+
+    let ai_status = ai::probe_meeting_ai(&state.settings, &state.hub);
+    let turns_per_agent = state.settings.meeting_turns_per_agent;
+    let snapshot = snapshot_from_meeting(
+        state
+            .meetings
+            .get(meeting_id)
+            .ok_or_else(|| "Meeting not found.".to_string())?,
+        &ai_status,
+        turns_per_agent,
+    );
     commit(app, &state)?;
     Ok(snapshot)
+}
+
+fn build_speaker_prompt(speaker: &AgentRecord, meeting_context: &str) -> String {
+    if let Some(soul) = &speaker.soul {
+        build_system_prompt(soul, meeting_context)
+    } else {
+        format!(
+            "You are {} ({}) from {} in SoulCorp.\n{meeting_context}",
+            speaker.name, speaker.role, speaker.department
+        )
+    }
+}
+
+fn relationship_context_for_participants(state: &AppState, participant_ids: &[String]) -> String {
+    let lines = state
+        .agent_relationships
+        .iter()
+        .filter(|edge| {
+            participant_ids.contains(&edge.from_agent_id)
+                && participant_ids.contains(&edge.to_agent_id)
+        })
+        .filter_map(|edge| {
+            let left = state.agents.get(&edge.from_agent_id)?;
+            let right = state.agents.get(&edge.to_agent_id)?;
+            Some(format!(
+                "- {} ↔ {}: {} ({:.0}%)",
+                left.name,
+                right.name,
+                relationship_label(&edge.relationship_type, edge.score),
+                edge.score * 100.0
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    if lines.is_empty() {
+        "No strong relationship history yet.".to_string()
+    } else {
+        lines.join("\n")
+    }
+}
+
+fn temperature_for_meeting(meeting_type: &str) -> f32 {
+    match meeting_type {
+        "Crisis Meeting" => 0.55,
+        "Strategy Discussion" => 0.8,
+        "Team Building" => 0.85,
+        _ => 0.75,
+    }
+}
+
+fn apply_meeting_relationship_effects(
+    state: &mut AppState,
+    meeting_type: &str,
+    participant_ids: &[String],
+) {
+    if participant_ids.len() < 2 {
+        return;
+    }
+
+    let delta = match meeting_type {
+        "Team Building" => 0.08,
+        "Crisis Meeting" => -0.04,
+        "Strategy Discussion" => 0.05,
+        _ => 0.03,
+    };
+
+    for left_index in 0..participant_ids.len() {
+        for right_index in (left_index + 1)..participant_ids.len() {
+            let left = &participant_ids[left_index];
+            let right = &participant_ids[right_index];
+            let current = state
+                .agent_relationships
+                .iter()
+                .find(|edge| {
+                    (edge.from_agent_id == *left || edge.from_agent_id == *right)
+                        && (edge.to_agent_id == *left || edge.to_agent_id == *right)
+                })
+                .map(|edge| edge.score)
+                .unwrap_or(0.45);
+            let next = (current + delta).clamp(-1.0, 1.0);
+            let relationship_type = if next >= 0.65 {
+                "friend"
+            } else if next < 0.25 {
+                "tense"
+            } else {
+                "neutral"
+            };
+            upsert_relationship(state, left, right, relationship_type, next);
+        }
+    }
 }
 
 fn morale_delta_for_type(meeting_type: &str) -> f32 {
@@ -326,7 +486,11 @@ fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str) {
     }
 }
 
-fn snapshot_from_meeting(meeting: &MeetingState) -> MeetingSnapshot {
+fn snapshot_from_meeting(
+    meeting: &MeetingState,
+    ai_status: &MeetingAiStatus,
+    turns_per_agent: u32,
+) -> MeetingSnapshot {
     MeetingSnapshot {
         id: meeting.id.clone(),
         meeting_type: meeting.meeting_type.clone(),
@@ -337,5 +501,36 @@ fn snapshot_from_meeting(meeting: &MeetingState) -> MeetingSnapshot {
         outcome_summary: meeting.outcome_summary.clone(),
         project_progress_delta: meeting.project_progress_delta,
         revenue_delta: meeting.revenue_delta,
+        active_provider: ai_status.active_provider.clone(),
+        turns_per_agent,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AppState;
+
+    #[test]
+    fn builds_meeting_turn_with_relationship_context() {
+        let mut state = AppState::default();
+        state.seed_defaults();
+        let meeting = MeetingState {
+            id: "meet-1".into(),
+            meeting_type: "Daily Standup".into(),
+            participant_ids: vec!["agent-1".into(), "agent-2".into()],
+            messages: Vec::new(),
+            turn: 0,
+            completed: false,
+            morale_delta: 0.05,
+            outcome_summary: None,
+            project_progress_delta: 0.0,
+            revenue_delta: 0.0,
+            notes_generated: false,
+        };
+
+        let plan = prepare_meeting_turn(&state, &meeting).expect("meeting turn");
+        assert!(plan.chat_request.system_prompt.contains("Mira"));
+        assert!(plan.chat_request.system_prompt.contains("Relationships"));
     }
 }

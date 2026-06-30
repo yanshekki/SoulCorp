@@ -9,19 +9,37 @@ pub struct OllamaProvider {
     client: Client,
 }
 
-impl Default for OllamaProvider {
-    fn default() -> Self {
+impl OllamaProvider {
+    pub fn new(base_url: String, model: String) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
             .unwrap_or_else(|_| Client::new());
 
         Self {
-            base_url: std::env::var("OLLAMA_HOST")
-                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string()),
-            model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".to_string()),
+            base_url,
+            model,
             client,
         }
+    }
+
+    pub fn is_reachable(&self) -> bool {
+        let url = format!("{}/api/tags", self.base_url.trim_end_matches('/'));
+        self.client
+            .get(url)
+            .send()
+            .map(|response| response.status().is_success())
+            .unwrap_or(false)
+    }
+}
+
+impl Default for OllamaProvider {
+    fn default() -> Self {
+        Self::new(
+            std::env::var("OLLAMA_HOST")
+                .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string()),
+            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".to_string()),
+        )
     }
 }
 
@@ -32,13 +50,19 @@ impl AiProvider for OllamaProvider {
 
     fn chat(&self, request: ChatRequest) -> Result<ChatResponse, String> {
         let url = format!("{}/api/chat", self.base_url.trim_end_matches('/'));
+        let mut messages = vec![json!({"role": "system", "content": request.system_prompt})];
+        for turn in &request.conversation_turns {
+            messages.push(json!({
+                "role": turn.role,
+                "content": turn.content,
+            }));
+        }
+        messages.push(json!({"role": "user", "content": request.user_prompt}));
+
         let body = json!({
             "model": self.model,
             "stream": false,
-            "messages": [
-                {"role": "system", "content": request.system_prompt},
-                {"role": "user", "content": request.user_prompt},
-            ],
+            "messages": messages,
             "options": {
                 "temperature": request.temperature,
             }

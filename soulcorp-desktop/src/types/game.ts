@@ -226,6 +226,10 @@ export interface GameSettings {
   event_mode: EventMode;
   god_mode_enabled: boolean;
   ai_provider: string;
+  ollama_base_url: string;
+  ollama_model: string;
+  meeting_turns_per_agent: number;
+  meeting_llm_fallback: boolean;
   pure_local_mode: boolean;
   pixel_filter_enabled: boolean;
   low_power_mode: boolean;
@@ -274,6 +278,20 @@ export interface MeetingMessage {
   speaker_id: string;
   speaker_name: string;
   content: string;
+  provider?: string | null;
+}
+
+export interface MeetingAiStatus {
+  configured_provider: string;
+  active_provider: string;
+  ollama_reachable: boolean;
+  hub_configured: boolean;
+  hub_reachable: boolean;
+  ollama_model: string;
+  ollama_base_url: string;
+  meeting_turns_per_agent: number;
+  fallback_enabled: boolean;
+  message: string;
 }
 
 export interface MeetingSnapshot {
@@ -286,6 +304,8 @@ export interface MeetingSnapshot {
   outcome_summary?: string | null;
   project_progress_delta: number;
   revenue_delta: number;
+  active_provider: string;
+  turns_per_agent: number;
 }
 
 export interface SimulationTickResult {

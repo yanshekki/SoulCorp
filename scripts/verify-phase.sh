@@ -113,6 +113,17 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  16)
+    test -f "${DESKTOP_DIR}/src-tauri/src/ai/health.rs"
+    grep -q "get_meeting_ai_status" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "chat_with_fallback" "${DESKTOP_DIR}/src-tauri/src/ai/mod.rs"
+    grep -q "pub async fn advance_meeting" "${DESKTOP_DIR}/src-tauri/src/commands/meeting.rs"
+    grep -q "ollama_base_url" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "meeting-ai-status" "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
+    grep -q "Test meeting AI connection" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "MeetingAiStatus" "${DESKTOP_DIR}/src/types/game.ts"
+    echo "Phase 16 real LLM meeting checks passed."
+    ;;
   15)
     test -f "${DESKTOP_DIR}/src-tauri/src/relationships/mod.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/RelationshipGraphView.tsx"
