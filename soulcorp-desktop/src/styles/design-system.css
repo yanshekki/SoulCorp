@@ -106,6 +106,10 @@ body,
   min-width: 0;
 }
 
+.app-brand-text {
+  min-width: 0;
+}
+
 .app-brand h1 {
   margin: 0;
   font-size: 1rem;
@@ -115,6 +119,16 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
+}
+
+.app-company-tagline {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 .app-tagline {
@@ -205,6 +219,77 @@ body,
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+}
+
+.company-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.company-switcher-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.company-switcher-select {
+  min-width: 140px;
+  max-width: 220px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: var(--space-2) var(--space-3);
+}
+
+.company-switcher-new,
+.company-switcher-delete {
+  appearance: none;
+  border: 1px solid var(--border-default);
+  background: var(--bg-control);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.company-switcher-new:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent-border);
+  color: var(--accent-hover);
+}
+
+.company-switcher-delete:hover {
+  background: var(--danger-muted);
+  border-color: rgba(224, 112, 112, 0.35);
+  color: var(--danger);
+}
+
+.app-loading-screen {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100vh;
+  background: var(--bg-root);
+  color: var(--text-secondary);
+}
+
+.onboarding-overlay-blocking {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.create-company-modal {
+  max-width: 560px;
 }
 
 .app-pause-btn {

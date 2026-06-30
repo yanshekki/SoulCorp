@@ -20,6 +20,7 @@ interface WorkspaceStore {
   setSearchQuery: (query: string) => void;
   setSearchResults: (results: WorkspaceSearchResult[]) => void;
   setIsLoading: (loading: boolean) => void;
+  reset: () => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
@@ -49,4 +50,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSearchResults: (results) => set({ searchResults: results }),
   setIsLoading: (loading) => set({ isLoading: loading }),
+  reset: () =>
+    set({
+      tree: { folders: [], pages: [] },
+      selectedPageId: null,
+      selectedPage: null,
+      searchQuery: "",
+      searchResults: [],
+      isLoading: false,
+    }),
 }));

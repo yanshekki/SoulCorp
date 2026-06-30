@@ -1,12 +1,15 @@
 use crate::state::{AgentRecord, AppState, GameEvent};
 use crate::workspace::models::{LinkedEntity, WorkspacePage};
-use crate::workspace::storage::{workspace_root, WorkspaceStorage};
+use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
 use rand::Rng;
 use tauri::{AppHandle, Manager};
 
 pub fn write_daily_activity_docs(app: &AppHandle, state: &mut AppState) -> Result<u32, String> {
+    if state.company_id.is_empty() {
+        return Ok(0);
+    }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&dir))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
 
     let mut pages_written = 0u32;
@@ -65,8 +68,11 @@ pub fn write_event_activity_doc(
     state: &mut AppState,
     event: &GameEvent,
 ) -> Result<(), String> {
+    if state.company_id.is_empty() {
+        return Ok(());
+    }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&dir))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
 
     let body = format!(
@@ -128,8 +134,11 @@ pub fn write_meeting_notes_from_state(
         (meeting.meeting_type.clone(), messages, participant_ids, participant_names)
     };
 
+    if state.company_id.is_empty() {
+        return Err("Create a company before generating meeting notes.".to_string());
+    }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&dir))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
     let pages = storage.append_meeting_notes(
         meeting_id,

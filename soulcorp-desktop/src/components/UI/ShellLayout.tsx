@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
+import { CompanySwitcher } from "./CompanySwitcher";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { OfflineStatusBar } from "./OfflineStatusBar";
 import { Dashboard } from "./Dashboard";
@@ -65,7 +66,13 @@ function TierBadge() {
 
 function SidebarTitle() {
   const companyName = useGameStore((state) => state.companyName);
-  return <h1>{companyName}</h1>;
+  const companyTagline = useGameStore((state) => state.companyTagline);
+  return (
+    <div className="app-brand-text">
+      <h1>{companyName || "SoulCorp"}</h1>
+      {companyTagline ? <p className="app-company-tagline">{companyTagline}</p> : null}
+    </div>
+  );
 }
 
 function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
@@ -133,6 +140,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
           ))}
         </nav>
         <div className="app-topbar-actions">
+          <CompanySwitcher />
           <button type="button" className="app-pause-btn" onClick={togglePause}>
             {isPaused ? "Resume" : "Pause"}
           </button>

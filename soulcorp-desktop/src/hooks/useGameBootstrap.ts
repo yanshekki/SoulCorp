@@ -1,155 +1,22 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { getHubStatus } from "../services/hubClient";
-import { getOnboardingState } from "../services/onboardingClient";
 import { useGameStore } from "../stores/gameStore";
-import { syncAgentsFromRecords } from "../utils/agentBehavior";
-import type {
-  AgentRecord,
-  CompanyDepartmentsSnapshot,
-  CustomDepartmentBuilding,
-  FinanceState,
-  GameSettings,
-  HubStatus,
-  TierBenefits,
-} from "../types/game";
-import type { Building } from "../types/world";
-import { INITIAL_BUILDINGS } from "../data/initialWorld";
-
-function toWorldBuilding(building: CustomDepartmentBuilding): Building {
-  return {
-    id: building.id,
-    name: building.name,
-    department: building.department,
-    position: building.position,
-    size: building.size,
-    color: building.color,
-    roofColor: building.roof_color,
-    accentColor: building.accent_color,
-    description: building.description,
-  };
-}
-
-const SAMPLE_SOULS = [
-  { agentId: "agent-1", path: "/samples/mira.soul.md" },
-  { agentId: "agent-2", path: "/samples/kai.soul.md" },
-  { agentId: "agent-3", path: "/samples/ren.soul.md" },
-];
+import { reloadGameState } from "./useReloadGameState";
 
 export function useGameBootstrap() {
-  const setStatusMessage = useGameStore((state) => state.setStatusMessage);
-  const setAgentRecords = useGameStore((state) => state.setAgentRecords);
-  const setFinance = useGameStore((state) => state.setFinance);
-  const setSettings = useGameStore((state) => state.setSettings);
-  const setSimulation = useGameStore((state) => state.setSimulation);
-  const setHubStatus = useGameStore((state) => state.setHubStatus);
-  const setTierBenefits = useGameStore((state) => state.setTierBenefits);
-  const setAgents = useGameStore((state) => state.setAgents);
-  const setCompanyName = useGameStore((state) => state.setCompanyName);
-  const setOnboardingCompleted = useGameStore((state) => state.setOnboardingCompleted);
   const setOnboardingReady = useGameStore((state) => state.setOnboardingReady);
-  const setBuildings = useGameStore((state) => state.setBuildings);
+  const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const [agents, finance, settings, onboarding, hubStatus] = await Promise.all([
-          invoke<AgentRecord[]>("list_agents"),
-          invoke<FinanceState>("get_finance_state"),
-          invoke<GameSettings>("get_game_settings"),
-          getOnboardingState(),
-          getHubStatus().catch(
-            (): HubStatus => ({
-              connected: false,
-              base_url: "https://soulmd-hub.ysk.hk",
-              user_tier: "free",
-              soul_balance: 0,
-              soul_staked: 0,
-              near_wallet_address: null,
-              pure_local_mode: false,
-              pending_queue_items: 0,
-              last_sync_at: null,
-            }),
-          ),
-        ]);
-
-        setAgentRecords(agents);
-        setAgents(syncAgentsFromRecords(agents, []));
-        setFinance(finance);
-        setSettings(settings);
-        setCompanyName(onboarding.company_name);
-        setOnboardingCompleted(onboarding.completed);
-        setOnboardingReady(true);
-        setHubStatus(hubStatus);
-        const tierBenefits = await invoke<TierBenefits>("get_tier_benefits").catch(
-          (): TierBenefits => ({
-            tier: "free",
-            platform_fee_percent: 10,
-            max_agents: 50,
-            cloud_sync_enabled: false,
-            priority_gig_matching: false,
-            event_foresight_days: 0,
-            white_label_export: false,
-            executive_lounge: false,
-            custom_departments: false,
-            ai_co_ceo: false,
-          }),
-        );
-        setTierBenefits(tierBenefits);
-        if (tierBenefits.custom_departments) {
-          const deptSnapshot = await invoke<CompanyDepartmentsSnapshot>(
-            "list_company_departments",
-          ).catch(() => null);
-          if (deptSnapshot) {
-            const baseIds = new Set(INITIAL_BUILDINGS.map((building) => building.id));
-            setBuildings([
-              ...INITIAL_BUILDINGS.filter((building) => baseIds.has(building.id)),
-              ...deptSnapshot.buildings.map(toWorldBuilding),
-            ]);
-          }
-        }
-        setStatusMessage("Agent systems online. Sample SOUL profiles loading...");
-
-        await Promise.all(
-          SAMPLE_SOULS.map(async ({ agentId, path }) => {
-            const response = await fetch(path);
-            const soul_md_content = await response.text();
-            await invoke("load_agent_soul", {
-              request: {
-                agent_id: agentId,
-                soul_md_path: null,
-                soul_md_content,
-              },
-            });
-          }),
-        );
-
-        const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
-        setAgentRecords(refreshedAgents);
-        setAgents(
-          syncAgentsFromRecords(refreshedAgents, useGameStore.getState().agents),
-        );
-        setSimulation({ dayNumber: 1 });
-        setStatusMessage("SOUL.md profiles loaded. Office simulation ready.");
+        await reloadGameState();
       } catch (error) {
-        setOnboardingReady(true);
         setStatusMessage(`Bootstrap fallback: ${String(error)}`);
+      } finally {
+        setOnboardingReady(true);
       }
     };
 
     void bootstrap();
-  }, [
-    setAgentRecords,
-    setAgents,
-    setCompanyName,
-    setOnboardingCompleted,
-    setOnboardingReady,
-    setBuildings,
-    setFinance,
-    setHubStatus,
-    setTierBenefits,
-    setSettings,
-    setSimulation,
-    setStatusMessage,
-  ]);
+  }, [setOnboardingReady, setStatusMessage]);
 }

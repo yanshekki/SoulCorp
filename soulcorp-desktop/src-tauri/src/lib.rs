@@ -23,9 +23,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             db::init_database(app.handle())?;
-            let mut state = db::persistence::load_app_state(app.handle())?.unwrap_or_default();
-            if state.agents.is_empty() {
+            let (_registry, mut state) = db::persistence::bootstrap_companies(app.handle())?;
+            if state.onboarding_completed && state.agents.is_empty() {
                 state.seed_defaults();
+            } else if state.agents.is_empty() {
+                // Wait for first-launch onboarding before seeding starter agents.
             } else if state.projects.is_empty() {
                 state.seed_projects();
             }
@@ -79,6 +81,10 @@ pub fn run() {
             commands::update_game_settings,
             commands::get_onboarding_state,
             commands::complete_onboarding,
+            commands::list_companies,
+            commands::create_company,
+            commands::switch_company,
+            commands::delete_company,
             commands::get_finance_state,
             commands::list_internal_projects,
             commands::update_budget_allocations,

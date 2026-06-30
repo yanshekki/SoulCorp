@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { completeOnboarding } from "../../services/onboardingClient";
+import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import type { EventMode } from "../../types/game";
 
@@ -41,7 +42,6 @@ const TOUR_ITEMS = [
 export function OnboardingWizard() {
   const onboardingCompleted = useGameStore((state) => state.onboardingCompleted);
   const onboardingReady = useGameStore((state) => state.onboardingReady);
-  const setCompanyName = useGameStore((state) => state.setCompanyName);
   const setOnboardingCompleted = useGameStore((state) => state.setOnboardingCompleted);
   const setSettings = useGameStore((state) => state.setSettings);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
@@ -50,7 +50,9 @@ export function OnboardingWizard() {
   const togglePause = useGameStore((state) => state.togglePause);
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [companyName, setCompanyNameInput] = useState("SoulCorp");
+  const [companyName, setCompanyNameInput] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [tagline, setTagline] = useState("");
   const [eventMode, setEventMode] = useState<EventMode>("fun");
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -86,39 +88,21 @@ export function OnboardingWizard() {
     setStepIndex((current) => Math.max(current - 1, 0));
   };
 
-  const skipForNow = async () => {
-    setSubmitting(true);
-    try {
-      const result = await completeOnboarding({
-        company_name: "SoulCorp",
-        event_mode: "balanced",
-        pure_local_mode: false,
-        random_events_enabled: true,
-      });
-      setCompanyName(result.company_name);
-      setOnboardingCompleted(true);
-      setActivePanel("office");
-      if (isPaused) {
-        togglePause();
-      }
-      setStatusMessage("Onboarding skipped — defaults applied.");
-    } catch (error) {
-      setStatusMessage(String(error));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const finish = async () => {
+    if (companyName.trim().length < 2) {
+      setStatusMessage("Enter a company name with at least 2 characters.");
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await completeOnboarding({
         company_name: companyName.trim(),
+        company_industry: industry.trim(),
+        company_tagline: tagline.trim(),
         event_mode: eventMode,
         pure_local_mode: pureLocalMode,
         random_events_enabled: selectedStyle.events,
       });
-      setCompanyName(result.company_name);
       setOnboardingCompleted(true);
       setSettings({
         ...useGameStore.getState().settings,
@@ -127,6 +111,7 @@ export function OnboardingWizard() {
         random_events_enabled: selectedStyle.events,
         ai_provider: pureLocalMode ? "mock" : useGameStore.getState().settings.ai_provider,
       });
+      await reloadGameState();
       setActivePanel("office");
       if (isPaused) {
         togglePause();
@@ -140,12 +125,12 @@ export function OnboardingWizard() {
   };
 
   return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div className="onboarding-overlay onboarding-overlay-blocking" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <div className="onboarding-wizard">
         <header className="onboarding-header">
           <p className="modal-eyebrow">First launch setup</p>
-          <h2 id="onboarding-title">Build your AI company</h2>
-          <p className="muted">Step {stepIndex + 1} of {STEPS.length}</p>
+          <h2 id="onboarding-title">Set up your first company</h2>
+          <p className="muted">Step {stepIndex + 1} of {STEPS.length} — company details are required before you start.</p>
         </header>
 
         <div className="onboarding-progress">
@@ -160,9 +145,9 @@ export function OnboardingWizard() {
 
         {step === "welcome" ? (
           <section className="onboarding-step">
-            <h3>Name your company</h3>
+            <h3>Company profile</h3>
             <p className="muted">
-              This label appears on your dashboard, exports, and reports.
+              Tell us about the company you want to run. You can create more companies later.
             </p>
             <label className="field-label">
               Company name
@@ -172,6 +157,27 @@ export function OnboardingWizard() {
                 onChange={(event) => setCompanyNameInput(event.target.value)}
                 maxLength={48}
                 autoFocus
+                placeholder="e.g. Nova Labs"
+              />
+            </label>
+            <label className="field-label">
+              Industry
+              <input
+                type="text"
+                value={industry}
+                onChange={(event) => setIndustry(event.target.value)}
+                maxLength={64}
+                placeholder="e.g. AI SaaS, Game Studio"
+              />
+            </label>
+            <label className="field-label">
+              Tagline / mission
+              <input
+                type="text"
+                value={tagline}
+                onChange={(event) => setTagline(event.target.value)}
+                maxLength={120}
+                placeholder="What is this company trying to build?"
               />
             </label>
           </section>
@@ -229,7 +235,7 @@ export function OnboardingWizard() {
           <section className="onboarding-step">
             <h3>Your command center</h3>
             <p className="muted">
-              Use the sidebar to switch panels while agents work in the 3D office.
+              Use the top navigation to switch panels while agents work in the 3D office.
             </p>
             <ul className="onboarding-tour-list">
               {TOUR_ITEMS.map((item) => (
@@ -240,15 +246,12 @@ export function OnboardingWizard() {
               ))}
             </ul>
             <p className="onboarding-ready-copy">
-              {companyName.trim()} is ready. Mira, Kai, and Ren are already online.
+              {companyName.trim()} is ready. Mira, Kai, and Ren will join once you start.
             </p>
           </section>
         ) : null}
 
         <footer className="onboarding-actions">
-          <button type="button" className="onboarding-skip" onClick={() => void skipForNow()} disabled={submitting}>
-            Skip for now
-          </button>
           <button type="button" onClick={goBack} disabled={stepIndex === 0 || submitting}>
             Back
           </button>

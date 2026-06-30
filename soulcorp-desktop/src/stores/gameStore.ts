@@ -3,6 +3,7 @@ import { INITIAL_AGENTS, INITIAL_BUILDINGS } from "../data/initialWorld";
 import type {
   Achievement,
   AgentRecord,
+  CompanySummary,
   Ending,
   FinanceState,
   GameEvent,
@@ -16,6 +17,11 @@ import type { Agent, Building, SimulationState } from "../types/world";
 
 interface GameStore {
   companyName: string;
+  companyIndustry: string;
+  companyTagline: string;
+  companies: CompanySummary[];
+  activeCompanyId: string | null;
+  showCreateCompany: boolean;
   onboardingCompleted: boolean;
   onboardingReady: boolean;
   statusMessage: string;
@@ -52,13 +58,23 @@ interface GameStore {
   setTierBenefits: (tierBenefits: TierBenefits) => void;
   setBuildings: (buildings: Building[]) => void;
   setCompanyName: (companyName: string) => void;
+  setCompanyIndustry: (companyIndustry: string) => void;
+  setCompanyTagline: (companyTagline: string) => void;
+  setCompanies: (companies: CompanySummary[]) => void;
+  setActiveCompanyId: (companyId: string | null) => void;
+  setShowCreateCompany: (show: boolean) => void;
   setOnboardingCompleted: (completed: boolean) => void;
   setOnboardingReady: (ready: boolean) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
-  companyName: "SoulCorp",
-  onboardingCompleted: true,
+  companyName: "",
+  companyIndustry: "",
+  companyTagline: "",
+  companies: [],
+  activeCompanyId: null,
+  showCreateCompany: false,
+  onboardingCompleted: false,
   onboardingReady: false,
   statusMessage: "Initializing agent systems...",
   activePanel: "office",
@@ -158,6 +174,11 @@ export const useGameStore = create<GameStore>((set) => ({
   setTierBenefits: (tierBenefits) => set({ tierBenefits }),
   setBuildings: (buildings) => set({ buildings }),
   setCompanyName: (companyName) => set({ companyName }),
+  setCompanyIndustry: (companyIndustry) => set({ companyIndustry }),
+  setCompanyTagline: (companyTagline) => set({ companyTagline }),
+  setCompanies: (companies) => set({ companies }),
+  setActiveCompanyId: (activeCompanyId) => set({ activeCompanyId }),
+  setShowCreateCompany: (showCreateCompany) => set({ showCreateCompany }),
   setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
   setOnboardingReady: (ready) => set({ onboardingReady: ready }),
 }));

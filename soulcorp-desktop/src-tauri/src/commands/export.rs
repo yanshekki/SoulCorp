@@ -10,7 +10,7 @@ use crate::static_site::{
     build_workspace_index_html, build_workspace_page_html,
 };
 use crate::tier::can_use_feature;
-use crate::workspace::{storage::workspace_root, WorkspaceStorage};
+use crate::workspace::{storage::company_workspace_root, WorkspaceStorage};
 use chrono::Utc;
 use printpdf::{BuiltinFont, Mm, PdfDocument};
 use serde::{Deserialize, Serialize};
@@ -105,9 +105,12 @@ pub fn export_company_backup(
     Ok(result)
 }
 
-fn workspace_tree_for(app: &AppHandle) -> Result<crate::workspace::WorkspaceTree, String> {
+fn workspace_tree_for(app: &AppHandle, state: &AppState) -> Result<crate::workspace::WorkspaceTree, String> {
+    if state.company_id.is_empty() {
+        return Err("Create a company before exporting workspace data.".to_string());
+    }
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&app_data))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&app_data, &state.company_id))?;
     storage.ensure_seed()?;
     storage.list_tree()
 }
@@ -148,7 +151,7 @@ pub fn export_company_report_markdown(
 ) -> Result<ExportResult, String> {
     let path = {
         let locked = app_state.lock().map_err(|e| e.to_string())?;
-        let tree = workspace_tree_for(&app)?;
+        let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let markdown = build_markdown(&locked, Some(&tree), &company_name);
         let exports_dir = exports_dir(&app)?;
@@ -177,7 +180,7 @@ pub fn export_company_report_html(
 ) -> Result<ExportResult, String> {
     let path = {
         let locked = app_state.lock().map_err(|e| e.to_string())?;
-        let tree = workspace_tree_for(&app)?;
+        let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let html = build_html(&locked, Some(&tree), &company_name);
         let exports_dir = exports_dir(&app)?;
@@ -206,7 +209,7 @@ pub fn export_company_report_pdf(
 ) -> Result<ExportResult, String> {
     let path = {
         let locked = app_state.lock().map_err(|e| e.to_string())?;
-        let tree = workspace_tree_for(&app)?;
+        let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let lines = build_pdf_lines(&locked, Some(&tree), &company_name);
         let exports_dir = exports_dir(&app)?;
@@ -270,7 +273,7 @@ pub fn prepare_static_site_bundle(
     state: &AppState,
     archive_name: &str,
 ) -> Result<(StaticSiteBundle, crate::workspace::WorkspaceTree), String> {
-    let tree = workspace_tree_for(app)?;
+    let tree = workspace_tree_for(app, state)?;
     let company_name = company_name_for(state);
     let white_label = can_use_feature(&state.hub.user_tier, "white_label_export");
     let bundle = StaticSiteBundle {
@@ -471,9 +474,16 @@ pub fn export_workspace_markdown_zip(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
+    let company_id = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        if locked.company_id.is_empty() {
+            return Err("Create a company before exporting workspace data.".to_string());
+        }
+        locked.company_id.clone()
+    };
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&app_data))?;
-    let pages_dir = app_data.join("workspaces/pages");
+    let storage = WorkspaceStorage::new(company_workspace_root(&app_data, &company_id))?;
+    let pages_dir = company_workspace_root(&app_data, &company_id).join("pages");
     let exports_dir = exports_dir(&app)?;
     fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
 

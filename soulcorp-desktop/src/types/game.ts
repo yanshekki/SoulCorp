@@ -268,13 +268,47 @@ export interface FinanceState {
   cash_crisis: boolean;
 }
 
+export interface CompanySummary {
+  id: string;
+  name: string;
+  industry: string;
+  tagline: string;
+  created_at: string;
+  day_number: number;
+  agent_count: number;
+  onboarding_completed: boolean;
+}
+
+export interface CompanyListResponse {
+  active_company_id: string | null;
+  companies: CompanySummary[];
+}
+
+export interface CreateCompanyRequest {
+  company_name: string;
+  industry: string;
+  tagline: string;
+  event_mode: EventMode;
+  pure_local_mode: boolean;
+  random_events_enabled: boolean;
+}
+
+export interface SwitchCompanyResponse {
+  active_company_id: string;
+  company: CompanySummary;
+}
+
 export interface OnboardingState {
   company_name: string;
+  company_industry: string;
+  company_tagline: string;
   completed: boolean;
 }
 
 export interface CompleteOnboardingRequest {
   company_name: string;
+  company_industry: string;
+  company_tagline: string;
   event_mode: EventMode;
   pure_local_mode: boolean;
   random_events_enabled: boolean;

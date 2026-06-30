@@ -1,5 +1,10 @@
+mod companies;
+
 use crate::achievements::{Achievement, Ending};
 use crate::soul::SoulProfile;
+pub use companies::{
+    fresh_company_state, summary_from_state, CompanyRegistry, CompanySummary,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -364,7 +369,15 @@ pub struct MeetingState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppState {
     #[serde(default)]
+    pub company_id: String,
+    #[serde(default)]
     pub company_name: String,
+    #[serde(default)]
+    pub company_industry: String,
+    #[serde(default)]
+    pub company_tagline: String,
+    #[serde(default)]
+    pub company_created_at: Option<String>,
     #[serde(default = "default_onboarding_completed")]
     pub onboarding_completed: bool,
     pub settings: GameSettings,
@@ -409,7 +422,11 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            company_name: "SoulCorp".to_string(),
+            company_id: String::new(),
+            company_name: String::new(),
+            company_industry: String::new(),
+            company_tagline: String::new(),
+            company_created_at: None,
             onboarding_completed: false,
             settings: GameSettings::default(),
             finance: FinanceState::default(),

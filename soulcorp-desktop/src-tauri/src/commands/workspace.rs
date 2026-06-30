@@ -1,7 +1,7 @@
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
-    create_page_from_template, list_templates, storage::workspace_root,
+    create_page_from_template, list_templates, storage::company_workspace_root,
     write_meeting_notes_from_state, AddPageCommentRequest, CreatePageFromTemplateRequest,
     CreatePageRequest, LinkableEntity, LinkEntityRequest, PageBacklink, PageComment,
     PageVersionSummary, RestorePageVersionRequest, SearchResult, UnlinkEntityRequest,
@@ -12,28 +12,46 @@ use crate::workspace::LinkedEntity;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
-fn storage_for_app(app: &AppHandle) -> Result<WorkspaceStorage, String> {
+fn storage_for_app(app: &AppHandle, state: &AppState) -> Result<WorkspaceStorage, String> {
+    if state.company_id.is_empty() {
+        return Err("Create a company before using the workspace.".to_string());
+    }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(workspace_root(&dir))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
     Ok(storage)
 }
 
+fn storage_for_app_handle(app: &AppHandle, state: &State<'_, Mutex<AppState>>) -> Result<WorkspaceStorage, String> {
+    let locked = state.lock().map_err(|e| e.to_string())?;
+    storage_for_app(app, &locked)
+}
+
 #[tauri::command]
-pub fn init_workspace(app: AppHandle) -> Result<WorkspaceTree, String> {
-    let storage = storage_for_app(&app)?;
+pub fn init_workspace(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceTree, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.list_tree()
 }
 
 #[tauri::command]
-pub fn list_workspace_tree(app: AppHandle) -> Result<WorkspaceTree, String> {
-    let storage = storage_for_app(&app)?;
+pub fn list_workspace_tree(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceTree, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.list_tree()
 }
 
 #[tauri::command]
-pub fn get_workspace_page(app: AppHandle, page_id: String) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+pub fn get_workspace_page(
+    app: AppHandle,
+    page_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspacePage, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.get_page(&page_id)
 }
 
@@ -43,7 +61,7 @@ pub fn create_workspace_page(
     request: CreatePageRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     let page = storage.create_page(&request, "player")?;
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.stats.pages_created += 1;
@@ -55,14 +73,19 @@ pub fn create_workspace_page(
 pub fn update_workspace_page(
     app: AppHandle,
     request: UpdatePageRequest,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.update_page(&request)
 }
 
 #[tauri::command]
-pub fn search_workspace(app: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let storage = storage_for_app(&app)?;
+pub fn search_workspace(
+    app: AppHandle,
+    query: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<SearchResult>, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.search(&query)
 }
 
@@ -124,8 +147,9 @@ pub fn list_linkable_entities(
 pub fn link_workspace_entity(
     app: AppHandle,
     request: LinkEntityRequest,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.link_entity_to_page(
         &request.page_id,
         LinkedEntity {
@@ -141,8 +165,9 @@ pub fn link_workspace_entity(
 pub fn unlink_workspace_entity(
     app: AppHandle,
     request: UnlinkEntityRequest,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.unlink_entity_from_page(
         &request.page_id,
         &request.entity_type,
@@ -156,8 +181,9 @@ pub fn find_workspace_backlinks(
     app: AppHandle,
     entity_type: String,
     entity_id: String,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<PageBacklink>, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.find_backlinks(&entity_type, &entity_id)
 }
 
@@ -172,7 +198,7 @@ pub fn create_page_from_template_cmd(
     request: CreatePageFromTemplateRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     let page = create_page_from_template(
         &storage,
         &request.template_id,
@@ -187,8 +213,12 @@ pub fn create_page_from_template_cmd(
 }
 
 #[tauri::command]
-pub fn list_page_versions(app: AppHandle, page_id: String) -> Result<Vec<PageVersionSummary>, String> {
-    let storage = storage_for_app(&app)?;
+pub fn list_page_versions(
+    app: AppHandle,
+    page_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<PageVersionSummary>, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.list_page_versions(&page_id)
 }
 
@@ -196,14 +226,19 @@ pub fn list_page_versions(app: AppHandle, page_id: String) -> Result<Vec<PageVer
 pub fn restore_page_version(
     app: AppHandle,
     request: RestorePageVersionRequest,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.restore_page_version(&request.page_id, request.version, "player")
 }
 
 #[tauri::command]
-pub fn list_page_comments(app: AppHandle, page_id: String) -> Result<Vec<PageComment>, String> {
-    let storage = storage_for_app(&app)?;
+pub fn list_page_comments(
+    app: AppHandle,
+    page_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<PageComment>, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.list_page_comments(&page_id)
 }
 
@@ -211,8 +246,9 @@ pub fn list_page_comments(app: AppHandle, page_id: String) -> Result<Vec<PageCom
 pub fn add_page_comment(
     app: AppHandle,
     request: AddPageCommentRequest,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<PageComment, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.add_page_comment(&request)
 }
 
@@ -221,8 +257,9 @@ pub fn set_workspace_presence(
     app: AppHandle,
     page_id: String,
     editor: String,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<(), String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.set_workspace_presence(&page_id, &editor)
 }
 
@@ -230,8 +267,9 @@ pub fn set_workspace_presence(
 pub fn get_workspace_presence(
     app: AppHandle,
     page_id: String,
+    state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<WorkspacePresenceEntry>, String> {
-    let storage = storage_for_app(&app)?;
+    let storage = storage_for_app_handle(&app, &state)?;
     storage.get_workspace_presence(&page_id)
 }
 

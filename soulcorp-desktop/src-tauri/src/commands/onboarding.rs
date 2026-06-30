@@ -1,5 +1,5 @@
-use crate::db::persistence::commit;
-use crate::state::{AppState, EventMode};
+use crate::db::persistence::{commit, load_registry, save_registry};
+use crate::state::{fresh_company_state, summary_from_state, AppState, EventMode};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -7,12 +7,16 @@ use tauri::{AppHandle, State};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnboardingState {
     pub company_name: String,
+    pub company_industry: String,
+    pub company_tagline: String,
     pub completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompleteOnboardingRequest {
     pub company_name: String,
+    pub company_industry: String,
+    pub company_tagline: String,
     pub event_mode: EventMode,
     pub pure_local_mode: bool,
     pub random_events_enabled: bool,
@@ -29,11 +33,21 @@ fn normalize_company_name(raw: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
+fn normalize_optional_field(raw: &str, max_len: usize, label: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.len() > max_len {
+        return Err(format!("{label} must be {max_len} characters or fewer."));
+    }
+    Ok(trimmed.to_string())
+}
+
 #[tauri::command]
 pub fn get_onboarding_state(state: State<'_, Mutex<AppState>>) -> Result<OnboardingState, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
     Ok(OnboardingState {
         company_name: state.company_name.clone(),
+        company_industry: state.company_industry.clone(),
+        company_tagline: state.company_tagline.clone(),
         completed: state.onboarding_completed,
     })
 }
@@ -45,23 +59,47 @@ pub fn complete_onboarding(
     app: AppHandle,
 ) -> Result<OnboardingState, String> {
     let company_name = normalize_company_name(&request.company_name)?;
+    let company_industry = normalize_optional_field(&request.company_industry, 64, "Industry")?;
+    let company_tagline = normalize_optional_field(&request.company_tagline, 120, "Tagline")?;
 
     let mut state = app_state.lock().map_err(|e| e.to_string())?;
-    state.company_name = company_name.clone();
+    if state.company_id.is_empty() {
+        let fresh = fresh_company_state(
+            &company_name,
+            &company_industry,
+            &company_tagline,
+            request.event_mode,
+            request.pure_local_mode,
+            request.random_events_enabled,
+        );
+        *state = fresh;
+    } else {
+        state.company_name = company_name.clone();
+        state.company_industry = company_industry.clone();
+        state.company_tagline = company_tagline.clone();
+        state.settings.event_mode = request.event_mode;
+        state.settings.pure_local_mode = request.pure_local_mode;
+        state.settings.random_events_enabled = request.random_events_enabled;
+        if request.event_mode == EventMode::Serious {
+            state.settings.random_events_enabled = false;
+        }
+        if request.pure_local_mode {
+            state.settings.ai_provider = "mock".to_string();
+            state.hub.connected = false;
+        }
+    }
+
     state.onboarding_completed = true;
-    state.settings.event_mode = request.event_mode;
-    state.settings.pure_local_mode = request.pure_local_mode;
-    state.settings.random_events_enabled = request.random_events_enabled;
-    if request.event_mode == EventMode::Serious {
-        state.settings.random_events_enabled = false;
-    }
-    if request.pure_local_mode {
-        state.settings.ai_provider = "mock".to_string();
-        state.hub.connected = false;
-    }
+
+    let mut registry = load_registry(&app)?;
+    registry.upsert_summary(summary_from_state(&state));
+    registry.active_company_id = Some(state.company_id.clone());
+    save_registry(&app, &registry)?;
 
     let snapshot = OnboardingState {
         company_name,
+        company_industry,
+        company_tagline,
         completed: true,
     };
     commit(app, &state)?;
@@ -76,7 +114,7 @@ mod tests {
     fn fresh_state_requires_onboarding() {
         let state = AppState::default();
         assert!(!state.onboarding_completed);
-        assert_eq!(state.company_name, "SoulCorp");
+        assert!(state.company_name.is_empty());
     }
 
     #[test]
