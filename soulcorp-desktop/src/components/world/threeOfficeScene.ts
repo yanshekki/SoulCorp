@@ -78,6 +78,78 @@ function createBuilding(building: Building): THREE.Group {
   return group;
 }
 
+function createStatusBubble(label: string): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(18, 32, 24, 0.82)";
+    const text = label.length > 28 ? `${label.slice(0, 25)}...` : label;
+    ctx.font = "bold 18px sans-serif";
+    const width = Math.min(240, ctx.measureText(text).width + 24);
+    const x = (canvas.width - width) / 2;
+    roundRect(ctx, x, 10, width, 34, 10);
+    ctx.fill();
+    ctx.fillStyle = "#f8fff4";
+    ctx.fillText(text, x + 12, 33);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.8, 0.45, 1);
+  sprite.position.y = 2.15;
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function updateStatusBubble(sprite: THREE.Sprite, label: string) {
+  const canvas = (sprite.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
+  const ctx = canvas?.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(18, 32, 24, 0.82)";
+  const text = label.length > 28 ? `${label.slice(0, 25)}...` : label;
+  ctx.font = "bold 18px sans-serif";
+  const width = Math.min(240, ctx.measureText(text).width + 24);
+  const x = (canvas.width - width) / 2;
+  roundRect(ctx, x, 10, width, 34, 10);
+  ctx.fill();
+  ctx.fillStyle = "#f8fff4";
+  ctx.fillText(text, x + 12, 33);
+  (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
+}
+
 function createHumanoid(agent: Agent): THREE.Group {
   const group = new THREE.Group();
   group.userData.agentId = agent.id;
@@ -119,7 +191,9 @@ function createHumanoid(agent: Agent): THREE.Group {
   ring.position.y = 0.03;
 
   body.add(head, hair, torso, legs);
-  group.add(body, ring);
+  const bubble = createStatusBubble(agent.statusLabel);
+  group.add(body, ring, bubble);
+  group.userData.statusBubble = bubble;
   return group;
 }
 
@@ -135,6 +209,12 @@ function updateHumanoid(group: THREE.Group, agent: Agent) {
     agent.target[2] - agent.position[2],
   );
   body.rotation.z = swing * 0.08;
+
+  const bubble = group.userData.statusBubble as THREE.Sprite | undefined;
+  if (bubble) {
+    updateStatusBubble(bubble, `${agent.name}: ${agent.statusLabel}`);
+    bubble.position.y = 2.15 + bob;
+  }
 }
 
 export class OfficeSceneError extends Error {

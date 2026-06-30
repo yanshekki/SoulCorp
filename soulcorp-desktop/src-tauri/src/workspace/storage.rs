@@ -142,6 +142,13 @@ impl WorkspaceStorage {
                 content: "Start writing...".to_string(),
                 checked: None,
             }],
+            rich_doc: Some(serde_json::json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": "Start writing..." }]
+                }]
+            })),
             linked_entities: vec![],
             last_edited_at: now,
             last_edited_by: editor.to_string(),
@@ -158,7 +165,10 @@ impl WorkspaceStorage {
         if let Some(title) = &request.title {
             page.title = title.clone();
         }
-        if let Some(blocks) = &request.blocks {
+        if let Some(rich_doc) = &request.rich_doc {
+            page.rich_doc = Some(rich_doc.clone());
+            page.blocks = blocks_from_rich_doc(rich_doc);
+        } else if let Some(blocks) = &request.blocks {
             page.blocks = blocks.clone();
         }
         if let Some(editor) = &request.last_edited_by {
@@ -179,14 +189,20 @@ impl WorkspaceStorage {
 
         let mut results = Vec::new();
         for page in self.read_all_pages()? {
+            let rich_text = page
+                .rich_doc
+                .as_ref()
+                .map(extract_text_from_rich_doc)
+                .unwrap_or_default();
             let haystack = format!(
-                "{} {}",
+                "{} {} {}",
                 page.title.to_lowercase(),
                 page.blocks
                     .iter()
                     .map(|block| block.content.to_lowercase())
                     .collect::<Vec<_>>()
-                    .join(" ")
+                    .join(" "),
+                rich_text.to_lowercase()
             );
 
             if haystack.contains(&needle) {
@@ -255,6 +271,7 @@ impl WorkspaceStorage {
             page_id: company_page.id.clone(),
             title: None,
             blocks: Some(blocks),
+            rich_doc: None,
             last_edited_by: Some("meeting-system".to_string()),
         })?;
         created.push(company_updated);
@@ -337,6 +354,97 @@ impl WorkspaceStorage {
 
 pub fn workspace_root(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("workspaces")
+}
+
+fn blocks_from_rich_doc(doc: &serde_json::Value) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    let Some(content) = doc.get("content").and_then(|value| value.as_array()) else {
+        return blocks;
+    };
+
+    for node in content {
+        let node_type = node.get("type").and_then(|value| value.as_str()).unwrap_or("paragraph");
+        let text = extract_node_text(node);
+        if text.trim().is_empty() {
+            continue;
+        }
+
+        match node_type {
+            "heading" => blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "heading".to_string(),
+                content: text,
+                checked: None,
+            }),
+            "taskList" => {
+                if let Some(items) = node.get("content").and_then(|value| value.as_array()) {
+                    for item in items {
+                        let item_text = extract_node_text(item);
+                        if item_text.trim().is_empty() {
+                            continue;
+                        }
+                        blocks.push(Block {
+                            id: Uuid::new_v4().to_string(),
+                            block_type: "todo".to_string(),
+                            content: item_text,
+                            checked: item
+                                .get("attrs")
+                                .and_then(|attrs| attrs.get("checked"))
+                                .and_then(|value| value.as_bool()),
+                        });
+                    }
+                }
+            }
+            _ => blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "text".to_string(),
+                content: text,
+                checked: None,
+            }),
+        }
+    }
+
+    if blocks.is_empty() {
+        blocks.push(Block {
+            id: Uuid::new_v4().to_string(),
+            block_type: "text".to_string(),
+            content: String::new(),
+            checked: None,
+        });
+    }
+
+    blocks
+}
+
+fn extract_text_from_rich_doc(doc: &serde_json::Value) -> String {
+    doc.get("content")
+        .and_then(|value| value.as_array())
+        .map(|nodes| {
+            nodes
+                .iter()
+                .map(extract_node_text)
+                .filter(|text| !text.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default()
+}
+
+fn extract_node_text(node: &serde_json::Value) -> String {
+    if let Some(text) = node.get("text").and_then(|value| value.as_str()) {
+        return text.to_string();
+    }
+
+    node.get("content")
+        .and_then(|value| value.as_array())
+        .map(|children| {
+            children
+                .iter()
+                .map(extract_node_text)
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default()
 }
 
 fn page_to_markdown(page: &WorkspacePage) -> String {

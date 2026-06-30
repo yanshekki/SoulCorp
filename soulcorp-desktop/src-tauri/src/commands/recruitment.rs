@@ -1,3 +1,4 @@
+use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::finance::total_monthly_salary;
 use crate::hub::{mock_gigs, HubClient};
@@ -196,6 +197,7 @@ pub async fn hire_candidate(
     };
 
     let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    ensure_agent_capacity(&state)?;
     let agent_id = format!("agent-{}", Uuid::new_v4());
     let name = soul
         .as_ref()

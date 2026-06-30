@@ -1,20 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { JSONContent } from "@tiptap/core";
 import { useEffect, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { WorkspaceBlock, WorkspacePage } from "../../types/workspace";
+import type { WorkspacePage } from "../../types/workspace";
+import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
+import { TipTapEditor } from "./TipTapEditor";
 
 export function PageEditor() {
   const selectedPage = useWorkspaceStore((state) => state.selectedPage);
   const setSelectedPage = useWorkspaceStore((state) => state.setSelectedPage);
   const upsertPageSummary = useWorkspaceStore((state) => state.upsertPageSummary);
   const [title, setTitle] = useState("");
-  const [blocks, setBlocks] = useState<WorkspaceBlock[]>([]);
+  const [richDoc, setRichDoc] = useState<JSONContent>({ type: "doc", content: [] });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!selectedPage) return;
+    if (!selectedPage) {
+      return;
+    }
     setTitle(selectedPage.title);
-    setBlocks(selectedPage.blocks);
+    setRichDoc(
+      richDocFromPage(
+        selectedPage.rich_doc as JSONContent | undefined,
+        selectedPage.blocks,
+      ),
+    );
   }, [selectedPage]);
 
   if (!selectedPage) {
@@ -25,33 +35,16 @@ export function PageEditor() {
     );
   }
 
-  const updateBlock = (blockId: string, patch: Partial<WorkspaceBlock>) => {
-    setBlocks((current) =>
-      current.map((block) => (block.id === blockId ? { ...block, ...patch } : block)),
-    );
-  };
-
-  const addBlock = (type: WorkspaceBlock["type"]) => {
-    setBlocks((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        type,
-        content: type === "heading" ? "New heading" : "New block",
-        checked: type === "todo" ? false : undefined,
-      },
-    ]);
-  };
-
   const savePage = async () => {
-    if (!selectedPage) return;
     setSaving(true);
     try {
+      const blocks = blocksFromRichDoc(richDoc);
       const page = await invoke<WorkspacePage>("update_workspace_page", {
         request: {
           page_id: selectedPage.id,
           title,
           blocks,
+          rich_doc: richDoc,
           last_edited_by: "player",
         },
       });
@@ -81,48 +74,10 @@ export function PageEditor() {
         </button>
       </header>
 
-      <div className="block-toolbar">
-        <button type="button" onClick={() => addBlock("heading")}>
-          + Heading
-        </button>
-        <button type="button" onClick={() => addBlock("text")}>
-          + Text
-        </button>
-        <button type="button" onClick={() => addBlock("todo")}>
-          + Todo
-        </button>
-      </div>
-
-      <div className="block-list">
-        {blocks.map((block) => (
-          <div key={block.id} className={`block-item block-${block.type}`}>
-            {block.type === "todo" ? (
-              <label className="todo-block">
-                <input
-                  type="checkbox"
-                  checked={Boolean(block.checked)}
-                  onChange={(event) =>
-                    updateBlock(block.id, { checked: event.target.checked })
-                  }
-                />
-                <input
-                  value={block.content}
-                  onChange={(event) => updateBlock(block.id, { content: event.target.value })}
-                />
-              </label>
-            ) : (
-              <input
-                className={block.type === "heading" ? "heading-input" : "text-input"}
-                value={block.content}
-                onChange={(event) => updateBlock(block.id, { content: event.target.value })}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+      <TipTapEditor value={richDoc} onChange={setRichDoc} />
 
       <footer className="page-meta">
-        v{selectedPage.version} · last edited by {selectedPage.last_edited_by}
+        v{selectedPage.version} · last edited by {selectedPage.last_edited_by} · TipTap blocks
       </footer>
     </div>
   );

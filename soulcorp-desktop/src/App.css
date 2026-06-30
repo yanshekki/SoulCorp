@@ -807,6 +807,82 @@ body,
   font-size: 0.8rem;
 }
 
+.tiptap-shell {
+  border: 1px solid #e2d4c0;
+  border-radius: 12px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.tiptap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid #eadfce;
+  background: #f8f1e5;
+}
+
+.tiptap-toolbar button {
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.tiptap-toolbar button.active {
+  background: #ffe7a8;
+  border-color: #d9b24c;
+}
+
+.tiptap-editor {
+  min-height: 320px;
+  padding: 0.85rem 1rem;
+}
+
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: 280px;
+  line-height: 1.55;
+}
+
+.tiptap-editor .ProseMirror h1,
+.tiptap-editor .ProseMirror h2,
+.tiptap-editor .ProseMirror h3 {
+  margin: 0.8rem 0 0.35rem;
+}
+
+.tiptap-editor .ProseMirror p {
+  margin: 0.35rem 0;
+}
+
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  margin: 0.35rem 0 0.35rem 1.2rem;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.tiptap-editor .ProseMirror li[data-type="taskItem"] {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #9a8775;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 .game-scene.pixel-filter .game-canvas {
   image-rendering: pixelated;
   filter: contrast(1.05) saturate(1.08);

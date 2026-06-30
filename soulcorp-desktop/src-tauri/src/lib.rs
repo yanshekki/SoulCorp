@@ -49,6 +49,7 @@ pub fn run() {
             commands::fetch_soul_balance,
             commands::get_tier_benefits,
             commands::check_feature_access,
+            commands::upgrade_tier,
             commands::sign_near_transaction,
             commands::get_game_settings,
             commands::update_game_settings,

@@ -21,6 +21,7 @@ export interface WorkspacePage {
   folder_id: string;
   icon?: string | null;
   blocks: WorkspaceBlock[];
+  rich_doc?: Record<string, unknown> | null;
   last_edited_at: string;
   last_edited_by: string;
   version: number;

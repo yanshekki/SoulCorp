@@ -1,3 +1,4 @@
+use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::soul::{parse_soul_content, parse_soul_md, SoulProfile};
 use crate::state::{AgentRecord, AppState};
@@ -39,6 +40,7 @@ pub fn start_local_agent(
     app: AppHandle,
 ) -> Result<AgentInfo, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_agent_capacity(&state)?;
     let soul = parse_soul_md(&request.soul_md_path).ok();
     let agent_id = format!("agent-{}", Uuid::new_v4());
     let name = soul

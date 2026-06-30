@@ -3,10 +3,20 @@ import { useEffect } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { TierBenefits } from "../../types/game";
 
+interface UpgradeTierResult {
+  tier: string;
+  soul_balance: number;
+  soul_staked: number;
+  message: string;
+  benefits: TierBenefits;
+}
+
 export function TierPanel() {
   const hubStatus = useGameStore((state) => state.hubStatus);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
+  const settings = useGameStore((state) => state.settings);
   const setTierBenefits = useGameStore((state) => state.setTierBenefits);
+  const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
   useEffect(() => {
@@ -15,12 +25,29 @@ export function TierPanel() {
       .catch((error) => setStatusMessage(String(error)));
   }, [hubStatus.user_tier, setStatusMessage, setTierBenefits]);
 
+  const upgradeTier = async (targetTier: "pro" | "vip") => {
+    try {
+      const result = await invoke<UpgradeTierResult>("upgrade_tier", {
+        request: { target_tier: targetTier },
+      });
+      setTierBenefits(result.benefits);
+      setHubStatus({
+        ...hubStatus,
+        user_tier: result.tier,
+        soul_balance: result.soul_balance,
+      });
+      setStatusMessage(result.message);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   const upgradeHint =
     tierBenefits.tier === "vip"
       ? "You have full Executive Lounge access."
       : tierBenefits.tier === "pro"
-        ? "Stake more $SOUL to unlock VIP perks."
-        : "Stake $SOUL on soulmd-hub or subscribe to unlock Pro/VIP.";
+        ? "Stake 500 $SOUL to unlock VIP perks."
+        : "Stake $SOUL to unlock Pro (100) or VIP (500).";
 
   return (
     <section className="panel-card tier-panel">
@@ -60,6 +87,26 @@ export function TierPanel() {
       </div>
 
       <p className="muted">{upgradeHint}</p>
+
+      {!settings.pure_local_mode && tierBenefits.tier === "free" ? (
+        <div className="panel-actions stacked">
+          <button type="button" onClick={() => void upgradeTier("pro")}>
+            Upgrade to Pro (stake 100 $SOUL)
+          </button>
+          <button type="button" onClick={() => void upgradeTier("vip")}>
+            Upgrade to VIP (stake 500 $SOUL)
+          </button>
+        </div>
+      ) : null}
+
+      {!settings.pure_local_mode && tierBenefits.tier === "pro" ? (
+        <div className="panel-actions">
+          <button type="button" onClick={() => void upgradeTier("vip")}>
+            Upgrade to VIP (stake 500 $SOUL)
+          </button>
+        </div>
+      ) : null}
+
       {tierBenefits.executive_lounge ? (
         <p className="tier-highlight">Executive Lounge: exclusive high-budget gigs unlocked.</p>
       ) : null}

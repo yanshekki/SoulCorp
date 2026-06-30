@@ -52,6 +52,8 @@ pub struct WorkspacePage {
     pub folder_id: String,
     pub icon: Option<String>,
     pub blocks: Vec<Block>,
+    #[serde(default)]
+    pub rich_doc: Option<serde_json::Value>,
     pub linked_entities: Vec<LinkedEntity>,
     pub last_edited_at: String,
     pub last_edited_by: String,
@@ -94,5 +96,6 @@ pub struct UpdatePageRequest {
     pub page_id: String,
     pub title: Option<String>,
     pub blocks: Option<Vec<Block>>,
+    pub rich_doc: Option<serde_json::Value>,
     pub last_edited_by: Option<String>,
 }
