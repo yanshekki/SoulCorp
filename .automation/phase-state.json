@@ -1,5 +1,5 @@
 {
-  "current_phase": 1,
+  "current_phase": 2,
   "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
@@ -10,8 +10,9 @@
     },
     "1": {
       "branch": "phase-1/isometric-world",
-      "status": "in_progress",
-      "description": "Isometric Three.js world and basic UI shell"
+      "status": "merged",
+      "description": "Isometric Three.js world and basic UI shell",
+      "merged_at": "2026-06-30T03:38:37.603566+00:00"
     },
     "2": {
       "branch": "phase-2/agent-systems",
