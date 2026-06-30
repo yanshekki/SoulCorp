@@ -2145,3 +2145,97 @@ body,
   color: #f0d9a8;
   font-size: 0.82rem;
 }
+
+.tier-panel .tier-benefits-grid {
+  margin-top: 0.5rem;
+}
+
+.hub-sync-status .hub-pill.queue {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fbbf24;
+}
+
+.executive-lounge-filter {
+  margin: 0.35rem 0 0.65rem;
+}
+
+.qc-band-badge {
+  display: inline-flex;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.qc-band-badge.band-platinum {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.qc-band-badge.band-gold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.qc-band-badge.band-silver {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.qc-band-badge.band-bronze {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.reality-debt-meter {
+  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.reality-debt-bar {
+  height: 8px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.reality-debt-fill {
+  display: block;
+  height: 100%;
+  background: #93c5fd;
+}
+
+.reality-debt-fill.warning {
+  background: #f87171;
+}
+
+.candidate-scores-table {
+  width: 100%;
+  margin-top: 0.55rem;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.candidate-scores-table th,
+.candidate-scores-table td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.3rem 0.45rem;
+  text-align: left;
+}
+
+.onboarding-skip {
+  margin-right: auto;
+}
+
+.last-deploy-status {
+  margin: 0.35rem 0 0.65rem;
+  font-size: 0.78rem;
+}
+
+.delete-dept-btn {
+  margin-top: 0.35rem;
+}

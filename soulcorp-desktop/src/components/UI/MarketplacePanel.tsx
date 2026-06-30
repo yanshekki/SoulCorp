@@ -17,6 +17,13 @@ import { invoke } from "@tauri-apps/api/core";
 
 type MarketplaceTab = "browse" | "contracts" | "history";
 
+function qcBandLabel(score: number): string {
+  if (score >= 0.9) return "Platinum";
+  if (score >= 0.75) return "Gold";
+  if (score >= 0.6) return "Silver";
+  return "Bronze";
+}
+
 function statusLabel(status: string): string {
   switch (status) {
     case "accepted":
@@ -43,6 +50,7 @@ export function MarketplacePanel() {
   const setFinance = useGameStore((state) => state.setFinance);
 
   const [activeTab, setActiveTab] = useState<MarketplaceTab>("browse");
+  const [executiveLoungeOnly, setExecutiveLoungeOnly] = useState(false);
   const [gigs, setGigs] = useState<HubGig[]>([]);
   const [contracts, setContracts] = useState<GigContract[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,8 +98,14 @@ export function MarketplacePanel() {
   );
 
   const browseGigs = useMemo(
-    () => gigs.filter((gig) => gig.status === "open" && !activeContractGigIds.has(gig.gig_id)),
-    [gigs, activeContractGigIds],
+    () =>
+      gigs.filter(
+        (gig) =>
+          gig.status === "open" &&
+          !activeContractGigIds.has(gig.gig_id) &&
+          (!executiveLoungeOnly || gig.executive_lounge),
+      ),
+    [executiveLoungeOnly, gigs, activeContractGigIds],
   );
 
   const activeContracts = useMemo(
@@ -202,8 +216,10 @@ export function MarketplacePanel() {
   };
 
   const handleRejectQc = async (contractId: string) => {
+    const notes = window.prompt("QC rejection notes (optional):");
+    if (notes === null) return;
     try {
-      const contract = await rejectGigQc(contractId);
+      const contract = await rejectGigQc(contractId, notes.trim() || undefined);
       setStatusMessage(
         `QC rejected for ${contract.title}. Revision required — ${contract.qc_notes ?? "Improve deliverable."}`,
       );
@@ -214,8 +230,10 @@ export function MarketplacePanel() {
   };
 
   const handleDispute = async (contractId: string) => {
+    const notes = window.prompt("Dispute reason (optional):");
+    if (notes === null) return;
     try {
-      const contract = await disputeHubGig(contractId);
+      const contract = await disputeHubGig(contractId, notes.trim() || undefined);
       setStatusMessage(`Dispute opened for ${contract.title}. Platform mediation pending.`);
       await refreshContracts();
     } catch (error) {
@@ -234,13 +252,32 @@ export function MarketplacePanel() {
         <p className="tier-highlight">Executive Lounge gigs are visible on your tier.</p>
       ) : null}
 
-      <div className="hub-status-row">
+      <div className="hub-status-row hub-sync-status">
         <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>
           {hubStatus.connected ? "Connected" : "Offline"}
         </span>
         <span className="hub-pill tier">{hubStatus.user_tier}</span>
         <span className="hub-pill balance">${hubStatus.soul_balance.toFixed(2)} SOUL</span>
+        {hubStatus.pending_queue_items > 0 ? (
+          <span className="hub-pill queue">{hubStatus.pending_queue_items} queued</span>
+        ) : null}
+        {hubStatus.last_sync_at ? (
+          <span className="hub-pill muted">
+            Synced {new Date(hubStatus.last_sync_at).toLocaleString()}
+          </span>
+        ) : null}
       </div>
+
+      {tierBenefits.executive_lounge ? (
+        <label className="checkbox-row executive-lounge-filter">
+          <input
+            type="checkbox"
+            checked={executiveLoungeOnly}
+            onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
+          />
+          <span>Executive Lounge gigs only</span>
+        </label>
+      ) : null}
 
       {settings.pure_local_mode ? (
         <p className="hub-warning">
@@ -332,6 +369,9 @@ export function MarketplacePanel() {
                 </div>
                 {contract.qc_score != null ? (
                   <p className="gig-qc-score">
+                    <span className={`qc-band-badge band-${qcBandLabel(contract.qc_score).toLowerCase()}`}>
+                      {qcBandLabel(contract.qc_score)}
+                    </span>{" "}
                     QC score: {(contract.qc_score * 100).toFixed(0)}%
                     {contract.submitted_at
                       ? ` · Submitted ${new Date(contract.submitted_at).toLocaleString()}`

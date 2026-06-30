@@ -190,6 +190,26 @@ pub fn create_custom_department(
 }
 
 #[tauri::command]
+pub fn delete_custom_department(
+    department_id: String,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<CompanyDepartmentsSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_vip_feature(&state, "custom_departments")?;
+    let before = state.custom_departments.len();
+    state
+        .custom_departments
+        .retain(|department| department.id != department_id);
+    if state.custom_departments.len() == before {
+        return Err("Custom department not found.".to_string());
+    }
+    let snapshot = list_company_departments_from_state(&state);
+    commit(app, &state)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
 pub fn assign_agent_department(
     request: AssignAgentDepartmentRequest,
     state: State<'_, Mutex<AppState>>,

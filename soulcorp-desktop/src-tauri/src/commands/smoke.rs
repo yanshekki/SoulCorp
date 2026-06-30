@@ -29,6 +29,17 @@ pub fn is_3d_smoke_test_enabled() -> bool {
     smoke_test_enabled_from_env()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_disabled_by_default_without_env() {
+        std::env::remove_var("SOULCORP_3D_SMOKE");
+        assert!(!smoke_test_enabled_from_env());
+    }
+}
+
 pub fn smoke_test_enabled_from_env() -> bool {
     std::env::var("SOULCORP_3D_SMOKE")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))

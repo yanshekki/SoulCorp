@@ -112,6 +112,7 @@ export function SettingsPanel() {
       setStatusMessage(
         result.url ? `${result.message} ${result.url}` : `${result.message} ${result.path}`,
       );
+      await refreshDeployStatus();
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -126,6 +127,22 @@ export function SettingsPanel() {
       setStatusMessage(
         result.url ? `${result.message} ${result.url}` : `${result.message} ${result.path}`,
       );
+      await refreshDeployStatus();
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setDeployBusy(false);
+    }
+  };
+
+  const pushToNetlify = async () => {
+    setDeployBusy(true);
+    try {
+      const result = await invoke<DeployResult>("push_static_site_to_netlify");
+      setStatusMessage(
+        result.url ? `${result.message} ${result.url}` : `${result.message} ${result.path}`,
+      );
+      await refreshDeployStatus();
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -512,7 +529,21 @@ export function SettingsPanel() {
             >
               vercel {deployStatus.vercel_cli_available ? "ready" : "missing"}
             </span>
+            <span
+              className={`deploy-pill ${deployStatus.netlify_cli_available ? "ready" : "missing"}`}
+            >
+              netlify {deployStatus.netlify_cli_available ? "ready" : "missing"}
+            </span>
           </div>
+        ) : null}
+        {deployStatus?.last_deploy_url ? (
+          <p className="last-deploy-status muted">
+            Last deploy ({deployStatus.last_deploy_provider ?? "unknown"}):{" "}
+            {deployStatus.last_deploy_url}
+            {deployStatus.last_deploy_at
+              ? ` · ${new Date(deployStatus.last_deploy_at).toLocaleString()}`
+              : null}
+          </p>
         ) : null}
         <label className="field-label">
           GitHub repo URL (optional — leave blank to create via gh)
@@ -551,6 +582,14 @@ export function SettingsPanel() {
             onClick={() => void pushToVercel()}
           >
             Push to Vercel
+          </button>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={deployBusy || !deployStatus?.netlify_cli_available}
+            onClick={() => void pushToNetlify()}
+          >
+            Push to Netlify
           </button>
         </div>
       </div>

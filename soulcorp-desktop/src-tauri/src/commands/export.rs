@@ -5,7 +5,8 @@ use crate::report::{
 use crate::state::AppState;
 use crate::static_site::{
     build_deliverables_html, build_deploy_readme, build_index_html, build_manifest_json,
-    build_netlify_toml, build_report_page_html, build_site_css, build_vercel_json,
+    build_netlify_toml, build_report_page_html, build_site_css, build_sitemap_xml,
+    build_vercel_json,
     build_workspace_index_html, build_workspace_page_html,
 };
 use crate::tier::can_use_feature;
@@ -309,6 +310,7 @@ pub fn write_static_site_to_dir(
     write_dir_text(dir, "assets/site.css", build_site_css())?;
     write_dir_text(dir, "DEPLOY.md", &bundle.deploy_readme)?;
     write_dir_text(dir, "netlify.toml", build_netlify_toml())?;
+    write_dir_text(dir, "sitemap.xml", build_sitemap_xml())?;
     write_dir_text(dir, "vercel.json", build_vercel_json())?;
     write_dir_text(dir, "manifest.json", &bundle.manifest_json)?;
 
@@ -394,6 +396,7 @@ pub fn export_static_site_zip(
     zip_write_text(&mut zip, "assets/site.css", build_site_css(), options)?;
     zip_write_text(&mut zip, "DEPLOY.md", &bundle.deploy_readme, options)?;
     zip_write_text(&mut zip, "netlify.toml", build_netlify_toml(), options)?;
+    zip_write_text(&mut zip, "sitemap.xml", build_sitemap_xml(), options)?;
     zip_write_text(&mut zip, "vercel.json", build_vercel_json(), options)?;
     zip_write_text(&mut zip, "manifest.json", &bundle.manifest_json, options)?;
 

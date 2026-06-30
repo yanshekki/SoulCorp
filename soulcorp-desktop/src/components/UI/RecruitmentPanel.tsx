@@ -116,9 +116,10 @@ export function RecruitmentPanel() {
       .join(", ");
     try {
       await invoke<number>("record_recruitment_interview");
+      const panelAgents = agentRecords.slice(0, 3).map((agent) => agent.id);
       const meeting = await invoke<MeetingSnapshot>("start_meeting", {
         request: {
-          agent_ids: ["agent-2", "agent-3"],
+          agent_ids: panelAgents.length > 0 ? panelAgents : ["agent-1", "agent-2"],
           meeting_type: `Interview: ${names}`,
         },
       });
@@ -215,6 +216,26 @@ export function RecruitmentPanel() {
           )}
           {analytics.priority_matching ? (
             <p className="tier-highlight">Pro/VIP priority matching boosts compatibility scoring.</p>
+          ) : null}
+          {analytics.candidate_scores.length > 0 ? (
+            <table className="candidate-scores-table">
+              <thead>
+                <tr>
+                  <th>Candidate</th>
+                  <th>Compatibility</th>
+                  <th>Risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.candidate_scores.map((entry) => (
+                  <tr key={entry.candidate_id}>
+                    <td>{entry.name}</td>
+                    <td>{(entry.compatibility_score * 100).toFixed(0)}%</td>
+                    <td>{entry.risk_band}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : null}
         </div>
       ) : null}

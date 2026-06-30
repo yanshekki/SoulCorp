@@ -398,6 +398,12 @@ pub struct AppState {
     pub day_number: u32,
     pub tick: u64,
     pub last_backup_tick: u64,
+    #[serde(default)]
+    pub last_deploy_url: Option<String>,
+    #[serde(default)]
+    pub last_deploy_at: Option<String>,
+    #[serde(default)]
+    pub last_deploy_provider: Option<String>,
 }
 
 impl Default for AppState {
@@ -427,6 +433,9 @@ impl Default for AppState {
             day_number: 1,
             tick: 0,
             last_backup_tick: 0,
+            last_deploy_url: None,
+            last_deploy_at: None,
+            last_deploy_provider: None,
         }
     }
 }

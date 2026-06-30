@@ -71,6 +71,23 @@ export function VipExecutivePanel() {
     }
   }, [tierBenefits.custom_departments, tierBenefits.ai_co_ceo]);
 
+  const deleteDepartment = async (departmentId: string) => {
+    try {
+      const snapshot = await invoke<CompanyDepartmentsSnapshot>("delete_custom_department", {
+        department_id: departmentId,
+      });
+      setDepartments(snapshot);
+      const baseIds = new Set(["hq", "engineering", "hr", "plaza"]);
+      setBuildings([
+        ...buildings.filter((building) => baseIds.has(building.id)),
+        ...snapshot.buildings.map(toWorldBuilding),
+      ]);
+      setStatusMessage("Custom department removed.");
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   const createDepartment = async () => {
     try {
       const snapshot = await invoke<CompanyDepartmentsSnapshot>("create_custom_department", {
@@ -197,6 +214,13 @@ export function VipExecutivePanel() {
                   <strong>{department.display_name}</strong>
                   <span>{department.name}</span>
                   <p className="muted">{department.sop || "No SOP yet."}</p>
+                  <button
+                    type="button"
+                    className="tiny-btn delete-dept-btn"
+                    onClick={() => void deleteDepartment(department.id)}
+                  >
+                    Delete
+                  </button>
                 </li>
               ))}
             </ul>

@@ -178,4 +178,32 @@ mod tests {
         assert_eq!(vip_payout, 190.0);
         assert_eq!(vip_fee, 10.0);
     }
+
+    #[test]
+    fn gig_lifecycle_transitions_to_completed() {
+        let mut state = AppState::default();
+        state.hub.user_tier = "free".to_string();
+        let mut contract = GigContract {
+            contract_id: "c1".into(),
+            gig_id: 1,
+            title: "Test gig".into(),
+            description: "Desc".into(),
+            budget_usdt: 100.0,
+            required_skills: vec!["rust".into()],
+            status: "in_qc".into(),
+            progress: 1.0,
+            qc_score: Some(0.85),
+            qc_notes: None,
+            payout_usdt: 0.0,
+            platform_fee_usdt: 0.0,
+            accepted_at: "2026-01-01T00:00:00Z".into(),
+            started_at: None,
+            submitted_at: None,
+            completed_at: None,
+        };
+        finalize_contract_payout(&mut state, &mut contract);
+        assert_eq!(contract.status, "completed");
+        assert_eq!(state.stats.gigs_completed, 1);
+        assert!(state.finance.cash_balance > 0.0);
+    }
 }

@@ -168,7 +168,13 @@ pub async fn sync_with_hub(
     };
 
     if !queue.is_empty() {
-        let _ = client.push_sync(json!({ "queue": queue })).await;
+        match client.push_sync(json!({ "queue": queue })).await {
+            Ok(_) => {}
+            Err(error) if allow_mock_hub_fallback() => {
+                eprintln!("hub sync push fallback: {error}");
+            }
+            Err(error) => return Err(format!("Hub sync push failed: {error}")),
+        }
     }
 
     let pull = match client.pull_sync().await {

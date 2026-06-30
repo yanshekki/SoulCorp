@@ -107,3 +107,27 @@ pub fn agent_limit_reached(tier: &str, current_agents: usize) -> bool {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pro_tier_enables_cloud_sync() {
+        assert!(can_use_feature("pro", "cloud_sync"));
+        assert!(benefits_for_tier("pro").event_foresight_days >= 1);
+    }
+
+    #[test]
+    fn vip_unlocks_executive_features() {
+        assert!(can_use_feature("vip", "executive_lounge"));
+        assert!(can_use_feature("vip", "custom_departments"));
+        assert!(can_use_feature("vip", "ai_co_ceo"));
+    }
+
+    #[test]
+    fn free_tier_caps_agents_at_fifty() {
+        assert!(!agent_limit_reached("free", 49));
+        assert!(agent_limit_reached("free", 50));
+    }
+}

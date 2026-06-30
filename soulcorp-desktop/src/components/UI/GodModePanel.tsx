@@ -92,10 +92,15 @@ export function GodModePanel() {
   const setFinance = useGameStore((state) => state.setFinance);
   const [history, setHistory] = useState<GodModeLogEntry[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [realityDebt, setRealityDebt] = useState(0);
 
   const refreshHistory = async () => {
-    const entries = await invoke<GodModeLogEntry[]>("get_god_mode_history");
+    const [entries, status] = await Promise.all([
+      invoke<GodModeLogEntry[]>("get_god_mode_history"),
+      invoke<{ reality_debt: number }>("get_god_mode_status"),
+    ]);
     setHistory(entries);
+    setRealityDebt(status.reality_debt);
   };
 
   useEffect(() => {
@@ -135,6 +140,18 @@ export function GodModePanel() {
     <section className="panel-card god-mode">
       <h2>God Mode</h2>
       <p className="muted">CEO intervention powers with visible consequences.</p>
+      <div className="reality-debt-meter" aria-label="Reality debt">
+        <span>Reality debt {(realityDebt * 100).toFixed(0)}%</span>
+        <div className="reality-debt-bar">
+          <span
+            className={realityDebt >= 0.35 ? "reality-debt-fill warning" : "reality-debt-fill"}
+            style={{ width: `${Math.round(realityDebt * 100)}%` }}
+          />
+        </div>
+        {realityDebt >= 0.35 ? (
+          <p className="muted">High debt — agents sense unnatural outcomes.</p>
+        ) : null}
+      </div>
       {activePreview ? (
         <div className="god-mode-preview">
           <strong>{activePreview.label}</strong>

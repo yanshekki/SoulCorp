@@ -6,11 +6,29 @@ import { useGameStore } from "../stores/gameStore";
 import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import type {
   AgentRecord,
+  CompanyDepartmentsSnapshot,
+  CustomDepartmentBuilding,
   FinanceState,
   GameSettings,
   HubStatus,
   TierBenefits,
 } from "../types/game";
+import type { Building } from "../types/world";
+import { INITIAL_BUILDINGS } from "../data/initialWorld";
+
+function toWorldBuilding(building: CustomDepartmentBuilding): Building {
+  return {
+    id: building.id,
+    name: building.name,
+    department: building.department,
+    position: building.position,
+    size: building.size,
+    color: building.color,
+    roofColor: building.roof_color,
+    accentColor: building.accent_color,
+    description: building.description,
+  };
+}
 
 const SAMPLE_SOULS = [
   { agentId: "agent-1", path: "/samples/mira.soul.md" },
@@ -30,6 +48,7 @@ export function useGameBootstrap() {
   const setCompanyName = useGameStore((state) => state.setCompanyName);
   const setOnboardingCompleted = useGameStore((state) => state.setOnboardingCompleted);
   const setOnboardingReady = useGameStore((state) => state.setOnboardingReady);
+  const setBuildings = useGameStore((state) => state.setBuildings);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -77,6 +96,18 @@ export function useGameBootstrap() {
           }),
         );
         setTierBenefits(tierBenefits);
+        if (tierBenefits.custom_departments) {
+          const deptSnapshot = await invoke<CompanyDepartmentsSnapshot>(
+            "list_company_departments",
+          ).catch(() => null);
+          if (deptSnapshot) {
+            const baseIds = new Set(INITIAL_BUILDINGS.map((building) => building.id));
+            setBuildings([
+              ...INITIAL_BUILDINGS.filter((building) => baseIds.has(building.id)),
+              ...deptSnapshot.buildings.map(toWorldBuilding),
+            ]);
+          }
+        }
         setStatusMessage("Agent systems online. Sample SOUL profiles loading...");
 
         await Promise.all(
@@ -113,6 +144,7 @@ export function useGameBootstrap() {
     setCompanyName,
     setOnboardingCompleted,
     setOnboardingReady,
+    setBuildings,
     setFinance,
     setHubStatus,
     setTierBenefits,

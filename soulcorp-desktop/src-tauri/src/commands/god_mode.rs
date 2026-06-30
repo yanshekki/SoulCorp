@@ -41,6 +41,19 @@ fn record_use(state: &mut AppState, action: &str, message: String, reality_cost:
     build_result(state, action, message)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GodModeStatus {
+    pub reality_debt: f32,
+}
+
+#[tauri::command]
+pub fn get_god_mode_status(state: State<'_, Mutex<AppState>>) -> Result<GodModeStatus, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    Ok(GodModeStatus {
+        reality_debt: state.god_mode_reality_debt,
+    })
+}
+
 #[tauri::command]
 pub fn get_god_mode_history(
     state: State<'_, Mutex<AppState>>,

@@ -38,11 +38,16 @@ export function MeetingPanel() {
   }, [setStatusMessage]);
 
   const toggleAgent = (agentId: string) => {
-    setSelectedIds((current) =>
-      current.includes(agentId)
-        ? current.filter((id) => id !== agentId)
-        : [...current, agentId],
-    );
+    setSelectedIds((current) => {
+      if (current.includes(agentId)) {
+        return current.filter((id) => id !== agentId);
+      }
+      if (current.length >= 12) {
+        setStatusMessage("Select up to 12 meeting participants.");
+        return current;
+      }
+      return [...current, agentId];
+    });
   };
 
   const startMeeting = async () => {

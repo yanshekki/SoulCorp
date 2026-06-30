@@ -21,7 +21,11 @@ pub struct DeployStatus {
     pub npx_available: bool,
     pub vercel_cli_available: bool,
     pub vercel_version: Option<String>,
+    pub netlify_cli_available: bool,
     pub message: String,
+    pub last_deploy_url: Option<String>,
+    pub last_deploy_at: Option<String>,
+    pub last_deploy_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +179,30 @@ fn run_git_publish(
     })
 }
 
+fn record_deploy(state: &mut AppState, result: &DeployResult, provider: &str) {
+    state.last_deploy_url = result.url.clone();
+    state.last_deploy_at = Some(Utc::now().to_rfc3339());
+    state.last_deploy_provider = Some(provider.to_string());
+}
+
+fn run_netlify_publish(staging_dir: &PathBuf) -> Result<DeployResult, String> {
+    let output = command_output(
+        "npx",
+        &["netlify", "deploy", "--prod", "--dir", "."],
+        Some(staging_dir),
+    )?;
+    let url = extract_url_from_output(&output);
+    Ok(DeployResult {
+        url: url.clone(),
+        path: staging_dir.to_string_lossy().to_string(),
+        format: "netlify".to_string(),
+        message: match url {
+            Some(deployed) => format!("Static site deployed to Netlify: {deployed}"),
+            None => "Static site deployed to Netlify.".to_string(),
+        },
+    })
+}
+
 fn run_vercel_publish(staging_dir: &PathBuf) -> Result<DeployResult, String> {
     let output = command_output(
         "npx",
@@ -194,13 +222,19 @@ fn run_vercel_publish(staging_dir: &PathBuf) -> Result<DeployResult, String> {
 }
 
 #[tauri::command]
-pub fn get_deploy_status() -> Result<DeployStatus, String> {
+pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStatus, String> {
+    let locked = state.lock().map_err(|e| e.to_string())?;
     let (git_available, git_version) = command_available("git", &["--version"]);
     let (gh_available, gh_version) = command_available("gh", &["--version"]);
     let gh_authenticated = gh_available && gh_authenticated();
     let (npx_available, _) = command_available("npx", &["--version"]);
     let (vercel_cli_available, vercel_version) = if npx_available {
         command_available("npx", &["vercel", "--version"])
+    } else {
+        (false, None)
+    };
+    let (netlify_cli_available, _) = if npx_available {
+        command_available("npx", &["netlify", "--version"])
     } else {
         (false, None)
     };
@@ -224,7 +258,11 @@ pub fn get_deploy_status() -> Result<DeployStatus, String> {
         npx_available,
         vercel_cli_available,
         vercel_version,
+        netlify_cli_available,
         message,
+        last_deploy_url: locked.last_deploy_url.clone(),
+        last_deploy_at: locked.last_deploy_at.clone(),
+        last_deploy_provider: locked.last_deploy_provider.clone(),
     })
 }
 
@@ -256,6 +294,7 @@ pub async fn push_static_site_to_github(
     .map_err(|e| e.to_string())??;
 
     let mut locked = state.lock().map_err(|e| e.to_string())?;
+    record_deploy(&mut locked, &result, "github");
     locked.stats.exports_created += 1;
     commit(app, &locked)?;
     Ok(result)
@@ -276,7 +315,43 @@ pub async fn push_static_site_to_vercel(
         .map_err(|e| e.to_string())??;
 
     let mut locked = state.lock().map_err(|e| e.to_string())?;
+    record_deploy(&mut locked, &result, "vercel");
     locked.stats.exports_created += 1;
     commit(app, &locked)?;
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn push_static_site_to_netlify(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<DeployResult, String> {
+    let staging_dir = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        stage_static_site(&app, &locked)?
+    };
+
+    let result = tokio::task::spawn_blocking(move || run_netlify_publish(&staging_dir))
+        .await
+        .map_err(|e| e.to_string())??;
+
+    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    record_deploy(&mut locked, &result, "netlify");
+    locked.stats.exports_created += 1;
+    commit(app, &locked)?;
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_url_finds_https_line() {
+        let output = "Deploy complete\nhttps://soulcorp-demo.netlify.app\nDone";
+        assert_eq!(
+            extract_url_from_output(output),
+            Some("https://soulcorp-demo.netlify.app".to_string())
+        );
+    }
 }

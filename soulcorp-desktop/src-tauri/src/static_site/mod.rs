@@ -137,11 +137,17 @@ a:hover { text-decoration: underline; }
 pub fn build_netlify_toml() -> &'static str {
     r#"[build]
 publish = "."
+"#
+}
 
-[[redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
+pub fn build_sitemap_xml() -> &'static str {
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>./index.html</loc><changefreq>weekly</changefreq></url>
+  <url><loc>./report.html</loc><changefreq>weekly</changefreq></url>
+  <url><loc>./deliverables.html</loc><changefreq>weekly</changefreq></url>
+  <url><loc>./workspace/index.html</loc><changefreq>weekly</changefreq></url>
+</urlset>
 "#
 }
 
@@ -675,6 +681,14 @@ mod tests {
         let html = build_report_page_html(&state, None, "Acme AI Labs", false);
         assert!(html.contains("Profit & Loss"));
         assert!(html.contains("../assets/site.css") || html.contains("assets/site.css"));
+    }
+
+    #[test]
+    fn sitemap_lists_core_pages() {
+        let xml = build_sitemap_xml();
+        assert!(xml.contains("index.html"));
+        assert!(xml.contains("report.html"));
+        assert!(xml.contains("deliverables.html"));
     }
 
     #[test]

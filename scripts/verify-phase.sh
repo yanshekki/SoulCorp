@@ -132,13 +132,18 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
     grep -q "market-gigs.php" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
     grep -q "sync-pull.php" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "sync-push.php" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/hub.rs"
     test -f "${DESKTOP_DIR}/src/services/hubClient.ts"
     test -f "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
     test -f "${REPO_ROOT}/scripts/run-hub-dev.sh"
     test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gigs.php"
-    echo "Phase 5 checks passed."
+    grep -q "sync_with_hub" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "fetch_soul_balance" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "hub-sync-status" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    echo "Phase 5 hub integration checks passed."
     ;;
   6)
     test -f "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
@@ -151,7 +156,10 @@ case "${PHASE}" in
     grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/package.json"
     grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
     grep -q '"devtools": false' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
-    echo "Phase 6 checks passed."
+    grep -q "tier-panel" "${DESKTOP_DIR}/src/components/UI/TierPanel.tsx"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
+    grep -q "TierPanel" "${DESKTOP_DIR}/src/components/UI/ShellLayout.tsx"
+    echo "Phase 6 release polish checks passed."
     ;;
   7)
     test -f "${DESKTOP_DIR}/src/services/scene3dSmoke.ts"
@@ -159,7 +167,9 @@ case "${PHASE}" in
     test -f "${REPO_ROOT}/scripts/e2e-3d-smoke.sh"
     grep -q "is_3d_smoke_test_enabled" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "run3dSmokeTestFromCanvas" "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
-    echo "Phase 7 checks passed."
+    grep -q "spawn_smoke_watchdog" "${DESKTOP_DIR}/src-tauri/src/commands/smoke.rs"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/commands/smoke.rs"
+    echo "Phase 7 3D smoke checks passed."
     ;;
   8)
     test -f "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
@@ -167,10 +177,16 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src/components/world/pixelBuildingTexture.ts"
     grep -q "AgentRenderSystem" "${DESKTOP_DIR}/src/components/world/threeOfficeScene.ts"
     grep -q "InstancedMesh" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
-    echo "Phase 8 checks passed."
+    grep -q "classifyAgents" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
+    grep -q "getPixelBuildingTexture" "${DESKTOP_DIR}/src/components/world/pixelBuildingTexture.ts"
+    grep -q "lowPowerMode" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
+    echo "Phase 8 render performance checks passed."
     ;;
   9)
     test -f "${REPO_ROOT}/scripts/release-install-smoke.sh"
+    test -f "${REPO_ROOT}/scripts/ship-checklist.md"
+    test -f "${REPO_ROOT}/scripts/static-site-smoke.sh"
+    bash "${REPO_ROOT}/scripts/static-site-smoke.sh"
     test -f "${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_1.0.0_amd64.deb" \
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
@@ -180,6 +196,7 @@ case "${PHASE}" in
     grep -q "get_deploy_status" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "push_static_site_to_github" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "push_static_site_to_vercel" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "push_static_site_to_netlify" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "export_qc_rated_deliverables_zip" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "qc_rating_band" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
     grep -q "build_deliverables_html" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
@@ -187,9 +204,11 @@ case "${PHASE}" in
     grep -q "One-click deploy" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     grep -q "Push to GitHub" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     grep -q "Push to Vercel" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "Push to Netlify" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     grep -q "Export QC-rated Deliverables" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     grep -q "DeployStatus" "${DESKTOP_DIR}/src/types/game.ts"
     grep -q "deploy-section" "${DESKTOP_DIR}/src/App.css"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/commands/deploy.rs"
     echo "Phase 18 one-click deploy + QC-rated export checks passed."
     ;;
   17)
@@ -199,8 +218,10 @@ case "${PHASE}" in
     grep -q "ai_co_ceo" "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
     grep -q "spawn_co_ceo" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "create_custom_department" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "delete_custom_department" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "run_co_ceo_briefing" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "VipExecutivePanel" "${DESKTOP_DIR}/src/components/UI/ShellLayout.tsx"
+    grep -q "list_company_departments" "${DESKTOP_DIR}/src/hooks/useGameBootstrap.ts"
     grep -q "custom_departments" "${DESKTOP_DIR}/src/types/game.ts"
     echo "Phase 17 VIP Co-CEO + custom departments checks passed."
     ;;
@@ -213,6 +234,7 @@ case "${PHASE}" in
     grep -q "meeting-ai-status" "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
     grep -q "Test meeting AI connection" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     grep -q "MeetingAiStatus" "${DESKTOP_DIR}/src/types/game.ts"
+    grep -q "Select up to 12" "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
     echo "Phase 16 real LLM meeting checks passed."
     ;;
   15)
@@ -224,6 +246,7 @@ case "${PHASE}" in
     grep -q "compatibility_score" "${DESKTOP_DIR}/src-tauri/src/commands/recruitment.rs"
     grep -q "RelationshipGraphView" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
     grep -q "recruitment-analytics" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
+    grep -q "candidate-scores-table" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
     grep -q "relationship-graph" "${DESKTOP_DIR}/src/App.css"
     echo "Phase 15 relationship graph + recruitment analytics checks passed."
     ;;
@@ -239,6 +262,7 @@ case "${PHASE}" in
     grep -q "dispute_hub_gig" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "submitGigForQc" "${DESKTOP_DIR}/src/services/hubClient.ts"
     grep -q "Submit for QC" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "qcBandLabel" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
     grep -q "qc_score" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
     grep -q "submit_contract_for_qc_at_index" "${DESKTOP_DIR}/src-tauri/src/gigs/mod.rs"
     echo "Phase 14 gig QC / disputed flow checks passed."
@@ -250,16 +274,21 @@ case "${PHASE}" in
     grep -q "god_mode_reality_debt" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
     grep -q "morale-heatmap" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
     grep -q "foresight-block" "${DESKTOP_DIR}/src/components/UI/EventFeed.tsx"
-    grep -q "build_netlify_toml" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "get_god_mode_status" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "reality-debt-meter" "${DESKTOP_DIR}/src/components/UI/GodModePanel.tsx"
+    grep -q "executive-lounge-filter" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
     echo "Phase 13 Pro/VIP depth checks passed."
     ;;
   12)
     test -f "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
     grep -q "export_static_site_zip" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "build_index_html" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "build_sitemap_xml" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "build_vercel_json" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
     grep -q "export_static_site_zip" "${DESKTOP_DIR}/src-tauri/src/commands/export.rs"
     grep -q "Export Static Site" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
-    grep -q "Netlify" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "build_netlify_toml" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    bash "${REPO_ROOT}/scripts/static-site-smoke.sh"
     echo "Phase 12 static site export checks passed."
     ;;
   11)
@@ -271,6 +300,9 @@ case "${PHASE}" in
     grep -q "onboarding_completed" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
     grep -q "OnboardingWizard" "${DESKTOP_DIR}/src/App.tsx"
     grep -q "onboarding-overlay" "${DESKTOP_DIR}/src/App.css"
+    grep -q "const STEPS" "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
+    grep -q "Skip for now" "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/commands/onboarding.rs"
     echo "Phase 11 onboarding checks passed."
     ;;
   10)
@@ -284,6 +316,8 @@ case "${PHASE}" in
     grep -q "complete_gig" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
     grep -q "listGigContracts" "${DESKTOP_DIR}/src/services/hubClient.ts"
     grep -q "marketplace-tabs" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "gig-progress-row" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    grep -q "gig_lifecycle_transitions_to_completed" "${DESKTOP_DIR}/src-tauri/src/gigs/mod.rs"
     grep -q "startGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
     grep -q "completeGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
     echo "Phase 10 gig lifecycle checks passed."

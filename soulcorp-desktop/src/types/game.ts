@@ -342,7 +342,11 @@ export interface DeployStatus {
   npx_available: boolean;
   vercel_cli_available: boolean;
   vercel_version?: string | null;
+  netlify_cli_available: boolean;
   message: string;
+  last_deploy_url?: string | null;
+  last_deploy_at?: string | null;
+  last_deploy_provider?: string | null;
 }
 
 export interface DeployResult {

@@ -86,6 +86,29 @@ export function OnboardingWizard() {
     setStepIndex((current) => Math.max(current - 1, 0));
   };
 
+  const skipForNow = async () => {
+    setSubmitting(true);
+    try {
+      const result = await completeOnboarding({
+        company_name: "SoulCorp",
+        event_mode: "balanced",
+        pure_local_mode: false,
+        random_events_enabled: true,
+      });
+      setCompanyName(result.company_name);
+      setOnboardingCompleted(true);
+      setActivePanel("office");
+      if (isPaused) {
+        togglePause();
+      }
+      setStatusMessage("Onboarding skipped — defaults applied.");
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const finish = async () => {
     setSubmitting(true);
     try {
@@ -223,6 +246,9 @@ export function OnboardingWizard() {
         ) : null}
 
         <footer className="onboarding-actions">
+          <button type="button" className="onboarding-skip" onClick={() => void skipForNow()} disabled={submitting}>
+            Skip for now
+          </button>
           <button type="button" onClick={goBack} disabled={stepIndex === 0 || submitting}>
             Back
           </button>
