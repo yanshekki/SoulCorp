@@ -3,6 +3,11 @@ use crate::report::{
     build_html, build_markdown, build_pdf_lines, company_name_for, slugify, workspace_index,
 };
 use crate::state::AppState;
+use crate::static_site::{
+    build_deploy_readme, build_index_html, build_manifest_json, build_report_page_html,
+    build_site_css, build_workspace_index_html, build_workspace_page_html,
+};
+use crate::tier::can_use_feature;
 use crate::workspace::{storage::workspace_root, WorkspaceStorage};
 use chrono::Utc;
 use printpdf::{BuiltinFont, Mm, PdfDocument};
@@ -233,6 +238,123 @@ pub fn open_exports_folder(app: AppHandle) -> Result<ExportResult, String> {
         format: "folder".to_string(),
         message: "Opened exports folder.".to_string(),
     })
+}
+
+fn zip_write_text(
+    zip: &mut ZipWriter<File>,
+    path: &str,
+    content: &str,
+    options: SimpleFileOptions,
+) -> Result<(), String> {
+    zip.start_file(path, options)
+        .map_err(|e| e.to_string())?;
+    zip.write_all(content.as_bytes())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn export_static_site_zip(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<ExportResult, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let pages_dir = app_data.join("workspaces/pages");
+    let exports_dir = exports_dir(&app)?;
+    fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
+
+    let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
+    let zip_filename = format!("soulcorp-static-site-{timestamp}.zip");
+    let zip_path = exports_dir.join(&zip_filename);
+    let file = File::create(&zip_path).map_err(|e| e.to_string())?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default();
+
+    let (company_name, white_label, index_html, report_html, manifest_json, deploy_readme) = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        let tree = workspace_tree_for(&app)?;
+        let company_name = company_name_for(&locked);
+        let white_label = can_use_feature(&locked.hub.user_tier, "white_label_export");
+        let index_html = build_index_html(&locked, &tree, &company_name, white_label);
+        let report_html = build_report_page_html(&locked, Some(&tree), &company_name, white_label);
+        let manifest_json = build_manifest_json(&locked, &tree, &company_name, &zip_filename);
+        let deploy_readme = build_deploy_readme(&company_name);
+        (
+            company_name,
+            white_label,
+            index_html,
+            report_html,
+            manifest_json,
+            deploy_readme,
+        )
+    };
+
+    zip_write_text(&mut zip, "index.html", &index_html, options)?;
+    zip_write_text(&mut zip, "report.html", &report_html, options)?;
+    zip_write_text(&mut zip, "assets/site.css", build_site_css(), options)?;
+    zip_write_text(&mut zip, "DEPLOY.md", &deploy_readme, options)?;
+    zip_write_text(&mut zip, "manifest.json", &manifest_json, options)?;
+
+    let tree = workspace_tree_for(&app)?;
+    let folder_names: std::collections::HashMap<String, String> = tree
+        .folders
+        .iter()
+        .map(|folder| (folder.id.clone(), slugify(&folder.name)))
+        .collect();
+    let folder_titles: std::collections::HashMap<String, String> = tree
+        .folders
+        .iter()
+        .map(|folder| (folder.id.clone(), folder.name.clone()))
+        .collect();
+
+    let workspace_index_html = build_workspace_index_html(&tree, &company_name);
+    zip_write_text(
+        &mut zip,
+        "workspace/index.html",
+        &workspace_index_html,
+        options,
+    )?;
+
+    if pages_dir.exists() {
+        for page in tree.pages.iter() {
+            let md_path = pages_dir.join(format!("{}.md", page.id));
+            if !md_path.exists() {
+                continue;
+            }
+            let folder_slug = folder_names
+                .get(&page.folder_id)
+                .cloned()
+                .unwrap_or_else(|| "uncategorized".to_string());
+            let folder_name = folder_titles
+                .get(&page.folder_id)
+                .cloned()
+                .unwrap_or_else(|| "Uncategorized".to_string());
+            let page_slug = slugify(&page.title);
+            let markdown = fs::read_to_string(&md_path).map_err(|e| e.to_string())?;
+            let page_html =
+                build_workspace_page_html(&page.title, &folder_name, &markdown, &company_name);
+            let archive_path = format!("workspace/{folder_slug}/{page_slug}.html");
+            zip_write_text(&mut zip, &archive_path, &page_html, options)?;
+        }
+    }
+
+    zip.finish().map_err(|e| e.to_string())?;
+
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    state.stats.exports_created += 1;
+    let branding = if white_label {
+        "white-label"
+    } else {
+        "SoulCorp-branded"
+    };
+    let result = ExportResult {
+        path: zip_path.to_string_lossy().to_string(),
+        format: "zip".to_string(),
+        message: format!(
+            "Static site ZIP created ({branding}). Upload to Netlify, Vercel, or GitHub Pages."
+        ),
+    };
+    commit(app, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]

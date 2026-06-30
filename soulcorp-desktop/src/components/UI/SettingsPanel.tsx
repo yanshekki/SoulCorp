@@ -49,6 +49,11 @@ export function SettingsPanel() {
     setStatusMessage(`${result.message} ${result.path}`);
   };
 
+  const exportStaticSite = async () => {
+    const result = await invoke<ExportResult>("export_static_site_zip");
+    setStatusMessage(`${result.message} ${result.path}`);
+  };
+
   const exportReport = async (command: string) => {
     const result = await invoke<ExportResult>(command);
     setStatusMessage(`${result.message} ${result.path}`);
@@ -261,6 +266,9 @@ export function SettingsPanel() {
         </button>
         <button type="button" onClick={() => void exportWorkspace()}>
           Export Workspace (Markdown ZIP)
+        </button>
+        <button type="button" className="primary-action" onClick={() => void exportStaticSite()}>
+          Export Static Site (Deploy ZIP)
         </button>
         <button type="button" onClick={() => void openExportsFolder()}>
           Open Exports Folder

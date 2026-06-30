@@ -8,6 +8,7 @@ mod hub;
 mod report;
 mod soul;
 mod state;
+mod static_site;
 mod tier;
 mod workspace;
 
@@ -105,6 +106,7 @@ pub fn run() {
             commands::export_company_report_pdf,
             commands::open_exports_folder,
             commands::export_workspace_markdown_zip,
+            commands::export_static_site_zip,
             commands::is_3d_smoke_test_enabled,
             commands::write_3d_smoke_report,
             commands::exit_3d_smoke_test,

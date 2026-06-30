@@ -113,6 +113,15 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  12)
+    test -f "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "export_static_site_zip" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "build_index_html" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "export_static_site_zip" "${DESKTOP_DIR}/src-tauri/src/commands/export.rs"
+    grep -q "Export Static Site" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "Netlify" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    echo "Phase 12 static site export checks passed."
+    ;;
   11)
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/onboarding.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
