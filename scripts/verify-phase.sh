@@ -23,6 +23,13 @@ case "${PHASE}" in
   0)
     echo "Phase 0 checks passed."
     ;;
+  1)
+    test -f "${DESKTOP_DIR}/src/components/GameScene.tsx"
+    test -f "${DESKTOP_DIR}/src/components/AgentSprite.tsx"
+    test -f "${DESKTOP_DIR}/src/components/BuildingModal.tsx"
+    test -f "${DESKTOP_DIR}/src/components/world/IsometricWorld.tsx"
+    echo "Phase 1 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;
