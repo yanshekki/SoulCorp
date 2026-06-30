@@ -89,7 +89,9 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
           <p className="tagline">AI Company Simulator</p>
           <TierBadge />
         </div>
-        <SidebarPanelContent panel={activePanel} />
+        <div className="sidebar-content">
+          <SidebarPanelContent panel={activePanel} />
+        </div>
         <nav className="sidebar-actions">
           {PANELS.map((panel) => (
             <button
