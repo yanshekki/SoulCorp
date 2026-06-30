@@ -1,5 +1,5 @@
 {
-  "current_phase": 3,
+  "current_phase": 4,
   "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
@@ -22,8 +22,9 @@
     },
     "3": {
       "branch": "phase-3/workspace",
-      "status": "pending",
-      "description": "Notion-like workspace and per-agent folders"
+      "status": "merged",
+      "description": "Notion-like workspace and per-agent folders",
+      "merged_at": "2026-06-30T03:44:07.422030+00:00"
     },
     "4": {
       "branch": "phase-4/local-polish",
