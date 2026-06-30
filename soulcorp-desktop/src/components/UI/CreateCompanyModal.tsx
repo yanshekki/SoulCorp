@@ -75,6 +75,7 @@ export function CreateCompanyModal() {
       });
       await reloadGameState();
       setActivePanel("office");
+      useGameStore.setState({ isPaused: false });
       setShowCreateCompany(false);
       setCompanyName("");
       setIndustry("");

@@ -44,7 +44,7 @@
   --space-6: 24px;
 
   --inspector-width: 360px;
-  --topbar-height: 56px;
+  --topbar-height: 92px;
   --statusbar-height: 44px;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -89,13 +89,29 @@ body,
 
 .app-topbar {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-4);
+  flex-direction: column;
+  min-width: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
-  min-width: 0;
   z-index: 10;
+}
+
+.app-topbar-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.app-topbar-row-primary {
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-topbar-row-nav {
+  padding: 0 var(--space-2);
+  overflow: hidden;
 }
 
 .app-brand {
@@ -153,16 +169,23 @@ body,
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: 1;
+  width: 100%;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  padding: var(--space-1) 0;
+  padding: var(--space-2) var(--space-2);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .app-nav::-webkit-scrollbar {
-  height: 4px;
+  height: 6px;
+}
+
+.app-nav::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
 }
 
 .nav-group {
@@ -219,6 +242,7 @@ body,
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .company-switcher {
@@ -236,8 +260,8 @@ body,
 }
 
 .company-switcher-select {
-  min-width: 140px;
-  max-width: 220px;
+  min-width: 120px;
+  max-width: 200px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   background: var(--bg-control);
@@ -245,6 +269,11 @@ body,
   font: inherit;
   font-size: 0.78rem;
   padding: var(--space-2) var(--space-3);
+}
+
+.company-switcher-select option {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
 }
 
 .company-switcher-new,
@@ -290,6 +319,31 @@ body,
 
 .create-company-modal {
   max-width: 560px;
+}
+
+.company-setup-gate {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100vh;
+  background: var(--bg-root);
+  padding: var(--space-6);
+}
+
+.company-setup-card {
+  width: min(480px, 100%);
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.company-setup-card h2 {
+  margin: 0;
+  font-size: 1.35rem;
 }
 
 .app-pause-btn {

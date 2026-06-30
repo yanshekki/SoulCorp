@@ -10,10 +10,14 @@ export function Dashboard() {
   const companyName = useGameStore((state) => state.companyName);
 
   const records = agentRecords.length > 0 ? agentRecords : null;
+  const hasAgents = (records?.length ?? agents.length) > 0;
 
   return (
     <section className="dashboard-panel">
-      <h2>{companyName}</h2>
+      <h2>{companyName || "Company Dashboard"}</h2>
+      {!hasAgents ? (
+        <p className="muted">No agents yet. Create or select a company to populate this dashboard.</p>
+      ) : null}
       <div className="kpi-grid">
         <article>
           <span>Day</span>

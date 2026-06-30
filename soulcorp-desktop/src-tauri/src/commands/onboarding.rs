@@ -44,11 +44,14 @@ fn normalize_optional_field(raw: &str, max_len: usize, label: &str) -> Result<St
 #[tauri::command]
 pub fn get_onboarding_state(state: State<'_, Mutex<AppState>>) -> Result<OnboardingState, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
+    let completed = state.onboarding_completed
+        && !state.company_id.is_empty()
+        && state.company_name.trim().len() >= 2;
     Ok(OnboardingState {
         company_name: state.company_name.clone(),
         company_industry: state.company_industry.clone(),
         company_tagline: state.company_tagline.clone(),
-        completed: state.onboarding_completed,
+        completed,
     })
 }
 

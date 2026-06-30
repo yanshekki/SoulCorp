@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { INITIAL_AGENTS, INITIAL_BUILDINGS } from "../data/initialWorld";
+import { EMPTY_FINANCE } from "../utils/companyState";
 import type {
   Achievement,
   AgentRecord,
@@ -78,30 +78,17 @@ export const useGameStore = create<GameStore>((set) => ({
   onboardingReady: false,
   statusMessage: "Initializing agent systems...",
   activePanel: "office",
-  agents: INITIAL_AGENTS,
+  agents: [],
   agentRecords: [],
-  buildings: INITIAL_BUILDINGS,
+  buildings: [],
   selectedBuilding: null,
-  isPaused: false,
+  isPaused: true,
   simulation: {
     tick: 0,
-    agentsActive: INITIAL_AGENTS.length,
-    dayNumber: 1,
+    agentsActive: 0,
+    dayNumber: 0,
   },
-  finance: {
-    cash_balance: 10000,
-    compute_tokens: 5000,
-    monthly_burn: 1200,
-    monthly_revenue: 1800,
-    allocations: {
-      compute_pct: 40,
-      salaries_pct: 35,
-      marketing_pct: 15,
-      rnd_pct: 10,
-    },
-    compute_starved: false,
-    cash_crisis: false,
-  },
+  finance: EMPTY_FINANCE,
   settings: {
     random_events_enabled: true,
     event_mode: "fun",

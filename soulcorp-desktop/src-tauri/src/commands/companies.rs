@@ -50,8 +50,33 @@ fn normalize_optional_field(raw: &str, max_len: usize, label: &str) -> Result<St
 }
 
 #[tauri::command]
-pub fn list_companies(app: AppHandle) -> Result<CompanyListResponse, String> {
-    let registry = load_registry(&app)?;
+pub fn list_companies(
+    app: AppHandle,
+    app_state: State<'_, Mutex<AppState>>,
+) -> Result<CompanyListResponse, String> {
+    let locked = app_state.lock().map_err(|e| e.to_string())?;
+    let mut registry = load_registry(&app)?;
+
+    if registry.companies.is_empty() && !locked.company_id.is_empty() {
+        registry.upsert_summary(summary_from_state(&locked));
+        registry.active_company_id = Some(locked.company_id.clone());
+        save_registry(&app, &registry)?;
+    }
+
+    if registry.active_company_id.is_none() {
+        if let Some(first) = registry.companies.first() {
+            registry.active_company_id = Some(first.id.clone());
+            save_registry(&app, &registry)?;
+        }
+    }
+
+    if let Some(active_id) = registry.active_company_id.clone() {
+        if !registry.companies.iter().any(|company| company.id == active_id) {
+            registry.active_company_id = registry.companies.first().map(|company| company.id.clone());
+            save_registry(&app, &registry)?;
+        }
+    }
+
     Ok(CompanyListResponse {
         active_company_id: registry.active_company_id.clone(),
         companies: registry.companies.clone(),

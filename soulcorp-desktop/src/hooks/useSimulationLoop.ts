@@ -11,6 +11,7 @@ import type {
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { WorkspaceTree } from "../types/workspace";
 import { advanceAgents } from "../utils/agentMovement";
+import { hasActiveCompany } from "../utils/companyState";
 
 const TICK_INTERVAL_SECONDS = 1;
 const LOW_POWER_TICK_INTERVAL_SECONDS = 2;
@@ -18,6 +19,9 @@ const LOW_POWER_TICK_INTERVAL_SECONDS = 2;
 export function useSimulationLoop() {
   const isPaused = useGameStore((state) => state.isPaused);
   const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
+  const companies = useGameStore((state) => state.companies);
+  const companyReady = hasActiveCompany(activeCompanyId, companies);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
   const tickAccumulatorRef = useRef(0);
@@ -26,7 +30,7 @@ export function useSimulationLoop() {
     : TICK_INTERVAL_SECONDS;
 
   useEffect(() => {
-    if (isPaused) {
+    if (isPaused || !companyReady) {
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
@@ -101,5 +105,5 @@ export function useSimulationLoop() {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, [isPaused, tickInterval]);
+  }, [companyReady, isPaused, tickInterval]);
 }

@@ -117,33 +117,37 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   return (
     <div className="app-shell">
       <header className="app-topbar">
-        <div className="app-brand">
-          <SidebarTitle />
-          <p className="app-tagline">AI Company Simulator</p>
-          <TierBadge />
+        <div className="app-topbar-row app-topbar-row-primary">
+          <div className="app-brand">
+            <SidebarTitle />
+            <p className="app-tagline">AI Company Simulator</p>
+            <TierBadge />
+          </div>
+          <div className="app-topbar-actions">
+            <CompanySwitcher />
+            <button type="button" className="app-pause-btn" onClick={togglePause}>
+              {isPaused ? "Resume" : "Pause"}
+            </button>
+          </div>
         </div>
-        <nav className="app-nav" aria-label="Main navigation">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
-              <span className="nav-group-label">{group.label}</span>
-              {group.panels.map((panel) => (
-                <button
-                  key={panel.id}
-                  type="button"
-                  className={`nav-btn${activePanel === panel.id ? " active" : ""}`}
-                  onClick={() => setActivePanel(panel.id)}
-                >
-                  {panel.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="app-topbar-actions">
-          <CompanySwitcher />
-          <button type="button" className="app-pause-btn" onClick={togglePause}>
-            {isPaused ? "Resume" : "Pause"}
-          </button>
+        <div className="app-topbar-row app-topbar-row-nav">
+          <nav className="app-nav" aria-label="Main navigation">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
+                <span className="nav-group-label">{group.label}</span>
+                {group.panels.map((panel) => (
+                  <button
+                    key={panel.id}
+                    type="button"
+                    className={`nav-btn${activePanel === panel.id ? " active" : ""}`}
+                    onClick={() => setActivePanel(panel.id)}
+                  >
+                    {panel.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
         </div>
       </header>
 

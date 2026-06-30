@@ -6,6 +6,7 @@ import { useGameStore } from "../stores/gameStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import { INITIAL_BUILDINGS } from "../data/initialWorld";
+import { clearEmptyGameState, hasActiveCompany } from "../utils/companyState";
 import type {
   AgentRecord,
   CompanyDepartmentsSnapshot,
@@ -81,15 +82,35 @@ export async function reloadGameState(): Promise<void> {
 
   setCompanies(companyList.companies);
   setActiveCompanyId(companyList.active_company_id);
-  setAgentRecords(agents);
-  setAgents(syncAgentsFromRecords(agents, []));
-  setFinance(finance);
   setSettings(settings);
+  setOnboardingCompleted(onboarding.completed);
+  setHubStatus(hubStatus);
+
+  const companyReady = hasActiveCompany(
+    companyList.active_company_id,
+    companyList.companies,
+  );
+
+  if (!companyReady) {
+    clearEmptyGameState();
+    setOnboardingCompleted(
+      onboarding.completed && companyList.companies.length > 0,
+    );
+    setStatusMessage(
+      companyList.companies.length > 0
+        ? "Select a company from the header to continue."
+        : "Create a company to start your simulation.",
+    );
+    useWorkspaceStore.getState().reset();
+    return;
+  }
+
   setCompanyName(onboarding.company_name);
   setCompanyIndustry(onboarding.company_industry);
   setCompanyTagline(onboarding.company_tagline);
-  setOnboardingCompleted(onboarding.completed);
-  setHubStatus(hubStatus);
+  setAgentRecords(agents);
+  setAgents(syncAgentsFromRecords(agents, []));
+  setFinance(finance);
 
   const tierBenefits = await invoke<TierBenefits>("get_tier_benefits").catch(
     (): TierBenefits => ({
@@ -122,7 +143,7 @@ export async function reloadGameState(): Promise<void> {
     setBuildings(INITIAL_BUILDINGS);
   }
 
-  if (onboarding.completed) {
+  if (onboarding.completed && companyReady) {
     await Promise.all(
       SAMPLE_SOULS.map(async ({ agentId, path }) => {
         const response = await fetch(path);

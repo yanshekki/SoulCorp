@@ -11,7 +11,7 @@ export function CompanySwitcher() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [busy, setBusy] = useState(false);
 
-  if (!onboardingCompleted || companies.length === 0) {
+  if (!onboardingCompleted) {
     return null;
   }
 
@@ -60,9 +60,17 @@ export function CompanySwitcher() {
         id="company-switcher-select"
         className="company-switcher-select"
         value={activeCompanyId ?? ""}
-        disabled={busy}
+        disabled={busy || companies.length === 0}
         onChange={(event) => void handleSwitch(event.target.value)}
       >
+        {companies.length === 0 ? (
+          <option value="">No companies</option>
+        ) : null}
+        {!activeCompanyId && companies.length > 0 ? (
+          <option value="" disabled>
+            Select company
+          </option>
+        ) : null}
         {companies.map((company) => (
           <option key={company.id} value={company.id}>
             {company.name}
