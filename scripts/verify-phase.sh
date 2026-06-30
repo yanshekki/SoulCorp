@@ -113,6 +113,23 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  18)
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/deploy.rs"
+    grep -q "get_deploy_status" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "push_static_site_to_github" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "push_static_site_to_vercel" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "export_qc_rated_deliverables_zip" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "qc_rating_band" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "build_deliverables_html" "${DESKTOP_DIR}/src-tauri/src/static_site/mod.rs"
+    grep -q "write_static_site_to_dir" "${DESKTOP_DIR}/src-tauri/src/commands/export.rs"
+    grep -q "One-click deploy" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "Push to GitHub" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "Push to Vercel" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "Export QC-rated Deliverables" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "DeployStatus" "${DESKTOP_DIR}/src/types/game.ts"
+    grep -q "deploy-section" "${DESKTOP_DIR}/src/App.css"
+    echo "Phase 18 one-click deploy + QC-rated export checks passed."
+    ;;
   17)
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/vip.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/VipExecutivePanel.tsx"

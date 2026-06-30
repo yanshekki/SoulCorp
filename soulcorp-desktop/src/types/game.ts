@@ -324,6 +324,25 @@ export interface ExportResult {
   message: string;
 }
 
+export interface DeployStatus {
+  git_available: boolean;
+  git_version?: string | null;
+  gh_available: boolean;
+  gh_version?: string | null;
+  gh_authenticated: boolean;
+  npx_available: boolean;
+  vercel_cli_available: boolean;
+  vercel_version?: string | null;
+  message: string;
+}
+
+export interface DeployResult {
+  url?: string | null;
+  path: string;
+  format: string;
+  message: string;
+}
+
 export interface GameEvent {
   id: string;
   title: string;

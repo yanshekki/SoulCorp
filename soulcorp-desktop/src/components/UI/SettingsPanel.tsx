@@ -2,7 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
-import type { EventMode, ExportResult, GameSettings, MeetingAiStatus } from "../../types/game";
+import type {
+  DeployResult,
+  DeployStatus,
+  EventMode,
+  ExportResult,
+  GameSettings,
+  MeetingAiStatus,
+} from "../../types/game";
 
 export function SettingsPanel() {
   const settings = useGameStore((state) => state.settings);
@@ -13,10 +20,20 @@ export function SettingsPanel() {
   const [hubUrl, setHubUrl] = useState(hubStatus.base_url);
   const [apiKey, setApiKey] = useState("");
   const [restorePath, setRestorePath] = useState("");
+  const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
+  const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [githubRepoName, setGithubRepoName] = useState("");
+  const [deployBusy, setDeployBusy] = useState(false);
 
   useEffect(() => {
     setHubUrl(hubStatus.base_url);
   }, [hubStatus.base_url]);
+
+  useEffect(() => {
+    void invoke<DeployStatus>("get_deploy_status")
+      .then(setDeployStatus)
+      .catch(() => setDeployStatus(null));
+  }, []);
 
   const updateSettings = async (patch: Partial<GameSettings>) => {
     try {
@@ -56,6 +73,55 @@ export function SettingsPanel() {
   const exportStaticSite = async () => {
     const result = await invoke<ExportResult>("export_static_site_zip");
     setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const exportQcDeliverables = async () => {
+    const result = await invoke<ExportResult>("export_qc_rated_deliverables_zip");
+    setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const refreshDeployStatus = async () => {
+    try {
+      const status = await invoke<DeployStatus>("get_deploy_status");
+      setDeployStatus(status);
+      setStatusMessage(status.message);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const pushToGithub = async () => {
+    setDeployBusy(true);
+    try {
+      const result = await invoke<DeployResult>("push_static_site_to_github", {
+        request: {
+          repo_url: githubRepoUrl.trim() || null,
+          repo_name: githubRepoName.trim() || null,
+          private_repo: false,
+        },
+      });
+      setStatusMessage(
+        result.url ? `${result.message} ${result.url}` : `${result.message} ${result.path}`,
+      );
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setDeployBusy(false);
+    }
+  };
+
+  const pushToVercel = async () => {
+    setDeployBusy(true);
+    try {
+      const result = await invoke<DeployResult>("push_static_site_to_vercel");
+      setStatusMessage(
+        result.url ? `${result.message} ${result.url}` : `${result.message} ${result.path}`,
+      );
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setDeployBusy(false);
+    }
   };
 
   const exportReport = async (command: string) => {
@@ -302,6 +368,68 @@ export function SettingsPanel() {
         </button>
       </div>
 
+      <div className="settings-section deploy-section">
+        <h3>One-click deploy</h3>
+        <p className="muted">
+          Push your exported static site to GitHub or Vercel. Requires git, GitHub CLI (gh), and
+          Node.js/npx on your machine.
+        </p>
+        {deployStatus ? (
+          <div className="deploy-status-row">
+            <span className={`deploy-pill ${deployStatus.git_available ? "ready" : "missing"}`}>
+              git {deployStatus.git_available ? "ready" : "missing"}
+            </span>
+            <span className={`deploy-pill ${deployStatus.gh_authenticated ? "ready" : "missing"}`}>
+              gh {deployStatus.gh_authenticated ? "authenticated" : "needs login"}
+            </span>
+            <span
+              className={`deploy-pill ${deployStatus.vercel_cli_available ? "ready" : "missing"}`}
+            >
+              vercel {deployStatus.vercel_cli_available ? "ready" : "missing"}
+            </span>
+          </div>
+        ) : null}
+        <label className="field-label">
+          GitHub repo URL (optional — leave blank to create via gh)
+          <input
+            type="url"
+            value={githubRepoUrl}
+            onChange={(event) => setGithubRepoUrl(event.target.value)}
+            placeholder="https://github.com/you/soulcorp-site.git"
+          />
+        </label>
+        <label className="field-label">
+          New repo name (when creating with gh)
+          <input
+            type="text"
+            value={githubRepoName}
+            onChange={(event) => setGithubRepoName(event.target.value)}
+            placeholder="soulcorp-company-site"
+          />
+        </label>
+        <div className="panel-actions stacked">
+          <button type="button" onClick={() => void refreshDeployStatus()}>
+            Refresh deploy tooling
+          </button>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={deployBusy || !deployStatus?.git_available}
+            onClick={() => void pushToGithub()}
+          >
+            Push to GitHub
+          </button>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={deployBusy || !deployStatus?.vercel_cli_available}
+            onClick={() => void pushToVercel()}
+          >
+            Push to Vercel
+          </button>
+        </div>
+      </div>
+
       <label className="field-label">
         Restore backup path
         <input
@@ -333,6 +461,9 @@ export function SettingsPanel() {
         </button>
         <button type="button" className="primary-action" onClick={() => void exportStaticSite()}>
           Export Static Site (Deploy ZIP)
+        </button>
+        <button type="button" onClick={() => void exportQcDeliverables()}>
+          Export QC-rated Deliverables (ZIP)
         </button>
         <button type="button" onClick={() => void openExportsFolder()}>
           Open Exports Folder

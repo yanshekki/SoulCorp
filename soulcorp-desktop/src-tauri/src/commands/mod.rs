@@ -1,5 +1,6 @@
 pub mod achievements_cmd;
 pub mod agent;
+pub mod deploy;
 pub mod events;
 pub mod export;
 pub mod finance;
@@ -20,6 +21,7 @@ pub mod workspace;
 
 pub use achievements_cmd::*;
 pub use agent::*;
+pub use deploy::*;
 pub use events::*;
 pub use export::*;
 pub use finance::*;

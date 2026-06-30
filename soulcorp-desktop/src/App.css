@@ -1274,6 +1274,35 @@ body,
   font-size: 0.95rem;
 }
 
+.deploy-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.deploy-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0.85rem;
+}
+
+.deploy-pill {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.deploy-pill.ready {
+  background: rgba(93, 138, 103, 0.35);
+}
+
+.deploy-pill.missing {
+  background: rgba(255, 255, 255, 0.06);
+  color: #d8cfc2;
+}
+
 .hub-status-row {
   display: flex;
   flex-wrap: wrap;
