@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { BuildingModal } from "./components/BuildingModal";
 import { GameScene } from "./components/GameScene";
 import { ShellLayout } from "./components/UI/ShellLayout";
+import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
@@ -10,6 +11,7 @@ import "./App.css";
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);
+  const activePanel = useGameStore((state) => state.activePanel);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
   useGameBootstrap();
@@ -24,7 +26,7 @@ function App() {
   return (
     <>
       <ShellLayout statusMessage={statusMessage}>
-        <GameScene />
+        {activePanel === "workspace" ? <WorkspaceShell /> : <GameScene />}
       </ShellLayout>
       <BuildingModal />
     </>

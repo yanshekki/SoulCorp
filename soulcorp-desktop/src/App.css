@@ -378,3 +378,169 @@ body,
 .agent-list.compact .agent-row {
   padding: 0.35rem 0;
 }
+
+.workspace-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: calc(100vh - 42px);
+  background: #efe6d7;
+  color: #2d241f;
+}
+
+.workspace-sidebar {
+  border-right: 1px solid #cdbda8;
+  padding: 1rem;
+  overflow: auto;
+  background: #f8f1e5;
+}
+
+.workspace-sidebar-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.workspace-sidebar-header p {
+  margin: 0.25rem 0 0.75rem;
+  color: #6d5a49;
+  font-size: 0.82rem;
+}
+
+.workspace-search {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.workspace-search input {
+  border: 1px solid #cdbda8;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+}
+
+.workspace-search button,
+.tiny-btn,
+.page-row,
+.search-result {
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.folder-tree {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.folder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.tiny-btn {
+  padding: 0.1rem 0.45rem;
+}
+
+.page-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 0.2rem 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.page-row.active {
+  background: #e5d3bc;
+}
+
+.search-results {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.search-result {
+  display: grid;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+}
+
+.search-result span {
+  color: #6d5a49;
+  font-size: 0.78rem;
+}
+
+.page-editor {
+  padding: 1.25rem;
+  overflow: auto;
+}
+
+.page-editor.empty {
+  display: grid;
+  place-items: center;
+  color: #6d5a49;
+}
+
+.page-editor-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.page-title-input {
+  flex: 1;
+  font-size: 1.6rem;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: #2d241f;
+}
+
+.block-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.block-toolbar button,
+.page-editor-header button {
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+}
+
+.block-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.block-item input {
+  width: 100%;
+  border: 1px solid #e2d4c0;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: #fffdf8;
+}
+
+.heading-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.todo-block {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.page-meta {
+  margin-top: 1rem;
+  color: #6d5a49;
+  font-size: 0.8rem;
+}
