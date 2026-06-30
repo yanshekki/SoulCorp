@@ -75,6 +75,31 @@ export function GodModePanel() {
         <button type="button" onClick={() => void runAction("god_mode_reality_edit", {})}>
           Reality Edit (top project)
         </button>
+        <button type="button" onClick={() => void runAction("god_mode_perfect_hiring")}>
+          Perfect Hiring (reveal S-tier candidate)
+        </button>
+        <button type="button" onClick={() => void runAction("god_mode_total_chaos")}>
+          Total Chaos Mode (24h)
+        </button>
+        <button type="button" onClick={() => void runAction("god_mode_reset_agent_memory", {})}>
+          Reset Agent Memory
+        </button>
+        <button
+          type="button"
+          onClick={() => void runAction("god_mode_force_relationship", {
+            relationship_type: "romance",
+          })}
+        >
+          Force Romance
+        </button>
+        <button
+          type="button"
+          onClick={() => void runAction("god_mode_force_relationship", {
+            relationship_type: "rivalry",
+          })}
+        >
+          Force Rivalry
+        </button>
       </div>
 
       {history.length > 0 && (

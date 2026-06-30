@@ -122,25 +122,51 @@ fn listing_to_candidate(item: &Value) -> Option<RecruitmentCandidate> {
     })
 }
 
+fn bonus_recruits_from_state(state: &AppState) -> Vec<RecruitmentCandidate> {
+    state
+        .god_mode_bonus_recruits
+        .iter()
+        .map(|recruit| RecruitmentCandidate {
+            id: recruit.id.clone(),
+            soul_id: None,
+            name: recruit.name.clone(),
+            headline: recruit.headline.clone(),
+            skills: recruit.skills.clone(),
+            vibe: recruit.vibe.clone(),
+            verified: true,
+            hourly_rate_usdt: recruit.hourly_rate_usdt,
+            soul_md_content: None,
+        })
+        .collect()
+}
+
+fn merge_bonus_candidates(mut base: Vec<RecruitmentCandidate>, state: &AppState) -> Vec<RecruitmentCandidate> {
+    let bonus = bonus_recruits_from_state(state);
+    if bonus.is_empty() {
+        return base;
+    }
+    let existing_ids: std::collections::HashSet<String> =
+        base.iter().map(|candidate| candidate.id.clone()).collect();
+    for candidate in bonus.into_iter().rev() {
+        if !existing_ids.contains(&candidate.id) {
+            base.insert(0, candidate);
+        }
+    }
+    base
+}
+
 #[tauri::command]
 pub async fn list_recruitment_candidates(
     query: Option<String>,
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<RecruitmentCandidate>, String> {
-    let (pure_local, client) = {
+    let client = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
-            return Ok(mock_candidates());
+            return Ok(merge_bonus_candidates(mock_candidates(), &state));
         }
-        (
-            false,
-            HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone()),
-        )
+        HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
-
-    if pure_local {
-        return Ok(mock_candidates());
-    }
 
     match client.list_souls(query.as_deref(), 20).await {
         Ok(listings) if !listings.is_empty() => {
@@ -148,15 +174,17 @@ pub async fn list_recruitment_candidates(
                 .iter()
                 .filter_map(|item| listing_to_candidate(item))
                 .collect::<Vec<_>>();
+            let state = app_state.lock().map_err(|e| e.to_string())?;
             if candidates.is_empty() {
-                Ok(mock_candidates())
+                Ok(merge_bonus_candidates(mock_candidates(), &state))
             } else {
-                Ok(candidates)
+                Ok(merge_bonus_candidates(candidates, &state))
             }
         }
         _ => {
             let _ = mock_gigs();
-            Ok(mock_candidates())
+            let state = app_state.lock().map_err(|e| e.to_string())?;
+            Ok(merge_bonus_candidates(mock_candidates(), &state))
         }
     }
 }

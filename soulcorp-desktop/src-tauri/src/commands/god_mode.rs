@@ -278,6 +278,170 @@ pub fn god_mode_reality_edit(
     Ok(result)
 }
 
+#[tauri::command]
+pub fn god_mode_perfect_hiring(
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<GodModeActionResult, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_enabled(&state)?;
+
+    let recruit = crate::state::GodModeBonusRecruit {
+        id: format!("god-cand-{}", Uuid::new_v4()),
+        name: "Nova Sterling".to_string(),
+        headline: "Hidden S-tier operator revealed by divine scouting".to_string(),
+        skills: vec![
+            "strategy".into(),
+            "execution".into(),
+            "ai-systems".into(),
+            "leadership".into(),
+        ],
+        vibe: "legendary".to_string(),
+        hourly_rate_usdt: 72.0,
+    };
+    let summary = format!(
+        "{} is now visible in Recruitment with premium potential.",
+        recruit.name
+    );
+    state.god_mode_bonus_recruits.push(recruit);
+
+    let result = record_use(&mut state, "perfect_hiring", summary, 0.07);
+    commit(app, &state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn god_mode_total_chaos(
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<GodModeActionResult, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_enabled(&state)?;
+
+    let moods = ["chaotic", "euphoric", "paranoid", "lazy", "hyper", "dramatic"];
+    let mut rng = rand::rng();
+    for agent in state.agents.values_mut() {
+        let mood = moods[rng.random_range(0..moods.len())];
+        agent.status = format!("chaos:{mood}");
+        agent.morale = (agent.morale + rng.random_range(-0.25..0.25)).clamp(0.05, 1.0);
+        agent.energy = (agent.energy + rng.random_range(-0.3..0.3)).clamp(0.05, 1.0);
+    }
+    state.chaos_mode_ticks_remaining = 24 * 60;
+
+    let result = record_use(
+        &mut state,
+        "total_chaos",
+        "Total Chaos Mode activated for 24 simulated hours.".to_string(),
+        0.15,
+    );
+    commit(app, &state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn god_mode_reset_agent_memory(
+    agent_id: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<GodModeActionResult, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_enabled(&state)?;
+
+    let target_id = agent_id.unwrap_or_else(|| {
+        let mut rng = rand::rng();
+        let ids: Vec<String> = state.agents.keys().cloned().collect();
+        ids[rng.random_range(0..ids.len())].clone()
+    });
+
+    let agent_name = {
+        let agent = state
+            .agents
+            .get_mut(&target_id)
+            .ok_or_else(|| format!("Agent '{target_id}' not found."))?;
+        agent.soul = None;
+        agent.role = agent.role.split(" (").next().unwrap_or(&agent.role).to_string();
+        agent.status = "disoriented".to_string();
+        agent.morale = (agent.morale - 0.2).max(0.1);
+        agent.energy = (agent.energy - 0.15).max(0.1);
+        agent.name.clone()
+    };
+
+    let result = record_use(
+        &mut state,
+        "reset_agent_memory",
+        format!("{agent_name}'s memory was wiped. They feel lost but unburdened."),
+        0.14,
+    );
+    commit(app, &state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn god_mode_force_relationship(
+    relationship_type: Option<String>,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<GodModeActionResult, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_enabled(&state)?;
+
+    let ids: Vec<String> = state.agents.keys().cloned().collect();
+    if ids.len() < 2 {
+        return Err("Need at least two agents to force a relationship.".to_string());
+    }
+
+    let mut rng = rand::rng();
+    let first = ids[rng.random_range(0..ids.len())].clone();
+    let mut second = ids[rng.random_range(0..ids.len())].clone();
+    if first == second {
+        second = ids[(rng.random_range(0..ids.len()) + 1) % ids.len()].clone();
+    }
+
+    let relationship = match relationship_type.as_deref() {
+        Some("rivalry") | Some("rival") => "rivalry",
+        _ => "romance",
+    };
+
+    let first_name = state.agents.get(&first).map(|a| a.name.clone()).unwrap_or(first.clone());
+    let second_name = state
+        .agents
+        .get(&second)
+        .map(|a| a.name.clone())
+        .unwrap_or(second.clone());
+
+    if let Some(agent) = state.agents.get_mut(&first) {
+        agent.status = format!("{relationship}_with:{second_name}");
+        agent.morale = (agent.morale + 0.05).min(1.0);
+    }
+    if let Some(agent) = state.agents.get_mut(&second) {
+        agent.status = format!("{relationship}_with:{first_name}");
+        agent.morale = (agent.morale + if relationship == "romance" { 0.08 } else { -0.05 }).clamp(0.0, 1.0);
+    }
+
+    let result = record_use(
+        &mut state,
+        "force_relationship",
+        format!("Forced {relationship} between {first_name} and {second_name}."),
+        0.13,
+    );
+    commit(app, &state)?;
+    Ok(result)
+}
+
+pub fn apply_chaos_mode_tick(state: &mut AppState) {
+    if state.chaos_mode_ticks_remaining == 0 {
+        return;
+    }
+    state.chaos_mode_ticks_remaining = state.chaos_mode_ticks_remaining.saturating_sub(1);
+    let mut rng = rand::rng();
+    for agent in state.agents.values_mut() {
+        if agent.status.starts_with("chaos:") {
+            agent.morale = (agent.morale + rng.random_range(-0.08..0.08)).clamp(0.05, 1.0);
+            agent.energy = (agent.energy + rng.random_range(-0.1..0.1)).clamp(0.05, 1.0);
+        }
+    }
+}
+
 fn build_result(state: &AppState, action: &str, message: String) -> GodModeActionResult {
     let morale_sum: f32 = state.agents.values().map(|agent| agent.morale).sum();
     let average_morale = if state.agents.is_empty() {

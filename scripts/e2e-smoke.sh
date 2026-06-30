@@ -48,4 +48,10 @@ if [[ -f "${REPO_ROOT}/scripts/e2e-3d-smoke.sh" ]]; then
   }
 fi
 
+if [[ -f "${REPO_ROOT}/scripts/release-install-smoke.sh" ]]; then
+  bash "${REPO_ROOT}/scripts/release-install-smoke.sh" || {
+    echo "WARN: release install smoke failed or was skipped."
+  }
+fi
+
 echo "E2E smoke tests passed."

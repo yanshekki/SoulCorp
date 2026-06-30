@@ -153,6 +153,16 @@ pub struct InternalProject {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GodModeBonusRecruit {
+    pub id: String,
+    pub name: String,
+    pub headline: String,
+    pub skills: Vec<String>,
+    pub vibe: String,
+    pub hourly_rate_usdt: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GodModeLogEntry {
     pub id: String,
     pub action: String,
@@ -205,6 +215,10 @@ pub struct AppState {
     pub events: Vec<GameEvent>,
     #[serde(default)]
     pub god_mode_history: Vec<GodModeLogEntry>,
+    #[serde(default)]
+    pub god_mode_bonus_recruits: Vec<GodModeBonusRecruit>,
+    #[serde(default)]
+    pub chaos_mode_ticks_remaining: u32,
     pub meetings: HashMap<String, MeetingState>,
     pub achievements: Vec<Achievement>,
     pub endings: Vec<Ending>,
@@ -226,6 +240,8 @@ impl Default for AppState {
             agents: HashMap::new(),
             events: Vec::new(),
             god_mode_history: Vec::new(),
+            god_mode_bonus_recruits: Vec::new(),
+            chaos_mode_ticks_remaining: 0,
             meetings: HashMap::new(),
             achievements: Vec::new(),
             endings: Vec::new(),

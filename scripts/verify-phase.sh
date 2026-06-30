@@ -107,6 +107,12 @@ case "${PHASE}" in
     grep -q "InstancedMesh" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
     echo "Phase 8 checks passed."
     ;;
+  9)
+    test -f "${REPO_ROOT}/scripts/release-install-smoke.sh"
+    test -f "${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_1.0.0_amd64.deb" \
+      || echo "WARN: release .deb not built yet (run build-release.sh)."
+    echo "Phase 9 ship checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

@@ -1,5 +1,6 @@
 use crate::achievements::evaluate;
 use crate::commands::events::maybe_roll_event;
+use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
 use crate::finance::apply_tick_finance;
@@ -29,6 +30,7 @@ pub fn run_simulation_tick(
 ) -> Result<SimulationTickResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.tick += 1;
+    apply_chaos_mode_tick(&mut state);
 
     let finance_result = apply_tick_finance(&mut state);
 
