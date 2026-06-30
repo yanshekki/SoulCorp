@@ -30,6 +30,8 @@ pub struct TierBenefits {
     pub event_foresight_days: u32,
     pub white_label_export: bool,
     pub executive_lounge: bool,
+    pub custom_departments: bool,
+    pub ai_co_ceo: bool,
 }
 
 pub fn benefits_for_tier(tier: &str) -> TierBenefits {
@@ -43,6 +45,8 @@ pub fn benefits_for_tier(tier: &str) -> TierBenefits {
             event_foresight_days: 1,
             white_label_export: false,
             executive_lounge: false,
+            custom_departments: false,
+            ai_co_ceo: false,
         },
         UserTier::Vip => TierBenefits {
             tier: "vip".to_string(),
@@ -53,6 +57,8 @@ pub fn benefits_for_tier(tier: &str) -> TierBenefits {
             event_foresight_days: 3,
             white_label_export: true,
             executive_lounge: true,
+            custom_departments: true,
+            ai_co_ceo: true,
         },
         UserTier::Local => TierBenefits {
             tier: "local".to_string(),
@@ -63,6 +69,8 @@ pub fn benefits_for_tier(tier: &str) -> TierBenefits {
             event_foresight_days: 0,
             white_label_export: false,
             executive_lounge: false,
+            custom_departments: false,
+            ai_co_ceo: false,
         },
         UserTier::Free => TierBenefits {
             tier: "free".to_string(),
@@ -73,6 +81,8 @@ pub fn benefits_for_tier(tier: &str) -> TierBenefits {
             event_foresight_days: 0,
             white_label_export: false,
             executive_lounge: false,
+            custom_departments: false,
+            ai_co_ceo: false,
         },
     }
 }
@@ -84,6 +94,8 @@ pub fn can_use_feature(tier: &str, feature: &str) -> bool {
         "priority_gigs" => benefits.priority_gig_matching,
         "white_label_export" => benefits.white_label_export,
         "executive_lounge" => benefits.executive_lounge,
+        "custom_departments" => benefits.custom_departments,
+        "ai_co_ceo" => benefits.ai_co_ceo,
         _ => false,
     }
 }

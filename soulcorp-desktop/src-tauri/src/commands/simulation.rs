@@ -5,6 +5,7 @@ use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
 use crate::finance::apply_tick_finance;
 use crate::gigs::apply_gig_contract_ticks;
+use crate::commands::vip::apply_co_ceo_autonomy_tick;
 use crate::relationships::apply_relationship_tick;
 use crate::state::{AppState, GameEvent};
 use crate::workspace::{write_daily_activity_docs, write_event_activity_doc};
@@ -39,6 +40,7 @@ pub fn run_simulation_tick(
     if state.tick % 20 == 0 {
         apply_relationship_tick(&mut state);
     }
+    let co_ceo_note = apply_co_ceo_autonomy_tick(&mut state);
     let reality_note = apply_god_mode_reality_debt(&mut state);
 
     let event = if state.tick % 15 == 0 {
@@ -93,6 +95,8 @@ pub fn run_simulation_tick(
             "Day {} tick {}: event triggered — {}",
             state.day_number, state.tick, event.title
         )
+    } else if let Some(note) = co_ceo_note {
+        note
     } else if let Some(note) = reality_note {
         note
     } else if gig_result.contracts_submitted_for_qc > 0 {

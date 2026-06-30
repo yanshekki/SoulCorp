@@ -11,6 +11,7 @@ import { PauseMenu } from "./PauseMenu";
 import { RecruitmentPanel } from "./RecruitmentPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { TierPanel } from "./TierPanel";
+import { VipExecutivePanel } from "./VipExecutivePanel";
 
 interface ShellLayoutProps {
   children: ReactNode;
@@ -25,6 +26,7 @@ const PANELS: { id: SidebarPanel; label: string }[] = [
   { id: "marketplace", label: "Marketplace" },
   { id: "recruitment", label: "Recruitment" },
   { id: "tier", label: "Pro / VIP" },
+  { id: "executive", label: "Executive" },
   { id: "achievements", label: "Achievements" },
   { id: "settings", label: "Settings" },
   { id: "god_mode", label: "God Mode" },
@@ -59,6 +61,8 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <RecruitmentPanel />;
     case "tier":
       return <TierPanel />;
+    case "executive":
+      return <VipExecutivePanel />;
     case "achievements":
       return <AchievementsPanel />;
     case "settings":

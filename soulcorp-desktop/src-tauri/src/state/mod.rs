@@ -266,6 +266,32 @@ pub struct MeetingMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomDepartment {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    pub sop: String,
+    pub brand_color: String,
+    pub accent_color: String,
+    pub building_id: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CoCeoState {
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub last_briefing_at: Option<String>,
+    #[serde(default)]
+    pub last_directive: Option<String>,
+    #[serde(default)]
+    pub autonomy_enabled: bool,
+    #[serde(default)]
+    pub directives_applied: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeetingState {
     pub id: String,
     pub meeting_type: String,
@@ -313,6 +339,10 @@ pub struct AppState {
     #[serde(default)]
     pub agent_relationships: Vec<AgentRelationship>,
     #[serde(default)]
+    pub custom_departments: Vec<CustomDepartment>,
+    #[serde(default)]
+    pub co_ceo: CoCeoState,
+    #[serde(default)]
     pub projects: Vec<InternalProject>,
     pub day_number: u32,
     pub tick: u64,
@@ -340,6 +370,8 @@ impl Default for AppState {
             sync_queue: Vec::new(),
             gig_contracts: Vec::new(),
             agent_relationships: Vec::new(),
+            custom_departments: Vec::new(),
+            co_ceo: CoCeoState::default(),
             projects: Vec::new(),
             day_number: 1,
             tick: 0,

@@ -50,6 +50,7 @@ interface GameStore {
   setEndings: (endings: Ending[]) => void;
   setHubStatus: (hubStatus: HubStatus) => void;
   setTierBenefits: (tierBenefits: TierBenefits) => void;
+  setBuildings: (buildings: Building[]) => void;
   setCompanyName: (companyName: string) => void;
   setOnboardingCompleted: (completed: boolean) => void;
   setOnboardingReady: (ready: boolean) => void;
@@ -123,6 +124,8 @@ export const useGameStore = create<GameStore>((set) => ({
     event_foresight_days: 0,
     white_label_export: false,
     executive_lounge: false,
+    custom_departments: false,
+    ai_co_ceo: false,
   },
   setStatusMessage: (message) => set({ statusMessage: message }),
   setAgents: (agents) => set({ agents }),
@@ -144,6 +147,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setEndings: (endings) => set({ endings }),
   setHubStatus: (hubStatus) => set({ hubStatus }),
   setTierBenefits: (tierBenefits) => set({ tierBenefits }),
+  setBuildings: (buildings) => set({ buildings }),
   setCompanyName: (companyName) => set({ companyName }),
   setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
   setOnboardingReady: (ready) => set({ onboardingReady: ready }),

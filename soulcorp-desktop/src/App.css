@@ -1690,6 +1690,70 @@ body,
   font-size: 0.78rem;
 }
 
+.vip-section {
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vip-section h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.custom-dept-list {
+  list-style: none;
+  margin: 0 0 0.65rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.custom-dept-list li {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #6d5645;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.assign-dept-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+  margin-top: 0.65rem;
+}
+
+.co-ceo-briefing {
+  margin-top: 0.65rem;
+  padding: 0.65rem;
+  border-radius: 10px;
+  background: rgba(120, 170, 255, 0.08);
+  border: 1px solid rgba(120, 170, 255, 0.2);
+}
+
+.directive-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.directive-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #6d5645;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+}
+
+.directive-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
 .primary-action {
   background: #6d9f78 !important;
 }

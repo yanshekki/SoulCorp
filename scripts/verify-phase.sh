@@ -113,6 +113,18 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  17)
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/vip.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/VipExecutivePanel.tsx"
+    grep -q "custom_departments" "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
+    grep -q "ai_co_ceo" "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
+    grep -q "spawn_co_ceo" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "create_custom_department" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "run_co_ceo_briefing" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "VipExecutivePanel" "${DESKTOP_DIR}/src/components/UI/ShellLayout.tsx"
+    grep -q "custom_departments" "${DESKTOP_DIR}/src/types/game.ts"
+    echo "Phase 17 VIP Co-CEO + custom departments checks passed."
+    ;;
   16)
     test -f "${DESKTOP_DIR}/src-tauri/src/ai/health.rs"
     grep -q "get_meeting_ai_status" "${DESKTOP_DIR}/src-tauri/src/lib.rs"

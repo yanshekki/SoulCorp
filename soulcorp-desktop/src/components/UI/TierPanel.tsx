@@ -200,6 +200,14 @@ export function TierPanel() {
           <span>White-label export</span>
           <strong>{tierBenefits.white_label_export ? "Yes" : "No"}</strong>
         </article>
+        <article>
+          <span>Custom departments</span>
+          <strong>{tierBenefits.custom_departments ? "Yes" : "No"}</strong>
+        </article>
+        <article>
+          <span>AI Co-CEO</span>
+          <strong>{tierBenefits.ai_co_ceo ? "Yes" : "No"}</strong>
+        </article>
       </div>
 
       <p className="muted">{upgradeHint}</p>
@@ -283,6 +291,12 @@ export function TierPanel() {
 
       {tierBenefits.executive_lounge ? (
         <p className="tier-highlight">Executive Lounge: exclusive high-budget gigs unlocked.</p>
+      ) : null}
+
+      {tierBenefits.custom_departments || tierBenefits.ai_co_ceo ? (
+        <p className="tier-highlight">
+          Open the Executive panel to create custom departments and run the AI Co-CEO.
+        </p>
       ) : null}
     </section>
   );

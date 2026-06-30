@@ -15,6 +15,7 @@ pub mod simulation;
 pub mod smoke;
 pub mod sync;
 pub mod tier;
+pub mod vip;
 pub mod workspace;
 
 pub use achievements_cmd::*;
@@ -34,4 +35,5 @@ pub use simulation::*;
 pub use smoke::*;
 pub use sync::*;
 pub use tier::*;
+pub use vip::*;
 pub use workspace::*;

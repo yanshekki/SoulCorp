@@ -72,6 +72,8 @@ export function useGameBootstrap() {
             event_foresight_days: 0,
             white_label_export: false,
             executive_lounge: false,
+            custom_departments: false,
+            ai_co_ceo: false,
           }),
         );
         setTierBenefits(tierBenefits);

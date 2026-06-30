@@ -7,6 +7,7 @@ export type SidebarPanel =
   | "marketplace"
   | "recruitment"
   | "tier"
+  | "executive"
   | "achievements"
   | "settings"
   | "god_mode";
@@ -104,6 +105,64 @@ export interface TierBenefits {
   event_foresight_days: number;
   white_label_export: boolean;
   executive_lounge: boolean;
+  custom_departments: boolean;
+  ai_co_ceo: boolean;
+}
+
+export interface CustomDepartment {
+  id: string;
+  name: string;
+  display_name: string;
+  sop: string;
+  brand_color: string;
+  accent_color: string;
+  building_id: string;
+  created_at: string;
+}
+
+export interface CustomDepartmentBuilding {
+  id: string;
+  name: string;
+  department: string;
+  position: [number, number, number];
+  size: [number, number, number];
+  color: string;
+  roof_color: string;
+  accent_color: string;
+  description: string;
+}
+
+export interface CompanyDepartmentsSnapshot {
+  builtin: string[];
+  custom: CustomDepartment[];
+  buildings: CustomDepartmentBuilding[];
+}
+
+export interface CoCeoStatus {
+  available: boolean;
+  spawned: boolean;
+  agent_id?: string | null;
+  agent_name?: string | null;
+  autonomy_enabled: boolean;
+  last_briefing_at?: string | null;
+  last_directive?: string | null;
+  directives_applied: number;
+}
+
+export interface CoCeoDirective {
+  id: string;
+  title: string;
+  description: string;
+  target_department: string;
+  project_progress_delta: number;
+  morale_delta: number;
+}
+
+export interface CoCeoBriefing {
+  summary: string;
+  provider: string;
+  directives: CoCeoDirective[];
+  generated_at: string;
 }
 
 export interface RecruitmentCandidate {
