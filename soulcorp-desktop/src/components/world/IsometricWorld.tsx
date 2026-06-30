@@ -11,6 +11,7 @@ const ISO_OFFSET = new THREE.Vector3(12, 12, 12);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
 
 export function IsometricWorld() {
+  const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
   const agents = useGameStore((state) => state.agents);
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuilding = useGameStore((state) => state.selectedBuilding);
@@ -56,7 +57,7 @@ export function IsometricWorld() {
   return (
     <>
       <color attach="background" args={["#87b8e8"]} />
-      <fog attach="fog" args={["#b9d8f6", 24, 48]} />
+      <fog attach="fog" args={["#b9d8f6", lowPowerMode ? 18 : 24, lowPowerMode ? 36 : 48]} />
       <OrthographicCamera
         ref={cameraRef}
         makeDefault
@@ -67,11 +68,11 @@ export function IsometricWorld() {
       />
       <ambientLight intensity={0.65} />
       <directionalLight
-        castShadow
-        intensity={1.1}
+        castShadow={!lowPowerMode}
+        intensity={lowPowerMode ? 0.85 : 1.1}
         position={[8, 14, 6]}
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={lowPowerMode ? 512 : 1024}
+        shadow-mapSize-height={lowPowerMode ? 512 : 1024}
       />
       <hemisphereLight args={["#fff2d9", "#4f674c", 0.35]} />
       <OfficeTilemap />

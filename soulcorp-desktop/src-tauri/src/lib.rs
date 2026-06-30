@@ -1,3 +1,4 @@
+mod achievements;
 mod ai;
 mod commands;
 mod db;
@@ -49,6 +50,9 @@ pub fn run() {
             commands::update_workspace_page,
             commands::search_workspace,
             commands::generate_meeting_notes,
+            commands::get_achievements,
+            commands::export_company_backup,
+            commands::export_workspace_markdown_zip,
             db::get_app_status,
         ])
         .run(tauri::generate_context!())

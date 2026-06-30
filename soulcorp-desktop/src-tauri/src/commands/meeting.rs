@@ -106,6 +106,7 @@ pub fn advance_meeting(
             .get_mut(&meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?;
         meeting.completed = true;
+        state.stats.meetings_completed += 1;
 
         for agent_id in &participant_ids {
             if let Some(agent) = state.agents.get_mut(agent_id) {

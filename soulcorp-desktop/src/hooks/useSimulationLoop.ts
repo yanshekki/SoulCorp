@@ -1,7 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
 import { useGameStore } from "../stores/gameStore";
-import type { AgentRecord, FinanceState, GameEvent, SimulationTickResult } from "../types/game";
+import type {
+  AchievementSnapshot,
+  AgentRecord,
+  FinanceState,
+  GameEvent,
+  SimulationTickResult,
+} from "../types/game";
 import { advanceAgents } from "../utils/agentMovement";
 
 export function useSimulationLoop() {
@@ -31,6 +37,8 @@ export function useSimulationLoop() {
         setFinance,
         prependEvent,
         setAgentRecords,
+        setAchievements,
+        setEndings,
       } = useGameStore.getState();
 
       setAgents(advanceAgents(agents, delta));
@@ -56,6 +64,9 @@ export function useSimulationLoop() {
             if (result.event) {
               prependEvent(result.event as GameEvent);
             }
+            const achievements = await invoke<AchievementSnapshot>("get_achievements");
+            setAchievements(achievements.achievements);
+            setEndings(achievements.endings);
           })
           .catch((error) => setStatusMessage(String(error)));
       }

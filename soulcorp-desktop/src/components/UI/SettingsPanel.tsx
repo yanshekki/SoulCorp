@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useGameStore } from "../../stores/gameStore";
-import type { EventMode, GameSettings } from "../../types/game";
+import type { EventMode, ExportResult, GameSettings } from "../../types/game";
 
 export function SettingsPanel() {
   const settings = useGameStore((state) => state.settings);
@@ -15,6 +15,10 @@ export function SettingsPanel() {
           event_mode: patch.event_mode,
           god_mode_enabled: patch.god_mode_enabled,
           ai_provider: patch.ai_provider,
+          pure_local_mode: patch.pure_local_mode,
+          pixel_filter_enabled: patch.pixel_filter_enabled,
+          low_power_mode: patch.low_power_mode,
+          backup_interval_minutes: patch.backup_interval_minutes,
         },
       });
       setSettings(next);
@@ -24,9 +28,31 @@ export function SettingsPanel() {
     }
   };
 
+  const exportBackup = async () => {
+    const result = await invoke<ExportResult>("export_company_backup");
+    setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const exportWorkspace = async () => {
+    const result = await invoke<ExportResult>("export_workspace_markdown_zip");
+    setStatusMessage(`${result.message} ${result.path}`);
+  };
+
   return (
-    <section className="panel-card">
+    <section className="panel-card settings-panel">
       <h2>Settings</h2>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.pure_local_mode}
+          onChange={(event) =>
+            void updateSettings({ pure_local_mode: event.target.checked })
+          }
+        />
+        <span>Pure Local Mode (zero cloud)</span>
+      </label>
+
       <label className="checkbox-row">
         <input
           type="checkbox"
@@ -63,17 +89,64 @@ export function SettingsPanel() {
         <span>Enable God Mode</span>
       </label>
 
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.pixel_filter_enabled}
+          onChange={(event) =>
+            void updateSettings({ pixel_filter_enabled: event.target.checked })
+          }
+        />
+        <span>Pixel filter (cozy retro look)</span>
+      </label>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.low_power_mode}
+          onChange={(event) =>
+            void updateSettings({ low_power_mode: event.target.checked })
+          }
+        />
+        <span>Low power mode (better FPS)</span>
+      </label>
+
+      <label className="field-label">
+        Auto-backup interval (minutes, 0 = off)
+        <input
+          type="number"
+          min={0}
+          max={1440}
+          value={settings.backup_interval_minutes}
+          onChange={(event) =>
+            void updateSettings({
+              backup_interval_minutes: Number(event.target.value),
+            })
+          }
+        />
+      </label>
+
       <label className="field-label">
         AI Provider
         <select
           value={settings.ai_provider}
           onChange={(event) => void updateSettings({ ai_provider: event.target.value })}
+          disabled={settings.pure_local_mode}
         >
           <option value="mock">Mock (offline)</option>
           <option value="ollama">Ollama (Phase 5)</option>
           <option value="soulmd-hub">soulmd-hub API (Phase 5)</option>
         </select>
       </label>
+
+      <div className="panel-actions stacked">
+        <button type="button" onClick={() => void exportBackup()}>
+          Export Company Backup (JSON)
+        </button>
+        <button type="button" onClick={() => void exportWorkspace()}>
+          Export Workspace (Markdown ZIP)
+        </button>
+      </div>
     </section>
   );
 }

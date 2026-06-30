@@ -1,3 +1,4 @@
+use crate::achievements::evaluate;
 use crate::commands::events::maybe_roll_event;
 use crate::state::{AppState, GameEvent};
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,15 @@ pub fn run_simulation_tick(
         .values()
         .filter(|agent| agent.status == "working" || agent.status == "meeting")
         .count() as u32;
+
+    if state.settings.backup_interval_minutes > 0 {
+        let interval_ticks = state.settings.backup_interval_minutes as u64 * 60;
+        if state.tick.saturating_sub(state.last_backup_tick) >= interval_ticks {
+            state.last_backup_tick = state.tick;
+        }
+    }
+
+    let _achievement_snapshot = evaluate(&mut state);
 
     let message = if let Some(event) = &event {
         format!(

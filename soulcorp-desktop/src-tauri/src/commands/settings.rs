@@ -9,6 +9,10 @@ pub struct SettingsUpdate {
     pub event_mode: Option<EventMode>,
     pub god_mode_enabled: Option<bool>,
     pub ai_provider: Option<String>,
+    pub pure_local_mode: Option<bool>,
+    pub pixel_filter_enabled: Option<bool>,
+    pub low_power_mode: Option<bool>,
+    pub backup_interval_minutes: Option<u32>,
 }
 
 #[tauri::command]
@@ -38,6 +42,18 @@ pub fn update_game_settings(
     }
     if let Some(provider) = update.ai_provider {
         state.settings.ai_provider = provider;
+    }
+    if let Some(enabled) = update.pure_local_mode {
+        state.settings.pure_local_mode = enabled;
+    }
+    if let Some(enabled) = update.pixel_filter_enabled {
+        state.settings.pixel_filter_enabled = enabled;
+    }
+    if let Some(enabled) = update.low_power_mode {
+        state.settings.low_power_mode = enabled;
+    }
+    if let Some(minutes) = update.backup_interval_minutes {
+        state.settings.backup_interval_minutes = minutes;
     }
 
     Ok(state.settings.clone())

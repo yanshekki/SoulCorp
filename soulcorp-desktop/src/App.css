@@ -544,3 +544,51 @@ body,
   color: #6d5a49;
   font-size: 0.8rem;
 }
+
+.game-scene.pixel-filter .game-canvas {
+  image-rendering: pixelated;
+  filter: contrast(1.05) saturate(1.08);
+}
+
+.achievements-panel h3 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.achievement-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.achievement {
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0.55;
+}
+
+.achievement.unlocked {
+  opacity: 1;
+  border-color: rgba(157, 210, 164, 0.45);
+}
+
+.achievement.ending.unlocked {
+  border-color: rgba(255, 214, 130, 0.55);
+}
+
+.achievement p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #c8b6a3;
+}
+
+.settings-panel input[type="number"] {
+  border: 1px solid #6d5645;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: #4a382d;
+  color: #f6f1e8;
+}
