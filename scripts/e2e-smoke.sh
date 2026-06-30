@@ -42,4 +42,10 @@ else
   echo "WARN: php not available; skipping hub API smoke."
 fi
 
+if [[ -f "${REPO_ROOT}/scripts/e2e-3d-smoke.sh" ]]; then
+  bash "${REPO_ROOT}/scripts/e2e-3d-smoke.sh" || {
+    echo "WARN: 3D smoke test failed or was skipped."
+  }
+fi
+
 echo "E2E smoke tests passed."

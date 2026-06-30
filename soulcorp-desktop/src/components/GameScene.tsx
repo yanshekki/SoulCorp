@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useContainerSize } from "../hooks/useContainerSize";
+import { is3dSmokeTestEnabled, submit3dSmokeFailure } from "../services/scene3dSmoke";
 import { useGameStore } from "../stores/gameStore";
 import { OfficeMapFallback } from "./world/OfficeMapFallback";
 import {
@@ -34,6 +35,32 @@ export function GameScene() {
     setRenderError(error ?? null);
   }, []);
 
+  const errorMessage =
+    renderError ??
+    (webglProbe && !webglProbe.ok ? webglProbe.reason : null) ??
+    "3D renderer failed to start.";
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!(await is3dSmokeTestEnabled())) {
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 20_000));
+      if (cancelled || renderStatus === "ready") {
+        return;
+      }
+      await submit3dSmokeFailure({
+        renderStatus,
+        mode,
+        error: errorMessage,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [errorMessage, mode, renderStatus]);
+
   const handleRetry3d = () => {
     setForcedFallback(false);
     setRenderError(null);
@@ -45,11 +72,6 @@ export function GameScene() {
     renderStatus === "failed" ||
     webglBlocked ||
     (renderStatus === "initializing" && ready && mode === "fallback" && !lowPowerMode);
-
-  const errorMessage =
-    renderError ??
-    (webglProbe && !webglProbe.ok ? webglProbe.reason : null) ??
-    "3D renderer failed to start.";
 
   return (
     <section

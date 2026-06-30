@@ -33,6 +33,7 @@ pub fn run() {
                 state.endings = default_endings();
             }
             app.manage(Mutex::new(state));
+            commands::spawn_smoke_watchdog(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -93,6 +94,9 @@ pub fn run() {
             commands::export_company_report_pdf,
             commands::open_exports_folder,
             commands::export_workspace_markdown_zip,
+            commands::is_3d_smoke_test_enabled,
+            commands::write_3d_smoke_report,
+            commands::exit_3d_smoke_test,
             db::get_app_status,
         ])
         .run(tauri::generate_context!())

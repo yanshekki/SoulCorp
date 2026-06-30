@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { run3dSmokeTestFromCanvas } from "../../services/scene3dSmoke";
 import { useGameStore } from "../../stores/gameStore";
 import {
   createOfficeScene,
@@ -27,6 +28,8 @@ export function ThreeOfficeRenderer({
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(performance.now());
   const onStatusChangeRef = useRef(onStatusChange);
+  const smokeFramesRef = useRef(0);
+  const smokeDoneRef = useRef(false);
 
   useEffect(() => {
     onStatusChangeRef.current = onStatusChange;
@@ -62,6 +65,14 @@ export function ThreeOfficeRenderer({
       syncSceneAgents(handlesRef.current, state.agents);
       updateCamera(handlesRef.current.camera, state.selectedBuilding, delta);
       renderScene(handlesRef.current);
+
+      if (!smokeDoneRef.current) {
+        smokeFramesRef.current += 1;
+        if (smokeFramesRef.current >= 45) {
+          smokeDoneRef.current = true;
+          void run3dSmokeTestFromCanvas(canvas);
+        }
+      }
 
       frameRef.current = requestAnimationFrame(loop);
     };

@@ -91,6 +91,14 @@ case "${PHASE}" in
     grep -q '"devtools": false' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
     echo "Phase 6 checks passed."
     ;;
+  7)
+    test -f "${DESKTOP_DIR}/src/services/scene3dSmoke.ts"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/smoke.rs"
+    test -f "${REPO_ROOT}/scripts/e2e-3d-smoke.sh"
+    grep -q "is_3d_smoke_test_enabled" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "run3dSmokeTestFromCanvas" "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
+    echo "Phase 7 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;
