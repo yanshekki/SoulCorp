@@ -187,6 +187,8 @@ pub struct MeetingState {
     pub project_progress_delta: f32,
     #[serde(default)]
     pub revenue_delta: f64,
+    #[serde(default)]
+    pub notes_generated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

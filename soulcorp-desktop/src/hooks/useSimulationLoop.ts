@@ -8,6 +8,8 @@ import type {
   GameEvent,
   SimulationTickResult,
 } from "../types/game";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+import type { WorkspaceTree } from "../types/workspace";
 import { advanceAgents } from "../utils/agentMovement";
 
 export function useSimulationLoop() {
@@ -67,6 +69,10 @@ export function useSimulationLoop() {
             const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
             setAgentRecords(refreshedAgents);
             setStatusMessage(result.message);
+            if (result.message.includes("Workspace journals updated")) {
+              const tree = await invoke<WorkspaceTree>("list_workspace_tree");
+              useWorkspaceStore.getState().setTree(tree);
+            }
             if (result.event) {
               prependEvent(result.event as GameEvent);
             }

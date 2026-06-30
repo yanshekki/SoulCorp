@@ -71,7 +71,7 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
             agent.status = "throttled".to_string();
             agent.energy = (agent.energy - 0.02).max(0.15);
             agent.morale = (agent.morale - 0.015).max(0.0);
-        } else if agent.status == "throttled" {
+        } else if agent.status == "throttled" || agent.status == "idle" {
             agent.status = "working".to_string();
         }
 

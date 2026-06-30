@@ -4,6 +4,7 @@ use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
 use crate::finance::apply_tick_finance;
 use crate::state::{AppState, GameEvent};
+use crate::workspace::{write_daily_activity_docs, write_event_activity_doc};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -36,6 +37,19 @@ pub fn run_simulation_tick(
     } else {
         None
     };
+
+    let mut workspace_note = None;
+    if finance_result.daily_salary_paid > 0.0 {
+        match write_daily_activity_docs(&app, &mut state) {
+            Ok(count) => workspace_note = Some(format!("Workspace journals updated ({count} pages).")),
+            Err(err) => workspace_note = Some(format!("Workspace journal update failed: {err}")),
+        }
+    }
+    if let Some(ref game_event) = event {
+        if let Err(err) = write_event_activity_doc(&app, &mut state, game_event) {
+            workspace_note = Some(format!("Event workspace log failed: {err}"));
+        }
+    }
 
     let agents_active = state
         .agents
@@ -82,6 +96,12 @@ pub fn run_simulation_tick(
             state.tick,
             state.agents.len()
         )
+    };
+
+    let message = if let Some(note) = workspace_note {
+        format!("{message} {note}")
+    } else {
+        message
     };
 
     let result = SimulationTickResult {

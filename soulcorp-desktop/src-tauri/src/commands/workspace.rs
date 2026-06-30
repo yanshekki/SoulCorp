@@ -1,8 +1,8 @@
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
-    storage::workspace_root, CreatePageRequest, SearchResult, UpdatePageRequest, WorkspacePage,
-    WorkspaceStorage, WorkspaceTree,
+    storage::workspace_root, write_meeting_notes_from_state, CreatePageRequest, SearchResult,
+    UpdatePageRequest, WorkspacePage, WorkspaceStorage, WorkspaceTree,
 };
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
@@ -67,33 +67,8 @@ pub fn generate_meeting_notes(
     meeting_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<WorkspacePage>, String> {
-    let (meeting_type, messages, participant_names) = {
-        let state = state.lock().map_err(|e| e.to_string())?;
-        let meeting = state
-            .meetings
-            .get(&meeting_id)
-            .ok_or_else(|| "Meeting not found.".to_string())?;
-
-        let messages: Vec<(String, String)> = meeting
-            .messages
-            .iter()
-            .map(|message| (message.speaker_name.clone(), message.content.clone()))
-            .collect();
-
-        let participant_names: Vec<String> = meeting
-            .participant_ids
-            .iter()
-            .filter_map(|id| state.agents.get(id).map(|agent| agent.name.clone()))
-            .collect();
-
-        (meeting.meeting_type.clone(), messages, participant_names)
-    };
-
-    let storage = storage_for_app(&app)?;
-    let pages = storage.append_meeting_notes(&meeting_type, &messages, &participant_names)?;
-
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    state.stats.pages_created += pages.len() as u32;
+    let pages = write_meeting_notes_from_state(&app, &mut state, &meeting_id)?;
     commit(app, &state)?;
     Ok(pages)
 }

@@ -2,6 +2,7 @@ use crate::ai::{self, provider::ChatRequest};
 use crate::db::persistence::commit;
 use crate::soul::build_system_prompt;
 use crate::state::{AppState, InternalProject, MeetingMessage, MeetingState};
+use crate::workspace::write_meeting_notes_from_state;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -50,6 +51,7 @@ pub fn start_meeting(
         outcome_summary: None,
         project_progress_delta: 0.0,
         revenue_delta: 0.0,
+        notes_generated: false,
     };
 
     for agent_id in &request.agent_ids {
@@ -167,6 +169,8 @@ pub fn advance_meeting(
         }
 
         state.stats.meetings_completed += 1;
+
+        let _ = write_meeting_notes_from_state(&app, &mut state, &meeting_id);
 
         let snapshot = snapshot_from_meeting(
             state

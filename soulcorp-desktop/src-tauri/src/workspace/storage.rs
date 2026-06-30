@@ -170,6 +170,7 @@ impl WorkspaceStorage {
             page.blocks = blocks_from_rich_doc(rich_doc);
         } else if let Some(blocks) = &request.blocks {
             page.blocks = blocks.clone();
+            page.rich_doc = Some(blocks_to_rich_doc(blocks));
         }
         if let Some(editor) = &request.last_edited_by {
             page.last_edited_by = editor.clone();
@@ -293,6 +294,105 @@ impl WorkspaceStorage {
         Ok(created)
     }
 
+    pub fn ensure_agent_folder(&self, agent_id: &str, agent_name: &str) -> Result<String, String> {
+        let folder_id = format!("folder-{agent_id}");
+        let mut folders = self.read_folders()?;
+        if folders.iter().any(|folder| folder.id == folder_id) {
+            return Ok(folder_id);
+        }
+
+        let now = Utc::now().to_rfc3339();
+        folders.push(WorkspaceFolder {
+            id: folder_id.clone(),
+            name: agent_name.to_string(),
+            icon: Some("🤖".to_string()),
+            parent_id: None,
+            workspace_type: WorkspaceType::Agent,
+            owner_id: agent_id.to_string(),
+            is_private: true,
+            permissions: vec![],
+            created_at: now.clone(),
+            updated_at: now,
+        });
+        self.write_folders(&folders)?;
+        Ok(folder_id)
+    }
+
+    pub fn find_page_in_folder(&self, folder_id: &str, title: &str) -> Result<Option<WorkspacePage>, String> {
+        Ok(self
+            .read_all_pages()?
+            .into_iter()
+            .find(|page| page.folder_id == folder_id && page.title == title))
+    }
+
+    pub fn append_journal_entry(
+        &self,
+        folder_id: &str,
+        journal_title: &str,
+        heading: &str,
+        lines: &[String],
+        editor: &str,
+    ) -> Result<WorkspacePage, String> {
+        let page = if let Some(existing) = self.find_page_in_folder(folder_id, journal_title)? {
+            existing
+        } else {
+            self.create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.to_string(),
+                    title: journal_title.to_string(),
+                },
+                editor,
+            )?
+        };
+
+        let mut blocks = page.blocks.clone();
+        blocks.retain(|block| block.content != "Start writing...");
+
+        blocks.push(Block {
+            id: Uuid::new_v4().to_string(),
+            block_type: "heading".to_string(),
+            content: heading.to_string(),
+            checked: None,
+        });
+
+        for line in lines {
+            if line.trim().is_empty() {
+                continue;
+            }
+            blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "text".to_string(),
+                content: line.clone(),
+                checked: None,
+            });
+        }
+
+        self.update_page(&UpdatePageRequest {
+            page_id: page.id,
+            title: None,
+            blocks: Some(blocks),
+            rich_doc: None,
+            last_edited_by: Some(editor.to_string()),
+        })
+    }
+
+    pub fn append_company_feed_entry(
+        &self,
+        day_number: u32,
+        title: &str,
+        body: &str,
+    ) -> Result<WorkspacePage, String> {
+        const FEED_TITLE: &str = "Company Activity Feed";
+        let heading = format!("Day {day_number} — {title}");
+        self.append_journal_entry(
+            "folder-company",
+            FEED_TITLE,
+            &heading,
+            &[body.to_string()],
+            "activity-system",
+        )
+    }
+
     fn folders_path(&self) -> PathBuf {
         self.root.join("folders.json")
     }
@@ -354,6 +454,44 @@ impl WorkspaceStorage {
 
 pub fn workspace_root(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("workspaces")
+}
+
+fn blocks_to_rich_doc(blocks: &[Block]) -> serde_json::Value {
+    let content: Vec<serde_json::Value> = blocks
+        .iter()
+        .filter(|block| !block.content.is_empty())
+        .map(|block| match block.block_type.as_str() {
+            "heading" => serde_json::json!({
+                "type": "heading",
+                "attrs": { "level": 2 },
+                "content": [{ "type": "text", "text": block.content }]
+            }),
+            "todo" => serde_json::json!({
+                "type": "taskList",
+                "content": [{
+                    "type": "taskItem",
+                    "attrs": { "checked": block.checked.unwrap_or(false) },
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{ "type": "text", "text": block.content }]
+                    }]
+                }]
+            }),
+            _ => serde_json::json!({
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": block.content }]
+            }),
+        })
+        .collect();
+
+    serde_json::json!({
+        "type": "doc",
+        "content": if content.is_empty() {
+            vec![serde_json::json!({ "type": "paragraph" })]
+        } else {
+            content
+        }
+    })
 }
 
 fn blocks_from_rich_doc(doc: &serde_json::Value) -> Vec<Block> {

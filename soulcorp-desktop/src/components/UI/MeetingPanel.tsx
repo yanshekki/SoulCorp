@@ -53,7 +53,6 @@ export function MeetingPanel() {
       });
       setActiveMeeting(meeting);
       if (meeting.completed) {
-        await invoke("generate_meeting_notes", { meeting_id: meeting.id });
         const outcome = meeting.outcome_summary ?? "Meeting completed.";
         setStatusMessage(
           `${outcome} Project +${(meeting.project_progress_delta * 100).toFixed(0)}%, revenue impact $${meeting.revenue_delta.toFixed(0)}.`,
