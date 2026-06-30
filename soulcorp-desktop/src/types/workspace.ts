@@ -15,6 +15,25 @@ export interface WorkspaceBlock {
   checked?: boolean | null;
 }
 
+export interface LinkedEntity {
+  entity_type: "agent" | "project" | "meeting" | "event" | string;
+  id: string;
+  title: string;
+}
+
+export interface LinkableEntity {
+  entity_type: string;
+  id: string;
+  title: string;
+  subtitle?: string | null;
+}
+
+export interface PageBacklink {
+  page_id: string;
+  title: string;
+  folder_id: string;
+}
+
 export interface WorkspacePage {
   id: string;
   title: string;
@@ -22,6 +41,7 @@ export interface WorkspacePage {
   icon?: string | null;
   blocks: WorkspaceBlock[];
   rich_doc?: Record<string, unknown> | null;
+  linked_entities: LinkedEntity[];
   last_edited_at: string;
   last_edited_by: string;
   version: number;

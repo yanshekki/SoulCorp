@@ -1,9 +1,11 @@
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
-    storage::workspace_root, write_meeting_notes_from_state, CreatePageRequest, SearchResult,
-    UpdatePageRequest, WorkspacePage, WorkspaceStorage, WorkspaceTree,
+    storage::workspace_root, write_meeting_notes_from_state, CreatePageRequest, LinkableEntity,
+    LinkEntityRequest, PageBacklink, SearchResult, UnlinkEntityRequest, UpdatePageRequest,
+    WorkspacePage, WorkspaceStorage, WorkspaceTree,
 };
+use crate::workspace::LinkedEntity;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
@@ -59,6 +61,101 @@ pub fn update_workspace_page(
 pub fn search_workspace(app: AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
     let storage = storage_for_app(&app)?;
     storage.search(&query)
+}
+
+#[tauri::command]
+pub fn list_linkable_entities(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<LinkableEntity>, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    let mut entities = Vec::new();
+
+    for agent in state.agents.values() {
+        entities.push(LinkableEntity {
+            entity_type: "agent".to_string(),
+            id: agent.id.clone(),
+            title: agent.name.clone(),
+            subtitle: Some(format!("{} · {}", agent.role, agent.department)),
+        });
+    }
+
+    for project in &state.projects {
+        entities.push(LinkableEntity {
+            entity_type: "project".to_string(),
+            id: project.id.clone(),
+            title: project.title.clone(),
+            subtitle: Some(format!(
+                "{:.0}% · {}",
+                project.progress * 100.0,
+                project.owner_department
+            )),
+        });
+    }
+
+    for meeting in state.meetings.values() {
+        entities.push(LinkableEntity {
+            entity_type: "meeting".to_string(),
+            id: meeting.id.clone(),
+            title: format!("{} meeting", meeting.meeting_type),
+            subtitle: Some(if meeting.completed {
+                "completed".to_string()
+            } else {
+                "in progress".to_string()
+            }),
+        });
+    }
+
+    for event in state.events.iter().rev().take(6) {
+        entities.push(LinkableEntity {
+            entity_type: "event".to_string(),
+            id: event.id.clone(),
+            title: event.title.clone(),
+            subtitle: Some(event.tone.clone()),
+        });
+    }
+
+    Ok(entities)
+}
+
+#[tauri::command]
+pub fn link_workspace_entity(
+    app: AppHandle,
+    request: LinkEntityRequest,
+) -> Result<WorkspacePage, String> {
+    let storage = storage_for_app(&app)?;
+    storage.link_entity_to_page(
+        &request.page_id,
+        LinkedEntity {
+            entity_type: request.entity_type,
+            id: request.entity_id,
+            title: request.title,
+        },
+        "player",
+    )
+}
+
+#[tauri::command]
+pub fn unlink_workspace_entity(
+    app: AppHandle,
+    request: UnlinkEntityRequest,
+) -> Result<WorkspacePage, String> {
+    let storage = storage_for_app(&app)?;
+    storage.unlink_entity_from_page(
+        &request.page_id,
+        &request.entity_type,
+        &request.entity_id,
+        "player",
+    )
+}
+
+#[tauri::command]
+pub fn find_workspace_backlinks(
+    app: AppHandle,
+    entity_type: String,
+    entity_id: String,
+) -> Result<Vec<PageBacklink>, String> {
+    let storage = storage_for_app(&app)?;
+    storage.find_backlinks(&entity_type, &entity_id)
 }
 
 #[tauri::command]

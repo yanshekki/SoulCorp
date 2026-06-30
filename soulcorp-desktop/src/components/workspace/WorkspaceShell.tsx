@@ -26,7 +26,7 @@ export function WorkspaceShell() {
         <WorkspaceSearch onOpenResult={(pageId) => void openPage(pageId)} />
         {isLoading ? <p className="muted">Loading workspace...</p> : <FolderTree onSelectPage={(pageId) => void openPage(pageId)} />}
       </aside>
-      <PageEditor />
+      <PageEditor onOpenPage={(pageId) => void openPage(pageId)} />
     </section>
   );
 }

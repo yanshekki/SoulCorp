@@ -784,6 +784,95 @@ body,
   color: #6d5a49;
 }
 
+.page-links {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2d4c0;
+  border-radius: 12px;
+  background: rgba(255, 250, 242, 0.85);
+}
+
+.page-links h3,
+.page-links h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.page-link-list,
+.page-backlinks ul {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.page-link-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.link-pill {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: #efe4d4;
+  color: #4a3d33;
+}
+
+.link-pill.link-agent {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.link-pill.link-project {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.link-pill.link-meeting {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.link-pill.link-event {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.page-link-form {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.page-link-form select,
+.page-link-form button {
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+}
+
+.page-backlinks {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed #d8c8b2;
+}
+
+.page-backlinks button {
+  border: none;
+  background: transparent;
+  color: #4338ca;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
 .page-editor-header {
   display: flex;
   gap: 0.75rem;

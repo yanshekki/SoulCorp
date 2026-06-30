@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspacePage } from "../../types/workspace";
 import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
+import { PageLinks } from "./PageLinks";
 import { TipTapEditor } from "./TipTapEditor";
 
-export function PageEditor() {
+interface PageEditorProps {
+  onOpenPage?: (pageId: string) => void;
+}
+
+export function PageEditor({ onOpenPage }: PageEditorProps) {
   const selectedPage = useWorkspaceStore((state) => state.selectedPage);
   const setSelectedPage = useWorkspaceStore((state) => state.setSelectedPage);
   const upsertPageSummary = useWorkspaceStore((state) => state.upsertPageSummary);
@@ -73,6 +78,12 @@ export function PageEditor() {
           {saving ? "Saving..." : "Save"}
         </button>
       </header>
+
+      <PageLinks
+        page={selectedPage}
+        onPageUpdated={setSelectedPage}
+        onOpenPage={(pageId) => onOpenPage?.(pageId)}
+      />
 
       <TipTapEditor value={richDoc} onChange={setRichDoc} />
 

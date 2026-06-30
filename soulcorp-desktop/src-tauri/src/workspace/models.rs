@@ -54,6 +54,7 @@ pub struct WorkspacePage {
     pub blocks: Vec<Block>,
     #[serde(default)]
     pub rich_doc: Option<serde_json::Value>,
+    #[serde(default)]
     pub linked_entities: Vec<LinkedEntity>,
     pub last_edited_at: String,
     pub last_edited_by: String,
@@ -97,5 +98,36 @@ pub struct UpdatePageRequest {
     pub title: Option<String>,
     pub blocks: Option<Vec<Block>>,
     pub rich_doc: Option<serde_json::Value>,
+    pub linked_entities: Option<Vec<LinkedEntity>>,
     pub last_edited_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkEntityRequest {
+    pub page_id: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnlinkEntityRequest {
+    pub page_id: String,
+    pub entity_type: String,
+    pub entity_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkableEntity {
+    pub entity_type: String,
+    pub id: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageBacklink {
+    pub page_id: String,
+    pub title: String,
+    pub folder_id: String,
 }

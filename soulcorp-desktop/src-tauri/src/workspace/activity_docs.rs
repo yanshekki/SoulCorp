@@ -1,5 +1,5 @@
 use crate::state::{AgentRecord, AppState, GameEvent};
-use crate::workspace::models::WorkspacePage;
+use crate::workspace::models::{LinkedEntity, WorkspacePage};
 use crate::workspace::storage::{workspace_root, WorkspaceStorage};
 use rand::Rng;
 use tauri::{AppHandle, Manager};
@@ -19,7 +19,31 @@ pub fn write_daily_activity_docs(app: &AppHandle, state: &mut AppState) -> Resul
         let heading = format!("Day {day} Activity Log");
         let lines = activity_lines_for_agent(agent, state);
 
-        storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+        let page = storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+        let _ = storage.link_entity_to_page(
+            &page.id,
+            LinkedEntity {
+                entity_type: "agent".to_string(),
+                id: agent.id.clone(),
+                title: agent.name.clone(),
+            },
+            &agent.name,
+        );
+        if let Some(project) = state
+            .projects
+            .iter()
+            .find(|project| project.owner_department == agent.department)
+        {
+            let _ = storage.link_entity_to_page(
+                &page.id,
+                LinkedEntity {
+                    entity_type: "project".to_string(),
+                    id: project.id.clone(),
+                    title: project.title.clone(),
+                },
+                &agent.name,
+            );
+        }
         pages_written += 1;
     }
 
@@ -83,7 +107,7 @@ pub fn write_meeting_notes_from_state(
         return Ok(vec![]);
     }
 
-    let (meeting_type, messages, participant_names) = {
+    let (meeting_type, messages, participant_ids, participant_names) = {
         let meeting = state
             .meetings
             .get(meeting_id)
@@ -95,19 +119,25 @@ pub fn write_meeting_notes_from_state(
             .map(|message| (message.speaker_name.clone(), message.content.clone()))
             .collect();
 
-        let participant_names: Vec<String> = meeting
-            .participant_ids
+        let participant_ids = meeting.participant_ids.clone();
+        let participant_names: Vec<String> = participant_ids
             .iter()
             .filter_map(|id| state.agents.get(id).map(|agent| agent.name.clone()))
             .collect();
 
-        (meeting.meeting_type.clone(), messages, participant_names)
+        (meeting.meeting_type.clone(), messages, participant_ids, participant_names)
     };
 
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let storage = WorkspaceStorage::new(workspace_root(&dir))?;
     storage.ensure_seed()?;
-    let pages = storage.append_meeting_notes(&meeting_type, &messages, &participant_names)?;
+    let pages = storage.append_meeting_notes(
+        meeting_id,
+        &meeting_type,
+        &messages,
+        &participant_ids,
+        &participant_names,
+    )?;
     if let Some(meeting) = state.meetings.get_mut(meeting_id) {
         meeting.notes_generated = true;
     }

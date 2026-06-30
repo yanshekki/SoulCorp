@@ -1,6 +1,6 @@
 use super::models::{
-    Block, CreatePageRequest, SearchResult, UpdatePageRequest, WorkspaceFolder, WorkspacePage,
-    WorkspacePageSummary, WorkspaceTree, WorkspaceType,
+    Block, CreatePageRequest, LinkedEntity, PageBacklink, SearchResult, UpdatePageRequest,
+    WorkspaceFolder, WorkspacePage, WorkspacePageSummary, WorkspaceTree, WorkspaceType,
 };
 use chrono::Utc;
 use std::fs;
@@ -175,6 +175,9 @@ impl WorkspaceStorage {
         if let Some(editor) = &request.last_edited_by {
             page.last_edited_by = editor.clone();
         }
+        if let Some(links) = &request.linked_entities {
+            page.linked_entities = links.clone();
+        }
         page.version += 1;
         page.last_edited_at = Utc::now().to_rfc3339();
         page.dirty = true;
@@ -195,15 +198,22 @@ impl WorkspaceStorage {
                 .as_ref()
                 .map(extract_text_from_rich_doc)
                 .unwrap_or_default();
+            let link_text = page
+                .linked_entities
+                .iter()
+                .map(|link| format!("{} {}", link.entity_type, link.title))
+                .collect::<Vec<_>>()
+                .join(" ");
             let haystack = format!(
-                "{} {} {}",
+                "{} {} {} {}",
                 page.title.to_lowercase(),
                 page.blocks
                     .iter()
                     .map(|block| block.content.to_lowercase())
                     .collect::<Vec<_>>()
                     .join(" "),
-                rich_text.to_lowercase()
+                rich_text.to_lowercase(),
+                link_text.to_lowercase()
             );
 
             if haystack.contains(&needle) {
@@ -228,10 +238,71 @@ impl WorkspaceStorage {
         Ok(results)
     }
 
+    pub fn link_entity_to_page(
+        &self,
+        page_id: &str,
+        link: LinkedEntity,
+        editor: &str,
+    ) -> Result<WorkspacePage, String> {
+        let mut page = self.read_page(page_id)?;
+        if page
+            .linked_entities
+            .iter()
+            .any(|existing| existing.entity_type == link.entity_type && existing.id == link.id)
+        {
+            return Ok(page);
+        }
+        page.linked_entities.push(link);
+        page.version += 1;
+        page.last_edited_at = Utc::now().to_rfc3339();
+        page.last_edited_by = editor.to_string();
+        page.dirty = true;
+        self.write_page(&page)?;
+        Ok(page)
+    }
+
+    pub fn unlink_entity_from_page(
+        &self,
+        page_id: &str,
+        entity_type: &str,
+        entity_id: &str,
+        editor: &str,
+    ) -> Result<WorkspacePage, String> {
+        let mut page = self.read_page(page_id)?;
+        page.linked_entities.retain(|link| {
+            !(link.entity_type == entity_type && link.id == entity_id)
+        });
+        page.version += 1;
+        page.last_edited_at = Utc::now().to_rfc3339();
+        page.last_edited_by = editor.to_string();
+        page.dirty = true;
+        self.write_page(&page)?;
+        Ok(page)
+    }
+
+    pub fn find_backlinks(&self, entity_type: &str, entity_id: &str) -> Result<Vec<PageBacklink>, String> {
+        Ok(self
+            .read_all_pages()?
+            .into_iter()
+            .filter(|page| {
+                page.linked_entities.iter().any(|link| {
+                    link.entity_type == entity_type && link.id == entity_id
+                })
+            })
+            .map(|page| PageBacklink {
+                page_id: page.id,
+                title: page.title,
+                folder_id: page.folder_id,
+            })
+            .collect())
+    }
+
     pub fn append_meeting_notes(
         &self,
+        meeting_id: &str,
         meeting_type: &str,
         messages: &[(String, String)],
+        participant_ids: &[String],
         participant_names: &[String],
     ) -> Result<Vec<WorkspacePage>, String> {
         let mut created = Vec::new();
@@ -268,17 +339,33 @@ impl WorkspaceStorage {
             });
         }
 
+        let mut company_links = vec![LinkedEntity {
+            entity_type: "meeting".to_string(),
+            id: meeting_id.to_string(),
+            title: format!("{meeting_type} meeting"),
+        }];
+        for (agent_id, name) in participant_ids.iter().zip(participant_names.iter()) {
+            company_links.push(LinkedEntity {
+                entity_type: "agent".to_string(),
+                id: agent_id.clone(),
+                title: name.clone(),
+            });
+        }
+
         let company_updated = self.update_page(&UpdatePageRequest {
             page_id: company_page.id.clone(),
             title: None,
             blocks: Some(blocks),
             rich_doc: None,
+            linked_entities: Some(company_links),
             last_edited_by: Some("meeting-system".to_string()),
         })?;
         created.push(company_updated);
 
-        for (index, name) in participant_names.iter().enumerate() {
-            let folder_id = format!("folder-agent-{}", index + 1);
+        for (agent_id, name) in participant_ids.iter().zip(participant_names.iter()) {
+            let folder_id = self
+                .ensure_agent_folder(agent_id, name)
+                .unwrap_or_else(|_| format!("folder-{agent_id}"));
             if self.read_folders()?.iter().any(|f| f.id == folder_id) {
                 let personal = self.create_page(
                     &CreatePageRequest {
@@ -287,7 +374,25 @@ impl WorkspaceStorage {
                     },
                     name,
                 )?;
-                created.push(personal);
+                let linked = self.link_entity_to_page(
+                    &personal.id,
+                    LinkedEntity {
+                        entity_type: "meeting".to_string(),
+                        id: meeting_id.to_string(),
+                        title: format!("{meeting_type} meeting"),
+                    },
+                    name,
+                )?;
+                let linked = self.link_entity_to_page(
+                    &linked.id,
+                    LinkedEntity {
+                        entity_type: "agent".to_string(),
+                        id: agent_id.clone(),
+                        title: name.clone(),
+                    },
+                    name,
+                )?;
+                created.push(linked);
             }
         }
 
@@ -372,6 +477,7 @@ impl WorkspaceStorage {
             title: None,
             blocks: Some(blocks),
             rich_doc: None,
+            linked_entities: None,
             last_edited_by: Some(editor.to_string()),
         })
     }
