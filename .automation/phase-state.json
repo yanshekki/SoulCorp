@@ -1,5 +1,5 @@
 {
-  "current_phase": 5,
+  "current_phase": 6,
   "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
@@ -34,8 +34,9 @@
     },
     "5": {
       "branch": "phase-5/hub-integration",
-      "status": "pending",
-      "description": "soulmd-hub submodule APIs and desktop sync client"
+      "status": "merged",
+      "description": "soulmd-hub submodule APIs and desktop sync client",
+      "merged_at": "2026-06-30T03:51:25.000534+00:00"
     },
     "6": {
       "branch": "phase-6/release",
