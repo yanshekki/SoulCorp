@@ -49,12 +49,29 @@ export interface TierBenefits {
 
 export interface RecruitmentCandidate {
   id: string;
+  soul_id?: number | null;
   name: string;
   headline: string;
   skills: string[];
   vibe: string;
   verified: boolean;
   hourly_rate_usdt: number;
+  soul_md_content?: string | null;
+}
+
+export interface BudgetAllocations {
+  compute_pct: number;
+  salaries_pct: number;
+  marketing_pct: number;
+  rnd_pct: number;
+}
+
+export interface InternalProject {
+  id: string;
+  title: string;
+  progress: number;
+  priority: number;
+  owner_department: string;
 }
 
 export interface SoulProfile {
@@ -82,6 +99,9 @@ export interface FinanceState {
   compute_tokens: number;
   monthly_burn: number;
   monthly_revenue: number;
+  allocations: BudgetAllocations;
+  compute_starved: boolean;
+  cash_crisis: boolean;
 }
 
 export interface GameSettings {
@@ -146,6 +166,9 @@ export interface MeetingSnapshot {
   messages: MeetingMessage[];
   completed: boolean;
   morale_delta: number;
+  outcome_summary?: string | null;
+  project_progress_delta: number;
+  revenue_delta: number;
 }
 
 export interface SimulationTickResult {
@@ -153,6 +176,9 @@ export interface SimulationTickResult {
   agents_active: number;
   day_number: number;
   cash_balance: number;
+  compute_tokens: number;
+  compute_starved: boolean;
+  cash_crisis: boolean;
   message: string;
   event?: GameEvent | null;
 }

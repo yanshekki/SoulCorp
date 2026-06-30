@@ -41,6 +41,7 @@ function statusLabelFor(intent: BehaviorIntent, role: string): string {
 
 function mapBackendStatus(status: string): AgentStatus {
   if (status === "meeting") return "meeting";
+  if (status === "throttled") return "working";
   if (status === "working") return "working";
   if (status === "walking") return "walking";
   return "idle";
@@ -209,8 +210,9 @@ export function advanceAgentBehavior(
 
   const target = targetForIntent({ ...agent, behavior: { ...agent.behavior, intent } }, intent);
   const moving = distance2D(agent.position, target) >= 0.12;
+  const speedMultiplier = record?.status === "throttled" ? 0.45 : 1;
   const position = moving
-    ? moveTowards(agent.position, target, agent.speed, delta)
+    ? moveTowards(agent.position, target, agent.speed * speedMultiplier, delta)
     : [target[0], 0, target[2]] as [number, number, number];
 
   const isWalking =
@@ -226,12 +228,17 @@ export function advanceAgentBehavior(
         ? "working"
         : "idle";
 
+  const statusLabel =
+    record?.status === "throttled"
+      ? `${agent.role} · throttled (low compute)`
+      : statusLabelFor(intent, agent.role);
+
   return {
     ...agent,
     position,
     target,
     status,
-    statusLabel: statusLabelFor(intent, agent.role),
+    statusLabel,
     walkPhase: isWalking ? agent.walkPhase + delta * 9 : 0,
     behavior: {
       ...agent.behavior,

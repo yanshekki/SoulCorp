@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { MeetingSnapshot } from "../../types/game";
 
@@ -18,6 +18,7 @@ export function MeetingPanel() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [meetingType, setMeetingType] = useState(MEETING_TYPES[0]);
   const [selectedIds, setSelectedIds] = useState<string[]>(["agent-1", "agent-2"]);
+  const [autoAdvance, setAutoAdvance] = useState(false);
 
   const selectableAgents = useMemo(() => agentRecords, [agentRecords]);
 
@@ -53,12 +54,25 @@ export function MeetingPanel() {
       setActiveMeeting(meeting);
       if (meeting.completed) {
         await invoke("generate_meeting_notes", { meeting_id: meeting.id });
-        setStatusMessage("Meeting completed. Notes saved to workspace.");
+        const outcome = meeting.outcome_summary ?? "Meeting completed.";
+        setStatusMessage(
+          `${outcome} Project +${(meeting.project_progress_delta * 100).toFixed(0)}%, revenue impact $${meeting.revenue_delta.toFixed(0)}.`,
+        );
       }
     } catch (error) {
       setStatusMessage(String(error));
     }
   };
+
+  useEffect(() => {
+    if (!autoAdvance || !activeMeeting || activeMeeting.completed) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void advanceMeeting();
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, [activeMeeting, autoAdvance]);
 
   return (
     <section className="panel-card">
@@ -89,6 +103,15 @@ export function MeetingPanel() {
         ))}
       </div>
 
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={autoAdvance}
+          onChange={(event) => setAutoAdvance(event.target.checked)}
+        />
+        <span>Auto-advance turns (observable LLM chat)</span>
+      </label>
+
       <div className="panel-actions">
         <button type="button" onClick={() => void startMeeting()}>
           Start Meeting
@@ -114,6 +137,9 @@ export function MeetingPanel() {
               </article>
             ))
           )}
+          {activeMeeting.completed && activeMeeting.outcome_summary ? (
+            <p className="meeting-outcome">{activeMeeting.outcome_summary}</p>
+          ) : null}
         </div>
       )}
     </section>

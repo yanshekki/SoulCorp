@@ -167,6 +167,49 @@ mod tests {
     }
 }
 
+impl HubClient {
+    pub async fn list_souls(&self, query: Option<&str>, limit: u32) -> Result<Vec<Value>, String> {
+        let mut url = format!(
+            "{}/api/souls.php?limit={}&sort=popular",
+            self.base_url.trim_end_matches('/'),
+            limit.max(1).min(50)
+        );
+        if let Some(query) = query.filter(|value| !value.trim().is_empty()) {
+            url.push_str(&format!("&q={}", encode_query_component(query)));
+        }
+
+        let response = self.get_json(&url, false).await?;
+        let souls = response
+            .get("data")
+            .and_then(|value| value.as_array())
+            .map(|items| items.clone())
+            .unwrap_or_default();
+        Ok(souls)
+    }
+
+    pub async fn fetch_soul_content(&self, soul_id: u64) -> Result<String, String> {
+        let url = format!("{}/api/soul.php?id={soul_id}", self.base_url.trim_end_matches('/'));
+        let response = self.get_json(&url, false).await?;
+        response
+            .get("data")
+            .and_then(|data| data.get("content"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .ok_or_else(|| "Soul content missing from hub response.".to_string())
+    }
+}
+
+fn encode_query_component(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => ch.to_string(),
+            ' ' => "+".to_string(),
+            _ => format!("%{:02X}", ch as u32),
+        })
+        .collect()
+}
+
 pub fn mock_gigs() -> Vec<HubGig> {
     vec![
         HubGig {

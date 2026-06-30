@@ -1,58 +1,53 @@
-import { useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { RecruitmentCandidate } from "../../types/game";
+import type { AgentRecord, RecruitmentCandidate } from "../../types/game";
 
-const MOCK_CANDIDATES: RecruitmentCandidate[] = [
-  {
-    id: "cand-1",
-    name: "Lena Park",
-    headline: "Full-stack builder with calm leadership vibe",
-    skills: ["react", "rust", "product"],
-    vibe: "steady",
-    verified: true,
-    hourly_rate_usdt: 48,
-  },
-  {
-    id: "cand-2",
-    name: "Theo Alvarez",
-    headline: "Growth marketer who writes like a founder",
-    skills: ["copywriting", "seo", "analytics"],
-    vibe: "bold",
-    verified: true,
-    hourly_rate_usdt: 36,
-  },
-  {
-    id: "cand-3",
-    name: "Sora Iwata",
-    headline: "Design systems + pixel-perfect UI craft",
-    skills: ["figma", "tailwind", "motion"],
-    vibe: "creative",
-    verified: false,
-    hourly_rate_usdt: 42,
-  },
-];
+const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
 
 export function RecruitmentPanel() {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
+  const finance = useGameStore((state) => state.finance);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
+  const setAgentRecords = useGameStore((state) => state.setAgentRecords);
+  const setFinance = useGameStore((state) => state.setFinance);
 
   const [skillFilter, setSkillFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [candidates, setCandidates] = useState<RecruitmentCandidate[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const candidates = useMemo(() => {
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const result = await invoke<RecruitmentCandidate[]>("list_recruitment_candidates", {
+          query: skillFilter.trim() || null,
+        });
+        setCandidates(result);
+      } catch (error) {
+        setStatusMessage(String(error));
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, [skillFilter, setStatusMessage]);
+
+  const filteredCandidates = useMemo(() => {
     const query = skillFilter.trim().toLowerCase();
     if (!query) {
-      return MOCK_CANDIDATES;
+      return candidates;
     }
-    return MOCK_CANDIDATES.filter(
+    return candidates.filter(
       (candidate) =>
         candidate.skills.some((skill) => skill.includes(query)) ||
         candidate.name.toLowerCase().includes(query) ||
         candidate.headline.toLowerCase().includes(query),
     );
-  }, [skillFilter]);
+  }, [candidates, skillFilter]);
 
   const toggleCandidate = (id: string) => {
     setSelectedIds((current) => {
@@ -74,19 +69,47 @@ export function RecruitmentPanel() {
     }
     setActivePanel("meeting");
     setStatusMessage(
-      `Interview scheduled with ${selectedIds.length} soulmd-hub candidate(s). Open Meeting panel to begin.`,
+      `Interview scheduled with ${selectedIds.length} candidate(s). Open Meeting panel to begin.`,
     );
+  };
+
+  const hireCandidate = async (candidate: RecruitmentCandidate) => {
+    const monthlySalary = candidate.hourly_rate_usdt * 160;
+    if (finance.cash_balance < monthlySalary * 0.5) {
+      setStatusMessage("Not enough cash for onboarding package.");
+      return;
+    }
+
+    try {
+      const hired = await invoke<AgentRecord>("hire_candidate", {
+        request: {
+          candidate_id: candidate.id,
+          role: candidate.vibe,
+          department: DEPARTMENTS[0],
+          offered_salary: monthlySalary,
+          soul_md_content: candidate.soul_md_content,
+        },
+      });
+      const agents = await invoke<AgentRecord[]>("list_agents");
+      setAgentRecords(agents);
+      const updatedFinance = await invoke<typeof finance>("get_finance_state");
+      setFinance(updatedFinance);
+      setStatusMessage(`${hired.name} joined the company as ${hired.role}.`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   return (
     <section className="panel-card recruitment-panel">
       <h2>Recruitment</h2>
       <p className="muted">
-        Browse verified SOUL.md personas from soulmd-hub and run multi-agent interviews.
+        Browse SOUL.md personas from soulmd-hub and onboard them into your office.
       </p>
 
       <div className="hub-status-row">
         <span className="hub-pill tier">{hubStatus.user_tier}</span>
+        {loading ? <span className="hub-pill offline">Loading souls...</span> : null}
         {hubStatus.user_tier === "pro" || hubStatus.user_tier === "vip" ? (
           <span className="hub-pill online">Priority matching</span>
         ) : (
@@ -109,7 +132,7 @@ export function RecruitmentPanel() {
       </label>
 
       <div className="candidate-list">
-        {candidates.map((candidate) => {
+        {filteredCandidates.map((candidate) => {
           const selected = selectedIds.includes(candidate.id);
           return (
             <article
@@ -121,9 +144,14 @@ export function RecruitmentPanel() {
                   <strong>{candidate.name}</strong>
                   <p className="muted">{candidate.headline}</p>
                 </div>
-                <button type="button" onClick={() => toggleCandidate(candidate.id)}>
-                  {selected ? "Selected" : "Select"}
-                </button>
+                <div className="candidate-actions">
+                  <button type="button" onClick={() => toggleCandidate(candidate.id)}>
+                    {selected ? "Selected" : "Select"}
+                  </button>
+                  <button type="button" onClick={() => void hireCandidate(candidate)}>
+                    Hire
+                  </button>
+                </div>
               </header>
               <div className="skill-tags">
                 {candidate.skills.map((skill) => (

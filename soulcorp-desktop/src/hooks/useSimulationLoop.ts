@@ -60,6 +60,9 @@ export function useSimulationLoop() {
             setFinance({
               ...finance,
               cash_balance: result.cash_balance,
+              compute_tokens: result.compute_tokens,
+              compute_starved: result.compute_starved,
+              cash_crisis: result.cash_crisis,
             });
             const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
             setAgentRecords(refreshedAgents);

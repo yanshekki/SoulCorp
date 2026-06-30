@@ -90,11 +90,36 @@ pub struct AgentRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetAllocations {
+    pub compute_pct: f32,
+    pub salaries_pct: f32,
+    pub marketing_pct: f32,
+    pub rnd_pct: f32,
+}
+
+impl Default for BudgetAllocations {
+    fn default() -> Self {
+        Self {
+            compute_pct: 40.0,
+            salaries_pct: 35.0,
+            marketing_pct: 15.0,
+            rnd_pct: 10.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinanceState {
     pub cash_balance: f64,
     pub compute_tokens: f64,
     pub monthly_burn: f64,
     pub monthly_revenue: f64,
+    #[serde(default)]
+    pub allocations: BudgetAllocations,
+    #[serde(default)]
+    pub compute_starved: bool,
+    #[serde(default)]
+    pub cash_crisis: bool,
 }
 
 impl Default for FinanceState {
@@ -104,8 +129,21 @@ impl Default for FinanceState {
             compute_tokens: 5000.0,
             monthly_burn: 1200.0,
             monthly_revenue: 1800.0,
+            allocations: BudgetAllocations::default(),
+            compute_starved: false,
+            cash_crisis: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternalProject {
+    pub id: String,
+    pub title: String,
+    pub progress: f32,
+    pub priority: u8,
+    #[serde(default)]
+    pub owner_department: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +172,12 @@ pub struct MeetingState {
     pub turn: usize,
     pub completed: bool,
     pub morale_delta: f32,
+    #[serde(default)]
+    pub outcome_summary: Option<String>,
+    #[serde(default)]
+    pub project_progress_delta: f32,
+    #[serde(default)]
+    pub revenue_delta: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +192,8 @@ pub struct AppState {
     pub stats: GameStats,
     pub hub: HubState,
     pub sync_queue: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub projects: Vec<InternalProject>,
     pub day_number: u32,
     pub tick: u64,
     pub last_backup_tick: u64,
@@ -166,6 +212,7 @@ impl Default for AppState {
             stats: GameStats::default(),
             hub: HubState::default(),
             sync_queue: Vec::new(),
+            projects: Vec::new(),
             day_number: 1,
             tick: 0,
             last_backup_tick: 0,
@@ -217,5 +264,35 @@ impl AppState {
                 },
             );
         }
+
+        self.seed_projects();
+        self.finance.monthly_burn = self
+            .agents
+            .values()
+            .map(|agent| agent.salary as f64)
+            .sum::<f64>()
+            + self.agents.len() as f64 * 75.0;
+    }
+
+    pub fn seed_projects(&mut self) {
+        if !self.projects.is_empty() {
+            return;
+        }
+        self.projects = vec![
+            InternalProject {
+                id: "proj-core".into(),
+                title: "SoulCorp Core Platform".into(),
+                progress: 0.35,
+                priority: 1,
+                owner_department: "Engineering".into(),
+            },
+            InternalProject {
+                id: "proj-hr".into(),
+                title: "Team Culture Program".into(),
+                progress: 0.2,
+                priority: 2,
+                owner_department: "Human Resources".into(),
+            },
+        ];
     }
 }

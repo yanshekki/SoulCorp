@@ -24,12 +24,48 @@ pub struct CompanyBackup {
     pub exported_at: String,
     pub company_name: String,
     pub day_number: u32,
+    #[serde(default)]
+    pub tick: u64,
     pub finance: crate::state::FinanceState,
     pub settings: crate::state::GameSettings,
     pub agents: Vec<crate::state::AgentRecord>,
     pub stats: crate::state::GameStats,
     pub achievements: Vec<crate::achievements::Achievement>,
     pub endings: Vec<crate::achievements::Ending>,
+    #[serde(default)]
+    pub projects: Vec<crate::state::InternalProject>,
+}
+
+pub fn build_company_backup(state: &AppState) -> CompanyBackup {
+    let company_name = if can_use_feature(&state.hub.user_tier, "white_label_export") {
+        "SoulCorp (White-label)".to_string()
+    } else {
+        "SoulCorp".to_string()
+    };
+
+    CompanyBackup {
+        exported_at: Utc::now().to_rfc3339(),
+        company_name,
+        day_number: state.day_number,
+        tick: state.tick,
+        finance: state.finance.clone(),
+        settings: state.settings.clone(),
+        agents: state.agents.values().cloned().collect(),
+        stats: state.stats.clone(),
+        achievements: state.achievements.clone(),
+        endings: state.endings.clone(),
+        projects: state.projects.clone(),
+    }
+}
+
+pub fn write_auto_backup(app: &AppHandle, state: &AppState) -> Result<String, String> {
+    let exports_dir = exports_dir(app)?;
+    fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
+    let path = exports_dir.join("soulcorp-auto-backup.json");
+    let backup = build_company_backup(state);
+    let json = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -44,23 +80,7 @@ pub fn export_company_backup(
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let path = exports_dir.join(format!("soulcorp-backup-{timestamp}.json"));
 
-    let company_name = if can_use_feature(&state.hub.user_tier, "white_label_export") {
-        "SoulCorp (White-label)".to_string()
-    } else {
-        "SoulCorp".to_string()
-    };
-
-    let backup = CompanyBackup {
-        exported_at: Utc::now().to_rfc3339(),
-        company_name,
-        day_number: state.day_number,
-        finance: state.finance.clone(),
-        settings: state.settings.clone(),
-        agents: state.agents.values().cloned().collect(),
-        stats: state.stats.clone(),
-        achievements: state.achievements.clone(),
-        endings: state.endings.clone(),
-    };
+    let backup = build_company_backup(&state);
 
     let json = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
@@ -125,6 +145,43 @@ pub fn export_workspace_markdown_zip(
         path: zip_path.to_string_lossy().to_string(),
         format: "zip".to_string(),
         message: "Workspace markdown export created.".to_string(),
+    };
+    commit(app, &state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn import_company_backup(
+    path: String,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<ExportResult, String> {
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let backup: CompanyBackup = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    state.day_number = backup.day_number;
+    state.tick = backup.tick;
+    state.finance = backup.finance;
+    state.settings = backup.settings;
+    state.stats = backup.stats;
+    state.achievements = backup.achievements;
+    state.endings = backup.endings;
+    state.projects = backup.projects;
+    state.agents = backup
+        .agents
+        .into_iter()
+        .map(|agent| (agent.id.clone(), agent))
+        .collect();
+
+    let result = ExportResult {
+        path,
+        format: "json".to_string(),
+        message: format!(
+            "Restored company backup from {} with {} agents.",
+            backup.exported_at,
+            state.agents.len()
+        ),
     };
     commit(app, &state)?;
     Ok(result)

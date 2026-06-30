@@ -12,6 +12,7 @@ export function SettingsPanel() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [hubUrl, setHubUrl] = useState(hubStatus.base_url);
   const [apiKey, setApiKey] = useState("");
+  const [restorePath, setRestorePath] = useState("");
 
   useEffect(() => {
     setHubUrl(hubStatus.base_url);
@@ -46,6 +47,21 @@ export function SettingsPanel() {
   const exportWorkspace = async () => {
     const result = await invoke<ExportResult>("export_workspace_markdown_zip");
     setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const importBackup = async () => {
+    if (!restorePath.trim()) {
+      setStatusMessage("Enter the full path to a company backup JSON file.");
+      return;
+    }
+    try {
+      const result = await invoke<ExportResult>("import_company_backup", {
+        path: restorePath.trim(),
+      });
+      setStatusMessage(result.message);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const saveHubConfig = async () => {
@@ -202,9 +218,19 @@ export function SettingsPanel() {
           disabled={settings.pure_local_mode}
         >
           <option value="mock">Mock (offline)</option>
-          <option value="ollama">Ollama (Phase 5)</option>
-          <option value="soulmd-hub">soulmd-hub API (Phase 5)</option>
+          <option value="ollama">Ollama (local)</option>
+          <option value="soulmd-hub">soulmd-hub API</option>
         </select>
+      </label>
+
+      <label className="field-label">
+        Restore backup path
+        <input
+          type="text"
+          value={restorePath}
+          onChange={(event) => setRestorePath(event.target.value)}
+          placeholder="/path/to/soulcorp-backup.json"
+        />
       </label>
 
       <div className="panel-actions stacked">
@@ -213,6 +239,9 @@ export function SettingsPanel() {
         </button>
         <button type="button" onClick={() => void exportWorkspace()}>
           Export Workspace (Markdown ZIP)
+        </button>
+        <button type="button" onClick={() => void importBackup()}>
+          Import Company Backup
         </button>
       </div>
     </section>

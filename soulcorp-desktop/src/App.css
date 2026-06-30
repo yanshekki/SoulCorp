@@ -540,6 +540,64 @@ body,
   color: #9fd5a8;
 }
 
+.finance-alert {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.finance-alert.negative {
+  background: rgba(220, 80, 70, 0.15);
+  border: 1px solid rgba(220, 80, 70, 0.35);
+  color: #ffd4d0;
+}
+
+.budget-allocation {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+}
+
+.budget-slider {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.salary-row {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+
+.salary-input {
+  width: 88px;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.project-row {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.candidate-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.meeting-outcome {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(94, 200, 255, 0.12);
+  border: 1px solid rgba(94, 200, 255, 0.28);
+  font-size: 0.82rem;
+}
+
 .finance-net.negative {
   color: #f2a3a3;
 }

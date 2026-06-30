@@ -69,6 +69,14 @@ export const useGameStore = create<GameStore>((set) => ({
     compute_tokens: 5000,
     monthly_burn: 1200,
     monthly_revenue: 1800,
+    allocations: {
+      compute_pct: 40,
+      salaries_pct: 35,
+      marketing_pct: 15,
+      rnd_pct: 10,
+    },
+    compute_starved: false,
+    cash_crisis: false,
   },
   settings: {
     random_events_enabled: true,

@@ -2,6 +2,7 @@ mod achievements;
 mod ai;
 mod commands;
 mod db;
+mod finance;
 mod hub;
 mod soul;
 mod state;
@@ -21,6 +22,8 @@ pub fn run() {
             let mut state = db::persistence::load_app_state(app.handle())?.unwrap_or_default();
             if state.agents.is_empty() {
                 state.seed_defaults();
+            } else if state.projects.is_empty() {
+                state.seed_projects();
             }
             if state.achievements.is_empty() {
                 state.achievements = default_achievements();
@@ -50,6 +53,12 @@ pub fn run() {
             commands::get_game_settings,
             commands::update_game_settings,
             commands::get_finance_state,
+            commands::list_internal_projects,
+            commands::update_budget_allocations,
+            commands::adjust_agent_salary,
+            commands::list_recruitment_candidates,
+            commands::hire_candidate,
+            commands::import_company_backup,
             commands::get_recent_events,
             commands::start_meeting,
             commands::advance_meeting,
