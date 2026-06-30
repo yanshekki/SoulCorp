@@ -15,6 +15,7 @@ interface ShellLayoutProps {
 
 const PANELS: { id: SidebarPanel; label: string }[] = [
   { id: "office", label: "Office" },
+  { id: "workspace", label: "Workspace" },
   { id: "meeting", label: "Meeting" },
   { id: "finance", label: "Finance" },
   { id: "settings", label: "Settings" },
@@ -23,6 +24,13 @@ const PANELS: { id: SidebarPanel; label: string }[] = [
 
 function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
   switch (panel) {
+    case "workspace":
+      return (
+        <section className="panel-card">
+          <h2>Workspace</h2>
+          <p className="muted">Use the main panel to browse folders, edit pages, and search docs.</p>
+        </section>
+      );
     case "meeting":
       return <MeetingPanel />;
     case "finance":

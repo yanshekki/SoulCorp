@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod soul;
 mod state;
+mod workspace;
 
 use state::AppState;
 use std::sync::Mutex;
@@ -41,6 +42,13 @@ pub fn run() {
             commands::god_mode_time_warp,
             commands::god_mode_mass_motivation,
             commands::god_mode_emergency_budget,
+            commands::init_workspace,
+            commands::list_workspace_tree,
+            commands::get_workspace_page,
+            commands::create_workspace_page,
+            commands::update_workspace_page,
+            commands::search_workspace,
+            commands::generate_meeting_notes,
             db::get_app_status,
         ])
         .run(tauri::generate_context!())

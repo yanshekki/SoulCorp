@@ -1,5 +1,11 @@
 export type EventMode = "fun" | "balanced" | "serious";
-export type SidebarPanel = "office" | "meeting" | "finance" | "settings" | "god_mode";
+export type SidebarPanel =
+  | "office"
+  | "workspace"
+  | "meeting"
+  | "finance"
+  | "settings"
+  | "god_mode";
 
 export interface SoulProfile {
   name: string;

@@ -52,7 +52,8 @@ export function MeetingPanel() {
       });
       setActiveMeeting(meeting);
       if (meeting.completed) {
-        setStatusMessage("Meeting completed. Morale updated.");
+        await invoke("generate_meeting_notes", { meeting_id: meeting.id });
+        setStatusMessage("Meeting completed. Notes saved to workspace.");
       }
     } catch (error) {
       setStatusMessage(String(error));

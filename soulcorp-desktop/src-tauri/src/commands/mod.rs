@@ -7,6 +7,7 @@ pub mod near;
 pub mod settings;
 pub mod simulation;
 pub mod sync;
+pub mod workspace;
 
 pub use agent::*;
 pub use events::*;
@@ -17,3 +18,4 @@ pub use near::*;
 pub use settings::*;
 pub use simulation::*;
 pub use sync::*;
+pub use workspace::*;
