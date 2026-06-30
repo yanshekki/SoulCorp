@@ -172,14 +172,38 @@ body,
   font-size: 0.85rem;
 }
 
-.scene-hint-action {
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f6f1e8;
+.world-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.world-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: grid;
+  gap: 0.1rem;
+  min-width: 72px;
+  padding: 0.3rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(24, 20, 18, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff8ef;
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.world-label strong {
   font-size: 0.72rem;
-  padding: 0.2rem 0.55rem;
-  cursor: pointer;
+}
+
+.world-label span {
+  color: #d9c8b4;
+}
+
+.agent-label {
+  margin-top: 1.4rem;
 }
 
 .office-map-fallback {

@@ -1,4 +1,3 @@
-import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Building } from "../../types/world";
 
@@ -26,12 +25,6 @@ export function BuildingMesh({ building, onSelect }: BuildingMeshProps) {
         <boxGeometry args={[width * 0.9, 0.4, depth * 0.9]} />
         <meshStandardMaterial color={building.roofColor} />
       </mesh>
-      <Html position={[0, height + 0.8, 0]} center distanceFactor={16} style={{ pointerEvents: "none" }}>
-        <div className="agent-bubble">
-          <strong>{building.name}</strong>
-          <span>{building.department}</span>
-        </div>
-      </Html>
     </group>
   );
 }
