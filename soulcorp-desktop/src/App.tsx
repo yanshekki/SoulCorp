@@ -9,6 +9,7 @@ import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
 import "./App.css";
+import "./styles/design-system.css";
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);

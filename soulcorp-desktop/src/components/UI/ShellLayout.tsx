@@ -19,18 +19,43 @@ interface ShellLayoutProps {
   statusMessage: string;
 }
 
-const PANELS: { id: SidebarPanel; label: string }[] = [
-  { id: "office", label: "Office" },
-  { id: "workspace", label: "Workspace" },
-  { id: "meeting", label: "Meeting" },
-  { id: "finance", label: "Finance" },
-  { id: "marketplace", label: "Marketplace" },
-  { id: "recruitment", label: "Recruitment" },
-  { id: "tier", label: "Pro / VIP" },
-  { id: "executive", label: "Executive" },
-  { id: "achievements", label: "Achievements" },
-  { id: "settings", label: "Settings" },
-  { id: "god_mode", label: "God Mode" },
+interface NavGroup {
+  label: string;
+  panels: { id: SidebarPanel; label: string }[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Core",
+    panels: [
+      { id: "office", label: "Office" },
+      { id: "workspace", label: "Workspace" },
+      { id: "meeting", label: "Meeting" },
+    ],
+  },
+  {
+    label: "Business",
+    panels: [
+      { id: "finance", label: "Finance" },
+      { id: "marketplace", label: "Marketplace" },
+      { id: "recruitment", label: "Recruitment" },
+    ],
+  },
+  {
+    label: "Account",
+    panels: [
+      { id: "tier", label: "Pro / VIP" },
+      { id: "executive", label: "Executive" },
+      { id: "achievements", label: "Achievements" },
+    ],
+  },
+  {
+    label: "System",
+    panels: [
+      { id: "settings", label: "Settings" },
+      { id: "god_mode", label: "God Mode" },
+    ],
+  },
 ];
 
 function TierBadge() {
@@ -83,39 +108,53 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const setActivePanel = useGameStore((state) => state.setActivePanel);
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="sidebar-header">
+    <div className="app-shell">
+      <header className="app-topbar">
+        <div className="app-brand">
           <SidebarTitle />
-          <p className="tagline">AI Company Simulator</p>
+          <p className="app-tagline">AI Company Simulator</p>
           <TierBadge />
         </div>
-        <div className="sidebar-content">
-          <SidebarPanelContent panel={activePanel} />
-        </div>
-        <nav className="sidebar-actions">
-          {PANELS.map((panel) => (
-            <button
-              key={panel.id}
-              type="button"
-              className={activePanel === panel.id ? "active" : undefined}
-              onClick={() => setActivePanel(panel.id)}
-            >
-              {panel.label}
-            </button>
+        <nav className="app-nav" aria-label="Main navigation">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="nav-group" role="group" aria-label={group.label}>
+              <span className="nav-group-label">{group.label}</span>
+              {group.panels.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  className={`nav-btn${activePanel === panel.id ? " active" : ""}`}
+                  onClick={() => setActivePanel(panel.id)}
+                >
+                  {panel.label}
+                </button>
+              ))}
+            </div>
           ))}
-          <button type="button" onClick={togglePause}>
+        </nav>
+        <div className="app-topbar-actions">
+          <button type="button" className="app-pause-btn" onClick={togglePause}>
             {isPaused ? "Resume" : "Pause"}
           </button>
-        </nav>
-      </aside>
-      <main className="main-panel">
-        <div className="main-panel-viewport">{children}</div>
-        <footer className="status-bar">
-          <OfflineStatusBar />
-          <span className="status-message">{statusMessage}</span>
-        </footer>
-      </main>
+        </div>
+      </header>
+
+      <div className="app-body">
+        <aside className="app-inspector" aria-label="Inspector panel">
+          <div className="app-inspector-scroll">
+            <SidebarPanelContent panel={activePanel} />
+          </div>
+        </aside>
+        <main className="app-stage">
+          <div className="main-panel-viewport">{children}</div>
+        </main>
+      </div>
+
+      <footer className="app-statusbar">
+        <OfflineStatusBar />
+        <span className="status-message">{statusMessage}</span>
+      </footer>
+
       <PauseMenu />
     </div>
   );
