@@ -1,0 +1,41 @@
+{
+  "current_phase": 0,
+  "repo_root": "/home/ki/文件/SoulCorp",
+  "phases": {
+    "0": {
+      "branch": "phase-0/project-setup",
+      "status": "in_progress",
+      "description": "Project setup: Tauri scaffold, Prisma/SQLite, submodule, automation"
+    },
+    "1": {
+      "branch": "phase-1/isometric-world",
+      "status": "pending",
+      "description": "Isometric Three.js world and basic UI shell"
+    },
+    "2": {
+      "branch": "phase-2/agent-systems",
+      "status": "pending",
+      "description": "Agent core, meetings, events, finance, god mode"
+    },
+    "3": {
+      "branch": "phase-3/workspace",
+      "status": "pending",
+      "description": "Notion-like workspace and per-agent folders"
+    },
+    "4": {
+      "branch": "phase-4/local-polish",
+      "status": "pending",
+      "description": "Achievements, export, offline polish, performance"
+    },
+    "5": {
+      "branch": "phase-5/hub-integration",
+      "status": "pending",
+      "description": "soulmd-hub submodule APIs and desktop sync client"
+    },
+    "6": {
+      "branch": "phase-6/release",
+      "status": "pending",
+      "description": "Pro/VIP, release build, E2E, final polish"
+    }
+  }
+}

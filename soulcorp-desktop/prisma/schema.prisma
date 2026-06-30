@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model GameState {
+  id           Int      @id @default(1)
+  companyName  String   @default("SoulCorp") @map("company_name")
+  cashBalance  Float    @default(10000) @map("cash_balance")
+  dayNumber    Int      @default(1) @map("day_number")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("game_state")
+}
+
+model Agent {
+  id         String   @id
+  name       String
+  role       String
+  department String
+  soulMdPath String?  @map("soul_md_path")
+  morale     Float    @default(0.75)
+  energy     Float    @default(1.0)
+  status     String   @default("idle")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("agents")
+}
+
+model Folder {
+  id            String   @id
+  name          String
+  parentId      String?  @map("parent_id")
+  workspaceType String   @default("company") @map("workspace_type")
+  ownerId       String   @map("owner_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  documents     Document[]
+
+  @@map("folders")
+}
+
+model Document {
+  id          String   @id
+  folderId    String   @map("folder_id")
+  title       String
+  contentJson String   @default("{}") @map("content_json")
+  contentMd   String   @default("") @map("content_md")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  folder      Folder   @relation(fields: [folderId], references: [id])
+
+  @@map("documents")
+}
+
+model SyncQueueItem {
+  id          Int      @id @default(autoincrement())
+  actionType  String   @map("action_type")
+  payloadJson String   @map("payload_json")
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("sync_queue")
+}
