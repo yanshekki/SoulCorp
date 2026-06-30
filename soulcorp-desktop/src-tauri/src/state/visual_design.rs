@@ -1,0 +1,206 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildingStyle {
+    Modern,
+    Classic,
+    Glass,
+    Industrial,
+    Startup,
+}
+
+impl Default for BuildingStyle {
+    fn default() -> Self {
+        BuildingStyle::Modern
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OfficeDeskStyle {
+    Open,
+    Cubicle,
+    Executive,
+    Creative,
+    Lounge,
+}
+
+impl Default for OfficeDeskStyle {
+    fn default() -> Self {
+        OfficeDeskStyle::Open
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OfficeLighting {
+    Warm,
+    Cool,
+    Natural,
+}
+
+impl Default for OfficeLighting {
+    fn default() -> Self {
+        OfficeLighting::Natural
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HairStyle {
+    Short,
+    Bob,
+    Spiky,
+    Long,
+}
+
+impl Default for HairStyle {
+    fn default() -> Self {
+        HairStyle::Short
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildingVisualConfig {
+    pub color: String,
+    pub roof_color: String,
+    pub accent_color: String,
+    #[serde(default = "default_building_size")]
+    pub size: [f32; 3],
+    #[serde(default)]
+    pub style: BuildingStyle,
+    #[serde(default)]
+    pub signage: String,
+}
+
+fn default_building_size() -> [f32; 3] {
+    [3.8, 2.8, 3.4]
+}
+
+impl Default for BuildingVisualConfig {
+    fn default() -> Self {
+        Self {
+            color: "#6d7f9b".to_string(),
+            roof_color: "#4a6fa5".to_string(),
+            accent_color: "#5ec8ff".to_string(),
+            size: default_building_size(),
+            style: BuildingStyle::Modern,
+            signage: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfficeVisualConfig {
+    pub floor_color: String,
+    pub wall_color: String,
+    pub accent_color: String,
+    #[serde(default)]
+    pub desk_style: OfficeDeskStyle,
+    #[serde(default)]
+    pub lighting: OfficeLighting,
+    #[serde(default)]
+    pub has_plants: bool,
+    #[serde(default)]
+    pub has_whiteboard: bool,
+    #[serde(default)]
+    pub has_lounge_seating: bool,
+}
+
+impl Default for OfficeVisualConfig {
+    fn default() -> Self {
+        Self {
+            floor_color: "#d9cfc0".to_string(),
+            wall_color: "#f5f0e8".to_string(),
+            accent_color: "#5ec8ff".to_string(),
+            desk_style: OfficeDeskStyle::Open,
+            lighting: OfficeLighting::Natural,
+            has_plants: true,
+            has_whiteboard: true,
+            has_lounge_seating: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentVisualConfig {
+    pub skin_color: String,
+    pub shirt_color: String,
+    pub pants_color: String,
+    pub hair_color: String,
+    pub shoe_color: String,
+    #[serde(default)]
+    pub hair_style: HairStyle,
+    #[serde(default = "default_agent_height")]
+    pub height: f32,
+    #[serde(default = "default_agent_build")]
+    pub build: f32,
+    #[serde(default)]
+    pub accessory: Option<String>,
+}
+
+fn default_agent_height() -> f32 {
+    1.0
+}
+
+fn default_agent_build() -> f32 {
+    1.0
+}
+
+impl Default for AgentVisualConfig {
+    fn default() -> Self {
+        Self {
+            skin_color: "#f1c7a5".to_string(),
+            shirt_color: "#5ec8ff".to_string(),
+            pants_color: "#3d4f6f".to_string(),
+            hair_color: "#2b1d12".to_string(),
+            shoe_color: "#2a2a2a".to_string(),
+            hair_style: HairStyle::Short,
+            height: default_agent_height(),
+            build: default_agent_build(),
+            accessory: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampusThemeConfig {
+    pub sky_top: String,
+    pub sky_bottom: String,
+    pub ground_primary: String,
+    pub ground_secondary: String,
+    #[serde(default = "default_ambient")]
+    pub ambient_intensity: f32,
+}
+
+fn default_ambient() -> f32 {
+    0.85
+}
+
+impl Default for CampusThemeConfig {
+    fn default() -> Self {
+        Self {
+            sky_top: "#8ec8ef".to_string(),
+            sky_bottom: "#b7daf5".to_string(),
+            ground_primary: "#6f9a67".to_string(),
+            ground_secondary: "#5d8a57".to_string(),
+            ambient_intensity: default_ambient(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CompanyVisualDesign {
+    #[serde(default)]
+    pub campus: CampusThemeConfig,
+    #[serde(default)]
+    pub buildings: HashMap<String, BuildingVisualConfig>,
+    #[serde(default)]
+    pub offices: HashMap<String, OfficeVisualConfig>,
+    #[serde(default)]
+    pub agents: HashMap<String, AgentVisualConfig>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}

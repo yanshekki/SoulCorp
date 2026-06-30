@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { completeOnboarding } from "../../services/onboardingClient";
+import { applyDesignPreset } from "../../services/visualDesignClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import type { EventMode } from "../../types/game";
 
-const STEPS = ["welcome", "style", "connectivity", "tour"] as const;
+const STEPS = ["welcome", "style", "connectivity", "design", "tour"] as const;
 
 const STYLE_OPTIONS: {
   id: EventMode;
@@ -55,6 +57,7 @@ export function OnboardingWizard() {
   const [tagline, setTagline] = useState("");
   const [eventMode, setEventMode] = useState<EventMode>("fun");
   const [pureLocalMode, setPureLocalMode] = useState(false);
+  const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const step = STEPS[stepIndex];
@@ -112,6 +115,10 @@ export function OnboardingWizard() {
         ai_provider: pureLocalMode ? "mock" : useGameStore.getState().settings.ai_provider,
       });
       await reloadGameState();
+      if (designPresetId && designPresetId !== "default") {
+        await applyDesignPreset(designPresetId);
+        await reloadGameState();
+      }
       setActivePanel("office");
       if (isPaused) {
         togglePause();
@@ -228,6 +235,25 @@ export function OnboardingWizard() {
                 <span>Offline-only play with mock marketplace data.</span>
               </button>
             </div>
+          </section>
+        ) : null}
+
+        {step === "design" ? (
+          <section className="onboarding-step">
+            <h3>Design your 3D campus</h3>
+            <p className="muted">
+              Pick a starting look for buildings and campus theme. You can fully customize departments,
+              offices, and agent appearances later in <strong>3D Design</strong>.
+            </p>
+            <DesignPresetPicker
+              compact
+              onSelect={(presetId) => setDesignPresetId(presetId)}
+            />
+            {designPresetId ? (
+              <p className="onboarding-ready-copy">Selected preset: {designPresetId}</p>
+            ) : (
+              <p className="muted">Optional — skip with Next to keep the classic campus.</p>
+            )}
           </section>
         ) : null}
 

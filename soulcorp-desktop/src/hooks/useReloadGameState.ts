@@ -6,7 +6,12 @@ import { useGameStore } from "../stores/gameStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import { INITIAL_BUILDINGS } from "../data/initialWorld";
+import { getVisualDesign } from "../services/visualDesignClient";
 import { clearEmptyGameState, hasActiveCompany } from "../utils/companyState";
+import {
+  applyAgentsVisualDesign,
+  applyBuildingsVisualDesign,
+} from "../utils/applyVisualDesign";
 import type {
   AgentRecord,
   CompanyDepartmentsSnapshot,
@@ -57,6 +62,7 @@ export async function reloadGameState(): Promise<void> {
     setCompanies,
     setActiveCompanyId,
     setStatusMessage,
+    setVisualDesign,
   } = store;
 
   const [agents, finance, settings, onboarding, hubStatus, companyList] = await Promise.all([
@@ -108,8 +114,11 @@ export async function reloadGameState(): Promise<void> {
   setCompanyName(onboarding.company_name);
   setCompanyIndustry(onboarding.company_industry);
   setCompanyTagline(onboarding.company_tagline);
+  const visualDesign = await getVisualDesign().catch(() => store.visualDesign);
+  setVisualDesign(visualDesign);
   setAgentRecords(agents);
-  setAgents(syncAgentsFromRecords(agents, []));
+  const baseAgents = syncAgentsFromRecords(agents, []);
+  setAgents(applyAgentsVisualDesign(baseAgents, visualDesign));
   setFinance(finance);
 
   const tierBenefits = await invoke<TierBenefits>("get_tier_benefits").catch(
@@ -128,20 +137,20 @@ export async function reloadGameState(): Promise<void> {
   );
   setTierBenefits(tierBenefits);
 
+  let buildings = INITIAL_BUILDINGS;
   if (tierBenefits.custom_departments) {
     const deptSnapshot = await invoke<CompanyDepartmentsSnapshot>("list_company_departments").catch(
       () => null,
     );
     if (deptSnapshot) {
       const baseIds = new Set(INITIAL_BUILDINGS.map((building) => building.id));
-      setBuildings([
+      buildings = [
         ...INITIAL_BUILDINGS.filter((building) => baseIds.has(building.id)),
         ...deptSnapshot.buildings.map(toWorldBuilding),
-      ]);
+      ];
     }
-  } else {
-    setBuildings(INITIAL_BUILDINGS);
   }
+  setBuildings(applyBuildingsVisualDesign(buildings, visualDesign));
 
   if (onboarding.completed && companyReady) {
     await Promise.all(
@@ -160,7 +169,11 @@ export async function reloadGameState(): Promise<void> {
 
     const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
     setAgentRecords(refreshedAgents);
-    setAgents(syncAgentsFromRecords(refreshedAgents, useGameStore.getState().agents));
+    const mergedAgents = applyAgentsVisualDesign(
+      syncAgentsFromRecords(refreshedAgents, useGameStore.getState().agents),
+      visualDesign,
+    );
+    setAgents(mergedAgents);
     setSimulation({ dayNumber: 1 });
     setStatusMessage("Company loaded. Office simulation ready.");
 

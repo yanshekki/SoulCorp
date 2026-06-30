@@ -1,4 +1,5 @@
 mod companies;
+pub mod visual_design;
 
 use crate::achievements::{Achievement, Ending};
 use crate::soul::SoulProfile;
@@ -417,6 +418,8 @@ pub struct AppState {
     pub last_deploy_at: Option<String>,
     #[serde(default)]
     pub last_deploy_provider: Option<String>,
+    #[serde(default)]
+    pub visual_design: visual_design::CompanyVisualDesign,
 }
 
 impl Default for AppState {
@@ -453,6 +456,7 @@ impl Default for AppState {
             last_deploy_url: None,
             last_deploy_at: None,
             last_deploy_provider: None,
+            visual_design: visual_design::CompanyVisualDesign::default(),
         }
     }
 }

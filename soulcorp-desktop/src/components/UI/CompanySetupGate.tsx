@@ -20,13 +20,19 @@ export function CompanySetupGate() {
         <p className="muted">
           Create a company profile before viewing agents, finance, or the 3D office.
         </p>
-        <button
-          type="button"
-          className="primary-action"
-          onClick={() => setShowCreateCompany(true)}
-        >
-          Create company
-        </button>
+        <div className="company-setup-actions">
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => setShowCreateCompany(true)}
+          >
+            Create company
+          </button>
+          <p className="muted">
+            After creating, use <strong>3D Design</strong> in the top nav to customize buildings,
+            offices, and agent appearances.
+          </p>
+        </div>
       </div>
       <CreateCompanyModal />
     </div>

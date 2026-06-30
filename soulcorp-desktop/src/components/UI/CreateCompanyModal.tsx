@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { createCompany } from "../../services/companyClient";
+import { applyDesignPreset } from "../../services/visualDesignClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import type { EventMode } from "../../types/game";
@@ -41,6 +43,8 @@ export function CreateCompanyModal() {
   const [tagline, setTagline] = useState("");
   const [eventMode, setEventMode] = useState<EventMode>("balanced");
   const [pureLocalMode, setPureLocalMode] = useState(false);
+  const [designPresetId, setDesignPresetId] = useState<string | null>(null);
+  const [openDesignStudioAfter, setOpenDesignStudioAfter] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const selectedStyle = useMemo(
@@ -74,7 +78,11 @@ export function CreateCompanyModal() {
         random_events_enabled: selectedStyle.events,
       });
       await reloadGameState();
-      setActivePanel("office");
+      if (designPresetId && designPresetId !== "default") {
+        await applyDesignPreset(designPresetId);
+        await reloadGameState();
+      }
+      setActivePanel(openDesignStudioAfter ? "design_studio" : "office");
       useGameStore.setState({ isPaused: false });
       setShowCreateCompany(false);
       setCompanyName("");
@@ -153,6 +161,19 @@ export function CreateCompanyModal() {
               onChange={(event) => setPureLocalMode(event.target.checked)}
             />
             Pure Local Mode (offline-only for this company)
+          </label>
+
+          <h3>3D campus look</h3>
+          <p className="muted">Optional preset for buildings and campus theme.</p>
+          <DesignPresetPicker compact onSelect={(presetId) => setDesignPresetId(presetId)} />
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={openDesignStudioAfter}
+              onChange={(event) => setOpenDesignStudioAfter(event.target.checked)}
+            />
+            Open 3D Design Studio after creating this company
           </label>
         </section>
 

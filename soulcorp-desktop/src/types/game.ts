@@ -3,6 +3,7 @@ export type SidebarPanel =
   | "office"
   | "workspace"
   | "meeting"
+  | "design_studio"
   | "finance"
   | "marketplace"
   | "recruitment"

@@ -8,6 +8,8 @@ import {
 } from "../data/worldLayout";
 import type { AgentRecord } from "../types/game";
 import type { Agent, AgentStatus, BehaviorIntent, Building } from "../types/world";
+import { useGameStore } from "../stores/gameStore";
+import { appearanceFromVisualConfig } from "./applyVisualDesign";
 import { generateAgentAppearance } from "./agentAppearance";
 
 const STATUS_LABELS: Record<BehaviorIntent, string> = {
@@ -55,7 +57,10 @@ export function createAgentFromRecord(record: AgentRecord): Agent {
   const buildingId = resolveBuildingId(record.department);
   const homeDesk = deskForAgent(buildingId, record.id);
   const entrance = BUILDING_ENTRANCES[buildingId] ?? homeDesk;
-  const appearance = generateAgentAppearance(record.id);
+  const visualOverride = useGameStore.getState().visualDesign.agents[record.id];
+  const appearance = visualOverride
+    ? appearanceFromVisualConfig(record.id, visualOverride)
+    : generateAgentAppearance(record.id);
 
   return {
     id: record.id,

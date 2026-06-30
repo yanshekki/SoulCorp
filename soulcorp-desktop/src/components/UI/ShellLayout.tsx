@@ -32,6 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "office", label: "Office" },
       { id: "workspace", label: "Workspace" },
       { id: "meeting", label: "Meeting" },
+      { id: "design_studio", label: "3D Design" },
     ],
   },
   {
@@ -98,6 +99,17 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <VipExecutivePanel />;
     case "achievements":
       return <AchievementsPanel />;
+    case "design_studio":
+      return (
+        <section className="panel-card">
+          <h2>3D Design Studio</h2>
+          <p className="muted">
+            Customize campus theme, department buildings, office interiors, and agent looks in the
+            main stage.
+          </p>
+          <p className="muted">Use the top nav <strong>3D Design</strong> tab to open the editor.</p>
+        </section>
+      );
     case "settings":
       return <SettingsPanel />;
     case "god_mode":

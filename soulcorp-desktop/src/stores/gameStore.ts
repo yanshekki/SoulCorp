@@ -13,6 +13,8 @@ import type {
   SidebarPanel,
   TierBenefits,
 } from "../types/game";
+import type { CompanyVisualDesign } from "../types/visualDesign";
+import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
 import type { Agent, Building, SimulationState } from "../types/world";
 
 interface GameStore {
@@ -40,6 +42,7 @@ interface GameStore {
   endings: Ending[];
   hubStatus: HubStatus;
   tierBenefits: TierBenefits;
+  visualDesign: CompanyVisualDesign;
   setStatusMessage: (message: string) => void;
   setAgents: (agents: Agent[]) => void;
   setAgentRecords: (records: AgentRecord[]) => void;
@@ -65,6 +68,7 @@ interface GameStore {
   setShowCreateCompany: (show: boolean) => void;
   setOnboardingCompleted: (completed: boolean) => void;
   setOnboardingReady: (ready: boolean) => void;
+  setVisualDesign: (visualDesign: CompanyVisualDesign) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -127,6 +131,7 @@ export const useGameStore = create<GameStore>((set) => ({
     pending_queue_items: 0,
     last_sync_at: null,
   },
+  visualDesign: EMPTY_VISUAL_DESIGN,
   tierBenefits: {
     tier: "free",
     platform_fee_percent: 10,
@@ -168,4 +173,5 @@ export const useGameStore = create<GameStore>((set) => ({
   setShowCreateCompany: (showCreateCompany) => set({ showCreateCompany }),
   setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
   setOnboardingReady: (ready) => set({ onboardingReady: ready }),
+  setVisualDesign: (visualDesign) => set({ visualDesign }),
 }));

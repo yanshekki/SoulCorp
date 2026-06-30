@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useContainerSize } from "../hooks/useContainerSize";
 import { is3dSmokeTestEnabled, submit3dSmokeFailure } from "../services/scene3dSmoke";
 import { useGameStore } from "../stores/gameStore";
+import { campusSkyGradient } from "../utils/applyVisualDesign";
 import { OfficeMapFallback } from "./world/OfficeMapFallback";
 import {
   ThreeOfficeRenderer,
@@ -16,6 +17,8 @@ export function GameScene() {
   const size = useContainerSize(containerRef);
   const pixelFilter = useGameStore((state) => state.settings.pixel_filter_enabled);
   const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
+  const visualDesign = useGameStore((state) => state.visualDesign);
+  const skyBackground = campusSkyGradient(visualDesign);
   const [renderStatus, setRenderStatus] = useState<RenderStatus>("initializing");
   const [renderError, setRenderError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -79,7 +82,7 @@ export function GameScene() {
       className={`game-scene ${pixelFilter ? "pixel-filter" : ""}`}
       aria-label="Isometric office world"
     >
-      <div className="game-scene-sky" aria-hidden />
+      <div className="game-scene-sky" style={{ background: skyBackground }} aria-hidden />
       {!ready ? (
         <OfficeMapFallback />
       ) : mode === "3d" ? (

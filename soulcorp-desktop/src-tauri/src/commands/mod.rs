@@ -18,6 +18,7 @@ pub mod smoke;
 pub mod sync;
 pub mod tier;
 pub mod vip;
+pub mod visual_design;
 pub mod workspace;
 
 pub use achievements_cmd::*;
@@ -40,4 +41,5 @@ pub use smoke::*;
 pub use sync::*;
 pub use tier::*;
 pub use vip::*;
+pub use visual_design::*;
 pub use workspace::*;

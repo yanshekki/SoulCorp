@@ -6,6 +6,7 @@ import { CompanySetupGate } from "./components/UI/CompanySetupGate";
 import { CreateCompanyModal } from "./components/UI/CreateCompanyModal";
 import { OnboardingWizard } from "./components/UI/OnboardingWizard";
 import { ShellLayout } from "./components/UI/ShellLayout";
+import { DesignStudioPage } from "./components/design/DesignStudioPage";
 import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
@@ -53,7 +54,13 @@ function App() {
   return (
     <>
       <ShellLayout statusMessage={statusMessage}>
-        {activePanel === "workspace" ? <WorkspaceShell /> : <GameScene />}
+        {activePanel === "workspace" ? (
+          <WorkspaceShell />
+        ) : activePanel === "design_studio" ? (
+          <DesignStudioPage />
+        ) : (
+          <GameScene />
+        )}
       </ShellLayout>
       <BuildingModal />
       <CreateCompanyModal />
