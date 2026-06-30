@@ -1,5 +1,8 @@
 import * as THREE from "three";
+import { WORLD_PROPS } from "../../data/worldLayout";
 import type { Agent, Building } from "../../types/world";
+import { AgentRenderSystem } from "./agentRenderSystem";
+import { getPixelBuildingTexture } from "./pixelBuildingTexture";
 
 const ISO_OFFSET = new THREE.Vector3(14, 14, 14);
 
@@ -8,7 +11,7 @@ export interface OfficeSceneHandles {
   camera: THREE.OrthographicCamera;
   renderer: THREE.WebGLRenderer;
   buildingGroups: Map<string, THREE.Group>;
-  agentGroups: Map<string, THREE.Group>;
+  agentRenderer: AgentRenderSystem;
   resize: (width: number, height: number) => void;
   raycastBuilding: (normalizedX: number, normalizedY: number) => Building | null;
   dispose: () => void;
@@ -53,9 +56,14 @@ function createBuilding(building: Building): THREE.Group {
   group.position.set(x, 0, z);
   group.userData.building = building;
 
+  const wallTexture = getPixelBuildingTexture(building);
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(width, height, depth),
-    new THREE.MeshStandardMaterial({ color: building.color }),
+    new THREE.MeshStandardMaterial({
+      map: wallTexture,
+      color: "#ffffff",
+      flatShading: true,
+    }),
   );
   body.position.y = height / 2;
   body.castShadow = true;
@@ -63,14 +71,14 @@ function createBuilding(building: Building): THREE.Group {
 
   const roof = new THREE.Mesh(
     new THREE.BoxGeometry(width * 0.92, 0.35, depth * 0.92),
-    new THREE.MeshStandardMaterial({ color: building.roofColor }),
+    new THREE.MeshStandardMaterial({ color: building.roofColor, flatShading: true }),
   );
   roof.position.y = height + 0.12;
   roof.castShadow = true;
 
   const sign = new THREE.Mesh(
     new THREE.BoxGeometry(width * 0.75, 0.18, 0.08),
-    new THREE.MeshStandardMaterial({ color: building.accentColor }),
+    new THREE.MeshStandardMaterial({ color: building.accentColor, flatShading: true }),
   );
   sign.position.set(0, height + 0.95, depth / 2 + 0.05);
 
@@ -78,142 +86,66 @@ function createBuilding(building: Building): THREE.Group {
   return group;
 }
 
-function createStatusBubble(label: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(18, 32, 24, 0.82)";
-    const text = label.length > 28 ? `${label.slice(0, 25)}...` : label;
-    ctx.font = "bold 18px sans-serif";
-    const width = Math.min(240, ctx.measureText(text).width + 24);
-    const x = (canvas.width - width) / 2;
-    roundRect(ctx, x, 10, width, 34, 10);
-    ctx.fill();
-    ctx.fillStyle = "#f8fff4";
-    ctx.fillText(text, x + 12, 33);
+function createPropInstances(scene: THREE.Scene, lowPowerShadows: boolean) {
+  const trees = WORLD_PROPS.filter((prop) => prop.type === "tree");
+  if (trees.length > 0) {
+    const trunkGeometry = new THREE.CylinderGeometry(0.12, 0.16, 0.7, 6);
+    const leavesGeometry = new THREE.ConeGeometry(0.55, 1.1, 6);
+    const trunkMaterial = new THREE.MeshStandardMaterial({ color: "#6d4c35", flatShading: true });
+    const leavesMaterial = new THREE.MeshStandardMaterial({ color: "#4f8a57", flatShading: true });
+    const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, trees.length);
+    const leavesMesh = new THREE.InstancedMesh(leavesGeometry, leavesMaterial, trees.length);
+    const temp = new THREE.Object3D();
+
+    trees.forEach((tree, index) => {
+      const scale = tree.scale ?? 1;
+      temp.position.set(tree.position[0], 0.35 * scale, tree.position[2]);
+      temp.scale.setScalar(scale);
+      temp.updateMatrix();
+      trunkMesh.setMatrixAt(index, temp.matrix);
+
+      temp.position.set(tree.position[0], 1.05 * scale, tree.position[2]);
+      temp.updateMatrix();
+      leavesMesh.setMatrixAt(index, temp.matrix);
+    });
+
+    trunkMesh.instanceMatrix.needsUpdate = true;
+    leavesMesh.instanceMatrix.needsUpdate = true;
+    trunkMesh.castShadow = !lowPowerShadows;
+    leavesMesh.castShadow = !lowPowerShadows;
+    scene.add(trunkMesh, leavesMesh);
   }
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-  });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(1.8, 0.45, 1);
-  sprite.position.y = 2.15;
-  sprite.renderOrder = 10;
-  return sprite;
-}
+  const props = WORLD_PROPS.filter((prop) => prop.type !== "tree");
+  for (const prop of props) {
+    let mesh: THREE.Mesh;
+    if (prop.type === "bench") {
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.22, 0.42),
+        new THREE.MeshStandardMaterial({ color: "#8b6a4f", flatShading: true }),
+      );
+      mesh.position.y = 0.18;
+    } else if (prop.type === "lamp") {
+      mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.07, 1.3, 6),
+        new THREE.MeshStandardMaterial({ color: "#5f6d82", flatShading: true }),
+      );
+      mesh.position.y = 0.65;
+    } else {
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.45, 0.7),
+        new THREE.MeshStandardMaterial({ color: "#6f9a67", flatShading: true }),
+      );
+      mesh.position.y = 0.22;
+    }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-}
-
-function updateStatusBubble(sprite: THREE.Sprite, label: string) {
-  const canvas = (sprite.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
-  const ctx = canvas?.getContext("2d");
-  if (!ctx) {
-    return;
-  }
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(18, 32, 24, 0.82)";
-  const text = label.length > 28 ? `${label.slice(0, 25)}...` : label;
-  ctx.font = "bold 18px sans-serif";
-  const width = Math.min(240, ctx.measureText(text).width + 24);
-  const x = (canvas.width - width) / 2;
-  roundRect(ctx, x, 10, width, 34, 10);
-  ctx.fill();
-  ctx.fillStyle = "#f8fff4";
-  ctx.fillText(text, x + 12, 33);
-  (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
-}
-
-function createHumanoid(agent: Agent): THREE.Group {
-  const group = new THREE.Group();
-  group.userData.agentId = agent.id;
-  const { appearance } = agent;
-  const scale = appearance.height * appearance.build;
-
-  const body = new THREE.Group();
-  body.scale.setScalar(scale);
-
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 12, 12),
-    new THREE.MeshStandardMaterial({ color: appearance.skinColor }),
-  );
-  head.position.y = 1.35;
-
-  const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.55, 0.24),
-    new THREE.MeshStandardMaterial({ color: appearance.shirtColor }),
-  );
-  torso.position.y = 0.82;
-
-  const legs = new THREE.Mesh(
-    new THREE.BoxGeometry(0.36, 0.32, 0.22),
-    new THREE.MeshStandardMaterial({ color: appearance.pantsColor }),
-  );
-  legs.position.y = 0.5;
-
-  const hair = new THREE.Mesh(
-    new THREE.BoxGeometry(0.4, 0.16, 0.4),
-    new THREE.MeshStandardMaterial({ color: appearance.hairColor }),
-  );
-  hair.position.y = 1.52;
-
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.34, 0.42, 20),
-    new THREE.MeshBasicMaterial({ color: agent.color, transparent: true, opacity: 0.55 }),
-  );
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.03;
-
-  body.add(head, hair, torso, legs);
-  const bubble = createStatusBubble(agent.statusLabel);
-  group.add(body, ring, bubble);
-  group.userData.statusBubble = bubble;
-  return group;
-}
-
-function updateHumanoid(group: THREE.Group, agent: Agent) {
-  group.position.set(agent.position[0], agent.position[1], agent.position[2]);
-  const body = group.children[0] as THREE.Group;
-  const walking = agent.status === "walking";
-  const swing = walking ? Math.sin(agent.walkPhase) * 0.45 : 0;
-  const bob = walking ? Math.abs(Math.sin(agent.walkPhase)) * 0.05 : 0;
-  body.position.y = bob;
-  group.rotation.y = Math.atan2(
-    agent.target[0] - agent.position[0],
-    agent.target[2] - agent.position[2],
-  );
-  body.rotation.z = swing * 0.08;
-
-  const bubble = group.userData.statusBubble as THREE.Sprite | undefined;
-  if (bubble) {
-    updateStatusBubble(bubble, `${agent.name}: ${agent.statusLabel}`);
-    bubble.position.y = 2.15 + bob;
+    mesh.position.x = prop.position[0];
+    mesh.position.z = prop.position[2];
+    if (prop.rotation) {
+      mesh.rotation.y = prop.rotation;
+    }
+    mesh.castShadow = !lowPowerShadows;
+    scene.add(mesh);
   }
 }
 
@@ -296,33 +228,13 @@ export function createOfficeScene(
 
   const path = new THREE.Mesh(
     new THREE.PlaneGeometry(3.5, 14),
-    new THREE.MeshStandardMaterial({ color: "#c7b08a" }),
+    new THREE.MeshStandardMaterial({ color: "#c7b08a", flatShading: true }),
   );
   path.rotation.x = -Math.PI / 2;
   path.position.set(0, 0.02, 1.5);
   scene.add(path);
 
-  for (const [x, z, scale] of [
-    [-10, -4, 1.1],
-    [9, 3, 0.95],
-    [-8, 6, 1.2],
-  ] as const) {
-    const tree = new THREE.Group();
-    tree.position.set(x, 0, z);
-    tree.scale.setScalar(scale);
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.16, 0.7, 8),
-      new THREE.MeshStandardMaterial({ color: "#6d4c35" }),
-    );
-    trunk.position.y = 0.35;
-    const leaves = new THREE.Mesh(
-      new THREE.ConeGeometry(0.55, 1.1, 8),
-      new THREE.MeshStandardMaterial({ color: "#4f8a57" }),
-    );
-    leaves.position.y = 1.05;
-    tree.add(trunk, leaves);
-    scene.add(tree);
-  }
+  createPropInstances(scene, false);
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.65);
   const sun = new THREE.DirectionalLight(0xfff2d6, 1.2);
@@ -332,7 +244,7 @@ export function createOfficeScene(
   scene.add(ambient, sun);
 
   const buildingGroups = new Map<string, THREE.Group>();
-  const agentGroups = new Map<string, THREE.Group>();
+  const agentRenderer = new AgentRenderSystem(scene);
   const raycaster = new THREE.Raycaster();
 
   renderer.render(scene, camera);
@@ -342,7 +254,7 @@ export function createOfficeScene(
     camera,
     renderer,
     buildingGroups,
-    agentGroups,
+    agentRenderer,
     resize(nextWidth: number, nextHeight: number) {
       const nextAspect = nextWidth / Math.max(nextHeight, 1);
       camera.left = (-frustum * nextAspect) / 2;
@@ -370,30 +282,19 @@ export function createOfficeScene(
       return null;
     },
     dispose() {
+      agentRenderer.dispose();
       renderer.dispose();
       scene.clear();
     },
   };
 }
 
-export function syncSceneAgents(handles: OfficeSceneHandles, agents: Agent[]) {
-  const seen = new Set<string>();
-  for (const agent of agents) {
-    seen.add(agent.id);
-    let group = handles.agentGroups.get(agent.id);
-    if (!group) {
-      group = createHumanoid(agent);
-      handles.agentGroups.set(agent.id, group);
-      handles.scene.add(group);
-    }
-    updateHumanoid(group, agent);
-  }
-  for (const [id, group] of handles.agentGroups) {
-    if (!seen.has(id)) {
-      handles.scene.remove(group);
-      handles.agentGroups.delete(id);
-    }
-  }
+export function syncSceneAgents(
+  handles: OfficeSceneHandles,
+  agents: Agent[],
+  lowPowerMode = false,
+) {
+  handles.agentRenderer.sync(agents, handles.camera, lowPowerMode);
 }
 
 export function syncSceneBuildings(handles: OfficeSceneHandles, buildings: Building[]) {

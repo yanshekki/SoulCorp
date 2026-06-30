@@ -99,6 +99,14 @@ case "${PHASE}" in
     grep -q "run3dSmokeTestFromCanvas" "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
     echo "Phase 7 checks passed."
     ;;
+  8)
+    test -f "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
+    test -f "${DESKTOP_DIR}/src/components/world/pixelAgentSprite.ts"
+    test -f "${DESKTOP_DIR}/src/components/world/pixelBuildingTexture.ts"
+    grep -q "AgentRenderSystem" "${DESKTOP_DIR}/src/components/world/threeOfficeScene.ts"
+    grep -q "InstancedMesh" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
+    echo "Phase 8 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

@@ -1048,6 +1048,15 @@ body,
   filter: contrast(1.05) saturate(1.08);
 }
 
+.game-scene.pixel-filter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at center, transparent 55%, rgba(18, 28, 36, 0.28) 100%);
+}
+
 .achievements-panel h3 {
   margin: 0.75rem 0 0.35rem;
   font-size: 0.95rem;

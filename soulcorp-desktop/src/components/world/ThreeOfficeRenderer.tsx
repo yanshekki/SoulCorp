@@ -62,7 +62,7 @@ export function ThreeOfficeRenderer({
 
       const state = useGameStore.getState();
       syncSceneBuildings(handlesRef.current, state.buildings);
-      syncSceneAgents(handlesRef.current, state.agents);
+      syncSceneAgents(handlesRef.current, state.agents, state.settings.low_power_mode);
       updateCamera(handlesRef.current.camera, state.selectedBuilding, delta);
       renderScene(handlesRef.current);
 
