@@ -713,3 +713,61 @@ body,
 .primary-action {
   background: #6d9f78 !important;
 }
+
+.sidebar-tier {
+  display: inline-block;
+  margin-top: 0.45rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-tier.tier-free {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-tier.tier-pro {
+  background: rgba(120, 170, 255, 0.22);
+}
+
+.sidebar-tier.tier-vip {
+  background: rgba(255, 214, 130, 0.28);
+}
+
+.sidebar-tier.tier-local {
+  background: rgba(93, 138, 103, 0.28);
+}
+
+.tier-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.tier-benefits-grid article {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #6d5645;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+}
+
+.tier-benefits-grid span {
+  display: block;
+  color: #c8b6a3;
+  font-size: 0.72rem;
+}
+
+.tier-benefits-grid strong {
+  font-size: 0.95rem;
+}
+
+.tier-highlight {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 214, 130, 0.14);
+  color: #f0d9a8;
+  font-size: 0.82rem;
+}

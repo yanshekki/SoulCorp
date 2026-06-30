@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use crate::tier::can_use_feature;
 use crate::workspace::{storage::workspace_root, WorkspaceStorage};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -42,9 +43,15 @@ pub fn export_company_backup(
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let path = exports_dir.join(format!("soulcorp-backup-{timestamp}.json"));
 
+    let company_name = if can_use_feature(&state.hub.user_tier, "white_label_export") {
+        "SoulCorp (White-label)".to_string()
+    } else {
+        "SoulCorp".to_string()
+    };
+
     let backup = CompanyBackup {
         exported_at: Utc::now().to_rfc3339(),
-        company_name: "SoulCorp".to_string(),
+        company_name,
         day_number: state.day_number,
         finance: state.finance.clone(),
         settings: state.settings.clone(),

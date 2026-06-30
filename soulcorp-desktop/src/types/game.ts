@@ -6,6 +6,7 @@ export type SidebarPanel =
   | "finance"
   | "marketplace"
   | "recruitment"
+  | "tier"
   | "achievements"
   | "settings"
   | "god_mode";
@@ -33,6 +34,17 @@ export interface HubSyncPull {
   tier: string;
   soul_balance: number;
   open_gigs: HubGig[];
+}
+
+export interface TierBenefits {
+  tier: string;
+  platform_fee_percent: number;
+  max_agents?: number | null;
+  cloud_sync_enabled: boolean;
+  priority_gig_matching: boolean;
+  event_foresight_days: number;
+  white_label_export: boolean;
+  executive_lounge: boolean;
 }
 
 export interface RecruitmentCandidate {
