@@ -10,7 +10,7 @@
     },
     "1": {
       "branch": "phase-1/isometric-world",
-      "status": "pending",
+      "status": "in_progress",
       "description": "Isometric Three.js world and basic UI shell"
     },
     "2": {

@@ -1,0 +1,92 @@
+import type { Agent, Building } from "../types/world";
+
+export const INITIAL_BUILDINGS: Building[] = [
+  {
+    id: "hq",
+    name: "Company HQ",
+    department: "Executive",
+    position: [0, 0, 0],
+    size: [4, 3, 4],
+    color: "#8b6f5c",
+    roofColor: "#5f8a72",
+    description: "Main office hub with strategy rooms and CEO suite.",
+  },
+  {
+    id: "engineering",
+    name: "Engineering Lab",
+    department: "Engineering",
+    position: [-6, 0, 2],
+    size: [3.5, 2.5, 3],
+    color: "#6d7f9b",
+    roofColor: "#4a6fa5",
+    description: "Where agents ship code, prototypes, and experiments.",
+  },
+  {
+    id: "hr",
+    name: "HR Lounge",
+    department: "Human Resources",
+    position: [6, 0, -2],
+    size: [3, 2, 3.5],
+    color: "#9b7a8d",
+    roofColor: "#c97b84",
+    description: "Recruitment interviews and team morale events.",
+  },
+  {
+    id: "plaza",
+    name: "Hub Plaza",
+    department: "Marketplace",
+    position: [0, 0, -7],
+    size: [5, 1.2, 3],
+    color: "#a6896b",
+    roofColor: "#d4b896",
+    description: "Gig board and cross-company marketplace area.",
+  },
+];
+
+export const INITIAL_AGENTS: Agent[] = [
+  {
+    id: "agent-1",
+    name: "Mira",
+    department: "Engineering",
+    role: "Senior Dev",
+    color: "#5ec8ff",
+    status: "walking",
+    statusLabel: "Coding...",
+    position: [-4, 0.6, 1],
+    target: [-6, 0.6, 2],
+    speed: 1.2,
+  },
+  {
+    id: "agent-2",
+    name: "Kai",
+    department: "Human Resources",
+    role: "HR Lead",
+    color: "#ff9bd5",
+    status: "walking",
+    statusLabel: "In Meeting",
+    position: [4, 0.6, -1],
+    target: [6, 0.6, -2],
+    speed: 1.0,
+  },
+  {
+    id: "agent-3",
+    name: "Ren",
+    department: "Executive",
+    role: "COO",
+    color: "#ffd166",
+    status: "walking",
+    statusLabel: "Reviewing KPIs",
+    position: [1, 0.6, 2],
+    target: [0, 0.6, 0],
+    speed: 0.9,
+  },
+];
+
+export const WAYPOINTS: [number, number, number][] = [
+  [0, 0.6, 0],
+  [-6, 0.6, 2],
+  [6, 0.6, -2],
+  [0, 0.6, -7],
+  [-4, 0.6, 1],
+  [4, 0.6, -1],
+];

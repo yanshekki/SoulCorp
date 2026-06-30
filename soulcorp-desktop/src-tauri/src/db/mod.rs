@@ -70,5 +70,5 @@ pub fn init_database(app: &tauri::AppHandle) -> SqlResult<Connection> {
 
 #[tauri::command]
 pub fn get_app_status() -> Result<String, String> {
-    Ok("SoulCorp desktop shell is ready (Phase 0)".to_string())
+    Ok("SoulCorp isometric office is ready (Phase 1)".to_string())
 }
