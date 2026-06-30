@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
+import { AchievementsPanel } from "./AchievementsPanel";
 import { Dashboard } from "./Dashboard";
 import { FinancePanel } from "./FinancePanel";
 import { GodModePanel } from "./GodModePanel";
@@ -18,6 +19,7 @@ const PANELS: { id: SidebarPanel; label: string }[] = [
   { id: "workspace", label: "Workspace" },
   { id: "meeting", label: "Meeting" },
   { id: "finance", label: "Finance" },
+  { id: "achievements", label: "Achievements" },
   { id: "settings", label: "Settings" },
   { id: "god_mode", label: "God Mode" },
 ];
@@ -35,6 +37,8 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <MeetingPanel />;
     case "finance":
       return <FinancePanel />;
+    case "achievements":
+      return <AchievementsPanel />;
     case "settings":
       return <SettingsPanel />;
     case "god_mode":

@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { INITIAL_AGENTS, INITIAL_BUILDINGS } from "../data/initialWorld";
 import type {
+  Achievement,
   AgentRecord,
+  Ending,
   FinanceState,
   GameEvent,
   GameSettings,
@@ -24,6 +26,8 @@ interface GameStore {
   settings: GameSettings;
   events: GameEvent[];
   activeMeeting: MeetingSnapshot | null;
+  achievements: Achievement[];
+  endings: Ending[];
   setStatusMessage: (message: string) => void;
   setAgents: (agents: Agent[]) => void;
   setAgentRecords: (records: AgentRecord[]) => void;
@@ -36,6 +40,8 @@ interface GameStore {
   prependEvent: (event: GameEvent) => void;
   setActivePanel: (panel: SidebarPanel) => void;
   setActiveMeeting: (meeting: MeetingSnapshot | null) => void;
+  setAchievements: (achievements: Achievement[]) => void;
+  setEndings: (endings: Ending[]) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -63,9 +69,15 @@ export const useGameStore = create<GameStore>((set) => ({
     event_mode: "fun",
     god_mode_enabled: true,
     ai_provider: "mock",
+    pure_local_mode: false,
+    pixel_filter_enabled: false,
+    low_power_mode: false,
+    backup_interval_minutes: 30,
   },
   events: [],
   activeMeeting: null,
+  achievements: [],
+  endings: [],
   setStatusMessage: (message) => set({ statusMessage: message }),
   setAgents: (agents) => set({ agents }),
   setAgentRecords: (records) => set({ agentRecords: records }),
@@ -82,4 +94,6 @@ export const useGameStore = create<GameStore>((set) => ({
     set((state) => ({ events: [event, ...state.events].slice(0, 8) })),
   setActivePanel: (panel) => set({ activePanel: panel }),
   setActiveMeeting: (meeting) => set({ activeMeeting: meeting }),
+  setAchievements: (achievements) => set({ achievements }),
+  setEndings: (endings) => set({ endings }),
 }));

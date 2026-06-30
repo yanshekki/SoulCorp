@@ -4,6 +4,7 @@ export type SidebarPanel =
   | "workspace"
   | "meeting"
   | "finance"
+  | "achievements"
   | "settings"
   | "god_mode";
 
@@ -39,6 +40,39 @@ export interface GameSettings {
   event_mode: EventMode;
   god_mode_enabled: boolean;
   ai_provider: string;
+  pure_local_mode: boolean;
+  pixel_filter_enabled: boolean;
+  low_power_mode: boolean;
+  backup_interval_minutes: number;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  unlocked: boolean;
+  unlocked_at?: string | null;
+}
+
+export interface Ending {
+  id: string;
+  title: string;
+  description: string;
+  unlocked: boolean;
+  unlocked_at?: string | null;
+}
+
+export interface AchievementSnapshot {
+  achievements: Achievement[];
+  endings: Ending[];
+  newly_unlocked: string[];
+}
+
+export interface ExportResult {
+  path: string;
+  format: string;
+  message: string;
 }
 
 export interface GameEvent {

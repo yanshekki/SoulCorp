@@ -76,6 +76,7 @@ pub fn maybe_roll_event(state: &mut AppState) -> Option<GameEvent> {
 }
 
 pub fn apply_event(state: &mut AppState, event: &GameEvent) {
+    state.stats.events_triggered += 1;
     state.finance.cash_balance += event.cash_delta;
     for agent in state.agents.values_mut() {
         agent.morale = (agent.morale + event.morale_delta).clamp(0.0, 1.0);

@@ -1,3 +1,4 @@
+use crate::achievements::{Achievement, Ending};
 use crate::soul::SoulProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,6 +23,10 @@ pub struct GameSettings {
     pub event_mode: EventMode,
     pub god_mode_enabled: bool,
     pub ai_provider: String,
+    pub pure_local_mode: bool,
+    pub pixel_filter_enabled: bool,
+    pub low_power_mode: bool,
+    pub backup_interval_minutes: u32,
 }
 
 impl Default for GameSettings {
@@ -31,8 +36,21 @@ impl Default for GameSettings {
             event_mode: EventMode::Fun,
             god_mode_enabled: true,
             ai_provider: "mock".to_string(),
+            pure_local_mode: false,
+            pixel_filter_enabled: false,
+            low_power_mode: false,
+            backup_interval_minutes: 30,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GameStats {
+    pub meetings_completed: u32,
+    pub events_triggered: u32,
+    pub god_mode_uses: u32,
+    pub pages_created: u32,
+    pub exports_created: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,8 +120,12 @@ pub struct AppState {
     pub agents: HashMap<String, AgentRecord>,
     pub events: Vec<GameEvent>,
     pub meetings: HashMap<String, MeetingState>,
+    pub achievements: Vec<Achievement>,
+    pub endings: Vec<Ending>,
+    pub stats: GameStats,
     pub day_number: u32,
     pub tick: u64,
+    pub last_backup_tick: u64,
 }
 
 impl AppState {

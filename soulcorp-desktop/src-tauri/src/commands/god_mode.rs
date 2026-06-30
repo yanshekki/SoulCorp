@@ -22,6 +22,7 @@ pub fn god_mode_time_warp(
         return Err("God Mode is disabled in settings.".to_string());
     }
 
+    state.stats.god_mode_uses += 1;
     state.day_number += days.max(1);
     state.finance.monthly_burn *= 1.02;
     state.finance.monthly_revenue *= 1.03;
@@ -44,6 +45,7 @@ pub fn god_mode_mass_motivation(
         return Err("God Mode is disabled in settings.".to_string());
     }
 
+    state.stats.god_mode_uses += 1;
     for agent in state.agents.values_mut() {
         agent.morale = (agent.morale + 0.15).min(1.0);
         agent.energy = (agent.energy + 0.1).min(1.0);
@@ -66,6 +68,7 @@ pub fn god_mode_emergency_budget(
         return Err("God Mode is disabled in settings.".to_string());
     }
 
+    state.stats.god_mode_uses += 1;
     state.finance.cash_balance += amount.max(0.0);
     state.finance.compute_tokens += amount.max(0.0) * 0.4;
 

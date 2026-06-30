@@ -1,5 +1,7 @@
+pub mod achievements_cmd;
 pub mod agent;
 pub mod events;
+pub mod export;
 pub mod finance;
 pub mod god_mode;
 pub mod meeting;
@@ -9,8 +11,10 @@ pub mod simulation;
 pub mod sync;
 pub mod workspace;
 
+pub use achievements_cmd::*;
 pub use agent::*;
 pub use events::*;
+pub use export::*;
 pub use finance::*;
 pub use god_mode::*;
 pub use meeting::*;

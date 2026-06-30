@@ -46,6 +46,13 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src/components/workspace/FolderTree.tsx"
     echo "Phase 3 checks passed."
     ;;
+  4)
+    test -f "${DESKTOP_DIR}/src-tauri/src/achievements/mod.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/export.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/AchievementsPanel.tsx"
+    test -f "${REPO_ROOT}/scripts/offline-checklist.md"
+    echo "Phase 4 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;
