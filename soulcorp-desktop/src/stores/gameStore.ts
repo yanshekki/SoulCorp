@@ -7,6 +7,7 @@ import type {
   FinanceState,
   GameEvent,
   GameSettings,
+  HubStatus,
   MeetingSnapshot,
   SidebarPanel,
 } from "../types/game";
@@ -28,6 +29,7 @@ interface GameStore {
   activeMeeting: MeetingSnapshot | null;
   achievements: Achievement[];
   endings: Ending[];
+  hubStatus: HubStatus;
   setStatusMessage: (message: string) => void;
   setAgents: (agents: Agent[]) => void;
   setAgentRecords: (records: AgentRecord[]) => void;
@@ -42,6 +44,7 @@ interface GameStore {
   setActiveMeeting: (meeting: MeetingSnapshot | null) => void;
   setAchievements: (achievements: Achievement[]) => void;
   setEndings: (endings: Ending[]) => void;
+  setHubStatus: (hubStatus: HubStatus) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -78,6 +81,15 @@ export const useGameStore = create<GameStore>((set) => ({
   activeMeeting: null,
   achievements: [],
   endings: [],
+  hubStatus: {
+    connected: false,
+    base_url: "https://soulmd-hub.ysk.hk",
+    user_tier: "free",
+    soul_balance: 0,
+    pure_local_mode: false,
+    pending_queue_items: 0,
+    last_sync_at: null,
+  },
   setStatusMessage: (message) => set({ statusMessage: message }),
   setAgents: (agents) => set({ agents }),
   setAgentRecords: (records) => set({ agentRecords: records }),
@@ -96,4 +108,5 @@ export const useGameStore = create<GameStore>((set) => ({
   setActiveMeeting: (meeting) => set({ activeMeeting: meeting }),
   setAchievements: (achievements) => set({ achievements }),
   setEndings: (endings) => set({ endings }),
+  setHubStatus: (hubStatus) => set({ hubStatus }),
 }));

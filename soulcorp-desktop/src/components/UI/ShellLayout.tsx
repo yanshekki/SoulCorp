@@ -5,8 +5,10 @@ import { AchievementsPanel } from "./AchievementsPanel";
 import { Dashboard } from "./Dashboard";
 import { FinancePanel } from "./FinancePanel";
 import { GodModePanel } from "./GodModePanel";
+import { MarketplacePanel } from "./MarketplacePanel";
 import { MeetingPanel } from "./MeetingPanel";
 import { PauseMenu } from "./PauseMenu";
+import { RecruitmentPanel } from "./RecruitmentPanel";
 import { SettingsPanel } from "./SettingsPanel";
 
 interface ShellLayoutProps {
@@ -19,6 +21,8 @@ const PANELS: { id: SidebarPanel; label: string }[] = [
   { id: "workspace", label: "Workspace" },
   { id: "meeting", label: "Meeting" },
   { id: "finance", label: "Finance" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "recruitment", label: "Recruitment" },
   { id: "achievements", label: "Achievements" },
   { id: "settings", label: "Settings" },
   { id: "god_mode", label: "God Mode" },
@@ -37,6 +41,10 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <MeetingPanel />;
     case "finance":
       return <FinancePanel />;
+    case "marketplace":
+      return <MarketplacePanel />;
+    case "recruitment":
+      return <RecruitmentPanel />;
     case "achievements":
       return <AchievementsPanel />;
     case "settings":

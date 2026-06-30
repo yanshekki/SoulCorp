@@ -1,11 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
+import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
 import type { EventMode, ExportResult, GameSettings } from "../../types/game";
 
 export function SettingsPanel() {
   const settings = useGameStore((state) => state.settings);
+  const hubStatus = useGameStore((state) => state.hubStatus);
   const setSettings = useGameStore((state) => state.setSettings);
+  const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
+  const [hubUrl, setHubUrl] = useState(hubStatus.base_url);
+  const [apiKey, setApiKey] = useState("");
+
+  useEffect(() => {
+    setHubUrl(hubStatus.base_url);
+  }, [hubStatus.base_url]);
 
   const updateSettings = async (patch: Partial<GameSettings>) => {
     try {
@@ -36,6 +46,30 @@ export function SettingsPanel() {
   const exportWorkspace = async () => {
     const result = await invoke<ExportResult>("export_workspace_markdown_zip");
     setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const saveHubConfig = async () => {
+    try {
+      const next = await updateHubConfig({
+        base_url: hubUrl.trim() || undefined,
+        api_key: apiKey,
+      });
+      setHubStatus(next);
+      setApiKey("");
+      setStatusMessage("Hub credentials updated.");
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
+  const refreshSoulBalance = async () => {
+    try {
+      const next = await fetchSoulBalance();
+      setHubStatus(next);
+      setStatusMessage(`$SOUL balance: ${next.soul_balance.toFixed(2)} (${next.user_tier})`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   return (
@@ -125,6 +159,40 @@ export function SettingsPanel() {
           }
         />
       </label>
+
+      <div className="settings-section">
+        <h3>soulmd-hub Connection</h3>
+        <p className="muted">
+          Optional cloud sync and marketplace. Disabled automatically in Pure Local Mode.
+        </p>
+        <label className="field-label">
+          Hub base URL
+          <input
+            type="url"
+            value={hubUrl}
+            onChange={(event) => setHubUrl(event.target.value)}
+            disabled={settings.pure_local_mode}
+          />
+        </label>
+        <label className="field-label">
+          API key
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="Paste hub API key"
+            disabled={settings.pure_local_mode}
+          />
+        </label>
+        <div className="panel-actions stacked">
+          <button type="button" onClick={() => void saveHubConfig()} disabled={settings.pure_local_mode}>
+            Save hub credentials
+          </button>
+          <button type="button" onClick={() => void refreshSoulBalance()} disabled={settings.pure_local_mode}>
+            Refresh $SOUL balance
+          </button>
+        </div>
+      </div>
 
       <label className="field-label">
         AI Provider

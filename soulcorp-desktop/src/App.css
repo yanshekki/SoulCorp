@@ -585,10 +585,131 @@ body,
   color: #c8b6a3;
 }
 
-.settings-panel input[type="number"] {
+.settings-panel input[type="number"],
+.settings-panel input[type="url"],
+.settings-panel input[type="password"],
+.settings-panel input[type="text"],
+.field-label input,
+.field-label textarea {
   border: 1px solid #6d5645;
   border-radius: 8px;
   padding: 0.45rem 0.55rem;
   background: #4a382d;
   color: #f6f1e8;
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.hub-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hub-pill {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.hub-pill.online {
+  background: rgba(93, 138, 103, 0.35);
+}
+
+.hub-pill.offline {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hub-pill.tier {
+  background: rgba(255, 214, 130, 0.18);
+}
+
+.hub-pill.balance {
+  background: rgba(120, 170, 255, 0.18);
+}
+
+.hub-warning {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(255, 180, 90, 0.12);
+  color: #f0d2a8;
+  font-size: 0.82rem;
+}
+
+.gig-list,
+.candidate-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.gig-card,
+.candidate-card {
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gig-card header,
+.candidate-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.gig-card p,
+.candidate-card p {
+  margin: 0.35rem 0;
+  font-size: 0.82rem;
+  color: #d9c8b4;
+}
+
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.skill-tags span {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+}
+
+.candidate-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  font-size: 0.75rem;
+  color: #c8b6a3;
+}
+
+.candidate-card.selected {
+  border-color: rgba(157, 210, 164, 0.55);
+}
+
+.gig-form {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gig-form h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.primary-action {
+  background: #6d9f78 !important;
 }

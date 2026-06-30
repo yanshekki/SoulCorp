@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import { useGameStore } from "../stores/gameStore";
-import type { AgentRecord, FinanceState, GameSettings } from "../types/game";
+import { getHubStatus } from "../services/hubClient";
+import type { AgentRecord, FinanceState, GameSettings, HubStatus } from "../types/game";
 
 const SAMPLE_SOULS = [
   { agentId: "agent-1", path: "/samples/mira.soul.md" },
@@ -15,19 +16,32 @@ export function useGameBootstrap() {
   const setFinance = useGameStore((state) => state.setFinance);
   const setSettings = useGameStore((state) => state.setSettings);
   const setSimulation = useGameStore((state) => state.setSimulation);
+  const setHubStatus = useGameStore((state) => state.setHubStatus);
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const [agents, finance, settings] = await Promise.all([
+        const [agents, finance, settings, hubStatus] = await Promise.all([
           invoke<AgentRecord[]>("list_agents"),
           invoke<FinanceState>("get_finance_state"),
           invoke<GameSettings>("get_game_settings"),
+          getHubStatus().catch(
+            (): HubStatus => ({
+              connected: false,
+              base_url: "https://soulmd-hub.ysk.hk",
+              user_tier: "free",
+              soul_balance: 0,
+              pure_local_mode: false,
+              pending_queue_items: 0,
+              last_sync_at: null,
+            }),
+          ),
         ]);
 
         setAgentRecords(agents);
         setFinance(finance);
         setSettings(settings);
+        setHubStatus(hubStatus);
         setStatusMessage("Agent systems online. Sample SOUL profiles loading...");
 
         await Promise.all(
@@ -54,5 +68,12 @@ export function useGameBootstrap() {
     };
 
     void bootstrap();
-  }, [setAgentRecords, setFinance, setSettings, setSimulation, setStatusMessage]);
+  }, [
+    setAgentRecords,
+    setFinance,
+    setHubStatus,
+    setSettings,
+    setSimulation,
+    setStatusMessage,
+  ]);
 }

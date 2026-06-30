@@ -53,6 +53,16 @@ case "${PHASE}" in
     test -f "${REPO_ROOT}/scripts/offline-checklist.md"
     echo "Phase 4 checks passed."
     ;;
+  5)
+    test -f "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/hub.rs"
+    test -f "${DESKTOP_DIR}/src/services/hubClient.ts"
+    test -f "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
+    test -f "${REPO_ROOT}/scripts/run-hub-dev.sh"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gigs.php"
+    echo "Phase 5 checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;
