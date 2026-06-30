@@ -98,7 +98,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
         </nav>
       </aside>
       <main className="main-panel">
-        {children}
+        <div className="main-panel-viewport">{children}</div>
         <footer className="status-bar">{statusMessage}</footer>
       </main>
       <PauseMenu />
