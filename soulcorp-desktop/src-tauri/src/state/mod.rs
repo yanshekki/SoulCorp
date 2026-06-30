@@ -27,6 +27,24 @@ pub struct GameSettings {
     pub ollama_base_url: String,
     #[serde(default = "default_ollama_model")]
     pub ollama_model: String,
+    #[serde(default = "default_openai_base_url")]
+    pub openai_base_url: String,
+    #[serde(default)]
+    pub openai_api_key: String,
+    #[serde(default = "default_openai_model")]
+    pub openai_model: String,
+    #[serde(default = "default_grok_base_url")]
+    pub grok_base_url: String,
+    #[serde(default)]
+    pub grok_api_key: String,
+    #[serde(default = "default_grok_model")]
+    pub grok_model: String,
+    #[serde(default = "default_claude_base_url")]
+    pub claude_base_url: String,
+    #[serde(default)]
+    pub claude_api_key: String,
+    #[serde(default = "default_claude_model")]
+    pub claude_model: String,
     #[serde(default = "default_meeting_turns_per_agent")]
     pub meeting_turns_per_agent: u32,
     #[serde(default = "default_true")]
@@ -49,6 +67,30 @@ fn default_ollama_model() -> String {
     "llama3.2".to_string()
 }
 
+fn default_openai_base_url() -> String {
+    "https://api.openai.com/v1".to_string()
+}
+
+fn default_openai_model() -> String {
+    "gpt-4o-mini".to_string()
+}
+
+fn default_grok_base_url() -> String {
+    "https://api.x.ai/v1".to_string()
+}
+
+fn default_grok_model() -> String {
+    "grok-2-latest".to_string()
+}
+
+fn default_claude_base_url() -> String {
+    "https://api.anthropic.com/v1".to_string()
+}
+
+fn default_claude_model() -> String {
+    "claude-3-5-sonnet-latest".to_string()
+}
+
 fn default_meeting_turns_per_agent() -> u32 {
     3
 }
@@ -66,6 +108,15 @@ impl Default for GameSettings {
             ai_provider: "mock".to_string(),
             ollama_base_url: default_ollama_base_url(),
             ollama_model: default_ollama_model(),
+            openai_base_url: default_openai_base_url(),
+            openai_api_key: String::new(),
+            openai_model: default_openai_model(),
+            grok_base_url: default_grok_base_url(),
+            grok_api_key: String::new(),
+            grok_model: default_grok_model(),
+            claude_base_url: default_claude_base_url(),
+            claude_api_key: String::new(),
+            claude_model: default_claude_model(),
             meeting_turns_per_agent: default_meeting_turns_per_agent(),
             meeting_llm_fallback: true,
             pure_local_mode: false,

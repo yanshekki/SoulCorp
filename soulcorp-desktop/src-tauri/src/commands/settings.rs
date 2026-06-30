@@ -12,6 +12,15 @@ pub struct SettingsUpdate {
     pub ai_provider: Option<String>,
     pub ollama_base_url: Option<String>,
     pub ollama_model: Option<String>,
+    pub openai_base_url: Option<String>,
+    pub openai_api_key: Option<String>,
+    pub openai_model: Option<String>,
+    pub grok_base_url: Option<String>,
+    pub grok_api_key: Option<String>,
+    pub grok_model: Option<String>,
+    pub claude_base_url: Option<String>,
+    pub claude_api_key: Option<String>,
+    pub claude_model: Option<String>,
     pub meeting_turns_per_agent: Option<u32>,
     pub meeting_llm_fallback: Option<bool>,
     pub pure_local_mode: Option<bool>,
@@ -57,6 +66,45 @@ pub fn update_game_settings(
     if let Some(model) = update.ollama_model {
         if !model.trim().is_empty() {
             state.settings.ollama_model = model.trim().to_string();
+        }
+    }
+    if let Some(url) = update.openai_base_url {
+        if !url.trim().is_empty() {
+            state.settings.openai_base_url = url.trim().to_string();
+        }
+    }
+    if let Some(key) = update.openai_api_key {
+        state.settings.openai_api_key = key;
+    }
+    if let Some(model) = update.openai_model {
+        if !model.trim().is_empty() {
+            state.settings.openai_model = model.trim().to_string();
+        }
+    }
+    if let Some(url) = update.grok_base_url {
+        if !url.trim().is_empty() {
+            state.settings.grok_base_url = url.trim().to_string();
+        }
+    }
+    if let Some(key) = update.grok_api_key {
+        state.settings.grok_api_key = key;
+    }
+    if let Some(model) = update.grok_model {
+        if !model.trim().is_empty() {
+            state.settings.grok_model = model.trim().to_string();
+        }
+    }
+    if let Some(url) = update.claude_base_url {
+        if !url.trim().is_empty() {
+            state.settings.claude_base_url = url.trim().to_string();
+        }
+    }
+    if let Some(key) = update.claude_api_key {
+        state.settings.claude_api_key = key;
+    }
+    if let Some(model) = update.claude_model {
+        if !model.trim().is_empty() {
+            state.settings.claude_model = model.trim().to_string();
         }
     }
     if let Some(turns) = update.meeting_turns_per_agent {

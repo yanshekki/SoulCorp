@@ -21,12 +21,13 @@ pnpm verify
 pnpm tauri dev
 ```
 
-Phase automation helpers:
+Phase verification (0–18):
 
 ```bash
-./scripts/verify-phase.sh 0
-./scripts/merge-phase.sh 0
+./scripts/verify-phase.sh 18
 ```
+
+Phase automation state lives in `.automation/phase-state.json`. Coding standards: `scripts/CODING_STANDARDS.md`. CI runs `verify-phase.sh 0` on push to `main`.
 
 ## Documentation
 

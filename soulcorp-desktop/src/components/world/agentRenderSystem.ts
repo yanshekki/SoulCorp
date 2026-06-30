@@ -120,6 +120,14 @@ function updateStatusBubble(sprite: THREE.Sprite, label: string) {
   (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
 }
 
+function hashOffset(id: string): number {
+  let hash = 0;
+  for (const char of id) {
+    hash = (hash + char.charCodeAt(0) * 13) % 97;
+  }
+  return hash * 0.03;
+}
+
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -147,8 +155,10 @@ export class AgentRenderSystem {
   private readonly deptMeshes = new Map<string, THREE.InstancedMesh>();
   private readonly closeSprites = new Map<string, THREE.Sprite>();
   private readonly statusSprites = new Map<string, THREE.Sprite>();
+  private readonly workEffectSprites = new Map<string, THREE.Sprite>();
   private readonly textureCache = new Map<string, THREE.CanvasTexture>();
   private readonly tempColor = new THREE.Color();
+  private effectPhase = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -170,6 +180,9 @@ export class AgentRenderSystem {
     this.syncMediumAgents(bucket.medium);
     this.syncCloseAgents(bucket.close);
     this.syncStatusSprites(agents, camera, lowPowerMode, seen);
+    if (!lowPowerMode) {
+      this.syncWorkEffectSprites(bucket.close, seen);
+    }
 
     for (const [id, sprite] of this.closeSprites) {
       if (!seen.has(id)) {
@@ -181,6 +194,60 @@ export class AgentRenderSystem {
       if (!seen.has(id)) {
         this.scene.remove(sprite);
         this.statusSprites.delete(id);
+      }
+    }
+    for (const [id, sprite] of this.workEffectSprites) {
+      if (!seen.has(id)) {
+        this.scene.remove(sprite);
+        this.workEffectSprites.delete(id);
+      }
+    }
+  }
+
+  private syncWorkEffectSprites(agents: Agent[], seen: Set<string>) {
+    this.effectPhase += 0.08;
+    const working = agents.filter(
+      (agent) => agent.status === "working" && agent.behavior.intent === "working",
+    );
+
+    for (const agent of working) {
+      let sprite = this.workEffectSprites.get(agent.id);
+      if (!sprite) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#9be7ff";
+          ctx.fillRect(4, 4, 8, 8);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        const material = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+          opacity: 0.85,
+          depthTest: false,
+        });
+        sprite = new THREE.Sprite(material);
+        sprite.scale.set(0.22, 0.22, 0.22);
+        sprite.renderOrder = 6;
+        this.workEffectSprites.set(agent.id, sprite);
+        this.scene.add(sprite);
+      }
+      const bob = Math.sin(this.effectPhase + hashOffset(agent.id)) * 0.12;
+      sprite.position.set(
+        agent.position[0] + 0.35,
+        agent.position[1] + 1.35 + bob,
+        agent.position[2],
+      );
+    }
+
+    for (const [id, sprite] of this.workEffectSprites) {
+      if (!working.some((agent) => agent.id === id) || !seen.has(id)) {
+        this.scene.remove(sprite);
+        this.workEffectSprites.delete(id);
       }
     }
   }

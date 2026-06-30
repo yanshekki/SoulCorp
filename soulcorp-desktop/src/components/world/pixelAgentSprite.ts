@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { Agent, AgentAppearance } from "../../types/world";
 
+export const WALK_FRAME_COUNT = 4;
+
 const SPRITE_WIDTH = 32;
 const SPRITE_HEIGHT = 48;
 
@@ -34,7 +36,7 @@ export function walkFrameIndex(walkPhase: number, walking: boolean): number {
   if (!walking) {
     return 0;
   }
-  return Math.abs(Math.floor(walkPhase / (Math.PI / 2))) % 4;
+  return Math.abs(Math.floor(walkPhase / (Math.PI / 2))) % WALK_FRAME_COUNT;
 }
 
 export function buildPixelAgentCanvas(
@@ -52,20 +54,22 @@ export function buildPixelAgentCanvas(
 
   const px = 4;
   const accent = DEPARTMENT_ACCENT[department] ?? appearance.shirtColor;
-  const legSwing = frame % 2 === 0 ? 0 : 1;
-  const bob = frame % 2 === 0 ? 0 : -1;
+  const stride = frame % WALK_FRAME_COUNT;
+  const legSwing = stride === 1 ? 1 : stride === 3 ? -1 : 0;
+  const armSwing = stride === 1 ? -1 : stride === 3 ? 1 : 0;
+  const bob = stride === 1 || stride === 3 ? -1 : 0;
 
   drawRect(ctx, 3, 2 + bob, 6, 2, px, appearance.hairColor);
   drawRect(ctx, 4, 4 + bob, 4, 3, px, appearance.skinColor);
   drawRect(ctx, 3, 7 + bob, 6, 5, px, appearance.shirtColor);
-  drawRect(ctx, 2, 8 + bob, 1, 3, px, appearance.skinColor);
-  drawRect(ctx, 9, 8 + bob, 1, 3, px, appearance.skinColor);
+  drawRect(ctx, 2 + armSwing, 8 + bob, 1, 3, px, appearance.skinColor);
+  drawRect(ctx, 9 - armSwing, 8 + bob, 1, 3, px, appearance.skinColor);
   drawRect(ctx, 3, 12 + bob, 6, 1, px, darken(appearance.pantsColor, 0.08));
-  drawRect(ctx, 3 + legSwing, 13 + bob, 2, 3, px, appearance.pantsColor);
-  drawRect(ctx, 7 - legSwing, 13 + bob, 2, 3, px, appearance.pantsColor);
-  drawRect(ctx, 3 + legSwing, 16 + bob, 2, 1, px, appearance.shoeColor);
-  drawRect(ctx, 7 - legSwing, 16 + bob, 2, 1, px, appearance.shoeColor);
-  drawRect(ctx, 2, 10 + bob, 1, 2, px, accent);
+  drawRect(ctx, 3 + Math.max(legSwing, 0), 13 + bob, 2, 3, px, appearance.pantsColor);
+  drawRect(ctx, 7 + Math.min(legSwing, 0), 13 + bob, 2, 3, px, appearance.pantsColor);
+  drawRect(ctx, 3 + Math.max(legSwing, 0), 16 + bob, 2, 1, px, appearance.shoeColor);
+  drawRect(ctx, 7 + Math.min(legSwing, 0), 16 + bob, 2, 1, px, appearance.shoeColor);
+  drawRect(ctx, 2 + armSwing, 10 + bob, 1, 2, px, accent);
 
   return canvas;
 }

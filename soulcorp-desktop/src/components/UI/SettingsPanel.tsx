@@ -45,6 +45,15 @@ export function SettingsPanel() {
           ai_provider: patch.ai_provider,
           ollama_base_url: patch.ollama_base_url,
           ollama_model: patch.ollama_model,
+          openai_base_url: patch.openai_base_url,
+          openai_api_key: patch.openai_api_key,
+          openai_model: patch.openai_model,
+          grok_base_url: patch.grok_base_url,
+          grok_api_key: patch.grok_api_key,
+          grok_model: patch.grok_model,
+          claude_base_url: patch.claude_base_url,
+          claude_api_key: patch.claude_api_key,
+          claude_model: patch.claude_model,
           meeting_turns_per_agent: patch.meeting_turns_per_agent,
           meeting_llm_fallback: patch.meeting_llm_fallback,
           pure_local_mode: patch.pure_local_mode,
@@ -304,10 +313,15 @@ export function SettingsPanel() {
         >
           <option value="mock">Mock (offline)</option>
           <option value="ollama">Ollama (local)</option>
+          <option value="openai">OpenAI-compatible</option>
+          <option value="grok">Grok (xAI)</option>
+          <option value="claude">Claude-compatible</option>
           <option value="soulmd-hub">soulmd-hub API</option>
         </select>
       </label>
 
+      {(settings.ai_provider === "ollama" || settings.ai_provider === "mock") && (
+        <>
       <label className="field-label">
         Ollama base URL
         <input
@@ -327,6 +341,104 @@ export function SettingsPanel() {
           disabled={settings.pure_local_mode}
         />
       </label>
+        </>
+      )}
+
+      {settings.ai_provider === "openai" && (
+        <>
+          <label className="field-label">
+            OpenAI base URL
+            <input
+              type="url"
+              value={settings.openai_base_url}
+              onChange={(event) => void updateSettings({ openai_base_url: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            OpenAI API key
+            <input
+              type="password"
+              value={settings.openai_api_key}
+              onChange={(event) => void updateSettings({ openai_api_key: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            OpenAI model
+            <input
+              type="text"
+              value={settings.openai_model}
+              onChange={(event) => void updateSettings({ openai_model: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+        </>
+      )}
+
+      {settings.ai_provider === "grok" && (
+        <>
+          <label className="field-label">
+            Grok base URL
+            <input
+              type="url"
+              value={settings.grok_base_url}
+              onChange={(event) => void updateSettings({ grok_base_url: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            Grok API key
+            <input
+              type="password"
+              value={settings.grok_api_key}
+              onChange={(event) => void updateSettings({ grok_api_key: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            Grok model
+            <input
+              type="text"
+              value={settings.grok_model}
+              onChange={(event) => void updateSettings({ grok_model: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+        </>
+      )}
+
+      {settings.ai_provider === "claude" && (
+        <>
+          <label className="field-label">
+            Claude base URL
+            <input
+              type="url"
+              value={settings.claude_base_url}
+              onChange={(event) => void updateSettings({ claude_base_url: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            Claude API key
+            <input
+              type="password"
+              value={settings.claude_api_key}
+              onChange={(event) => void updateSettings({ claude_api_key: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+          <label className="field-label">
+            Claude model
+            <input
+              type="text"
+              value={settings.claude_model}
+              onChange={(event) => void updateSettings({ claude_model: event.target.value })}
+              disabled={settings.pure_local_mode}
+            />
+          </label>
+        </>
+      )}
 
       <label className="field-label">
         Meeting turns per agent

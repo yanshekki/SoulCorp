@@ -27,7 +27,16 @@ fi
 
 case "${PHASE}" in
   0)
-    echo "Phase 0 checks passed."
+    test -f "${REPO_ROOT}/.automation/phase-state.json"
+    test -f "${REPO_ROOT}/scripts/CODING_STANDARDS.md"
+    test -f "${REPO_ROOT}/.github/workflows/verify.yml"
+    test -f "${DESKTOP_DIR}/prisma/schema.prisma"
+    test -f "${DESKTOP_DIR}/.env.example"
+    test -f "${REPO_ROOT}/docs/INDEX.md"
+    grep -q '"completion": 100' "${REPO_ROOT}/.automation/phase-state.json"
+    grep -q '"18"' "${REPO_ROOT}/.automation/phase-state.json"
+    grep -q "One-click deploy" "${DESKTOP_DIR}/README.md"
+    echo "Phase 0 project setup checks passed."
     ;;
   1)
     test -f "${DESKTOP_DIR}/src/components/GameScene.tsx"
@@ -36,21 +45,33 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src/components/world/webglDiagnostics.ts"
     grep -q "ThreeOfficeRenderer" "${DESKTOP_DIR}/src/components/GameScene.tsx"
     grep -q "onStatusChange" "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
-    echo "Phase 1 checks passed."
+    grep -q "WALK_FRAME_COUNT = 4" "${DESKTOP_DIR}/src/components/world/pixelAgentSprite.ts"
+    grep -q "Agent Park" "${DESKTOP_DIR}/src/data/initialWorld.ts"
+    grep -q "building-stats-grid" "${DESKTOP_DIR}/src/components/BuildingModal.tsx"
+    grep -q "syncWorkEffectSprites" "${DESKTOP_DIR}/src/components/world/agentRenderSystem.ts"
+    grep -q "updateCamera" "${DESKTOP_DIR}/src/components/world/threeOfficeScene.ts"
+    echo "Phase 1 isometric world checks passed."
     ;;
   2)
     test -f "${DESKTOP_DIR}/src-tauri/src/ai/provider.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/ai/ollama.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/ai/openai_compatible.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/ai/hub_chat.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/db/persistence.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/soul/mod.rs"
     grep -q "provider_for" "${DESKTOP_DIR}/src-tauri/src/ai/mod.rs"
     grep -q "persist_app_state" "${DESKTOP_DIR}/src-tauri/src/db/persistence.rs"
+    grep -q "openai_api_key" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "GOD_MODE_ACTIONS" "${DESKTOP_DIR}/src/components/UI/GodModePanel.tsx"
+    grep -q "god-mode-preview" "${DESKTOP_DIR}/src/components/UI/GodModePanel.tsx"
+    grep -q "agentSkillLevel" "${DESKTOP_DIR}/src/components/UI/Dashboard.tsx"
+    grep -q "Daily Standup" "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
+    grep -q 'value="openai"' "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/FinancePanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/GodModePanel.tsx"
-    echo "Phase 2 checks passed."
+    echo "Phase 2 agent systems checks passed."
     ;;
   3)
     test -f "${DESKTOP_DIR}/src-tauri/src/workspace/storage.rs"

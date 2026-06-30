@@ -287,6 +287,15 @@ export interface GameSettings {
   ai_provider: string;
   ollama_base_url: string;
   ollama_model: string;
+  openai_base_url: string;
+  openai_api_key: string;
+  openai_model: string;
+  grok_base_url: string;
+  grok_api_key: string;
+  grok_model: string;
+  claude_base_url: string;
+  claude_api_key: string;
+  claude_model: string;
   meeting_turns_per_agent: number;
   meeting_llm_fallback: boolean;
   pure_local_mode: boolean;

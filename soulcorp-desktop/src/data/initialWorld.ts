@@ -47,6 +47,17 @@ export const INITIAL_BUILDINGS: Building[] = [
     accentColor: "#f2c879",
     description: "Gig board and cross-company marketplace area.",
   },
+  {
+    id: "park",
+    name: "Agent Park",
+    department: "Recreation",
+    position: [8.5, 0, 4.5],
+    size: [3.6, 1.2, 3.6],
+    color: "#6f9b7a",
+    roofColor: "#8bc49a",
+    accentColor: "#b8e6c8",
+    description: "Break area for idle agents, relationships, and morale events.",
+  },
 ];
 
 function seedAgent(

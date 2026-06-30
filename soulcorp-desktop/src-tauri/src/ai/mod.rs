@@ -2,6 +2,7 @@ pub mod health;
 pub mod hub_chat;
 pub mod mock;
 pub mod ollama;
+pub mod openai_compatible;
 pub mod provider;
 
 pub use health::{probe_meeting_ai, MeetingAiStatus};
@@ -9,6 +10,7 @@ pub use health::{probe_meeting_ai, MeetingAiStatus};
 use hub_chat::HubChatProvider;
 use mock::MockProvider;
 use ollama::OllamaProvider;
+use openai_compatible::OpenAiCompatibleProvider;
 use provider::{AiProvider, ChatRequest, ChatResponse};
 use std::sync::Arc;
 
@@ -19,6 +21,24 @@ pub fn provider_for(settings: &GameSettings, hub: &HubState) -> Arc<dyn AiProvid
         "ollama" => Arc::new(OllamaProvider::new(
             settings.ollama_base_url.clone(),
             settings.ollama_model.clone(),
+        )),
+        "openai" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.openai_base_url.clone(),
+            settings.openai_api_key.clone(),
+            settings.openai_model.clone(),
+            "openai".to_string(),
+        )),
+        "grok" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.grok_base_url.clone(),
+            settings.grok_api_key.clone(),
+            settings.grok_model.clone(),
+            "grok".to_string(),
+        )),
+        "claude" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.claude_base_url.clone(),
+            settings.claude_api_key.clone(),
+            settings.claude_model.clone(),
+            "claude".to_string(),
         )),
         "soulmd-hub" | "soulmd_hub" | "hub" => Arc::new(HubChatProvider::new(
             hub.base_url.clone(),
@@ -57,6 +77,24 @@ fn provider_for_active(
         "ollama" => Arc::new(OllamaProvider::new(
             settings.ollama_base_url.clone(),
             settings.ollama_model.clone(),
+        )),
+        "openai" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.openai_base_url.clone(),
+            settings.openai_api_key.clone(),
+            settings.openai_model.clone(),
+            "openai".to_string(),
+        )),
+        "grok" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.grok_base_url.clone(),
+            settings.grok_api_key.clone(),
+            settings.grok_model.clone(),
+            "grok".to_string(),
+        )),
+        "claude" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.claude_base_url.clone(),
+            settings.claude_api_key.clone(),
+            settings.claude_model.clone(),
+            "claude".to_string(),
         )),
         "soulmd-hub" => Arc::new(HubChatProvider::new(
             hub.base_url.clone(),

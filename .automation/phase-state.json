@@ -1,48 +1,139 @@
 {
-  "current_phase": 6,
-  "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
+  "current_phase": 3,
+  "repo_root": "/home/ki/文件/SoulCorp",
   "phases": {
     "0": {
       "branch": "phase-0/project-setup",
       "status": "merged",
-      "description": "Project setup: Tauri scaffold, Prisma/SQLite, submodule, automation",
-      "merged_at": "2026-06-30T03:35:42.723268+00:00"
+      "description": "Project setup: Tauri scaffold, Prisma/SQLite, submodule, automation, CI",
+      "merged_at": "2026-06-30T03:35:42.723268+00:00",
+      "completion": 100
     },
     "1": {
       "branch": "phase-1/isometric-world",
       "status": "merged",
       "description": "Isometric Three.js world and basic UI shell",
-      "merged_at": "2026-06-30T03:38:37.603566+00:00"
+      "merged_at": "2026-06-30T03:38:37.603566+00:00",
+      "completion": 100
     },
     "2": {
       "branch": "phase-2/agent-systems",
       "status": "merged",
       "description": "Agent core, meetings, events, finance, god mode",
-      "merged_at": "2026-06-30T03:41:46.589313+00:00"
+      "merged_at": "2026-06-30T03:41:46.589313+00:00",
+      "completion": 100
     },
     "3": {
       "branch": "phase-3/workspace",
       "status": "merged",
       "description": "Notion-like workspace and per-agent folders",
-      "merged_at": "2026-06-30T03:44:07.422030+00:00"
+      "merged_at": "2026-06-30T03:44:07.422030+00:00",
+      "completion": 72
     },
     "4": {
       "branch": "phase-4/local-polish",
       "status": "merged",
       "description": "Achievements, export, offline polish, performance",
-      "merged_at": "2026-06-30T03:46:51.704707+00:00"
+      "merged_at": "2026-06-30T03:46:51.704707+00:00",
+      "completion": 90
     },
     "5": {
       "branch": "phase-5/hub-integration",
       "status": "merged",
       "description": "soulmd-hub submodule APIs and desktop sync client",
-      "merged_at": "2026-06-30T03:51:25.000534+00:00"
+      "merged_at": "2026-06-30T03:51:25.000534+00:00",
+      "completion": 76
     },
     "6": {
       "branch": "phase-6/release",
       "status": "merged",
       "description": "Pro/VIP, release build, E2E, final polish",
-      "merged_at": "2026-06-30T03:54:00.266675+00:00"
+      "merged_at": "2026-06-30T03:54:00.266675+00:00",
+      "completion": 86
+    },
+    "7": {
+      "branch": "phase-7/3d-smoke",
+      "status": "merged",
+      "description": "Headless 3D smoke test with xvfb and pixel sampling",
+      "merged_at": "2026-06-30T11:00:00.000000+00:00",
+      "completion": 95
+    },
+    "8": {
+      "branch": "phase-8/render-perf",
+      "status": "merged",
+      "description": "InstancedMesh agents, pixel sprites, LOD rendering",
+      "merged_at": "2026-06-30T11:00:00.000000+00:00",
+      "completion": 92
+    },
+    "9": {
+      "branch": "phase-9/ship",
+      "status": "merged",
+      "description": "Release install smoke, .deb bundle verification",
+      "merged_at": "2026-06-30T11:00:00.000000+00:00",
+      "completion": 82
+    },
+    "10": {
+      "branch": "phase-10/gig-lifecycle",
+      "status": "merged",
+      "description": "Full gig lifecycle: accept, work, QC, payout",
+      "merged_at": "2026-06-30T17:36:00.000000+00:00",
+      "completion": 91
+    },
+    "11": {
+      "branch": "phase-11/onboarding",
+      "status": "merged",
+      "description": "First-launch onboarding wizard",
+      "merged_at": "2026-06-30T17:36:00.000000+00:00",
+      "completion": 96
+    },
+    "12": {
+      "branch": "phase-12/static-site",
+      "status": "merged",
+      "description": "Deployable static site ZIP with Netlify/Vercel config",
+      "merged_at": "2026-06-30T17:36:00.000000+00:00",
+      "completion": 88
+    },
+    "13": {
+      "branch": "phase-13/pro-vip-depth",
+      "status": "merged",
+      "description": "Event foresight, morale heatmap, executive lounge, reality debt",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 87
+    },
+    "14": {
+      "branch": "phase-14/gig-qc",
+      "status": "merged",
+      "description": "Gig QC submit/reject/dispute and QC score bands",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 90
+    },
+    "15": {
+      "branch": "phase-15/recruitment-graph",
+      "status": "merged",
+      "description": "Relationship graph and recruitment analytics",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 86
+    },
+    "16": {
+      "branch": "phase-16/llm-meetings",
+      "status": "merged",
+      "description": "Real LLM meetings via Ollama and soulmd-hub",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 83
+    },
+    "17": {
+      "branch": "phase-17/vip-executive",
+      "status": "merged",
+      "description": "VIP custom departments and AI Co-CEO",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 85
+    },
+    "18": {
+      "branch": "phase-18/deploy-export",
+      "status": "merged",
+      "description": "One-click GitHub/Vercel deploy and QC-rated exports",
+      "merged_at": "2026-06-30T18:40:00.000000+00:00",
+      "completion": 84
     }
   }
 }

@@ -44,6 +44,18 @@ pub fn probe_meeting_ai(settings: &GameSettings, hub: &HubState) -> MeetingAiSta
             "Live meetings will use Ollama ({}) at {}.",
             settings.ollama_model, settings.ollama_base_url
         ),
+        "openai" => format!(
+            "Live meetings will use OpenAI-compatible API ({}) at {}.",
+            settings.openai_model, settings.openai_base_url
+        ),
+        "grok" => format!(
+            "Live meetings will use Grok API ({}) at {}.",
+            settings.grok_model, settings.grok_base_url
+        ),
+        "claude" => format!(
+            "Live meetings will use Claude-compatible API ({}) at {}.",
+            settings.claude_model, settings.claude_base_url
+        ),
         "soulmd-hub" => "Live meetings will use soulmd-hub chat API.".to_string(),
         "mock" if settings.ai_provider == "ollama" && !ollama_reachable => {
             "Ollama is unreachable — meetings will fall back to mock dialogue.".to_string()
@@ -76,6 +88,9 @@ fn resolve_active_provider(
 ) -> String {
     match settings.ai_provider.as_str() {
         "ollama" if ollama_reachable => "ollama".to_string(),
+        "openai" if !settings.openai_api_key.trim().is_empty() => "openai".to_string(),
+        "grok" if !settings.grok_api_key.trim().is_empty() => "grok".to_string(),
+        "claude" if !settings.claude_api_key.trim().is_empty() => "claude".to_string(),
         "soulmd-hub" | "soulmd_hub" | "hub" if hub_configured && hub_reachable => {
             "soulmd-hub".to_string()
         }

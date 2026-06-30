@@ -1,4 +1,5 @@
 import { useGameStore } from "../../stores/gameStore";
+import { agentInnovationScore, agentSkillLevel } from "../../utils/agentStats";
 import { EventFeed } from "./EventFeed";
 
 export function Dashboard() {
@@ -39,7 +40,8 @@ export function Dashboard() {
             <div>
               <strong>{agent.name}</strong>
               <p>
-                {agent.department} · morale {(agent.morale * 100).toFixed(0)}%
+                {agent.department} · morale {(agent.morale * 100).toFixed(0)}% · skill{" "}
+                {agentSkillLevel(agent)} · innovation {agentInnovationScore(agent)}
               </p>
             </div>
             <span className="agent-state">{agent.status}</span>

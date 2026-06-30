@@ -5,6 +5,7 @@ export const DEPARTMENT_BUILDING: Record<string, string> = {
   "Human Resources": "hr",
   Executive: "hq",
   Marketplace: "plaza",
+  Recreation: "park",
 };
 
 export const BUILDING_DESKS: Record<string, [number, number, number][]> = {
@@ -29,6 +30,12 @@ export const BUILDING_DESKS: Record<string, [number, number, number][]> = {
     [1.5, 0, -6.8],
     [0.3, 0, -8.0],
   ],
+  park: [
+    [7.8, 0, 4.0],
+    [9.2, 0, 5.2],
+    [8.4, 0, 6.0],
+    [9.8, 0, 3.6],
+  ],
 };
 
 export const BUILDING_ENTRANCES: Record<string, [number, number, number]> = {
@@ -36,9 +43,10 @@ export const BUILDING_ENTRANCES: Record<string, [number, number, number]> = {
   engineering: [-6, 0, 4.2],
   hr: [6, 0, -0.4],
   plaza: [0, 0, -5.2],
+  park: [8.5, 0, 6.2],
 };
 
-export const BREAK_SPOT: [number, number, number] = [3.5, 0, 4.5];
+export const BREAK_SPOT: [number, number, number] = [8.5, 0, 5.0];
 export const MEETING_ROOM: [number, number, number] = [0.5, 0, -2.5];
 
 export const WORLD_PROPS = [
