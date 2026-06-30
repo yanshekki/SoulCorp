@@ -1,8 +1,9 @@
+use crate::db::persistence::commit;
 use crate::soul::{parse_soul_content, parse_soul_md, SoulProfile};
 use crate::state::{AgentRecord, AppState};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,6 +36,7 @@ pub struct LoadSoulRequest {
 pub fn start_local_agent(
     request: StartAgentRequest,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<AgentInfo, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     let soul = parse_soul_md(&request.soul_md_path).ok();
@@ -59,7 +61,7 @@ pub fn start_local_agent(
         },
     );
 
-    Ok(AgentInfo {
+    let response = AgentInfo {
         agent_id,
         name,
         role: request.role,
@@ -67,13 +69,16 @@ pub fn start_local_agent(
         status: "idle".to_string(),
         morale: 0.75,
         energy: 1.0,
-    })
+    };
+    commit(app, &state)?;
+    Ok(response)
 }
 
 #[tauri::command]
 pub fn load_agent_soul(
     request: LoadSoulRequest,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<SoulProfile, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     let profile = if let Some(path) = request.soul_md_path {
@@ -91,6 +96,7 @@ pub fn load_agent_soul(
 
     agent.name = profile.name.clone();
     agent.soul = Some(profile.clone());
+    commit(app, &state)?;
     Ok(profile)
 }
 

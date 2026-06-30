@@ -1,7 +1,8 @@
+use crate::db::persistence::commit;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GodModeActionResult {
@@ -16,6 +17,7 @@ pub struct GodModeActionResult {
 pub fn god_mode_time_warp(
     days: u32,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if !state.settings.god_mode_enabled {
@@ -29,16 +31,19 @@ pub fn god_mode_time_warp(
     state.finance.cash_balance += state.finance.monthly_revenue * (days as f64 / 30.0);
     state.finance.compute_tokens -= state.finance.monthly_burn * 0.05;
 
-    Ok(build_result(
+    let result = build_result(
         &state,
         "time_warp",
         format!("Time warped forward by {days} day(s)."),
-    ))
+    );
+    commit(app, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]
 pub fn god_mode_mass_motivation(
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if !state.settings.god_mode_enabled {
@@ -51,17 +56,20 @@ pub fn god_mode_mass_motivation(
         agent.energy = (agent.energy + 0.1).min(1.0);
     }
 
-    Ok(build_result(
+    let result = build_result(
         &state,
         "mass_motivation",
         "Company-wide morale and energy received a divine boost.".to_string(),
-    ))
+    );
+    commit(app, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]
 pub fn god_mode_emergency_budget(
     amount: f64,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if !state.settings.god_mode_enabled {
@@ -72,11 +80,13 @@ pub fn god_mode_emergency_budget(
     state.finance.cash_balance += amount.max(0.0);
     state.finance.compute_tokens += amount.max(0.0) * 0.4;
 
-    Ok(build_result(
+    let result = build_result(
         &state,
         "emergency_budget",
         format!("Injected ${:.0} into the company budget.", amount.max(0.0)),
-    ))
+    );
+    commit(app, &state)?;
+    Ok(result)
 }
 
 fn build_result(state: &AppState, action: &str, message: String) -> GodModeActionResult {

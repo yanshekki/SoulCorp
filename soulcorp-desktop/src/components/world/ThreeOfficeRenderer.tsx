@@ -9,17 +9,28 @@ import {
   type OfficeSceneHandles,
 } from "./threeOfficeScene";
 
+export type RenderStatus = "initializing" | "ready" | "failed";
+
 interface ThreeOfficeRendererProps {
   width: number;
   height: number;
+  onStatusChange: (status: RenderStatus, error?: string) => void;
 }
 
-export function ThreeOfficeRenderer({ width, height }: ThreeOfficeRendererProps) {
+export function ThreeOfficeRenderer({
+  width,
+  height,
+  onStatusChange,
+}: ThreeOfficeRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const handlesRef = useRef<OfficeSceneHandles | null>(null);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(performance.now());
-  const selectBuilding = useGameStore((state) => state.selectBuilding);
+  const onStatusChangeRef = useRef(onStatusChange);
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,9 +39,14 @@ export function ThreeOfficeRenderer({ width, height }: ThreeOfficeRendererProps)
     }
 
     let disposed = false;
+    onStatusChangeRef.current("initializing");
+
     try {
       handlesRef.current = createOfficeScene(canvas, width, height);
-    } catch {
+      onStatusChangeRef.current("ready");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onStatusChangeRef.current("failed", message);
       return;
     }
 
@@ -63,7 +79,8 @@ export function ThreeOfficeRenderer({ width, height }: ThreeOfficeRendererProps)
       const building = handlesRef.current.raycastBuilding(x, y);
       if (building) {
         const current = useGameStore.getState().selectedBuilding;
-        selectBuilding(current?.id === building.id ? null : building);
+        const next = current?.id === building.id ? null : building;
+        useGameStore.getState().selectBuilding(next);
       }
     };
 
@@ -78,7 +95,7 @@ export function ThreeOfficeRenderer({ width, height }: ThreeOfficeRendererProps)
       handlesRef.current?.dispose();
       handlesRef.current = null;
     };
-  }, [height, selectBuilding, width]);
+  }, [height, width]);
 
   useEffect(() => {
     handlesRef.current?.resize(width, height);

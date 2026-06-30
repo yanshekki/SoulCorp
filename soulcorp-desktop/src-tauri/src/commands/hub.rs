@@ -1,3 +1,4 @@
+use crate::db::persistence::commit;
 use crate::hub::{mock_gigs, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
 use crate::tier::can_use_feature;
@@ -5,7 +6,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubConfigUpdate {
@@ -36,6 +37,10 @@ fn client_from_state(state: &AppState) -> HubClient {
     HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
 }
 
+fn allow_mock_hub_fallback() -> bool {
+    cfg!(debug_assertions)
+}
+
 fn hub_status_from(state: &AppState) -> HubStatus {
     HubStatus {
         connected: state.hub.connected,
@@ -58,6 +63,7 @@ pub fn get_hub_status(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, St
 pub fn update_hub_config(
     update: HubConfigUpdate,
     app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<HubStatus, String> {
     {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
@@ -71,6 +77,7 @@ pub fn update_hub_config(
                 Some(api_key)
             };
         }
+        commit(app, &state)?;
     }
     get_hub_status(app_state)
 }
@@ -87,7 +94,13 @@ pub async fn list_hub_gigs(app_state: State<'_, Mutex<AppState>>) -> Result<Vec<
 
     match client.list_open_gigs().await {
         Ok(gigs) => Ok(gigs),
-        Err(_) => Ok(mock_gigs()),
+        Err(error) => {
+            if allow_mock_hub_fallback() {
+                Ok(mock_gigs())
+            } else {
+                Err(format!("Failed to load marketplace gigs: {error}"))
+            }
+        }
     }
 }
 
@@ -95,6 +108,7 @@ pub async fn list_hub_gigs(app_state: State<'_, Mutex<AppState>>) -> Result<Vec<
 pub async fn create_hub_gig(
     request: CreateHubGigRequest,
     app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<serde_json::Value, String> {
     let (client, payload) = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
@@ -112,6 +126,7 @@ pub async fn create_hub_gig(
         });
 
         state.sync_queue.push(payload.clone());
+        commit(app, &state)?;
         (client_from_state(&state), payload)
     };
 
@@ -122,7 +137,10 @@ pub async fn create_hub_gig(
 }
 
 #[tauri::command]
-pub async fn sync_with_hub(app_state: State<'_, Mutex<AppState>>) -> Result<HubSyncPull, String> {
+pub async fn sync_with_hub(
+    app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<HubSyncPull, String> {
     let (client, queue) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
@@ -142,11 +160,20 @@ pub async fn sync_with_hub(app_state: State<'_, Mutex<AppState>>) -> Result<HubS
         let _ = client.push_sync(json!({ "queue": queue })).await;
     }
 
-    let pull = client.pull_sync().await.unwrap_or(HubSyncPull {
-        tier: "free".to_string(),
-        soul_balance: 0.0,
-        open_gigs: mock_gigs(),
-    });
+    let pull = match client.pull_sync().await {
+        Ok(pull) => pull,
+        Err(error) => {
+            if allow_mock_hub_fallback() {
+                HubSyncPull {
+                    tier: "free".to_string(),
+                    soul_balance: 0.0,
+                    open_gigs: mock_gigs(),
+                }
+            } else {
+                return Err(format!("Hub sync pull failed: {error}"));
+            }
+        }
+    };
 
     {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
@@ -155,6 +182,7 @@ pub async fn sync_with_hub(app_state: State<'_, Mutex<AppState>>) -> Result<HubS
         state.hub.soul_balance = pull.soul_balance;
         state.hub.last_sync_at = Some(Utc::now().to_rfc3339());
         state.sync_queue.clear();
+        commit(app, &state)?;
     }
 
     Ok(pull)
@@ -163,12 +191,14 @@ pub async fn sync_with_hub(app_state: State<'_, Mutex<AppState>>) -> Result<HubS
 #[tauri::command]
 pub async fn fetch_soul_balance(
     app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<HubStatus, String> {
     let client = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
             state.hub.soul_balance = 0.0;
             state.hub.user_tier = "local".to_string();
+            commit(app.clone(), &state)?;
             None
         } else {
             Some(client_from_state(&state))
@@ -191,6 +221,7 @@ pub async fn fetch_soul_balance(
             .unwrap_or("free")
             .to_string();
         state.hub.connected = true;
+        commit(app, &state)?;
     }
 
     get_hub_status(app_state)

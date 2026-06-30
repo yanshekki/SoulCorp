@@ -1,9 +1,10 @@
 use crate::ai::{self, provider::ChatRequest};
+use crate::db::persistence::commit;
 use crate::soul::build_system_prompt;
 use crate::state::{AppState, MeetingMessage, MeetingState};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +27,7 @@ pub struct MeetingSnapshot {
 pub fn start_meeting(
     request: StartMeetingRequest,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<MeetingSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
 
@@ -45,21 +47,28 @@ pub fn start_meeting(
     };
 
     state.meetings.insert(meeting_id.clone(), meeting);
-    Ok(snapshot_from_meeting(
+    let snapshot = snapshot_from_meeting(
         state
             .meetings
             .get(&meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?,
-    ))
+    );
+    commit(app, &state)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn advance_meeting(
     meeting_id: String,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<MeetingSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    let provider = ai::default_provider();
+    let provider = {
+        let settings = state.settings.clone();
+        let hub = state.hub.clone();
+        ai::provider_for(&settings, &hub)
+    };
 
     let (speaker_id, speaker, meeting_type, should_complete, morale_delta, participant_ids) = {
         let meeting = state
@@ -115,12 +124,14 @@ pub fn advance_meeting(
             }
         }
 
-        return Ok(snapshot_from_meeting(
+        let snapshot = snapshot_from_meeting(
             state
                 .meetings
                 .get(&meeting_id)
                 .ok_or_else(|| "Meeting not found.".to_string())?,
-        ));
+        );
+        commit(app, &state)?;
+        return Ok(snapshot);
     }
 
     let speaker = speaker.ok_or_else(|| "Speaker not found.".to_string())?;
@@ -164,7 +175,9 @@ pub fn advance_meeting(
     });
     meeting.turn += 1;
 
-    Ok(snapshot_from_meeting(meeting))
+    let snapshot = snapshot_from_meeting(meeting);
+    commit(app, &state)?;
+    Ok(snapshot)
 }
 
 fn snapshot_from_meeting(meeting: &MeetingState) -> MeetingSnapshot {

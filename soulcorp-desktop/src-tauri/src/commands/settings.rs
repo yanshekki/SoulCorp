@@ -1,7 +1,8 @@
+use crate::db::persistence::commit;
 use crate::state::{AppState, EventMode, GameSettings};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingsUpdate {
@@ -25,6 +26,7 @@ pub fn get_game_settings(state: State<'_, Mutex<AppState>>) -> Result<GameSettin
 pub fn update_game_settings(
     update: SettingsUpdate,
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<GameSettings, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
 
@@ -56,5 +58,7 @@ pub fn update_game_settings(
         state.settings.backup_interval_minutes = minutes;
     }
 
-    Ok(state.settings.clone())
+    let settings = state.settings.clone();
+    commit(app, &state)?;
+    Ok(settings)
 }

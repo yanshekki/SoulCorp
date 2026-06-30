@@ -1,9 +1,10 @@
 use crate::achievements::evaluate;
 use crate::commands::events::maybe_roll_event;
+use crate::db::persistence::commit;
 use crate::state::{AppState, GameEvent};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SimulationTickResult {
@@ -18,6 +19,7 @@ pub struct SimulationTickResult {
 #[tauri::command]
 pub fn run_simulation_tick(
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<SimulationTickResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.tick += 1;
@@ -75,14 +77,16 @@ pub fn run_simulation_tick(
         )
     };
 
-    Ok(SimulationTickResult {
+    let result = SimulationTickResult {
         tick: state.tick,
         agents_active,
         day_number: state.day_number,
         cash_balance: state.finance.cash_balance,
         message,
         event,
-    })
+    };
+    commit(app, &state)?;
+    Ok(result)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

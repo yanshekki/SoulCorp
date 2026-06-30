@@ -1,3 +1,4 @@
+use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
     storage::workspace_root, CreatePageRequest, SearchResult, UpdatePageRequest, WorkspacePage,
@@ -41,6 +42,7 @@ pub fn create_workspace_page(
     let page = storage.create_page(&request, "player")?;
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.stats.pages_created += 1;
+    commit(app.clone(), &state)?;
     Ok(page)
 }
 
@@ -92,5 +94,6 @@ pub fn generate_meeting_notes(
 
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.stats.pages_created += pages.len() as u32;
+    commit(app, &state)?;
     Ok(pages)
 }

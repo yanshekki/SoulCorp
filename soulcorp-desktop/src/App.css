@@ -169,6 +169,62 @@ body,
   display: block;
 }
 
+.scene-render-error {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(520px, calc(100% - 2rem));
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: rgba(32, 18, 12, 0.92);
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  color: #fff8ef;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.scene-render-error strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #ffd166;
+}
+
+.scene-render-error p {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.scene-render-error-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.scene-render-error-actions button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff8ef;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.scene-render-error-actions button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.scene-hint-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(94, 200, 255, 0.2);
+  border: 1px solid rgba(94, 200, 255, 0.45);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+}
+
 .scene-hint {
   position: absolute;
   left: 1rem;

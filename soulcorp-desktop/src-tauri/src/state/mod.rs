@@ -136,7 +136,7 @@ pub struct MeetingState {
     pub morale_delta: f32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppState {
     pub settings: GameSettings,
     pub finance: FinanceState,

@@ -27,5 +27,5 @@ uuid = { version = "1", features = ["v4"] }
 rand = "0.9"
 chrono = { version = "0.4", features = ["serde"] }
 zip = "2.2"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 

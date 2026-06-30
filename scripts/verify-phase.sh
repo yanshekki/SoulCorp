@@ -11,6 +11,12 @@ cd "${DESKTOP_DIR}"
 pnpm install --frozen-lockfile || pnpm install
 pnpm verify
 
+if command -v cargo >/dev/null 2>&1; then
+  cargo test --manifest-path src-tauri/Cargo.toml --lib
+else
+  echo "WARN: cargo not found; skipping Rust unit tests."
+fi
+
 if pkg-config --exists glib-2.0 2>/dev/null; then
   cargo check --manifest-path src-tauri/Cargo.toml
 else
@@ -25,14 +31,21 @@ case "${PHASE}" in
     ;;
   1)
     test -f "${DESKTOP_DIR}/src/components/GameScene.tsx"
-    test -f "${DESKTOP_DIR}/src/components/AgentSprite.tsx"
     test -f "${DESKTOP_DIR}/src/components/BuildingModal.tsx"
-    test -f "${DESKTOP_DIR}/src/components/world/IsometricWorld.tsx"
+    test -f "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
+    test -f "${DESKTOP_DIR}/src/components/world/webglDiagnostics.ts"
+    grep -q "ThreeOfficeRenderer" "${DESKTOP_DIR}/src/components/GameScene.tsx"
+    grep -q "onStatusChange" "${DESKTOP_DIR}/src/components/world/ThreeOfficeRenderer.tsx"
     echo "Phase 1 checks passed."
     ;;
   2)
     test -f "${DESKTOP_DIR}/src-tauri/src/ai/provider.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/ai/ollama.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/ai/hub_chat.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/db/persistence.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/soul/mod.rs"
+    grep -q "provider_for" "${DESKTOP_DIR}/src-tauri/src/ai/mod.rs"
+    grep -q "persist_app_state" "${DESKTOP_DIR}/src-tauri/src/db/persistence.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/FinancePanel.tsx"
     test -f "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
@@ -55,6 +68,8 @@ case "${PHASE}" in
     ;;
   5)
     test -f "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "market-gigs.php" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    grep -q "sync-pull.php" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/hub.rs"
     test -f "${DESKTOP_DIR}/src/services/hubClient.ts"
     test -f "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"

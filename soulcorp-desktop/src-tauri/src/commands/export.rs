@@ -1,3 +1,4 @@
+use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::tier::can_use_feature;
 use crate::workspace::{storage::workspace_root, WorkspaceStorage};
@@ -65,11 +66,13 @@ pub fn export_company_backup(
     fs::write(&path, json).map_err(|e| e.to_string())?;
     state.stats.exports_created += 1;
 
-    Ok(ExportResult {
+    let result = ExportResult {
         path: path.to_string_lossy().to_string(),
         format: "json".to_string(),
         message: "Company backup exported.".to_string(),
-    })
+    };
+    commit(app, &state)?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -118,11 +121,13 @@ pub fn export_workspace_markdown_zip(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.stats.exports_created += 1;
 
-    Ok(ExportResult {
+    let result = ExportResult {
         path: zip_path.to_string_lossy().to_string(),
         format: "zip".to_string(),
         message: "Workspace markdown export created.".to_string(),
-    })
+    };
+    commit(app, &state)?;
+    Ok(result)
 }
 
 fn exports_dir(app: &AppHandle) -> Result<PathBuf, String> {

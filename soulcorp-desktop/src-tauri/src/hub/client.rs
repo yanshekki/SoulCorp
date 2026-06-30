@@ -13,9 +13,29 @@ pub struct HubGig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubSyncPull {
+    #[serde(deserialize_with = "deserialize_tier_field")]
     pub tier: String,
     pub soul_balance: f64,
+    #[serde(default)]
     pub open_gigs: Vec<HubGig>,
+}
+
+fn deserialize_tier_field<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    if let Some(tier) = value.as_str() {
+        return Ok(tier.to_string());
+    }
+    if let Some(tier) = value
+        .as_object()
+        .and_then(|object| object.get("tier"))
+        .and_then(|tier| tier.as_str())
+    {
+        return Ok(tier.to_string());
+    }
+    Ok("free".to_string())
 }
 
 #[derive(Debug, Clone)]
@@ -35,7 +55,7 @@ impl HubClient {
 
     pub async fn list_open_gigs(&self) -> Result<Vec<HubGig>, String> {
         let url = format!(
-            "{}/api/market/gigs?status=open",
+            "{}/api/market-gigs.php?status=open",
             self.base_url.trim_end_matches('/')
         );
         let response = self.get_json(&url, false).await?;
@@ -47,25 +67,28 @@ impl HubClient {
     }
 
     pub async fn create_gig(&self, payload: Value) -> Result<Value, String> {
-        let url = format!("{}/api/market/gigs", self.base_url.trim_end_matches('/'));
+        let url = format!(
+            "{}/api/market-gigs.php",
+            self.base_url.trim_end_matches('/')
+        );
         self.post_json(&url, payload).await
     }
 
     pub async fn pull_sync(&self) -> Result<HubSyncPull, String> {
-        let url = format!("{}/api/sync/pull", self.base_url.trim_end_matches('/'));
+        let url = format!("{}/api/sync-pull.php", self.base_url.trim_end_matches('/'));
         let response = self.get_json(&url, true).await?;
         let data = response.get("data").cloned().unwrap_or(response);
         serde_json::from_value(data).map_err(|e| e.to_string())
     }
 
     pub async fn push_sync(&self, payload: Value) -> Result<Value, String> {
-        let url = format!("{}/api/sync/push", self.base_url.trim_end_matches('/'));
+        let url = format!("{}/api/sync-push.php", self.base_url.trim_end_matches('/'));
         self.post_json(&url, payload).await
     }
 
     pub async fn soul_balance(&self) -> Result<Value, String> {
         let url = format!(
-            "{}/api/user/soul-balance",
+            "{}/api/user-soul-balance.php",
             self.base_url.trim_end_matches('/')
         );
         self.get_json(&url, true).await
@@ -120,6 +143,27 @@ impl HubClient {
                 .to_string());
         }
         Ok(body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_tier_object_from_hub_pull_sync() {
+        let payload = serde_json::json!({
+            "tier": {
+                "tier": "pro",
+                "soul_balance": 42.5
+            },
+            "soul_balance": 42.5,
+            "open_gigs": []
+        });
+
+        let pull: HubSyncPull = serde_json::from_value(payload).expect("pull sync payload");
+        assert_eq!(pull.tier, "pro");
+        assert_eq!(pull.soul_balance, 42.5);
     }
 }
 

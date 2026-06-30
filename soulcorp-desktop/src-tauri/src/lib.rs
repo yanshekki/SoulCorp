@@ -8,22 +8,27 @@ mod state;
 mod tier;
 mod workspace;
 
-use state::AppState;
+use achievements::{default_achievements, default_endings};
 use std::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app_state = Mutex::new({
-        let mut state = AppState::default();
-        state.seed_defaults();
-        state
-    });
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(app_state)
         .setup(|app| {
             db::init_database(app.handle())?;
+            let mut state = db::persistence::load_app_state(app.handle())?.unwrap_or_default();
+            if state.agents.is_empty() {
+                state.seed_defaults();
+            }
+            if state.achievements.is_empty() {
+                state.achievements = default_achievements();
+            }
+            if state.endings.is_empty() {
+                state.endings = default_endings();
+            }
+            app.manage(Mutex::new(state));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

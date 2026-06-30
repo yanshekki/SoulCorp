@@ -1,3 +1,5 @@
+pub mod persistence;
+
 use rusqlite::{Connection, Result as SqlResult};
 use std::path::PathBuf;
 use tauri::Manager;
@@ -70,5 +72,5 @@ pub fn init_database(app: &tauri::AppHandle) -> SqlResult<Connection> {
 
 #[tauri::command]
 pub fn get_app_status() -> Result<String, String> {
-    Ok("SoulCorp standalone desktop is ready (Phase 4)".to_string())
+    Ok("SoulCorp desktop ready — state persists to SQLite.".to_string())
 }

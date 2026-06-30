@@ -137,11 +137,37 @@ function updateHumanoid(group: THREE.Group, agent: Agent) {
   body.rotation.z = swing * 0.08;
 }
 
+export class OfficeSceneError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OfficeSceneError";
+  }
+}
+
+function assertWebGLContext(canvas: HTMLCanvasElement): void {
+  const probe =
+    canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: false }) ??
+    canvas.getContext("webgl", { failIfMajorPerformanceCaveat: false }) ??
+    canvas.getContext("experimental-webgl", { failIfMajorPerformanceCaveat: false });
+
+  if (!probe) {
+    throw new OfficeSceneError(
+      "WebGL context could not be created. Check GPU drivers and hardware acceleration.",
+    );
+  }
+}
+
 export function createOfficeScene(
   canvas: HTMLCanvasElement,
   width: number,
   height: number,
 ): OfficeSceneHandles {
+  if (width < 1 || height < 1) {
+    throw new OfficeSceneError(`Invalid canvas size: ${width}x${height}`);
+  }
+
+  assertWebGLContext(canvas);
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#8ec8ef");
   scene.fog = new THREE.Fog("#b7daf5", 22, 58);
@@ -159,15 +185,30 @@ export function createOfficeScene(
   camera.position.copy(ISO_OFFSET);
   camera.lookAt(0, 0, 0);
 
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: false,
-    alpha: false,
-    powerPreference: "default",
-    failIfMajorPerformanceCaveat: false,
-  });
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      alpha: false,
+      powerPreference: "high-performance",
+      failIfMajorPerformanceCaveat: false,
+      preserveDrawingBuffer: true,
+    });
+  } catch (error) {
+    throw new OfficeSceneError(
+      `WebGLRenderer failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  if (!renderer.getContext()) {
+    renderer.dispose();
+    throw new OfficeSceneError("WebGLRenderer returned no rendering context.");
+  }
+
   renderer.setSize(width, height, false);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor("#8ec8ef", 1);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -213,6 +254,8 @@ export function createOfficeScene(
   const buildingGroups = new Map<string, THREE.Group>();
   const agentGroups = new Map<string, THREE.Group>();
   const raycaster = new THREE.Raycaster();
+
+  renderer.render(scene, camera);
 
   return {
     scene,
