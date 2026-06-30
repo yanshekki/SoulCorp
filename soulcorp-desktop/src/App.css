@@ -1,0 +1,79 @@
+:root {
+  color: #f6f1e8;
+  background: #1f1a17;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #3a2b22 0%, #2a211c 100%);
+  padding: 1.5rem;
+  border-right: 1px solid #5a4638;
+}
+
+.sidebar h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.tagline {
+  margin: 0.25rem 0 1.5rem;
+  color: #c8b6a3;
+  font-size: 0.9rem;
+}
+
+.sidebar nav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sidebar button {
+  text-align: left;
+  background: #4a382d;
+  color: #f6f1e8;
+  border: 1px solid #6d5645;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+}
+
+.main-panel {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: #2d241f;
+}
+
+.game-scene-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.scene-card {
+  width: min(640px, 90%);
+  padding: 2rem;
+  border-radius: 16px;
+  background: #3d3128;
+  border: 1px solid #6d5645;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.scene-card h2 {
+  margin-top: 0;
+}
+
+.status-bar {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #5a4638;
+  color: #d9c8b4;
+  font-size: 0.9rem;
+}

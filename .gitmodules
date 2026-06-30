@@ -1,0 +1,3 @@
+[submodule "hub/soulmd-hub"]
+	path = hub/soulmd-hub
+	url = https://github.com/yanshekki/soulmd-hub.git
