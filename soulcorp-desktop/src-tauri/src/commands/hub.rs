@@ -36,10 +36,8 @@ fn client_from_state(state: &AppState) -> HubClient {
     HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
 }
 
-#[tauri::command]
-pub fn get_hub_status(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
-    Ok(HubStatus {
+fn hub_status_from(state: &AppState) -> HubStatus {
+    HubStatus {
         connected: state.hub.connected,
         base_url: state.hub.base_url.clone(),
         user_tier: state.hub.user_tier.clone(),
@@ -47,38 +45,45 @@ pub fn get_hub_status(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, St
         pure_local_mode: state.settings.pure_local_mode,
         pending_queue_items: state.sync_queue.len() as u32,
         last_sync_at: state.hub.last_sync_at.clone(),
-    })
+    }
+}
+
+#[tauri::command]
+pub fn get_hub_status(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    Ok(hub_status_from(&state))
 }
 
 #[tauri::command]
 pub fn update_hub_config(
     update: HubConfigUpdate,
-    state: State<'_, Mutex<AppState>>,
+    app_state: State<'_, Mutex<AppState>>,
 ) -> Result<HubStatus, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if let Some(base_url) = update.base_url {
-        state.hub.base_url = base_url;
+    {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        if let Some(base_url) = update.base_url {
+            state.hub.base_url = base_url;
+        }
+        if let Some(api_key) = update.api_key {
+            state.hub.api_key = if api_key.is_empty() {
+                None
+            } else {
+                Some(api_key)
+            };
+        }
     }
-    if let Some(api_key) = update.api_key {
-        state.hub.api_key = if api_key.is_empty() {
-            None
-        } else {
-            Some(api_key)
-        };
-    }
-    drop(state);
-    get_hub_status(state)
+    get_hub_status(app_state)
 }
 
 #[tauri::command]
-pub async fn list_hub_gigs(state: State<'_, Mutex<AppState>>) -> Result<Vec<HubGig>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.pure_local_mode {
-        return Ok(mock_gigs());
-    }
-
-    let client = client_from_state(&state);
-    drop(state);
+pub async fn list_hub_gigs(app_state: State<'_, Mutex<AppState>>) -> Result<Vec<HubGig>, String> {
+    let client = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        if state.settings.pure_local_mode {
+            return Ok(mock_gigs());
+        }
+        client_from_state(&state)
+    };
 
     match client.list_open_gigs().await {
         Ok(gigs) => Ok(gigs),
@@ -89,23 +94,26 @@ pub async fn list_hub_gigs(state: State<'_, Mutex<AppState>>) -> Result<Vec<HubG
 #[tauri::command]
 pub async fn create_hub_gig(
     request: CreateHubGigRequest,
-    state: State<'_, Mutex<AppState>>,
+    app_state: State<'_, Mutex<AppState>>,
 ) -> Result<serde_json::Value, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.pure_local_mode {
-        return Err("Pure Local Mode is enabled. Marketplace actions are local-only.".to_string());
-    }
+    let (client, payload) = {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        if state.settings.pure_local_mode {
+            return Err(
+                "Pure Local Mode is enabled. Marketplace actions are local-only.".to_string(),
+            );
+        }
 
-    let payload = json!({
-        "title": request.title,
-        "description": request.description,
-        "budget_usdt": request.budget_usdt,
-        "required_skills": request.required_skills,
-    });
+        let payload = json!({
+            "title": request.title,
+            "description": request.description,
+            "budget_usdt": request.budget_usdt,
+            "required_skills": request.required_skills,
+        });
 
-    state.sync_queue.push(payload.clone());
-    let client = client_from_state(&state);
-    drop(state);
+        state.sync_queue.push(payload.clone());
+        (client_from_state(&state), payload)
+    };
 
     client
         .create_gig(payload)
@@ -114,21 +122,21 @@ pub async fn create_hub_gig(
 }
 
 #[tauri::command]
-pub async fn sync_with_hub(state: State<'_, Mutex<AppState>>) -> Result<HubSyncPull, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.pure_local_mode {
-        return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
-    }
-    if !can_use_feature(&state.hub.user_tier, "cloud_sync") {
-        return Err(
-            "Cloud sync requires Pro or VIP tier. Stake $SOUL on soulmd-hub to upgrade."
-                .to_string(),
-        );
-    }
+pub async fn sync_with_hub(app_state: State<'_, Mutex<AppState>>) -> Result<HubSyncPull, String> {
+    let (client, queue) = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        if state.settings.pure_local_mode {
+            return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
+        }
+        if !can_use_feature(&state.hub.user_tier, "cloud_sync") {
+            return Err(
+                "Cloud sync requires Pro or VIP tier. Stake $SOUL on soulmd-hub to upgrade."
+                    .to_string(),
+            );
+        }
 
-    let client = client_from_state(&state);
-    let queue = state.sync_queue.clone();
-    drop(state);
+        (client_from_state(&state), state.sync_queue.clone())
+    };
 
     if !queue.is_empty() {
         let _ = client.push_sync(json!({ "queue": queue })).await;
@@ -140,30 +148,39 @@ pub async fn sync_with_hub(state: State<'_, Mutex<AppState>>) -> Result<HubSyncP
         open_gigs: mock_gigs(),
     });
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    state.hub.connected = true;
-    state.hub.user_tier = pull.tier.clone();
-    state.hub.soul_balance = pull.soul_balance;
-    state.hub.last_sync_at = Some(Utc::now().to_rfc3339());
-    state.sync_queue.clear();
+    {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        state.hub.connected = true;
+        state.hub.user_tier = pull.tier.clone();
+        state.hub.soul_balance = pull.soul_balance;
+        state.hub.last_sync_at = Some(Utc::now().to_rfc3339());
+        state.sync_queue.clear();
+    }
+
     Ok(pull)
 }
 
 #[tauri::command]
-pub async fn fetch_soul_balance(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.pure_local_mode {
-        state.hub.soul_balance = 0.0;
-        state.hub.user_tier = "local".to_string();
-        drop(state);
-        return get_hub_status(state);
-    }
+pub async fn fetch_soul_balance(
+    app_state: State<'_, Mutex<AppState>>,
+) -> Result<HubStatus, String> {
+    let client = {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        if state.settings.pure_local_mode {
+            state.hub.soul_balance = 0.0;
+            state.hub.user_tier = "local".to_string();
+            None
+        } else {
+            Some(client_from_state(&state))
+        }
+    };
 
-    let client = client_from_state(&state);
-    drop(state);
+    let Some(client) = client else {
+        return get_hub_status(app_state);
+    };
 
     if let Ok(body) = client.soul_balance().await {
-        let mut state = state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
         state.hub.soul_balance = body
             .get("soul_balance")
             .and_then(|v| v.as_f64())
@@ -176,5 +193,5 @@ pub async fn fetch_soul_balance(state: State<'_, Mutex<AppState>>) -> Result<Hub
         state.hub.connected = true;
     }
 
-    get_hub_status(state)
+    get_hub_status(app_state)
 }

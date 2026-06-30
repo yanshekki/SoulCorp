@@ -85,8 +85,31 @@ pub fn run_simulation_tick(
     })
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SimulationSnapshot {
+    pub tick: u64,
+    pub day_number: u32,
+    pub agents_active: u32,
+    pub cash_balance: f64,
+    pub compute_tokens: f64,
+}
+
 #[tauri::command]
-pub fn get_simulation_snapshot(state: State<'_, Mutex<AppState>>) -> Result<AppState, String> {
+pub fn get_simulation_snapshot(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<SimulationSnapshot, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    Ok(state.clone())
+    let agents_active = state
+        .agents
+        .values()
+        .filter(|agent| agent.status == "working" || agent.status == "meeting")
+        .count() as u32;
+
+    Ok(SimulationSnapshot {
+        tick: state.tick,
+        day_number: state.day_number,
+        agents_active,
+        cash_balance: state.finance.cash_balance,
+        compute_tokens: state.finance.compute_tokens,
+    })
 }
