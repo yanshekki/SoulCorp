@@ -1,12 +1,14 @@
 import { useGameStore } from "../../stores/gameStore";
+import { EventFeed } from "./EventFeed";
 
 export function Dashboard() {
   const agents = useGameStore((state) => state.agents);
+  const agentRecords = useGameStore((state) => state.agentRecords);
   const simulation = useGameStore((state) => state.simulation);
+  const finance = useGameStore((state) => state.finance);
   const companyName = useGameStore((state) => state.companyName);
 
-  const walking = agents.filter((agent) => agent.status === "walking").length;
-  const working = agents.filter((agent) => agent.status !== "walking").length;
+  const records = agentRecords.length > 0 ? agentRecords : null;
 
   return (
     <section className="dashboard-panel">
@@ -21,32 +23,42 @@ export function Dashboard() {
           <strong>{simulation.tick}</strong>
         </article>
         <article>
-          <span>Agents</span>
-          <strong>{agents.length}</strong>
+          <span>Cash</span>
+          <strong>${finance.cash_balance.toFixed(0)}</strong>
         </article>
         <article>
-          <span>Active</span>
-          <strong>{simulation.agentsActive}</strong>
+          <span>Agents</span>
+          <strong>{records?.length ?? agents.length}</strong>
         </article>
       </div>
       <div className="agent-list">
         <h3>Live Agents</h3>
-        {agents.map((agent) => (
+        {(records ?? []).map((agent) => (
           <div key={agent.id} className="agent-row">
-            <span className="agent-dot" style={{ backgroundColor: agent.color }} />
+            <span className="agent-dot" style={{ backgroundColor: "#5ec8ff" }} />
             <div>
               <strong>{agent.name}</strong>
               <p>
-                {agent.department} · {agent.statusLabel}
+                {agent.department} · morale {(agent.morale * 100).toFixed(0)}%
               </p>
             </div>
-            <span className="agent-state">{agent.status === "walking" ? "Moving" : "Idle"}</span>
+            <span className="agent-state">{agent.status}</span>
           </div>
         ))}
+        {!records &&
+          agents.map((agent) => (
+            <div key={agent.id} className="agent-row">
+              <span className="agent-dot" style={{ backgroundColor: agent.color }} />
+              <div>
+                <strong>{agent.name}</strong>
+                <p>
+                  {agent.department} · {agent.statusLabel}
+                </p>
+              </div>
+            </div>
+          ))}
       </div>
-      <p className="dashboard-footnote">
-        {walking} walking · {working} idle/working
-      </p>
+      <EventFeed />
     </section>
   );
 }

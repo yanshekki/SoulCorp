@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { BuildingModal } from "./components/BuildingModal";
 import { GameScene } from "./components/GameScene";
 import { ShellLayout } from "./components/UI/ShellLayout";
+import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
 import "./App.css";
@@ -11,6 +12,7 @@ function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
+  useGameBootstrap();
   useSimulationLoop();
 
   useEffect(() => {

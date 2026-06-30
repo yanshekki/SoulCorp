@@ -1,16 +1,47 @@
 import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
+import type { SidebarPanel } from "../../types/game";
 import { Dashboard } from "./Dashboard";
+import { FinancePanel } from "./FinancePanel";
+import { GodModePanel } from "./GodModePanel";
+import { MeetingPanel } from "./MeetingPanel";
 import { PauseMenu } from "./PauseMenu";
+import { SettingsPanel } from "./SettingsPanel";
 
 interface ShellLayoutProps {
   children: ReactNode;
   statusMessage: string;
 }
 
+const PANELS: { id: SidebarPanel; label: string }[] = [
+  { id: "office", label: "Office" },
+  { id: "meeting", label: "Meeting" },
+  { id: "finance", label: "Finance" },
+  { id: "settings", label: "Settings" },
+  { id: "god_mode", label: "God Mode" },
+];
+
+function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
+  switch (panel) {
+    case "meeting":
+      return <MeetingPanel />;
+    case "finance":
+      return <FinancePanel />;
+    case "settings":
+      return <SettingsPanel />;
+    case "god_mode":
+      return <GodModePanel />;
+    case "office":
+    default:
+      return <Dashboard />;
+  }
+}
+
 export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const togglePause = useGameStore((state) => state.togglePause);
   const isPaused = useGameStore((state) => state.isPaused);
+  const activePanel = useGameStore((state) => state.activePanel);
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
 
   return (
     <div className="shell">
@@ -19,14 +50,18 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
           <h1>SoulCorp</h1>
           <p className="tagline">AI Company Simulator</p>
         </div>
-        <Dashboard />
+        <SidebarPanelContent panel={activePanel} />
         <nav className="sidebar-actions">
-          <button type="button" className="active">
-            Office
-          </button>
-          <button type="button">Agents</button>
-          <button type="button">Workspace</button>
-          <button type="button">Settings</button>
+          {PANELS.map((panel) => (
+            <button
+              key={panel.id}
+              type="button"
+              className={activePanel === panel.id ? "active" : undefined}
+              onClick={() => setActivePanel(panel.id)}
+            >
+              {panel.label}
+            </button>
+          ))}
           <button type="button" onClick={togglePause}>
             {isPaused ? "Resume" : "Pause"}
           </button>

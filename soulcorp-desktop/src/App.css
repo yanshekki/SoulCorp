@@ -235,3 +235,146 @@ body,
   color: #d9c8b4;
   font-size: 0.9rem;
 }
+
+.panel-card {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.panel-card h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.field-label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #d9c8b4;
+}
+
+.field-label select {
+  background: #4a382d;
+  color: #f6f1e8;
+  border: 1px solid #6d5645;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.agent-picker {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.panel-actions.stacked {
+  flex-direction: column;
+}
+
+.panel-actions button,
+.god-mode button {
+  background: #5d8a67;
+  color: #f6f1e8;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+}
+
+.panel-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.meeting-log {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 180px;
+  overflow: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.meeting-message {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.meeting-message p {
+  margin: 0.25rem 0 0;
+  color: #d9c8b4;
+  font-size: 0.82rem;
+}
+
+.finance-grid strong {
+  font-size: 1rem;
+}
+
+.finance-net {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.finance-net.positive {
+  color: #9fd5a8;
+}
+
+.finance-net.negative {
+  color: #f2a3a3;
+}
+
+.event-feed {
+  margin-top: 0.75rem;
+}
+
+.event-feed h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.9rem;
+}
+
+.event-card {
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  margin-bottom: 0.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.event-card p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #d9c8b4;
+}
+
+.event-card.tone-positive {
+  border-color: rgba(120, 190, 130, 0.45);
+}
+
+.event-card.tone-negative {
+  border-color: rgba(220, 120, 120, 0.45);
+}
+
+.event-card.tone-chaotic {
+  border-color: rgba(220, 180, 90, 0.45);
+}
+
+.agent-list.compact .agent-row {
+  padding: 0.35rem 0;
+}

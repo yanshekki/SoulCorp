@@ -1,13 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
 import { useGameStore } from "../stores/gameStore";
+import type { AgentRecord, FinanceState, GameEvent, SimulationTickResult } from "../types/game";
 import { advanceAgents } from "../utils/agentMovement";
-
-interface SimulationTickResult {
-  tick: number;
-  agents_active: number;
-  message: string;
-}
 
 export function useSimulationLoop() {
   const isPaused = useGameStore((state) => state.isPaused);
@@ -28,19 +23,39 @@ export function useSimulationLoop() {
       const delta = Math.min((time - lastTimeRef.current) / 1000, 0.05);
       lastTimeRef.current = time;
 
-      const { agents, setAgents, setSimulation, setStatusMessage } = useGameStore.getState();
+      const {
+        agents,
+        setAgents,
+        setSimulation,
+        setStatusMessage,
+        setFinance,
+        prependEvent,
+        setAgentRecords,
+      } = useGameStore.getState();
+
       setAgents(advanceAgents(agents, delta));
 
       tickAccumulatorRef.current += delta;
       if (tickAccumulatorRef.current >= 1) {
         tickAccumulatorRef.current = 0;
         invoke<SimulationTickResult>("run_simulation_tick")
-          .then((result) => {
+          .then(async (result) => {
             setSimulation({
               tick: result.tick,
               agentsActive: result.agents_active,
+              dayNumber: result.day_number,
             });
+            const finance = await invoke<FinanceState>("get_finance_state");
+            setFinance({
+              ...finance,
+              cash_balance: result.cash_balance,
+            });
+            const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
+            setAgentRecords(refreshedAgents);
             setStatusMessage(result.message);
+            if (result.event) {
+              prependEvent(result.event as GameEvent);
+            }
           })
           .catch((error) => setStatusMessage(String(error)));
       }
