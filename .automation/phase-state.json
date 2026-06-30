@@ -1,5 +1,5 @@
 {
-  "current_phase": 2,
+  "current_phase": 3,
   "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
@@ -16,8 +16,9 @@
     },
     "2": {
       "branch": "phase-2/agent-systems",
-      "status": "pending",
-      "description": "Agent core, meetings, events, finance, god mode"
+      "status": "merged",
+      "description": "Agent core, meetings, events, finance, god mode",
+      "merged_at": "2026-06-30T03:41:46.589313+00:00"
     },
     "3": {
       "branch": "phase-3/workspace",
