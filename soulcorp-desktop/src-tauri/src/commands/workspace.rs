@@ -1,9 +1,12 @@
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
-    storage::workspace_root, write_meeting_notes_from_state, CreatePageRequest, LinkableEntity,
-    LinkEntityRequest, PageBacklink, SearchResult, UnlinkEntityRequest, UpdatePageRequest,
-    WorkspacePage, WorkspaceStorage, WorkspaceTree,
+    create_page_from_template, list_templates, storage::workspace_root,
+    write_meeting_notes_from_state, AddPageCommentRequest, CreatePageFromTemplateRequest,
+    CreatePageRequest, LinkableEntity, LinkEntityRequest, PageBacklink, PageComment,
+    PageVersionSummary, RestorePageVersionRequest, SearchResult, UnlinkEntityRequest,
+    UpdatePageRequest, WorkspaceDatabaseView, WorkspacePage, WorkspacePresenceEntry,
+    WorkspaceStorage, WorkspaceTemplate, WorkspaceTree,
 };
 use crate::workspace::LinkedEntity;
 use std::sync::Mutex;
@@ -156,6 +159,144 @@ pub fn find_workspace_backlinks(
 ) -> Result<Vec<PageBacklink>, String> {
     let storage = storage_for_app(&app)?;
     storage.find_backlinks(&entity_type, &entity_id)
+}
+
+#[tauri::command]
+pub fn list_workspace_templates() -> Result<Vec<WorkspaceTemplate>, String> {
+    Ok(list_templates())
+}
+
+#[tauri::command]
+pub fn create_page_from_template_cmd(
+    app: AppHandle,
+    request: CreatePageFromTemplateRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspacePage, String> {
+    let storage = storage_for_app(&app)?;
+    let page = create_page_from_template(
+        &storage,
+        &request.template_id,
+        &request.folder_id,
+        request.title.as_deref(),
+        "player",
+    )?;
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    state.stats.pages_created += 1;
+    commit(app, &state)?;
+    Ok(page)
+}
+
+#[tauri::command]
+pub fn list_page_versions(app: AppHandle, page_id: String) -> Result<Vec<PageVersionSummary>, String> {
+    let storage = storage_for_app(&app)?;
+    storage.list_page_versions(&page_id)
+}
+
+#[tauri::command]
+pub fn restore_page_version(
+    app: AppHandle,
+    request: RestorePageVersionRequest,
+) -> Result<WorkspacePage, String> {
+    let storage = storage_for_app(&app)?;
+    storage.restore_page_version(&request.page_id, request.version, "player")
+}
+
+#[tauri::command]
+pub fn list_page_comments(app: AppHandle, page_id: String) -> Result<Vec<PageComment>, String> {
+    let storage = storage_for_app(&app)?;
+    storage.list_page_comments(&page_id)
+}
+
+#[tauri::command]
+pub fn add_page_comment(
+    app: AppHandle,
+    request: AddPageCommentRequest,
+) -> Result<PageComment, String> {
+    let storage = storage_for_app(&app)?;
+    storage.add_page_comment(&request)
+}
+
+#[tauri::command]
+pub fn set_workspace_presence(
+    app: AppHandle,
+    page_id: String,
+    editor: String,
+) -> Result<(), String> {
+    let storage = storage_for_app(&app)?;
+    storage.set_workspace_presence(&page_id, &editor)
+}
+
+#[tauri::command]
+pub fn get_workspace_presence(
+    app: AppHandle,
+    page_id: String,
+) -> Result<Vec<WorkspacePresenceEntry>, String> {
+    let storage = storage_for_app(&app)?;
+    storage.get_workspace_presence(&page_id)
+}
+
+#[tauri::command]
+pub fn get_workspace_database(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<WorkspaceDatabaseView>, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+
+    let project_rows: Vec<Vec<String>> = state
+        .projects
+        .iter()
+        .map(|project| {
+            vec![
+                project.title.clone(),
+                project.owner_department.clone(),
+                format!("{:.0}%", project.progress * 100.0),
+                project.priority.to_string(),
+            ]
+        })
+        .collect();
+
+    let deliverable_rows: Vec<Vec<String>> = state
+        .gig_contracts
+        .iter()
+        .filter(|contract| contract.qc_score.is_some())
+        .map(|contract| {
+            vec![
+                contract.title.clone(),
+                contract.status.clone(),
+                contract
+                    .qc_score
+                    .map(|score| format!("{:.0}%", score * 100.0))
+                    .unwrap_or_else(|| "—".to_string()),
+                format!("${:.0}", contract.budget_usdt),
+            ]
+        })
+        .collect();
+
+    Ok(vec![
+        WorkspaceDatabaseView {
+            id: "projects".to_string(),
+            title: "Project Tracker".to_string(),
+            description: "Internal projects linked to departments and progress.".to_string(),
+            columns: vec![
+                "Project".to_string(),
+                "Department".to_string(),
+                "Progress".to_string(),
+                "Priority".to_string(),
+            ],
+            rows: project_rows,
+        },
+        WorkspaceDatabaseView {
+            id: "deliverables".to_string(),
+            title: "Deliverable Log".to_string(),
+            description: "QC-rated marketplace deliverables ready for export.".to_string(),
+            columns: vec![
+                "Gig".to_string(),
+                "Status".to_string(),
+                "QC Score".to_string(),
+                "Budget".to_string(),
+            ],
+            rows: deliverable_rows,
+        },
+    ])
 }
 
 #[tauri::command]

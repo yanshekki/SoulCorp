@@ -1188,6 +1188,154 @@ body,
   font-size: 0.8rem;
 }
 
+.workspace-presence {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+}
+
+.page-version-history,
+.page-comments {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2d4c0;
+  border-radius: 12px;
+  background: rgba(255, 250, 242, 0.85);
+}
+
+.page-version-history h3,
+.page-comments h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.page-version-history ul,
+.page-comments ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.page-version-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed #e8dcc8;
+}
+
+.page-version-history li:last-child {
+  border-bottom: none;
+}
+
+.page-comments li {
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed #e8dcc8;
+}
+
+.page-comments li:last-child {
+  border-bottom: none;
+}
+
+.page-comments li p {
+  margin: 0.25rem 0 0;
+}
+
+.page-comments textarea {
+  width: 100%;
+  margin-top: 0.35rem;
+  border: 1px solid #cdbda8;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: #fffdf8;
+  resize: vertical;
+}
+
+.page-comments button {
+  margin-top: 0.5rem;
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+}
+
+.template-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.45rem;
+  border: 1px dashed #d8c8b2;
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.6);
+}
+
+.template-chip {
+  border: 1px solid #cdbda8;
+  background: #fffaf2;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.template-chip:hover {
+  background: #ffe7a8;
+}
+
+.workspace-database {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2d4c0;
+}
+
+.workspace-database h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+}
+
+.workspace-database-card {
+  margin-bottom: 0.65rem;
+  padding: 0.55rem;
+  border: 1px solid #e2d4c0;
+  border-radius: 10px;
+  background: rgba(255, 250, 242, 0.7);
+}
+
+.workspace-database-card header {
+  margin-bottom: 0.45rem;
+}
+
+.workspace-database-card header strong {
+  font-size: 0.85rem;
+}
+
+.workspace-database-card header p {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+}
+
+.workspace-database table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.workspace-database th,
+.workspace-database td {
+  border: 1px solid #e2d4c0;
+  padding: 0.3rem 0.45rem;
+  text-align: left;
+}
+
+.workspace-database th {
+  background: #f3eadc;
+  font-weight: 600;
+}
+
 .tiptap-shell {
   border: 1px solid #e2d4c0;
   border-radius: 12px;

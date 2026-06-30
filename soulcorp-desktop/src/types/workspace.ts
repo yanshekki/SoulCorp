@@ -67,3 +67,40 @@ export interface WorkspaceSearchResult {
   snippet: string;
   score: number;
 }
+
+export interface WorkspaceTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string | null;
+}
+
+export interface PageVersionSummary {
+  version: number;
+  saved_at: string;
+  editor: string;
+  title: string;
+}
+
+export interface PageComment {
+  id: string;
+  page_id: string;
+  author: string;
+  content: string;
+  mentions: string[];
+  created_at: string;
+}
+
+export interface WorkspaceDatabaseView {
+  id: string;
+  title: string;
+  description: string;
+  columns: string[];
+  rows: string[][];
+}
+
+export interface WorkspacePresenceEntry {
+  page_id: string;
+  editor: string;
+  updated_at: string;
+}

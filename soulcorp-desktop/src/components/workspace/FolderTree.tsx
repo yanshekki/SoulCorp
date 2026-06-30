@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { WorkspaceFolder, WorkspacePage, WorkspaceTree } from "../../types/workspace";
+import type {
+  WorkspaceFolder,
+  WorkspacePage,
+  WorkspaceTemplate,
+  WorkspaceTree,
+} from "../../types/workspace";
 
 interface FolderTreeProps {
   onSelectPage: (pageId: string) => void;
@@ -13,6 +18,14 @@ export function FolderTree({ onSelectPage }: FolderTreeProps) {
   const setTree = useWorkspaceStore((state) => state.setTree);
   const upsertPageSummary = useWorkspaceStore((state) => state.upsertPageSummary);
   const setSelectedPage = useWorkspaceStore((state) => state.setSelectedPage);
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
+  const [templateFolderId, setTemplateFolderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void invoke<WorkspaceTemplate[]>("list_workspace_templates")
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
 
   const roots = useMemo(
     () => tree.folders.filter((folder) => !folder.parent_id),
@@ -31,6 +44,28 @@ export function FolderTree({ onSelectPage }: FolderTreeProps) {
 
   const childrenFor = (folderId: string) =>
     tree.folders.filter((folder) => folder.parent_id === folderId);
+
+  const createFromTemplate = async (folderId: string, templateId: string) => {
+    const page = await invoke<WorkspacePage>("create_page_from_template_cmd", {
+      request: {
+        folder_id: folderId,
+        template_id: templateId,
+        title: null,
+      },
+    });
+    const refreshed = await invoke<WorkspaceTree>("list_workspace_tree");
+    setTree(refreshed);
+    upsertPageSummary({
+      id: page.id,
+      title: page.title,
+      folder_id: page.folder_id,
+      last_edited_at: page.last_edited_at,
+      last_edited_by: page.last_edited_by,
+    });
+    setSelectedPage(page);
+    onSelectPage(page.id);
+    setTemplateFolderId(null);
+  };
 
   const createPage = async (folderId: string) => {
     const page = await invoke<WorkspacePage>("create_workspace_page", {
@@ -65,7 +100,30 @@ export function FolderTree({ onSelectPage }: FolderTreeProps) {
           <button type="button" className="tiny-btn" onClick={() => void createPage(folder.id)}>
             +
           </button>
+          <button
+            type="button"
+            className="tiny-btn"
+            onClick={() =>
+              setTemplateFolderId((current) => (current === folder.id ? null : folder.id))
+            }
+          >
+            T
+          </button>
         </div>
+        {templateFolderId === folder.id ? (
+          <div className="template-picker">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className="template-chip"
+                onClick={() => void createFromTemplate(folder.id, template.id)}
+              >
+                {template.icon ?? "📄"} {template.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {pages.map((page) => (
           <button
             key={page.id}

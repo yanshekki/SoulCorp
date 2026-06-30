@@ -131,3 +131,65 @@ pub struct PageBacklink {
     pub title: String,
     pub folder_id: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceTemplate {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePageFromTemplateRequest {
+    pub folder_id: String,
+    pub template_id: String,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageVersionSummary {
+    pub version: u32,
+    pub saved_at: String,
+    pub editor: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestorePageVersionRequest {
+    pub page_id: String,
+    pub version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageComment {
+    pub id: String,
+    pub page_id: String,
+    pub author: String,
+    pub content: String,
+    pub mentions: Vec<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddPageCommentRequest {
+    pub page_id: String,
+    pub author: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceDatabaseView {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspacePresenceEntry {
+    pub page_id: String,
+    pub editor: String,
+    pub updated_at: String,
+}

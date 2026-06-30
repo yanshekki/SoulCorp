@@ -1,6 +1,7 @@
 use super::models::{
-    Block, CreatePageRequest, LinkedEntity, PageBacklink, SearchResult, UpdatePageRequest,
-    WorkspaceFolder, WorkspacePage, WorkspacePageSummary, WorkspaceTree, WorkspaceType,
+    AddPageCommentRequest, Block, CreatePageRequest, LinkedEntity, PageBacklink, PageComment,
+    PageVersionSummary, SearchResult, UpdatePageRequest, WorkspaceFolder, WorkspacePage,
+    WorkspacePageSummary, WorkspacePresenceEntry, WorkspaceTree, WorkspaceType,
 };
 use chrono::Utc;
 use std::fs;
@@ -162,6 +163,7 @@ impl WorkspaceStorage {
 
     pub fn update_page(&self, request: &UpdatePageRequest) -> Result<WorkspacePage, String> {
         let mut page = self.read_page(&request.page_id)?;
+        self.snapshot_page_version(&page)?;
         if let Some(title) = &request.title {
             page.title = title.clone();
         }
@@ -507,6 +509,161 @@ impl WorkspaceStorage {
         self.root.join("pages")
     }
 
+    fn versions_dir(&self) -> PathBuf {
+        self.root.join("versions")
+    }
+
+    fn comments_dir(&self) -> PathBuf {
+        self.root.join("comments")
+    }
+
+    fn presence_path(&self) -> PathBuf {
+        self.root.join("presence.json")
+    }
+
+    pub fn snapshot_page_version(&self, page: &WorkspacePage) -> Result<(), String> {
+        let dir = self.versions_dir().join(&page.id);
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join(format!("v{}.json", page.version));
+        if path.exists() {
+            return Ok(());
+        }
+        let json = serde_json::to_string_pretty(page).map_err(|e| e.to_string())?;
+        fs::write(path, json).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn list_page_versions(&self, page_id: &str) -> Result<Vec<PageVersionSummary>, String> {
+        let dir = self.versions_dir().join(page_id);
+        if !dir.exists() {
+            let page = self.read_page(page_id)?;
+            return Ok(vec![PageVersionSummary {
+                version: page.version,
+                saved_at: page.last_edited_at.clone(),
+                editor: page.last_edited_by.clone(),
+                title: page.title.clone(),
+            }]);
+        }
+
+        let mut versions = Vec::new();
+        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if !file_name.starts_with('v') || !file_name.ends_with(".json") {
+                continue;
+            }
+            let raw = fs::read_to_string(entry.path()).map_err(|e| e.to_string())?;
+            let page: WorkspacePage = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+            versions.push(PageVersionSummary {
+                version: page.version,
+                saved_at: page.last_edited_at.clone(),
+                editor: page.last_edited_by.clone(),
+                title: page.title.clone(),
+            });
+        }
+        versions.sort_by(|a, b| b.version.cmp(&a.version));
+        if versions.is_empty() {
+            let page = self.read_page(page_id)?;
+            versions.push(PageVersionSummary {
+                version: page.version,
+                saved_at: page.last_edited_at.clone(),
+                editor: page.last_edited_by.clone(),
+                title: page.title.clone(),
+            });
+        }
+        Ok(versions)
+    }
+
+    pub fn restore_page_version(
+        &self,
+        page_id: &str,
+        version: u32,
+        editor: &str,
+    ) -> Result<WorkspacePage, String> {
+        let path = self.versions_dir().join(page_id).join(format!("v{version}.json"));
+        let snapshot = if path.exists() {
+            let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            serde_json::from_str::<WorkspacePage>(&raw).map_err(|e| e.to_string())?
+        } else {
+            return Err(format!("Version {version} not found for page {page_id}."));
+        };
+
+        let mut page = self.read_page(page_id)?;
+        self.snapshot_page_version(&page)?;
+        page.title = snapshot.title;
+        page.blocks = snapshot.blocks;
+        page.rich_doc = snapshot.rich_doc;
+        page.linked_entities = snapshot.linked_entities;
+        page.version += 1;
+        page.last_edited_at = Utc::now().to_rfc3339();
+        page.last_edited_by = editor.to_string();
+        page.dirty = true;
+        self.write_page(&page)?;
+        Ok(page)
+    }
+
+    pub fn list_page_comments(&self, page_id: &str) -> Result<Vec<PageComment>, String> {
+        let path = self.comments_dir().join(format!("{page_id}.json"));
+        if !path.exists() {
+            return Ok(vec![]);
+        }
+        let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&raw).map_err(|e| e.to_string())
+    }
+
+    pub fn add_page_comment(&self, request: &AddPageCommentRequest) -> Result<PageComment, String> {
+        let _ = self.read_page(&request.page_id)?;
+        let mut comments = self.list_page_comments(&request.page_id)?;
+        let mentions = extract_mentions(&request.content);
+        let comment = PageComment {
+            id: format!("comment-{}", Uuid::new_v4()),
+            page_id: request.page_id.clone(),
+            author: request.author.clone(),
+            content: request.content.clone(),
+            mentions,
+            created_at: Utc::now().to_rfc3339(),
+        };
+        comments.push(comment.clone());
+        fs::create_dir_all(self.comments_dir()).map_err(|e| e.to_string())?;
+        let path = self.comments_dir().join(format!("{}.json", request.page_id));
+        let json = serde_json::to_string_pretty(&comments).map_err(|e| e.to_string())?;
+        fs::write(path, json).map_err(|e| e.to_string())?;
+        Ok(comment)
+    }
+
+    pub fn set_workspace_presence(&self, page_id: &str, editor: &str) -> Result<(), String> {
+        let mut entries = self.read_presence()?;
+        entries.retain(|entry| entry.editor != editor);
+        entries.push(WorkspacePresenceEntry {
+            page_id: page_id.to_string(),
+            editor: editor.to_string(),
+            updated_at: Utc::now().to_rfc3339(),
+        });
+        self.write_presence(&entries)
+    }
+
+    pub fn get_workspace_presence(&self, page_id: &str) -> Result<Vec<WorkspacePresenceEntry>, String> {
+        Ok(self
+            .read_presence()?
+            .into_iter()
+            .filter(|entry| entry.page_id == page_id)
+            .collect())
+    }
+
+    fn read_presence(&self) -> Result<Vec<WorkspacePresenceEntry>, String> {
+        let path = self.presence_path();
+        if !path.exists() {
+            return Ok(vec![]);
+        }
+        let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&raw).map_err(|e| e.to_string())
+    }
+
+    fn write_presence(&self, entries: &[WorkspacePresenceEntry]) -> Result<(), String> {
+        let json = serde_json::to_string_pretty(entries).map_err(|e| e.to_string())?;
+        fs::write(self.presence_path(), json).map_err(|e| e.to_string())
+    }
+
     fn read_folders(&self) -> Result<Vec<WorkspaceFolder>, String> {
         let path = self.folders_path();
         if !path.exists() {
@@ -710,4 +867,13 @@ fn page_to_markdown(page: &WorkspacePage) -> String {
         lines.push(String::new());
     }
     lines.join("\n")
+}
+
+fn extract_mentions(content: &str) -> Vec<String> {
+    content
+        .split_whitespace()
+        .filter_map(|token| token.strip_prefix('@'))
+        .map(|name| name.trim_matches(|c: char| !c.is_alphanumeric() && c != '-').to_string())
+        .filter(|name| !name.is_empty())
+        .collect()
 }
