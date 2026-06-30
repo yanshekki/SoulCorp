@@ -4,6 +4,7 @@ mod commands;
 mod db;
 mod finance;
 mod hub;
+mod report;
 mod soul;
 mod state;
 mod tier;
@@ -80,6 +81,10 @@ pub fn run() {
             commands::generate_meeting_notes,
             commands::get_achievements,
             commands::export_company_backup,
+            commands::export_company_report_markdown,
+            commands::export_company_report_html,
+            commands::export_company_report_pdf,
+            commands::open_exports_folder,
             commands::export_workspace_markdown_zip,
             db::get_app_status,
         ])

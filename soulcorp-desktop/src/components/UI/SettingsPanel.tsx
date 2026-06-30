@@ -49,6 +49,16 @@ export function SettingsPanel() {
     setStatusMessage(`${result.message} ${result.path}`);
   };
 
+  const exportReport = async (command: string) => {
+    const result = await invoke<ExportResult>(command);
+    setStatusMessage(`${result.message} ${result.path}`);
+  };
+
+  const openExportsFolder = async () => {
+    const result = await invoke<ExportResult>("open_exports_folder");
+    setStatusMessage(result.message);
+  };
+
   const importBackup = async () => {
     if (!restorePath.trim()) {
       setStatusMessage("Enter the full path to a company backup JSON file.");
@@ -237,8 +247,23 @@ export function SettingsPanel() {
         <button type="button" onClick={() => void exportBackup()}>
           Export Company Backup (JSON)
         </button>
+        <button
+          type="button"
+          onClick={() => void exportReport("export_company_report_markdown")}
+        >
+          Export Company Report (Markdown)
+        </button>
+        <button type="button" onClick={() => void exportReport("export_company_report_html")}>
+          Export Company Report (HTML)
+        </button>
+        <button type="button" onClick={() => void exportReport("export_company_report_pdf")}>
+          Export Company Report (PDF)
+        </button>
         <button type="button" onClick={() => void exportWorkspace()}>
           Export Workspace (Markdown ZIP)
+        </button>
+        <button type="button" onClick={() => void openExportsFolder()}>
+          Open Exports Folder
         </button>
         <button type="button" onClick={() => void importBackup()}>
           Import Company Backup
