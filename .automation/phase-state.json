@@ -40,8 +40,9 @@
     },
     "6": {
       "branch": "phase-6/release",
-      "status": "pending",
-      "description": "Pro/VIP, release build, E2E, final polish"
+      "status": "merged",
+      "description": "Pro/VIP, release build, E2E, final polish",
+      "merged_at": "2026-06-30T03:54:00.266675+00:00"
     }
   }
 }
