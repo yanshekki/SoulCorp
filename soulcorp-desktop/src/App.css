@@ -132,11 +132,15 @@ body,
 .game-scene {
   position: relative;
   min-height: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 .game-canvas {
-  width: 100%;
-  height: calc(100vh - 42px);
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
 .scene-hint {

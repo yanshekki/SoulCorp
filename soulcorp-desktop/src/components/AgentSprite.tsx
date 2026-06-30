@@ -19,6 +19,17 @@ export function AgentSprite({ agents }: AgentSpriteProps) {
   const { camera } = useThree();
   const frameSkip = useRef(0);
 
+  const geometry = useMemo(
+    () =>
+      new THREE.CapsuleGeometry(
+        0.25,
+        0.5,
+        lowPowerMode ? 3 : 4,
+        lowPowerMode ? 6 : 8,
+      ),
+    [lowPowerMode],
+  );
+
   const colors = useMemo(
     () => agents.map((agent) => new THREE.Color(agent.color)),
     [agents],
@@ -82,8 +93,11 @@ export function AgentSprite({ agents }: AgentSpriteProps) {
 
   return (
     <group>
-      <instancedMesh ref={meshRef} args={[undefined, undefined, Math.max(agents.length, 1)]}>
-        <capsuleGeometry args={[0.25, 0.5, lowPowerMode ? 3 : 4, lowPowerMode ? 6 : 8]} />
+      <instancedMesh
+        ref={meshRef}
+        args={[geometry, undefined, Math.max(agents.length, 1)]}
+        castShadow={!lowPowerMode}
+      >
         <meshStandardMaterial vertexColors toneMapped={false} />
       </instancedMesh>
       {agents.map((agent) => {

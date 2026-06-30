@@ -9,6 +9,7 @@ import { OfficeTilemap } from "./OfficeTilemap";
 
 const ISO_OFFSET = new THREE.Vector3(12, 12, 12);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
+const CAMERA_EPSILON = 0.05;
 
 export function IsometricWorld() {
   const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
@@ -42,15 +43,31 @@ export function IsometricWorld() {
       const [x, , z] = selectedBuilding.position;
       const zoomTarget = new THREE.Vector3(x, 1.5, z);
       const zoomPosition = new THREE.Vector3(x, 8, z + 7);
-      camera.position.lerp(zoomPosition, delta * 2.5);
-      controls.target.lerp(zoomTarget, delta * 2.5);
+      if (camera.position.distanceTo(zoomPosition) > CAMERA_EPSILON) {
+        camera.position.lerp(zoomPosition, Math.min(delta * 2.5, 1));
+      } else {
+        camera.position.copy(zoomPosition);
+      }
+      if (controls.target.distanceTo(zoomTarget) > CAMERA_EPSILON) {
+        controls.target.lerp(zoomTarget, Math.min(delta * 2.5, 1));
+      } else {
+        controls.target.copy(zoomTarget);
+      }
       controls.update();
       return;
     }
 
     const defaultPosition = DEFAULT_TARGET.clone().add(ISO_OFFSET);
-    camera.position.lerp(defaultPosition, delta * 2);
-    controls.target.lerp(DEFAULT_TARGET, delta * 2);
+    if (camera.position.distanceTo(defaultPosition) > CAMERA_EPSILON) {
+      camera.position.lerp(defaultPosition, Math.min(delta * 2, 1));
+    } else {
+      camera.position.copy(defaultPosition);
+    }
+    if (controls.target.distanceTo(DEFAULT_TARGET) > CAMERA_EPSILON) {
+      controls.target.lerp(DEFAULT_TARGET, Math.min(delta * 2, 1));
+    } else {
+      controls.target.copy(DEFAULT_TARGET);
+    }
     controls.update();
   });
 

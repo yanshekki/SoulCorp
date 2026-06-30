@@ -15,6 +15,11 @@ export function GameScene() {
         shadows={!lowPowerMode}
         dpr={lowPowerMode ? 1 : Math.min(window.devicePixelRatio, 2)}
         className="game-canvas"
+        style={{ width: "100%", height: "100%" }}
+        gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+        onCreated={({ gl }) => {
+          gl.setClearColor("#87b8e8");
+        }}
       >
         <IsometricWorld />
       </Canvas>
