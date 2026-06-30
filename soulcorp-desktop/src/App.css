@@ -1508,6 +1508,147 @@ body,
   background: rgba(220, 100, 90, 0.2);
 }
 
+.recruitment-analytics h3,
+.relationship-graph-panel h3 {
+  margin: 0.75rem 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.analytics-grid article {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #6d5645;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.analytics-grid strong {
+  font-size: 1.1rem;
+}
+
+.analytics-grid span {
+  font-size: 0.72rem;
+  color: #c8b8a8;
+}
+
+.analytics-gaps {
+  margin-top: 0.5rem;
+}
+
+.analytics-gaps-label {
+  font-size: 0.75rem;
+  color: #c8b8a8;
+  margin-right: 0.35rem;
+}
+
+.relationship-graph {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.relationship-graph svg {
+  width: 100%;
+  max-width: 280px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid #6d5645;
+  border-radius: 12px;
+}
+
+.relationship-node {
+  fill: rgba(120, 170, 255, 0.35);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.5;
+}
+
+.relationship-node.morale-high {
+  fill: rgba(109, 159, 120, 0.45);
+}
+
+.relationship-node.morale-mid {
+  fill: rgba(255, 200, 120, 0.4);
+}
+
+.relationship-node.morale-low {
+  fill: rgba(220, 100, 90, 0.42);
+}
+
+.relationship-node-label,
+.relationship-edge-label {
+  fill: #f0e8dc;
+  font-size: 9px;
+  text-anchor: middle;
+}
+
+.relationship-edge-label {
+  font-size: 8px;
+  opacity: 0.85;
+}
+
+.relationship-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.relationship-legend li {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #6d5645;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.candidate-fit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+
+.fit-badge {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.fit-badge.band-strong_fit {
+  background: rgba(109, 159, 120, 0.28);
+  color: #c8e6cc;
+}
+
+.fit-badge.band-balanced {
+  background: rgba(255, 214, 130, 0.22);
+  color: #f0dca8;
+}
+
+.fit-badge.band-stretch {
+  background: rgba(220, 100, 90, 0.2);
+  color: #ffc8c8;
+}
+
+.candidate-overlap {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+}
+
 .primary-action {
   background: #6d9f78 !important;
 }

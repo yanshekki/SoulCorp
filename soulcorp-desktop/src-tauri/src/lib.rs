@@ -5,6 +5,7 @@ mod db;
 mod finance;
 mod gigs;
 mod hub;
+mod relationships;
 mod report;
 mod soul;
 mod state;
@@ -74,6 +75,9 @@ pub fn run() {
             commands::update_budget_allocations,
             commands::adjust_agent_salary,
             commands::list_recruitment_candidates,
+            commands::get_agent_relationship_graph,
+            commands::get_recruitment_analytics,
+            commands::record_recruitment_interview,
             commands::hire_candidate,
             commands::import_company_backup,
             commands::get_recent_events,

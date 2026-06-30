@@ -5,10 +5,26 @@ import type {
   AgentRecord,
   MeetingSnapshot,
   MoraleHeatmapEntry,
+  RecruitmentAnalytics,
   RecruitmentCandidate,
+  RelationshipGraph,
 } from "../../types/game";
+import { RelationshipGraphView } from "./RelationshipGraphView";
 
 const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
+
+function compatibilityLabel(score: number | null | undefined): string {
+  if (score == null) {
+    return "—";
+  }
+  if (score >= 0.75) {
+    return "Strong fit";
+  }
+  if (score >= 0.55) {
+    return "Balanced";
+  }
+  return "Stretch hire";
+}
 
 export function RecruitmentPanel() {
   const settings = useGameStore((state) => state.settings);
@@ -23,6 +39,8 @@ export function RecruitmentPanel() {
 
   const [skillFilter, setSkillFilter] = useState("");
   const [heatmap, setHeatmap] = useState<MoraleHeatmapEntry[]>([]);
+  const [relationshipGraph, setRelationshipGraph] = useState<RelationshipGraph | null>(null);
+  const [analytics, setAnalytics] = useState<RecruitmentAnalytics | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<RecruitmentCandidate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,14 +49,20 @@ export function RecruitmentPanel() {
     const load = async () => {
       setLoading(true);
       try {
-        const [result, morale] = await Promise.all([
+        const [result, morale, graph, recruitmentAnalytics] = await Promise.all([
           invoke<RecruitmentCandidate[]>("list_recruitment_candidates", {
             query: skillFilter.trim() || null,
           }),
           invoke<MoraleHeatmapEntry[]>("get_morale_heatmap"),
+          invoke<RelationshipGraph>("get_agent_relationship_graph"),
+          invoke<RecruitmentAnalytics>("get_recruitment_analytics", {
+            query: skillFilter.trim() || null,
+          }),
         ]);
         setCandidates(result);
         setHeatmap(morale);
+        setRelationshipGraph(graph);
+        setAnalytics(recruitmentAnalytics);
       } catch (error) {
         setStatusMessage(String(error));
       } finally {
@@ -47,6 +71,13 @@ export function RecruitmentPanel() {
     };
     void load();
   }, [skillFilter, setStatusMessage, agentRecords.length]);
+
+  const analyticsByCandidate = useMemo(() => {
+    const map = new Map(
+      (analytics?.candidate_scores ?? []).map((entry) => [entry.candidate_id, entry]),
+    );
+    return map;
+  }, [analytics]);
 
   const filteredCandidates = useMemo(() => {
     const query = skillFilter.trim().toLowerCase();
@@ -84,6 +115,7 @@ export function RecruitmentPanel() {
       .filter(Boolean)
       .join(", ");
     try {
+      await invoke<number>("record_recruitment_interview");
       const meeting = await invoke<MeetingSnapshot>("start_meeting", {
         request: {
           agent_ids: ["agent-2", "agent-3"],
@@ -93,6 +125,10 @@ export function RecruitmentPanel() {
       setActiveMeeting(meeting);
       setActivePanel("meeting");
       setStatusMessage(`Interview started for ${names}. HR and COO are leading the panel.`);
+      const recruitmentAnalytics = await invoke<RecruitmentAnalytics>("get_recruitment_analytics", {
+        query: skillFilter.trim() || null,
+      });
+      setAnalytics(recruitmentAnalytics);
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -110,7 +146,7 @@ export function RecruitmentPanel() {
         request: {
           candidate_id: candidate.id,
           role: candidate.vibe,
-          department: DEPARTMENTS[0],
+          department: candidate.department_fit ?? DEPARTMENTS[0],
           offered_salary: monthlySalary,
           soul_md_content: candidate.soul_md_content,
         },
@@ -129,7 +165,7 @@ export function RecruitmentPanel() {
     <section className="panel-card recruitment-panel">
       <h2>Recruitment</h2>
       <p className="muted">
-        Browse SOUL.md personas from soulmd-hub and onboard them into your office.
+        Browse SOUL.md personas from soulmd-hub, review team fit analytics, and map agent relationships.
       </p>
 
       <div className="hub-status-row">
@@ -145,6 +181,48 @@ export function RecruitmentPanel() {
       {settings.pure_local_mode ? (
         <p className="hub-warning">Pure Local Mode: showing offline candidate samples.</p>
       ) : null}
+
+      {analytics ? (
+        <div className="recruitment-analytics">
+          <h3>Recruitment analytics</h3>
+          <div className="analytics-grid">
+            <article>
+              <strong>{analytics.team_size}</strong>
+              <span>Team size</span>
+            </article>
+            <article>
+              <strong>{(analytics.average_morale * 100).toFixed(0)}%</strong>
+              <span>Avg morale</span>
+            </article>
+            <article>
+              <strong>{analytics.agents_hired}</strong>
+              <span>Hires</span>
+            </article>
+            <article>
+              <strong>{analytics.interviews_started}</strong>
+              <span>Interviews</span>
+            </article>
+          </div>
+          {analytics.skill_gaps.length > 0 ? (
+            <div className="skill-tags analytics-gaps">
+              <span className="analytics-gaps-label">Skill gaps:</span>
+              {analytics.skill_gaps.map((skill) => (
+                <span key={skill}>{skill}</span>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">Current roster covers the visible candidate skill set.</p>
+          )}
+          {analytics.priority_matching ? (
+            <p className="tier-highlight">Pro/VIP priority matching boosts compatibility scoring.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="relationship-graph-panel">
+        <h3>Agent relationship graph</h3>
+        {relationshipGraph ? <RelationshipGraphView graph={relationshipGraph} /> : null}
+      </div>
 
       <div className="morale-heatmap">
         <h3>Team morale heatmap</h3>
@@ -178,6 +256,8 @@ export function RecruitmentPanel() {
       <div className="candidate-list">
         {filteredCandidates.map((candidate) => {
           const selected = selectedIds.includes(candidate.id);
+          const scoreEntry = analyticsByCandidate.get(candidate.id);
+          const compatibility = candidate.compatibility_score ?? scoreEntry?.compatibility_score;
           return (
             <article
               key={candidate.id}
@@ -197,11 +277,30 @@ export function RecruitmentPanel() {
                   </button>
                 </div>
               </header>
+              <div className="candidate-fit-row">
+                <span className={`fit-badge band-${scoreEntry?.risk_band ?? "balanced"}`}>
+                  {compatibilityLabel(compatibility)} ·{" "}
+                  {compatibility != null ? `${(compatibility * 100).toFixed(0)}%` : "—"}
+                </span>
+                {candidate.department_fit ? (
+                  <span className="muted">Best fit: {candidate.department_fit}</span>
+                ) : null}
+                {candidate.projected_morale_delta != null ? (
+                  <span className="muted">
+                    Morale impact +{(candidate.projected_morale_delta * 100).toFixed(1)}%
+                  </span>
+                ) : null}
+              </div>
               <div className="skill-tags">
                 {candidate.skills.map((skill) => (
                   <span key={skill}>{skill}</span>
                 ))}
               </div>
+              {candidate.skill_overlap && candidate.skill_overlap.length > 0 ? (
+                <p className="candidate-overlap muted">
+                  Overlap: {candidate.skill_overlap.join(", ")}
+                </p>
+              ) : null}
               <footer>
                 <span>{candidate.vibe} vibe</span>
                 <span>${candidate.hourly_rate_usdt}/hr</span>

@@ -116,6 +116,52 @@ export interface RecruitmentCandidate {
   verified: boolean;
   hourly_rate_usdt: number;
   soul_md_content?: string | null;
+  compatibility_score?: number | null;
+  skill_overlap?: string[] | null;
+  department_fit?: string | null;
+  projected_morale_delta?: number | null;
+}
+
+export interface RelationshipGraphNode {
+  agent_id: string;
+  name: string;
+  department: string;
+  morale: number;
+  connection_count: number;
+}
+
+export interface RelationshipGraphEdge {
+  from_agent_id: string;
+  to_agent_id: string;
+  relationship_type: string;
+  score: number;
+  label: string;
+}
+
+export interface RelationshipGraph {
+  nodes: RelationshipGraphNode[];
+  edges: RelationshipGraphEdge[];
+}
+
+export interface CandidateCompatibility {
+  candidate_id: string;
+  name: string;
+  compatibility_score: number;
+  department_fit: string;
+  skill_overlap: string[];
+  projected_morale_delta: number;
+  risk_band: string;
+}
+
+export interface RecruitmentAnalytics {
+  team_size: number;
+  average_morale: number;
+  average_energy: number;
+  skill_gaps: string[];
+  agents_hired: number;
+  interviews_started: number;
+  priority_matching: boolean;
+  candidate_scores: CandidateCompatibility[];
 }
 
 export interface BudgetAllocations {

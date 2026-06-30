@@ -113,6 +113,18 @@ case "${PHASE}" in
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;
+  15)
+    test -f "${DESKTOP_DIR}/src-tauri/src/relationships/mod.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/RelationshipGraphView.tsx"
+    grep -q "get_agent_relationship_graph" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "get_recruitment_analytics" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "agent_relationships" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "compatibility_score" "${DESKTOP_DIR}/src-tauri/src/commands/recruitment.rs"
+    grep -q "RelationshipGraphView" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
+    grep -q "recruitment-analytics" "${DESKTOP_DIR}/src/components/UI/RecruitmentPanel.tsx"
+    grep -q "relationship-graph" "${DESKTOP_DIR}/src/App.css"
+    echo "Phase 15 relationship graph + recruitment analytics checks passed."
+    ;;
   14)
     test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-submit-qc.php"
     test -f "${REPO_ROOT}/hub/soulmd-hub/public_html/api/market-gig-reject-qc.php"

@@ -86,6 +86,20 @@ pub struct GameStats {
     pub exports_created: u32,
     #[serde(default)]
     pub gigs_completed: u32,
+    #[serde(default)]
+    pub agents_hired: u32,
+    #[serde(default)]
+    pub interviews_started: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRelationship {
+    pub id: String,
+    pub from_agent_id: String,
+    pub to_agent_id: String,
+    pub relationship_type: String,
+    pub score: f32,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,6 +279,8 @@ pub struct AppState {
     #[serde(default)]
     pub gig_contracts: Vec<GigContract>,
     #[serde(default)]
+    pub agent_relationships: Vec<AgentRelationship>,
+    #[serde(default)]
     pub projects: Vec<InternalProject>,
     pub day_number: u32,
     pub tick: u64,
@@ -291,6 +307,7 @@ impl Default for AppState {
             hub: HubState::default(),
             sync_queue: Vec::new(),
             gig_contracts: Vec::new(),
+            agent_relationships: Vec::new(),
             projects: Vec::new(),
             day_number: 1,
             tick: 0,
@@ -345,6 +362,7 @@ impl AppState {
         }
 
         self.seed_projects();
+        crate::relationships::seed_default_relationships(self);
         self.finance.monthly_burn = self
             .agents
             .values()

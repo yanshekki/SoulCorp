@@ -2,8 +2,12 @@ use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::finance::total_monthly_salary;
 use crate::hub::{mock_gigs, HubClient};
+use crate::relationships::{
+    build_relationship_graph, connect_new_agent, ensure_relationship_backfill, RelationshipGraph,
+};
 use crate::soul::parse_soul_content;
 use crate::state::{AgentRecord, AppState, MeetingState};
+use crate::tier::can_use_feature;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -21,6 +25,37 @@ pub struct RecruitmentCandidate {
     pub verified: bool,
     pub hourly_rate_usdt: f64,
     pub soul_md_content: Option<String>,
+    #[serde(default)]
+    pub compatibility_score: Option<f32>,
+    #[serde(default)]
+    pub skill_overlap: Option<Vec<String>>,
+    #[serde(default)]
+    pub department_fit: Option<String>,
+    #[serde(default)]
+    pub projected_morale_delta: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateCompatibility {
+    pub candidate_id: String,
+    pub name: String,
+    pub compatibility_score: f32,
+    pub department_fit: String,
+    pub skill_overlap: Vec<String>,
+    pub projected_morale_delta: f32,
+    pub risk_band: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecruitmentAnalytics {
+    pub team_size: u32,
+    pub average_morale: f32,
+    pub average_energy: f32,
+    pub skill_gaps: Vec<String>,
+    pub agents_hired: u32,
+    pub interviews_started: u32,
+    pub priority_matching: bool,
+    pub candidate_scores: Vec<CandidateCompatibility>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +89,10 @@ fn mock_candidates() -> Vec<RecruitmentCandidate> {
             verified: true,
             hourly_rate_usdt: 48.0,
             soul_md_content: None,
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: None,
+            projected_morale_delta: None,
         },
         RecruitmentCandidate {
             id: "cand-2".into(),
@@ -65,6 +104,10 @@ fn mock_candidates() -> Vec<RecruitmentCandidate> {
             verified: true,
             hourly_rate_usdt: 36.0,
             soul_md_content: None,
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: None,
+            projected_morale_delta: None,
         },
         RecruitmentCandidate {
             id: "cand-3".into(),
@@ -76,6 +119,10 @@ fn mock_candidates() -> Vec<RecruitmentCandidate> {
             verified: false,
             hourly_rate_usdt: 42.0,
             soul_md_content: None,
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: None,
+            projected_morale_delta: None,
         },
     ]
 }
@@ -129,6 +176,10 @@ fn listing_to_candidate(item: &Value) -> Option<RecruitmentCandidate> {
         verified,
         hourly_rate_usdt: price.max(10.0),
         soul_md_content: None,
+        compatibility_score: None,
+        skill_overlap: None,
+        department_fit: None,
+        projected_morale_delta: None,
     })
 }
 
@@ -146,6 +197,10 @@ fn bonus_recruits_from_state(state: &AppState) -> Vec<RecruitmentCandidate> {
             verified: true,
             hourly_rate_usdt: recruit.hourly_rate_usdt,
             soul_md_content: None,
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: None,
+            projected_morale_delta: None,
         })
         .collect()
 }
@@ -163,6 +218,244 @@ fn merge_bonus_candidates(mut base: Vec<RecruitmentCandidate>, state: &AppState)
         }
     }
     base
+}
+
+fn team_skill_tokens(state: &AppState) -> Vec<String> {
+    let mut tokens = Vec::new();
+    for agent in state.agents.values() {
+        tokens.push(agent.role.to_lowercase());
+        tokens.push(agent.department.to_lowercase());
+        if let Some(soul) = &agent.soul {
+            tokens.push(soul.name.to_lowercase());
+            for word in soul.raw_content.split_whitespace() {
+                let cleaned = word
+                    .trim_matches(|ch: char| !ch.is_alphanumeric())
+                    .to_lowercase();
+                if cleaned.len() >= 4 {
+                    tokens.push(cleaned);
+                }
+            }
+        }
+    }
+    tokens
+}
+
+fn department_morale(state: &AppState, department: &str) -> f32 {
+    let agents: Vec<f32> = state
+        .agents
+        .values()
+        .filter(|agent| agent.department == department)
+        .map(|agent| agent.morale)
+        .collect();
+    if agents.is_empty() {
+        return 0.7;
+    }
+    agents.iter().sum::<f32>() / agents.len() as f32
+}
+
+fn recommended_department(state: &AppState, candidate: &RecruitmentCandidate) -> String {
+    let departments: [(&str, f32); 4] = [
+        ("Engineering", department_morale(state, "Engineering")),
+        ("Human Resources", department_morale(state, "Human Resources")),
+        ("Executive", department_morale(state, "Executive")),
+        ("Marketing", department_morale(state, "Marketing")),
+    ];
+
+    let skill_hint = candidate
+        .skills
+        .first()
+        .map(|skill| skill.to_lowercase())
+        .unwrap_or_default();
+
+    if skill_hint.contains("react")
+        || skill_hint.contains("rust")
+        || skill_hint.contains("figma")
+        || skill_hint.contains("tailwind")
+    {
+        return "Engineering".to_string();
+    }
+    if skill_hint.contains("copy")
+        || skill_hint.contains("seo")
+        || skill_hint.contains("analytics")
+    {
+        return "Marketing".to_string();
+    }
+    if skill_hint.contains("hr") || candidate.vibe.contains("hr") {
+        return "Human Resources".to_string();
+    }
+
+    departments
+        .iter()
+        .min_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(name, _)| name.to_string())
+        .unwrap_or_else(|| "Engineering".to_string())
+}
+
+fn compute_skill_gaps(state: &AppState, candidates: &[RecruitmentCandidate]) -> Vec<String> {
+    let covered: std::collections::HashSet<String> = team_skill_tokens(state).into_iter().collect();
+    let mut gaps = Vec::new();
+    for candidate in candidates {
+        for skill in &candidate.skills {
+            if !covered.contains(skill) && !gaps.contains(skill) {
+                gaps.push(skill.clone());
+            }
+        }
+    }
+    gaps.truncate(6);
+    gaps
+}
+
+fn compute_candidate_compatibility(
+    state: &AppState,
+    candidate: &RecruitmentCandidate,
+) -> (f32, Vec<String>, String, f32) {
+    let department_fit = recommended_department(state, candidate);
+    let team_tokens = team_skill_tokens(state);
+    let overlap: Vec<String> = candidate
+        .skills
+        .iter()
+        .filter(|skill| {
+            team_tokens.iter().any(|token| {
+                token.contains(skill.as_str()) || skill.contains(token.as_str())
+            })
+        })
+        .take(4)
+        .cloned()
+        .collect();
+
+    let gap_fill = candidate
+        .skills
+        .iter()
+        .filter(|skill| !team_tokens.iter().any(|token| token.contains(skill.as_str())))
+        .count() as f32
+        * 0.08;
+
+    let overlap_score = if candidate.skills.is_empty() {
+        0.35
+    } else {
+        (overlap.len() as f32 / candidate.skills.len() as f32) * 0.35
+    };
+
+    let dept_morale = department_morale(state, &department_fit);
+    let morale_room = (0.85 - dept_morale).max(0.0) * 0.25;
+    let vibe_bonus = if candidate.vibe == "steady" || candidate.vibe == "creative" {
+        0.08
+    } else {
+        0.04
+    };
+    let verified_bonus = if candidate.verified { 0.06 } else { 0.0 };
+    let relationship_bonus = if state.agent_relationships.iter().any(|edge| edge.score < 0.3) {
+        0.05
+    } else {
+        0.0
+    };
+
+    let mut score = (0.32 + overlap_score + gap_fill + morale_room + vibe_bonus + verified_bonus
+        + relationship_bonus)
+        .clamp(0.35, 0.98);
+    if can_use_feature(&state.hub.user_tier, "priority_gig_matching") {
+        score = (score + 0.04).min(0.99);
+    }
+
+    let projected_morale_delta = ((gap_fill + vibe_bonus) * 0.35 - 0.02).clamp(-0.05, 0.12);
+    (score, overlap, department_fit, projected_morale_delta)
+}
+
+fn enrich_candidate(state: &AppState, mut candidate: RecruitmentCandidate) -> RecruitmentCandidate {
+    let (score, overlap, department_fit, morale_delta) =
+        compute_candidate_compatibility(state, &candidate);
+    candidate.compatibility_score = Some(score);
+    candidate.skill_overlap = Some(overlap);
+    candidate.department_fit = Some(department_fit);
+    candidate.projected_morale_delta = Some(morale_delta);
+    candidate
+}
+
+fn enrich_candidates(state: &AppState, candidates: Vec<RecruitmentCandidate>) -> Vec<RecruitmentCandidate> {
+    candidates
+        .into_iter()
+        .map(|candidate| enrich_candidate(state, candidate))
+        .collect()
+}
+
+#[tauri::command]
+pub fn get_agent_relationship_graph(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<RelationshipGraph, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_relationship_backfill(&mut state);
+    Ok(build_relationship_graph(&state))
+}
+
+#[tauri::command]
+pub async fn get_recruitment_analytics(
+    query: Option<String>,
+    app_state: State<'_, Mutex<AppState>>,
+) -> Result<RecruitmentAnalytics, String> {
+    let candidates = load_recruitment_candidates(&app_state, query).await?;
+    let state = app_state.lock().map_err(|e| e.to_string())?;
+
+    let morale_values: Vec<f32> = state.agents.values().map(|agent| agent.morale).collect();
+    let energy_values: Vec<f32> = state.agents.values().map(|agent| agent.energy).collect();
+    let average_morale = if morale_values.is_empty() {
+        0.0
+    } else {
+        morale_values.iter().sum::<f32>() / morale_values.len() as f32
+    };
+    let average_energy = if energy_values.is_empty() {
+        0.0
+    } else {
+        energy_values.iter().sum::<f32>() / energy_values.len() as f32
+    };
+
+    let candidate_scores = candidates
+        .iter()
+        .map(|candidate| {
+            let score = candidate.compatibility_score.unwrap_or(0.5);
+            CandidateCompatibility {
+                candidate_id: candidate.id.clone(),
+                name: candidate.name.clone(),
+                compatibility_score: score,
+                department_fit: candidate
+                    .department_fit
+                    .clone()
+                    .unwrap_or_else(|| "Engineering".to_string()),
+                skill_overlap: candidate.skill_overlap.clone().unwrap_or_default(),
+                projected_morale_delta: candidate.projected_morale_delta.unwrap_or(0.0),
+                risk_band: if score >= 0.75 {
+                    "strong_fit"
+                } else if score >= 0.55 {
+                    "balanced"
+                } else {
+                    "stretch"
+                }
+                .to_string(),
+            }
+        })
+        .collect();
+
+    Ok(RecruitmentAnalytics {
+        team_size: state.agents.len() as u32,
+        average_morale,
+        average_energy,
+        skill_gaps: compute_skill_gaps(&state, &candidates),
+        agents_hired: state.stats.agents_hired,
+        interviews_started: state.stats.interviews_started,
+        priority_matching: can_use_feature(&state.hub.user_tier, "priority_gig_matching"),
+        candidate_scores,
+    })
+}
+
+#[tauri::command]
+pub fn record_recruitment_interview(
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<u32, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    state.stats.interviews_started += 1;
+    let count = state.stats.interviews_started;
+    commit(app, &state)?;
+    Ok(count)
 }
 
 #[tauri::command]
@@ -234,15 +527,17 @@ fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
     }
 }
 
-#[tauri::command]
-pub async fn list_recruitment_candidates(
+async fn load_recruitment_candidates(
+    app_state: &Mutex<AppState>,
     query: Option<String>,
-    app_state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<RecruitmentCandidate>, String> {
     let client = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
-            return Ok(merge_bonus_candidates(mock_candidates(), &state));
+            return Ok(enrich_candidates(
+                &state,
+                merge_bonus_candidates(mock_candidates(), &state),
+            ));
         }
         HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
@@ -255,17 +550,34 @@ pub async fn list_recruitment_candidates(
                 .collect::<Vec<_>>();
             let state = app_state.lock().map_err(|e| e.to_string())?;
             if candidates.is_empty() {
-                Ok(merge_bonus_candidates(mock_candidates(), &state))
+                Ok(enrich_candidates(
+                    &state,
+                    merge_bonus_candidates(mock_candidates(), &state),
+                ))
             } else {
-                Ok(merge_bonus_candidates(candidates, &state))
+                Ok(enrich_candidates(
+                    &state,
+                    merge_bonus_candidates(candidates, &state),
+                ))
             }
         }
         _ => {
             let _ = mock_gigs();
             let state = app_state.lock().map_err(|e| e.to_string())?;
-            Ok(merge_bonus_candidates(mock_candidates(), &state))
+            Ok(enrich_candidates(
+                &state,
+                merge_bonus_candidates(mock_candidates(), &state),
+            ))
         }
     }
+}
+
+#[tauri::command]
+pub async fn list_recruitment_candidates(
+    query: Option<String>,
+    app_state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<RecruitmentCandidate>, String> {
+    load_recruitment_candidates(&app_state, query).await
 }
 
 #[tauri::command]
@@ -311,11 +623,12 @@ pub async fn hire_candidate(
         .map(|profile| profile.name.clone())
         .unwrap_or_else(|| request.candidate_id.replace("hub-soul-", "Candidate "));
 
+    let department = request.department.clone();
     let record = AgentRecord {
         id: agent_id.clone(),
         name,
         role: request.role,
-        department: request.department,
+        department: department.clone(),
         morale: 0.78,
         energy: 0.95,
         salary: offered_salary,
@@ -325,6 +638,8 @@ pub async fn hire_candidate(
 
     state.finance.cash_balance -= offered_salary as f64 * 0.5;
     state.agents.insert(agent_id.clone(), record.clone());
+    connect_new_agent(&mut state, &agent_id, &department);
+    state.stats.agents_hired += 1;
     state.finance.monthly_burn =
         total_monthly_salary(&state.agents) + state.agents.len() as f64 * 75.0;
     spawn_onboarding_meeting(&mut state, &agent_id);

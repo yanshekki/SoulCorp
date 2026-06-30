@@ -5,6 +5,7 @@ use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
 use crate::finance::apply_tick_finance;
 use crate::gigs::apply_gig_contract_ticks;
+use crate::relationships::apply_relationship_tick;
 use crate::state::{AppState, GameEvent};
 use crate::workspace::{write_daily_activity_docs, write_event_activity_doc};
 use serde::{Deserialize, Serialize};
@@ -35,6 +36,9 @@ pub fn run_simulation_tick(
 
     let finance_result = apply_tick_finance(&mut state);
     let gig_result = apply_gig_contract_ticks(&mut state);
+    if state.tick % 20 == 0 {
+        apply_relationship_tick(&mut state);
+    }
     let reality_note = apply_god_mode_reality_debt(&mut state);
 
     let event = if state.tick % 15 == 0 {

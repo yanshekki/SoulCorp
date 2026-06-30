@@ -419,6 +419,9 @@ pub fn god_mode_force_relationship(
         agent.morale = (agent.morale + if relationship == "romance" { 0.08 } else { -0.05 }).clamp(0.0, 1.0);
     }
 
+    let score = if relationship == "romance" { 0.88 } else { -0.42 };
+    crate::relationships::upsert_relationship(&mut state, &first, &second, relationship, score);
+
     let result = record_use(
         &mut state,
         "force_relationship",
