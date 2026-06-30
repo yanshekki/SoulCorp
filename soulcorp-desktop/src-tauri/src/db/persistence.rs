@@ -249,6 +249,33 @@ pub fn switch_active_company(
     Ok(next)
 }
 
+pub fn clear_all_persisted_data(app: &AppHandle) -> Result<(), String> {
+    let registry = load_registry(app)?;
+    for company in &registry.companies {
+        let _ = delete_company_snapshot(app, &company.id);
+    }
+
+    let conn = open_connection(app)?;
+    conn.execute("DELETE FROM company_snapshots", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM company_registry WHERE id = 1", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM app_snapshot WHERE id = 1", [])
+        .map_err(|e| e.to_string())?;
+
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let companies_dir = data_dir.join("companies");
+    if companies_dir.exists() {
+        fs::remove_dir_all(companies_dir).map_err(|e| e.to_string())?;
+    }
+    let legacy_workspaces = data_dir.join("workspaces");
+    if legacy_workspaces.exists() {
+        fs::remove_dir_all(legacy_workspaces).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 pub fn delete_company_snapshot(app: &AppHandle, company_id: &str) -> Result<(), String> {
     let conn = open_connection(app)?;
     conn.execute(

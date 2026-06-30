@@ -154,7 +154,7 @@ pub fn apply_design_preset(
     Ok(snapshot)
 }
 
-fn preset_for(preset_id: &str) -> CompanyVisualDesign {
+pub fn preset_for(preset_id: &str) -> CompanyVisualDesign {
     let mut design = CompanyVisualDesign::default();
     design.updated_at = Some(Utc::now().to_rfc3339());
 

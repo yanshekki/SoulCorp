@@ -92,6 +92,8 @@ pub fn run() {
             commands::update_agent_visual,
             commands::update_campus_theme,
             commands::apply_design_preset,
+            commands::clear_all_test_data,
+            commands::seed_fake_test_data,
             commands::get_finance_state,
             commands::list_internal_projects,
             commands::update_budget_allocations,

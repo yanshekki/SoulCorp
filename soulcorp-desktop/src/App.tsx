@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { BuildingModal } from "./components/BuildingModal";
 import { GameScene } from "./components/GameScene";
@@ -11,6 +11,7 @@ import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
+import { TestModeButton } from "./components/UI/TestModeButton";
 import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
@@ -35,35 +36,40 @@ function App() {
       .catch((error) => setStatusMessage(String(error)));
   }, [setStatusMessage]);
 
+  let content: ReactNode;
+
   if (!onboardingReady) {
-    return (
+    content = (
       <div className="app-loading-screen">
         <p>Loading SoulCorp...</p>
       </div>
     );
-  }
-
-  if (!onboardingCompleted) {
-    return <OnboardingWizard />;
-  }
-
-  if (!companyReady) {
-    return <CompanySetupGate />;
+  } else if (!onboardingCompleted) {
+    content = <OnboardingWizard />;
+  } else if (!companyReady) {
+    content = <CompanySetupGate />;
+  } else {
+    content = (
+      <>
+        <ShellLayout statusMessage={statusMessage}>
+          {activePanel === "workspace" ? (
+            <WorkspaceShell />
+          ) : activePanel === "design_studio" ? (
+            <DesignStudioPage />
+          ) : (
+            <GameScene />
+          )}
+        </ShellLayout>
+        <BuildingModal />
+        <CreateCompanyModal />
+      </>
+    );
   }
 
   return (
     <>
-      <ShellLayout statusMessage={statusMessage}>
-        {activePanel === "workspace" ? (
-          <WorkspaceShell />
-        ) : activePanel === "design_studio" ? (
-          <DesignStudioPage />
-        ) : (
-          <GameScene />
-        )}
-      </ShellLayout>
-      <BuildingModal />
-      <CreateCompanyModal />
+      {content}
+      <TestModeButton />
     </>
   );
 }
