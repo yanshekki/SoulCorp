@@ -1,11 +1,12 @@
 {
-  "current_phase": 0,
-  "repo_root": "/home/ki/文件/SoulCorp",
+  "current_phase": 1,
+  "repo_root": "/home/ki/\u6587\u4ef6/SoulCorp",
   "phases": {
     "0": {
       "branch": "phase-0/project-setup",
-      "status": "in_progress",
-      "description": "Project setup: Tauri scaffold, Prisma/SQLite, submodule, automation"
+      "status": "merged",
+      "description": "Project setup: Tauri scaffold, Prisma/SQLite, submodule, automation",
+      "merged_at": "2026-06-30T03:35:42.723268+00:00"
     },
     "1": {
       "branch": "phase-1/isometric-world",

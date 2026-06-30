@@ -23,7 +23,6 @@ cd "${REPO_ROOT}"
 
 git checkout main
 git merge --no-ff "${BRANCH}" -m "merge: complete phase ${PHASE}"
-git push origin main
 
 python3 - <<PY
 import json
@@ -39,5 +38,9 @@ with open("${STATE_FILE}", "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
+
+git add "${STATE_FILE}"
+git commit -m "chore: mark phase ${PHASE} as merged"
+git push origin main
 
 echo "Phase ${PHASE} merged to origin/main."
