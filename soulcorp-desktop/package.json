@@ -15,6 +15,9 @@
     "release:bundle": "pnpm build && pnpm tauri build"
   },
   "dependencies": {
+    "@near-wallet-selector/core": "^10.1.4",
+    "@near-wallet-selector/modal-ui": "^10.1.4",
+    "@near-wallet-selector/my-near-wallet": "^10.1.4",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@tauri-apps/api": "^2",
@@ -26,6 +29,7 @@
     "@tiptap/extension-underline": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
+    "near-api-js": "^7.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "^0.185.0",

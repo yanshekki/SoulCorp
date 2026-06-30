@@ -530,6 +530,39 @@ body,
   font-size: 0.95rem;
 }
 
+.near-connect-btn {
+  margin: 0.5rem 0;
+  background: #3d6b8a;
+  color: #f6f1e8;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.near-pay-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin: 0.65rem 0;
+}
+
+.near-pay-grid button {
+  background: #4a7c59;
+  color: #f6f1e8;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.near-pay-grid button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .god-mode button {
   background: #5d8a67;
   color: #f6f1e8;
