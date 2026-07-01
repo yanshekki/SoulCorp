@@ -6,6 +6,21 @@ const loader = new GLTFLoader();
 const templateCache = new Map<string, THREE.Group>();
 const loadPromises = new Map<string, Promise<THREE.Group>>();
 
+function isAccentPart(mesh: THREE.Mesh): boolean {
+  const name = mesh.name.toLowerCase();
+  const matName =
+    mesh.material instanceof THREE.MeshStandardMaterial
+      ? mesh.material.name.toLowerCase()
+      : "";
+  return (
+    name.includes("accent") ||
+    matName === "accent" ||
+    name.includes("emissive_screen") ||
+    name.includes("emissive_bulb") ||
+    matName === "screen"
+  );
+}
+
 function polishFurnitureMaterials(root: THREE.Object3D): void {
   root.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) {
@@ -13,6 +28,8 @@ function polishFurnitureMaterials(root: THREE.Object3D): void {
     }
     const geometry = child.geometry;
     const hasVertexColors = geometry.attributes.color !== undefined;
+    const hasTexture =
+      child.material instanceof THREE.MeshStandardMaterial && child.material.map !== null;
     let material = child.material;
 
     if (!(material instanceof THREE.MeshStandardMaterial)) {
@@ -24,20 +41,35 @@ function polishFurnitureMaterials(root: THREE.Object3D): void {
       });
     } else {
       material = material.clone();
-      if (hasVertexColors || material.vertexColors) {
+      if (hasTexture) {
+        material.color.set(0xffffff);
+        material.vertexColors = false;
+        material.roughness = Math.min(material.roughness, 0.82);
+        if (material.emissiveMap || isAccentPart(child)) {
+          material.emissive.set(0xffffff);
+          material.emissiveIntensity = nameIncludesScreen(child) ? 0.55 : 0.12;
+        }
+      } else if (hasVertexColors || material.vertexColors) {
         material.vertexColors = true;
         material.color.set(0xffffff);
       } else {
         material.color = boostColor(`#${material.color.getHexString()}`, 1.14, 1.05);
       }
-      material.roughness = Math.min(material.roughness, 0.68);
-      material.metalness = Math.min(material.metalness, 0.12);
+      if (!hasTexture) {
+        material.roughness = Math.min(material.roughness, 0.68);
+        material.metalness = Math.min(material.metalness, 0.12);
+      }
     }
 
     child.material = material;
     child.castShadow = true;
     child.receiveShadow = true;
   });
+}
+
+function nameIncludesScreen(mesh: THREE.Mesh): boolean {
+  const name = mesh.name.toLowerCase();
+  return name.includes("screen") || name.includes("emissive") || name.includes("bulb");
 }
 
 function normalizeToFootprint(root: THREE.Group, footprint: [number, number]): void {

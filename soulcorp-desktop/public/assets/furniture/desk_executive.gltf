@@ -1,7 +1,7 @@
 {
   "asset": {
     "version": "2.0",
-    "generator": "soulcorp-furniture-gen"
+    "generator": "soulcorp-furniture-gen-b2"
   },
   "scene": 0,
   "scenes": [
@@ -15,51 +15,177 @@
   "nodes": [
     {
       "name": "desk_executive",
+      "children": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "wood_top",
       "mesh": 0
+    },
+    {
+      "name": "wood_pedestal",
+      "mesh": 1
     }
   ],
   "meshes": [
     {
-      "name": "desk_executive",
+      "name": "wood_top",
       "primitives": [
         {
           "attributes": {
             "POSITION": 0,
-            "COLOR_0": 1
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
           },
-          "indices": 2,
+          "indices": 3,
+          "material": 0,
           "mode": 4
         }
       ]
+    },
+    {
+      "name": "wood_pedestal",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 4,
+            "NORMAL": 5,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "wood",
+      "pbrMetallicRoughness": {
+        "roughnessFactor": 0.72,
+        "metallicFactor": 0.02,
+        "baseColorTexture": {
+          "index": 0
+        }
+      }
+    }
+  ],
+  "textures": [
+    {
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/wood.png"
     }
   ],
   "accessors": [
     {
       "bufferView": 0,
       "componentType": 5126,
-      "count": 16,
+      "count": 24,
       "type": "VEC3",
-      "max": [
-        0.725,
-        2,
-        2
-      ],
       "min": [
         -0.725,
-        0,
-        -2
+        0.6849999999999999,
+        -0.41
+      ],
+      "max": [
+        0.725,
+        0.755,
+        0.41
       ]
     },
     {
       "bufferView": 1,
       "componentType": 5126,
-      "count": 16,
-      "type": "VEC3"
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
     },
     {
       "bufferView": 2,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC2",
+      "min": [
+        0,
+        0
+      ],
+      "max": [
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 3,
       "componentType": 5123,
-      "count": 72,
+      "count": 36,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -0.275,
+        0.03999999999999998,
+        -0.24
+      ],
+      "max": [
+        0.275,
+        0.6599999999999999,
+        0.24
+      ]
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 6,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC2",
+      "min": [
+        0,
+        0
+      ],
+      "max": [
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 7,
+      "componentType": 5123,
+      "count": 36,
       "type": "SCALAR"
     }
   ],
@@ -67,23 +193,56 @@
     {
       "buffer": 0,
       "byteOffset": 0,
-      "byteLength": 192
+      "byteLength": 288,
+      "target": 34962
     },
     {
       "buffer": 0,
-      "byteOffset": 192,
-      "byteLength": 192
+      "byteOffset": 288,
+      "byteLength": 288,
+      "target": 34962
     },
     {
       "buffer": 0,
-      "byteOffset": 384,
-      "byteLength": 144
+      "byteOffset": 576,
+      "byteLength": 192,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 768,
+      "byteLength": 72,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 840,
+      "byteLength": 288,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1128,
+      "byteLength": 288,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1416,
+      "byteLength": 192,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1608,
+      "byteLength": 72,
+      "target": 34963
     }
   ],
   "buffers": [
     {
-      "byteLength": 528,
-      "uri": "data:application/octet-stream;base64,mpk5v+F6ND+F69G+mpk5P+F6ND+F69G+mpk5P2ZmRj+F69G+mpk5v2ZmRj+F69G+mpk5v+F6ND+F69E+mpk5P+F6ND+F69E+mpk5P2ZmRj+F69E+mpk5v2ZmRj+F69E+AACAvilcDz1mZma+AACAPilcDz1mZma+AACAPilcLz9mZma+AACAvilcLz9mZma+AACAvilcDz1mZmY+AACAPilcDz1mZmY+AACAPilcLz9mZmY+AACAvilcLz9mZmY+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+7FG4PuF6lD6uR2E+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+mpmZPo/CdT7sUTg+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoA"
+      "byteLength": 1680,
+      "uri": "desk_executive.bin"
     }
   ]
 }

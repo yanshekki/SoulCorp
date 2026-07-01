@@ -1,7 +1,7 @@
 {
   "asset": {
     "version": "2.0",
-    "generator": "soulcorp-furniture-gen"
+    "generator": "soulcorp-furniture-gen-b2"
   },
   "scene": 0,
   "scenes": [
@@ -15,51 +15,193 @@
   "nodes": [
     {
       "name": "plant_potted",
+      "children": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "pot_body",
       "mesh": 0
+    },
+    {
+      "name": "plant_canopy",
+      "mesh": 1
     }
   ],
   "meshes": [
     {
-      "name": "plant_potted",
+      "name": "pot_body",
       "primitives": [
         {
           "attributes": {
             "POSITION": 0,
-            "COLOR_0": 1
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
           },
-          "indices": 2,
+          "indices": 3,
+          "material": 0,
           "mode": 4
         }
       ]
+    },
+    {
+      "name": "plant_canopy",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 4,
+            "NORMAL": 5,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "pot",
+      "pbrMetallicRoughness": {
+        "roughnessFactor": 0.78,
+        "metallicFactor": 0,
+        "baseColorTexture": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "name": "plant",
+      "pbrMetallicRoughness": {
+        "roughnessFactor": 0.85,
+        "metallicFactor": 0,
+        "baseColorTexture": {
+          "index": 1
+        }
+      }
+    }
+  ],
+  "textures": [
+    {
+      "source": 0
+    },
+    {
+      "source": 1
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/pot.png"
+    },
+    {
+      "uri": "textures/plant.png"
     }
   ],
   "accessors": [
     {
       "bufferView": 0,
       "componentType": 5126,
-      "count": 16,
+      "count": 48,
       "type": "VEC3",
-      "max": [
-        0.175,
-        2,
-        2
-      ],
       "min": [
-        -0.175,
+        -0.12,
         0,
-        -2
+        -0.12
+      ],
+      "max": [
+        0.12,
+        0.2,
+        0.12
       ]
     },
     {
       "bufferView": 1,
       "componentType": 5126,
-      "count": 16,
-      "type": "VEC3"
+      "count": 48,
+      "type": "VEC3",
+      "min": [
+        -0.9330127018922194,
+        0,
+        -0.9330127018922193
+      ],
+      "max": [
+        0.9330127018922194,
+        0,
+        0.9330127018922194
+      ]
     },
     {
       "bufferView": 2,
+      "componentType": 5126,
+      "count": 48,
+      "type": "VEC2",
+      "min": [
+        0,
+        0
+      ],
+      "max": [
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 3,
       "componentType": 5123,
       "count": 72,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -0.17,
+        0.19,
+        -0.17
+      ],
+      "max": [
+        0.17,
+        0.5700000000000001,
+        0.17
+      ]
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 6,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC2",
+      "min": [
+        0,
+        0
+      ],
+      "max": [
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 7,
+      "componentType": 5123,
+      "count": 36,
       "type": "SCALAR"
     }
   ],
@@ -67,23 +209,56 @@
     {
       "buffer": 0,
       "byteOffset": 0,
-      "byteLength": 192
+      "byteLength": 576,
+      "target": 34962
     },
     {
       "buffer": 0,
-      "byteOffset": 192,
-      "byteLength": 192
+      "byteOffset": 576,
+      "byteLength": 576,
+      "target": 34962
     },
     {
       "buffer": 0,
-      "byteOffset": 384,
-      "byteLength": 144
+      "byteOffset": 1152,
+      "byteLength": 384,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1536,
+      "byteLength": 144,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1680,
+      "byteLength": 288,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1968,
+      "byteLength": 288,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 2256,
+      "byteLength": 192,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 2448,
+      "byteLength": 72,
+      "target": 34963
     }
   ],
   "buffers": [
     {
-      "byteLength": 528,
-      "uri": "data:application/octet-stream;base64,rkfhvQAAAACuR+G9rkfhPQAAAACuR+G9rkfhPc3MTD6uR+G9rkfhvc3MTD6uR+G9rkfhvQAAAACuR+E9rkfhPQAAAACuR+E9rkfhPc3MTD6uR+E9rkfhvc3MTD6uR+E9MzMzvuxROD4zMzO+MzMzPuxROD4zMzO+MzMzPuF6FD8zMzO+MzMzvuF6FD8zMzO+MzMzvuxROD4zMzM+MzMzPuxROD4zMzM+MzMzPuF6FD8zMzM+MzMzvuF6FD8zMzM+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+mpkZP83MzD4AAIA+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+zczMPlK4Hj89Ctc+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoA"
+      "byteLength": 2520,
+      "uri": "plant_potted.bin"
     }
   ]
 }

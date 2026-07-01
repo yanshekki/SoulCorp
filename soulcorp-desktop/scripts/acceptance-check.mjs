@@ -4,7 +4,7 @@
  * Usage: pnpm acceptance
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,17 +55,48 @@ if (testStatus !== 0) {
 }
 console.log("");
 
-console.log("2b/4 Furniture GLTF assets on disk");
+console.log("2b/4 Furniture GLTF assets on disk (B2 core + catalog)");
 const furnitureDir = join(root, "public/assets/furniture");
+const texDir = join(furnitureDir, "textures");
 const gltfFiles = existsSync(furnitureDir)
   ? readdirSync(furnitureDir).filter((name) => name.endsWith(".gltf"))
   : [];
-const hasFloorLamp = gltfFiles.includes("floor_lamp.gltf");
-if (gltfFiles.length < 21 || !hasFloorLamp) {
-  console.error(`  MISSING GLTF assets (count=${gltfFiles.length}, floor_lamp=${hasFloorLamp})`);
+const coreB2 = [
+  "desk_open",
+  "chair_office",
+  "sofa",
+  "plant_ficus",
+  "monitor",
+  "reception_desk",
+  "whiteboard",
+  "floor_lamp",
+];
+const coreOk = coreB2.every((id) => {
+  const gltfPath = join(furnitureDir, `${id}.gltf`);
+  const binPath = join(furnitureDir, `${id}.bin`);
+  if (!existsSync(gltfPath) || !existsSync(binPath)) {
+    return false;
+  }
+  const gltf = JSON.parse(readFileSync(gltfPath, "utf8"));
+  return (
+    gltf.materials?.length > 0 &&
+    gltf.images?.length > 0 &&
+    gltf.meshes?.length > 1 &&
+    gltf.asset?.generator?.includes("b2")
+  );
+});
+const texOk =
+  existsSync(texDir) &&
+  ["wood.png", "fabric.png", "metal.png", "screen.png", "accent.png"].every((name) =>
+    existsSync(join(texDir, name)),
+  );
+if (gltfFiles.length < 21 || !coreOk || !texOk) {
+  console.error(
+    `  MISSING B2 assets (gltf=${gltfFiles.length}, coreOk=${coreOk}, texOk=${texOk})`,
+  );
   failed += 1;
 } else {
-  console.log(`  OK — ${gltfFiles.length} GLTF files including floor_lamp\n`);
+  console.log(`  OK — ${gltfFiles.length} GLTF + 8 core B2 textured assets\n`);
 }
 
 console.log("3/4 pnpm typecheck");

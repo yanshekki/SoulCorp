@@ -11,6 +11,7 @@ import {
   snapPosition,
   snapScalar,
 } from "../utils/furnitureEditor";
+import { CORE_FURNITURE_ASSET_IDS } from "../data/coreFurnitureAssets";
 import { catalogEntryIcon, getCatalogEntry } from "../data/furnitureCatalog";
 import { normalizeOfficeVisual } from "../utils/officeVisualNormalize";
 import { withPreviewDecor } from "../utils/previewOfficeDecor";
@@ -130,6 +131,13 @@ export function runAcceptanceTests(): AcceptanceResult[] {
 
   const floorLamp = getCatalogEntry("floor_lamp");
   results.push(assert("floor lamp catalog exists", floorLamp?.category === "lighting"));
+  results.push(
+    assert(
+      "B2 core furniture catalog entries resolve",
+      CORE_FURNITURE_ASSET_IDS.every((id) => Boolean(getCatalogEntry(id)?.gltfPath)),
+      CORE_FURNITURE_ASSET_IDS.join(","),
+    ),
+  );
   results.push(
     assert(
       "catalog icons resolve",

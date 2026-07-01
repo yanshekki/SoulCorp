@@ -9,10 +9,17 @@ function applyAccentToMesh(mesh: THREE.Mesh, accent: string): void {
   if (!(mat instanceof THREE.MeshStandardMaterial)) return;
   const clone = mat.clone();
   const name = mesh.name.toLowerCase();
-  if (name.includes("accent") || name.includes("screen")) {
+  const matName = mat.name.toLowerCase();
+  if (name.includes("accent") || matName === "accent") {
     clone.color.set(accent);
+    if (!clone.map) {
+      clone.emissive.set(accent);
+      clone.emissiveIntensity = 0.22;
+    }
+  }
+  if (name.includes("screen") || name.includes("emissive") || matName === "screen") {
     clone.emissive.set(accent);
-    clone.emissiveIntensity = 0.15;
+    clone.emissiveIntensity = 0.45;
   }
   mesh.material = clone;
 }
