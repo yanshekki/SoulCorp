@@ -44,8 +44,14 @@ pub fn start_meeting(
 ) -> Result<MeetingSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
 
-    if request.agent_ids.len() < 2 {
-        return Err("Meetings require at least two agents.".to_string());
+    let participant_ids: Vec<String> = request
+        .agent_ids
+        .iter()
+        .filter(|agent_id| state.agents.contains_key(*agent_id))
+        .cloned()
+        .collect();
+    if participant_ids.len() < 2 {
+        return Err("Meetings require at least two valid agents.".to_string());
     }
 
     let meeting_id = Uuid::new_v4().to_string();
@@ -53,7 +59,7 @@ pub fn start_meeting(
     let meeting = MeetingState {
         id: meeting_id.clone(),
         meeting_type: request.meeting_type.clone(),
-        participant_ids: request.agent_ids.clone(),
+        participant_ids: participant_ids.clone(),
         messages: Vec::new(),
         turn: 0,
         completed: false,
@@ -64,7 +70,7 @@ pub fn start_meeting(
         notes_generated: false,
     };
 
-    for agent_id in &request.agent_ids {
+    for agent_id in &participant_ids {
         if let Some(agent) = state.agents.get_mut(agent_id) {
             agent.status = "meeting".to_string();
         }
@@ -89,7 +95,7 @@ pub async fn advance_meeting(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<MeetingSnapshot, String> {
-    let turn_plan = {
+    let (turn_plan, expected_turn, expected_completed) = {
         let state = state.lock().map_err(|e| e.to_string())?;
         let meeting = state
             .meetings
@@ -105,13 +111,19 @@ pub async fn advance_meeting(
             ));
         }
 
+        let expected_turn = meeting.turn;
+        let expected_completed = meeting.completed;
         let turns_per_agent = state.settings.meeting_turns_per_agent.max(1);
         let should_complete =
             meeting.turn >= meeting.participant_ids.len() * turns_per_agent as usize;
         if should_complete {
-            None
+            (None, expected_turn, expected_completed)
         } else {
-            Some(prepare_meeting_turn(&state, meeting)?)
+            (
+                Some(prepare_meeting_turn(&state, meeting)?),
+                expected_turn,
+                expected_completed,
+            )
         }
     };
 
@@ -124,22 +136,34 @@ pub async fn advance_meeting(
     let hub = turn_plan.hub.clone();
     let chat_request = turn_plan.chat_request;
 
+    let department_providers = turn_plan.department_ai_providers.clone();
+    let speaker_department = turn_plan.speaker_department.clone();
+    let speaker_ai_provider = turn_plan.speaker_ai_provider.clone();
     let response = tokio::task::spawn_blocking(move || {
-        ai::chat_with_fallback(&settings, &hub, chat_request)
+        ai::chat_with_fallback(
+            &settings,
+            &hub,
+            chat_request,
+            &department_providers,
+            &speaker_department,
+            speaker_ai_provider.as_deref(),
+        )
     })
     .await
     .map_err(|e| e.to_string())??;
 
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    if let Some(agent) = state.agents.get_mut(&turn_plan.speaker_id) {
-        agent.status = "meeting".to_string();
-    }
-
+    let speaker_id = turn_plan.speaker_id.clone();
     let meeting_snapshot = {
         let meeting = state
             .meetings
             .get_mut(&meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?;
+        if meeting.completed != expected_completed || meeting.turn != expected_turn {
+            return Err(
+                "Meeting advanced elsewhere while waiting for AI. Refresh and try again.".to_string(),
+            );
+        }
         meeting.messages.push(MeetingMessage {
             speaker_id: turn_plan.speaker_id,
             speaker_name: turn_plan.speaker_name,
@@ -149,11 +173,31 @@ pub async fn advance_meeting(
         meeting.turn += 1;
         meeting.clone()
     };
+    if let Some(agent) = state.agents.get_mut(&speaker_id) {
+        agent.status = "meeting".to_string();
+    }
 
     let settings = state.settings.clone();
     let hub = state.hub.clone();
     let turns_per_agent = settings.meeting_turns_per_agent;
-    let ai_status = ai::probe_meeting_ai(&settings, &hub);
+    let (speaker_department, speaker_provider) = state
+        .agents
+        .get(&speaker_id)
+        .map(|agent| {
+            (
+                agent.department.clone(),
+                agent.ai_provider.as_deref().map(str::to_string),
+            )
+        })
+        .unwrap_or_else(|| (String::new(), None));
+    let department_providers = state.department_ai_providers.clone();
+    let ai_status = ai::probe_agent_ai(
+        &settings,
+        &hub,
+        &department_providers,
+        &speaker_department,
+        speaker_provider.as_deref(),
+    );
     let snapshot = snapshot_from_meeting(&meeting_snapshot, &ai_status, turns_per_agent);
     commit(app, &state)?;
     Ok(snapshot)
@@ -162,6 +206,9 @@ pub async fn advance_meeting(
 struct MeetingTurnPlan {
     speaker_id: String,
     speaker_name: String,
+    speaker_department: String,
+    speaker_ai_provider: Option<String>,
+    department_ai_providers: std::collections::HashMap<String, String>,
     chat_request: ChatRequest,
     settings: crate::state::GameSettings,
     hub: crate::state::HubState,
@@ -245,6 +292,9 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
     Ok(MeetingTurnPlan {
         speaker_id: speaker.id.clone(),
         speaker_name: speaker.name.clone(),
+        speaker_department: speaker.department.clone(),
+        speaker_ai_provider: speaker.ai_provider.clone(),
+        department_ai_providers: state.department_ai_providers.clone(),
         chat_request: ChatRequest {
             system_prompt,
             user_prompt,
@@ -308,7 +358,9 @@ async fn finalize_meeting(
     }
 
     state.stats.meetings_completed += 1;
-    let _ = write_meeting_notes_from_state(&app, &mut state, meeting_id);
+    if let Err(error) = write_meeting_notes_from_state(&app, &mut state, meeting_id) {
+        eprintln!("Failed to write meeting notes: {error}");
+    }
 
     let ai_status = ai::probe_meeting_ai(&state.settings, &state.hub);
     let turns_per_agent = state.settings.meeting_turns_per_agent;
@@ -468,7 +520,15 @@ fn meeting_outcome_plan(meeting_type: &str) -> (f32, f64, String, bool) {
 fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str) {
     let (progress_delta, revenue_delta, _, spawn_project) = meeting_outcome_plan(meeting_type);
 
-    if let Some(project) = state.projects.first_mut() {
+    if let Some(project) = state
+        .projects
+        .iter_mut()
+        .max_by(|left, right| {
+            left.priority
+                .cmp(&right.priority)
+                .then(left.progress.partial_cmp(&right.progress).unwrap_or(std::cmp::Ordering::Equal))
+        })
+    {
         project.progress = (project.progress + progress_delta).min(1.0);
     }
 

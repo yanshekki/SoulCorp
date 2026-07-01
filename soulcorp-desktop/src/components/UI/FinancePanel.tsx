@@ -9,8 +9,15 @@ export function FinancePanel() {
   const setFinance = useGameStore((state) => state.setFinance);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [projects, setProjects] = useState<InternalProject[]>([]);
+  const [salaryDrafts, setSalaryDrafts] = useState<Record<string, number>>({});
 
   const net = finance.monthly_revenue - finance.monthly_burn;
+
+  useEffect(() => {
+    setSalaryDrafts(
+      Object.fromEntries(agentRecords.map((agent) => [agent.id, Math.round(agent.salary)])),
+    );
+  }, [agentRecords]);
 
   const loadProjects = async () => {
     try {
@@ -37,7 +44,15 @@ export function FinancePanel() {
     }
   };
 
-  const updateSalary = async (agentId: string, salary: number) => {
+  const commitSalary = async (agentId: string) => {
+    const salary = salaryDrafts[agentId];
+    if (!Number.isFinite(salary) || salary <= 0) {
+      return;
+    }
+    const current = agentRecords.find((agent) => agent.id === agentId);
+    if (current && Math.round(current.salary) === Math.round(salary)) {
+      return;
+    }
     try {
       const updated = await invoke<typeof finance>("adjust_agent_salary", {
         update: { agent_id: agentId, salary },
@@ -137,10 +152,19 @@ export function FinancePanel() {
             <input
               type="number"
               className="salary-input"
-              value={Math.round(agent.salary)}
+              value={salaryDrafts[agent.id] ?? Math.round(agent.salary)}
               onChange={(event) =>
-                void updateSalary(agent.id, Number(event.target.value))
+                setSalaryDrafts((current) => ({
+                  ...current,
+                  [agent.id]: Number(event.target.value),
+                }))
               }
+              onBlur={() => void commitSalary(agent.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void commitSalary(agent.id);
+                }
+              }}
             />
           </div>
         ))}

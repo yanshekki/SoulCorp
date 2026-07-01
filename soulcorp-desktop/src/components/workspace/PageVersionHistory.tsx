@@ -12,7 +12,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
   const [restoring, setRestoring] = useState<number | null>(null);
 
   useEffect(() => {
-    void invoke<PageVersionSummary[]>("list_page_versions", { page_id: pageId })
+    void invoke<PageVersionSummary[]>("list_page_versions", { pageId })
       .then(setVersions)
       .catch(() => setVersions([]));
   }, [pageId]);
@@ -24,7 +24,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
         request: { page_id: pageId, version },
       });
       onRestored(page);
-      const next = await invoke<PageVersionSummary[]>("list_page_versions", { page_id: pageId });
+      const next = await invoke<PageVersionSummary[]>("list_page_versions", { pageId });
       setVersions(next);
     } finally {
       setRestoring(null);

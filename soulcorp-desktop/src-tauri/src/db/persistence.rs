@@ -36,8 +36,7 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
     Ok(conn)
 }
 
-pub fn load_registry(app: &AppHandle) -> Result<CompanyRegistry, String> {
-    let conn = open_connection(app)?;
+fn load_registry_conn(conn: &Connection) -> Result<CompanyRegistry, String> {
     let mut stmt = conn
         .prepare("SELECT registry_json FROM company_registry WHERE id = 1")
         .map_err(|e| e.to_string())?;
@@ -50,6 +49,11 @@ pub fn load_registry(app: &AppHandle) -> Result<CompanyRegistry, String> {
         Some(json) => serde_json::from_str(&json).map_err(|e| e.to_string()),
         None => Ok(CompanyRegistry::default()),
     }
+}
+
+pub fn load_registry(app: &AppHandle) -> Result<CompanyRegistry, String> {
+    let conn = open_connection(app)?;
+    load_registry_conn(&conn)
 }
 
 pub fn save_registry(app: &AppHandle, registry: &CompanyRegistry) -> Result<(), String> {
@@ -222,11 +226,47 @@ pub fn commit(app: AppHandle, state: &AppState) -> Result<(), String> {
     if state.company_id.is_empty() {
         return Err("Cannot persist company state without company_id.".to_string());
     }
-    persist_company_state(&app, &state.company_id, state)?;
-    let mut registry = load_registry(&app)?;
-    registry.upsert_summary(summary_from_state(state));
-    registry.active_company_id = Some(state.company_id.clone());
-    save_registry(&app, &registry)
+
+    let conn = open_connection(&app)?;
+    let state_json = serde_json::to_string(state).map_err(|e| e.to_string())?;
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
+
+    let persist_result = (|| -> Result<(), String> {
+        tx.execute(
+            "INSERT INTO company_snapshots (company_id, state_json, updated_at)
+             VALUES (?1, ?2, datetime('now'))
+             ON CONFLICT(company_id) DO UPDATE SET
+               state_json = excluded.state_json,
+               updated_at = excluded.updated_at",
+            (&state.company_id, state_json),
+        )
+        .map_err(|e| e.to_string())?;
+
+        let mut registry = load_registry_conn(&tx)?;
+        registry.upsert_summary(summary_from_state(state));
+        registry.active_company_id = Some(state.company_id.clone());
+        let registry_json = serde_json::to_string(&registry).map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO company_registry (id, registry_json, updated_at)
+             VALUES (1, ?1, datetime('now'))
+             ON CONFLICT(id) DO UPDATE SET
+               registry_json = excluded.registry_json,
+               updated_at = excluded.updated_at",
+            [&registry_json],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+
+    match persist_result {
+        Ok(()) => tx.commit().map_err(|e| e.to_string()),
+        Err(error) => {
+            let _ = tx.rollback();
+            Err(error)
+        }
+    }
 }
 
 pub fn switch_active_company(

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { run3dSmokeTestFromCanvas } from "../../services/scene3dSmoke";
 import { useGameStore } from "../../stores/gameStore";
+import { agentRuntimeRef } from "../../utils/agentRuntime";
 import {
   createOfficeScene,
   renderScene,
@@ -61,8 +62,10 @@ export function ThreeOfficeRenderer({
       lastTimeRef.current = time;
 
       const state = useGameStore.getState();
+      const agents =
+        agentRuntimeRef.current.length > 0 ? agentRuntimeRef.current : state.agents;
       syncSceneBuildings(handlesRef.current, state.buildings);
-      syncSceneAgents(handlesRef.current, state.agents, state.settings.low_power_mode);
+      syncSceneAgents(handlesRef.current, agents, state.settings.low_power_mode);
       updateCamera(handlesRef.current.camera, state.selectedBuilding, delta);
       renderScene(handlesRef.current);
 

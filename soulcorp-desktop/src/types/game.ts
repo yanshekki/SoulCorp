@@ -7,6 +7,7 @@ export type SidebarPanel =
   | "finance"
   | "marketplace"
   | "recruitment"
+  | "agents"
   | "tier"
   | "executive"
   | "achievements"
@@ -133,10 +134,16 @@ export interface CustomDepartmentBuilding {
   description: string;
 }
 
+export interface DepartmentAiConfig {
+  department: string;
+  ai_provider?: string | null;
+}
+
 export interface CompanyDepartmentsSnapshot {
   builtin: string[];
   custom: CustomDepartment[];
   buildings: CustomDepartmentBuilding[];
+  department_ai_providers?: DepartmentAiConfig[];
 }
 
 export interface CoCeoStatus {
@@ -257,6 +264,7 @@ export interface AgentRecord {
   salary: number;
   status: string;
   soul?: SoulProfile | null;
+  ai_provider?: string | null;
 }
 
 export interface FinanceState {

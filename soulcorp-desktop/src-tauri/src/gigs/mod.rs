@@ -44,7 +44,7 @@ pub fn compute_qc_score(state: &AppState, contract: &GigContract) -> f32 {
     };
 
     let progress_factor = contract.progress.clamp(0.0, 1.0);
-    let score = (progress_factor * 0.45 + skill_factor * 0.35 + morale_avg * 0.2).clamp(0.55, 0.99);
+    let score = (progress_factor * 0.45 + skill_factor * 0.35 + morale_avg * 0.2).clamp(0.0, 0.99);
     (score * 100.0).round() / 100.0
 }
 
@@ -83,7 +83,7 @@ pub fn apply_gig_contract_ticks(state: &mut AppState) -> GigTickResult {
             contracts_advanced += 1;
         }
 
-        if contract.progress >= 1.0 {
+        if contract.progress >= 0.95 {
             qc_indices.push(index);
         }
     }

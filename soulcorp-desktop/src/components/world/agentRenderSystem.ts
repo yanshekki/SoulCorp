@@ -102,6 +102,12 @@ function createStatusBubble(label: string): THREE.Sprite {
 }
 
 function updateStatusBubble(sprite: THREE.Sprite, label: string) {
+  const currentLabel = (sprite.userData.statusLabel as string | undefined) ?? "";
+  if (currentLabel === label) {
+    return;
+  }
+  sprite.userData.statusLabel = label;
+
   const canvas = (sprite.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
   const ctx = canvas?.getContext("2d");
   if (!ctx) {
@@ -416,6 +422,13 @@ export class AgentRenderSystem {
       sprite.material.dispose();
     }
     this.statusSprites.clear();
+
+    for (const sprite of this.workEffectSprites.values()) {
+      this.scene.remove(sprite);
+      (sprite.material as THREE.SpriteMaterial).map?.dispose();
+      sprite.material.dispose();
+    }
+    this.workEffectSprites.clear();
 
     for (const texture of this.textureCache.values()) {
       texture.dispose();

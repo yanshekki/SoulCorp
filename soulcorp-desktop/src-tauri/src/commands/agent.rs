@@ -1,3 +1,4 @@
+use crate::ai::normalize_agent_ai_provider;
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::soul::{parse_soul_content, parse_soul_md, SoulProfile};
@@ -33,6 +34,12 @@ pub struct LoadSoulRequest {
     pub soul_md_content: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateAgentAiProviderRequest {
+    pub agent_id: String,
+    pub ai_provider: Option<String>,
+}
+
 #[tauri::command]
 pub fn start_local_agent(
     request: StartAgentRequest,
@@ -47,6 +54,7 @@ pub fn start_local_agent(
         .as_ref()
         .map(|profile| profile.name.clone())
         .unwrap_or_else(|| "New Agent".to_string());
+    let ai_provider = normalize_agent_ai_provider(Some(&request.ai_provider))?;
 
     state.agents.insert(
         agent_id.clone(),
@@ -61,6 +69,7 @@ pub fn start_local_agent(
             status: "idle".to_string(),
             soul,
             soul_id: None,
+            ai_provider,
         },
     );
 
@@ -101,6 +110,24 @@ pub fn load_agent_soul(
     agent.soul = Some(profile.clone());
     commit(app, &state)?;
     Ok(profile)
+}
+
+#[tauri::command]
+pub fn update_agent_ai_provider(
+    request: UpdateAgentAiProviderRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<AgentRecord, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let ai_provider = normalize_agent_ai_provider(request.ai_provider.as_deref())?;
+    let agent = state
+        .agents
+        .get_mut(&request.agent_id)
+        .ok_or_else(|| format!("Agent {} not found.", request.agent_id))?;
+    agent.ai_provider = ai_provider;
+    let snapshot = agent.clone();
+    commit(app, &state)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]

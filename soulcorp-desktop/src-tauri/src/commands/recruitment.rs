@@ -1,7 +1,7 @@
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::finance::total_monthly_salary;
-use crate::hub::{mock_gigs, HubClient};
+use crate::hub::HubClient;
 use crate::relationships::{
     build_relationship_graph, connect_new_agent, ensure_relationship_backfill, RelationshipGraph,
 };
@@ -77,54 +77,11 @@ pub struct HireCandidateRequest {
     pub soul_md_content: Option<String>,
 }
 
-fn mock_candidates() -> Vec<RecruitmentCandidate> {
-    vec![
-        RecruitmentCandidate {
-            id: "cand-1".into(),
-            soul_id: None,
-            name: "Lena Park".into(),
-            headline: "Full-stack builder with calm leadership vibe".into(),
-            skills: vec!["react".into(), "rust".into(), "product".into()],
-            vibe: "steady".into(),
-            verified: true,
-            hourly_rate_usdt: 48.0,
-            soul_md_content: None,
-            compatibility_score: None,
-            skill_overlap: None,
-            department_fit: None,
-            projected_morale_delta: None,
-        },
-        RecruitmentCandidate {
-            id: "cand-2".into(),
-            soul_id: None,
-            name: "Theo Alvarez".into(),
-            headline: "Growth marketer who writes like a founder".into(),
-            skills: vec!["copywriting".into(), "seo".into(), "analytics".into()],
-            vibe: "bold".into(),
-            verified: true,
-            hourly_rate_usdt: 36.0,
-            soul_md_content: None,
-            compatibility_score: None,
-            skill_overlap: None,
-            department_fit: None,
-            projected_morale_delta: None,
-        },
-        RecruitmentCandidate {
-            id: "cand-3".into(),
-            soul_id: None,
-            name: "Sora Iwata".into(),
-            headline: "Design systems + pixel-perfect UI craft".into(),
-            skills: vec!["figma".into(), "tailwind".into(), "motion".into()],
-            vibe: "creative".into(),
-            verified: false,
-            hourly_rate_usdt: 42.0,
-            soul_md_content: None,
-            compatibility_score: None,
-            skill_overlap: None,
-            department_fit: None,
-            projected_morale_delta: None,
-        },
-    ]
+fn listings_to_candidates(listings: &[Value]) -> Vec<RecruitmentCandidate> {
+    listings
+        .iter()
+        .filter_map(listing_to_candidate)
+        .collect()
 }
 
 fn listing_to_candidate(item: &Value) -> Option<RecruitmentCandidate> {
@@ -391,8 +348,9 @@ pub fn get_agent_relationship_graph(
 pub async fn get_recruitment_analytics(
     query: Option<String>,
     app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<RecruitmentAnalytics, String> {
-    let candidates = load_recruitment_candidates(&app_state, query).await?;
+    let candidates = load_recruitment_candidates(&app_state, &app, query).await?;
     let state = app_state.lock().map_err(|e| e.to_string())?;
 
     let morale_values: Vec<f32> = state.agents.values().map(|agent| agent.morale).collect();
@@ -500,7 +458,8 @@ fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
                 || agent.role.to_lowercase().contains("hr")
         })
         .map(|(id, _)| id.clone())
-        .unwrap_or_else(|| "agent-2".to_string());
+        .or_else(|| state.agents.keys().next().cloned())
+        .unwrap_or_else(|| new_agent_id.to_string());
 
     let meeting_id = Uuid::new_v4().to_string();
     state.meetings.insert(
@@ -520,53 +479,54 @@ fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
         },
     );
 
-    for agent_id in [hr_id.as_str(), new_agent_id] {
-        if let Some(agent) = state.agents.get_mut(agent_id) {
-            agent.status = "meeting".to_string();
-        }
-    }
 }
 
 async fn load_recruitment_candidates(
     app_state: &Mutex<AppState>,
+    app: &AppHandle,
     query: Option<String>,
 ) -> Result<Vec<RecruitmentCandidate>, String> {
+    let (pure_local, cached_listings) = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        (
+            state.settings.pure_local_mode,
+            state.hub.cached_hub_soul_listings.clone(),
+        )
+    };
+
+    if pure_local {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        return Ok(enrich_candidates(
+            &state,
+            merge_bonus_candidates(Vec::new(), &state),
+        ));
+    }
+
     let client = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
-        if state.settings.pure_local_mode {
-            return Ok(enrich_candidates(
-                &state,
-                merge_bonus_candidates(mock_candidates(), &state),
-            ));
-        }
         HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
 
     match client.list_souls(query.as_deref(), 20).await {
         Ok(listings) if !listings.is_empty() => {
-            let candidates = listings
-                .iter()
-                .filter_map(|item| listing_to_candidate(item))
-                .collect::<Vec<_>>();
-            let state = app_state.lock().map_err(|e| e.to_string())?;
-            if candidates.is_empty() {
-                Ok(enrich_candidates(
-                    &state,
-                    merge_bonus_candidates(mock_candidates(), &state),
-                ))
-            } else {
-                Ok(enrich_candidates(
-                    &state,
-                    merge_bonus_candidates(candidates, &state),
-                ))
+            {
+                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                state.hub.cached_hub_soul_listings = listings.clone();
+                commit(app.clone(), &state)?;
             }
-        }
-        _ => {
-            let _ = mock_gigs();
+            let candidates = listings_to_candidates(&listings);
             let state = app_state.lock().map_err(|e| e.to_string())?;
             Ok(enrich_candidates(
                 &state,
-                merge_bonus_candidates(mock_candidates(), &state),
+                merge_bonus_candidates(candidates, &state),
+            ))
+        }
+        Ok(_) | Err(_) => {
+            let candidates = listings_to_candidates(&cached_listings);
+            let state = app_state.lock().map_err(|e| e.to_string())?;
+            Ok(enrich_candidates(
+                &state,
+                merge_bonus_candidates(candidates, &state),
             ))
         }
     }
@@ -576,8 +536,9 @@ async fn load_recruitment_candidates(
 pub async fn list_recruitment_candidates(
     query: Option<String>,
     app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<Vec<RecruitmentCandidate>, String> {
-    load_recruitment_candidates(&app_state, query).await
+    load_recruitment_candidates(&app_state, &app, query).await
 }
 
 #[tauri::command]
@@ -639,6 +600,7 @@ pub async fn hire_candidate(
         status: "idle".to_string(),
         soul,
         soul_id,
+        ai_provider: None,
     };
 
     state.finance.cash_balance -= offered_salary as f64 * 0.5;
@@ -650,5 +612,9 @@ pub async fn hire_candidate(
     spawn_onboarding_meeting(&mut state, &agent_id);
 
     commit(app, &state)?;
-    Ok(record)
+    Ok(state
+        .agents
+        .get(&agent_id)
+        .cloned()
+        .unwrap_or(record))
 }

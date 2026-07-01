@@ -145,6 +145,10 @@ pub struct HubState {
     #[serde(default)]
     pub near_wallet_address: Option<String>,
     pub last_sync_at: Option<String>,
+    #[serde(default)]
+    pub cached_open_gigs: Vec<crate::hub::HubGig>,
+    #[serde(default)]
+    pub cached_hub_soul_listings: Vec<serde_json::Value>,
 }
 
 impl Default for HubState {
@@ -158,6 +162,8 @@ impl Default for HubState {
             soul_staked: 0.0,
             near_wallet_address: None,
             last_sync_at: None,
+            cached_open_gigs: Vec::new(),
+            cached_hub_soul_listings: Vec::new(),
         }
     }
 }
@@ -225,6 +231,8 @@ pub struct AgentRecord {
     pub soul: Option<SoulProfile>,
     #[serde(default)]
     pub soul_id: Option<u64>,
+    #[serde(default)]
+    pub ai_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -406,6 +414,8 @@ pub struct AppState {
     #[serde(default)]
     pub custom_departments: Vec<CustomDepartment>,
     #[serde(default)]
+    pub department_ai_providers: HashMap<String, String>,
+    #[serde(default)]
     pub co_ceo: CoCeoState,
     #[serde(default)]
     pub projects: Vec<InternalProject>,
@@ -448,6 +458,7 @@ impl Default for AppState {
             gig_contracts: Vec::new(),
             agent_relationships: Vec::new(),
             custom_departments: Vec::new(),
+            department_ai_providers: HashMap::new(),
             co_ceo: CoCeoState::default(),
             projects: Vec::new(),
             day_number: 1,
@@ -503,6 +514,7 @@ impl AppState {
                     status: "idle".to_string(),
                     soul: None,
                     soul_id: None,
+                    ai_provider: None,
                 },
             );
         }

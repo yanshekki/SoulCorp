@@ -335,7 +335,7 @@ export function SettingsPanel() {
       </div>
 
       <label className="field-label">
-        AI Provider
+        Default company AI provider
         <select
           value={settings.ai_provider}
           onChange={(event) => void updateSettings({ ai_provider: event.target.value })}

@@ -42,7 +42,7 @@ export function VipExecutivePanel() {
   const [deptSop, setDeptSop] = useState("");
   const [deptBrandColor, setDeptBrandColor] = useState("#6d7f9b");
   const [deptAccentColor, setDeptAccentColor] = useState("#5ec8ff");
-  const [assignAgentId, setAssignAgentId] = useState("agent-1");
+  const [assignAgentId, setAssignAgentId] = useState("");
   const [targetDepartment, setTargetDepartment] = useState("Engineering");
 
   const refresh = async () => {
@@ -71,10 +71,20 @@ export function VipExecutivePanel() {
     }
   }, [tierBenefits.custom_departments, tierBenefits.ai_co_ceo]);
 
+  useEffect(() => {
+    if (agentRecords.length === 0) {
+      setAssignAgentId("");
+      return;
+    }
+    setAssignAgentId((current) =>
+      agentRecords.some((agent) => agent.id === current) ? current : agentRecords[0].id,
+    );
+  }, [agentRecords]);
+
   const deleteDepartment = async (departmentId: string) => {
     try {
       const snapshot = await invoke<CompanyDepartmentsSnapshot>("delete_custom_department", {
-        department_id: departmentId,
+        departmentId,
       });
       setDepartments(snapshot);
       const baseIds = new Set(["hq", "engineering", "hr", "plaza"]);

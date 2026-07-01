@@ -1,7 +1,6 @@
 use crate::state::{AgentRecord, AppState, GameEvent};
 use crate::workspace::models::{LinkedEntity, WorkspacePage};
 use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
-use rand::Rng;
 use tauri::{AppHandle, Manager};
 
 pub fn write_daily_activity_docs(app: &AppHandle, state: &mut AppState) -> Result<u32, String> {
@@ -17,7 +16,7 @@ pub fn write_daily_activity_docs(app: &AppHandle, state: &mut AppState) -> Resul
     let agents: Vec<AgentRecord> = state.agents.values().cloned().collect();
 
     for agent in &agents {
-        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name)?;
+        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
         let journal_title = format!("{} — Daily Journal", agent.name);
         let heading = format!("Day {day} Activity Log");
         let lines = activity_lines_for_agent(agent, state);
@@ -84,7 +83,7 @@ pub fn write_event_activity_doc(
     storage.append_company_feed_entry(state.day_number, &event.title, &body)?;
 
     for agent in state.agents.values() {
-        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name)?;
+        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
         let journal_title = format!("{} — Daily Journal", agent.name);
         let heading = format!("Day {} — Event Response", state.day_number);
         let lines = vec![
@@ -113,7 +112,7 @@ pub fn write_meeting_notes_from_state(
         return Ok(vec![]);
     }
 
-    let (meeting_type, messages, participant_ids, participant_names) = {
+    let (meeting_type, messages, participants) = {
         let meeting = state
             .meetings
             .get(meeting_id)
@@ -125,13 +124,21 @@ pub fn write_meeting_notes_from_state(
             .map(|message| (message.speaker_name.clone(), message.content.clone()))
             .collect();
 
-        let participant_ids = meeting.participant_ids.clone();
-        let participant_names: Vec<String> = participant_ids
+        let participants: Vec<(String, String, String)> = meeting
+            .participant_ids
             .iter()
-            .filter_map(|id| state.agents.get(id).map(|agent| agent.name.clone()))
+            .filter_map(|id| {
+                state.agents.get(id).map(|agent| {
+                    (
+                        agent.id.clone(),
+                        agent.name.clone(),
+                        agent.department.clone(),
+                    )
+                })
+            })
             .collect();
 
-        (meeting.meeting_type.clone(), messages, participant_ids, participant_names)
+        (meeting.meeting_type.clone(), messages, participants)
     };
 
     if state.company_id.is_empty() {
@@ -140,13 +147,7 @@ pub fn write_meeting_notes_from_state(
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
-    let pages = storage.append_meeting_notes(
-        meeting_id,
-        &meeting_type,
-        &messages,
-        &participant_ids,
-        &participant_names,
-    )?;
+    let pages = storage.append_meeting_notes(meeting_id, &meeting_type, &messages, &participants)?;
     if let Some(meeting) = state.meetings.get_mut(meeting_id) {
         meeting.notes_generated = true;
     }
@@ -155,7 +156,6 @@ pub fn write_meeting_notes_from_state(
 }
 
 fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String> {
-    let mut rng = rand::rng();
     let mut lines = Vec::new();
 
     match agent.status.as_str() {
@@ -168,26 +168,54 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
         _ => lines.push("Started the day with planning and inbox triage.".to_string()),
     }
 
-    let dept_tasks = department_tasks(&agent.department);
-    lines.push(format!(
-        "- {}",
-        dept_tasks[rng.random_range(0..dept_tasks.len())]
-    ));
-    lines.push(format!(
-        "- {}",
-        dept_tasks[rng.random_range(0..dept_tasks.len())]
-    ));
-
-    if let Some(project) = state
+    for project in state
         .projects
         .iter()
-        .find(|project| project.owner_department == agent.department)
+        .filter(|project| project.owner_department == agent.department)
     {
         lines.push(format!(
-            "- Updated \"{}\" progress to {:.0}%",
+            "- Project \"{}\": {:.0}% complete (priority {})",
             project.title,
-            project.progress * 100.0
+            project.progress * 100.0,
+            project.priority
         ));
+    }
+
+    for meeting in state.meetings.values() {
+        if !meeting.participant_ids.contains(&agent.id) {
+            continue;
+        }
+        let status = if meeting.completed {
+            "completed"
+        } else {
+            "in progress"
+        };
+        lines.push(format!(
+            "- Meeting \"{}\" ({}, {} turns)",
+            meeting.meeting_type, status, meeting.turn
+        ));
+    }
+
+    for contract in state
+        .gig_contracts
+        .iter()
+        .filter(|contract| contract.status != "completed")
+    {
+        lines.push(format!(
+            "- Gig contract \"{}\": {} at {:.0}% progress",
+            contract.title, contract.status, contract.progress * 100.0
+        ));
+    }
+
+    if let Some(event) = state.events.last() {
+        lines.push(format!(
+            "- Latest company event: \"{}\" ({})",
+            event.title, event.tone
+        ));
+    }
+
+    if agent.soul.is_some() {
+        lines.push("- Soul profile loaded for persona-aligned responses.".to_string());
     }
 
     if agent.morale < 0.5 {
@@ -198,10 +226,11 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
     }
 
     lines.push(format!(
-        "Status: {} · Morale {:.0}% · Energy {:.0}%",
+        "Status: {} · Morale {:.0}% · Energy {:.0}% · Salary ${:.0}/mo",
         agent.status,
         agent.morale * 100.0,
-        agent.energy * 100.0
+        agent.energy * 100.0,
+        agent.salary
     ));
 
     lines
@@ -222,39 +251,4 @@ fn reaction_line_for_agent(agent: &AgentRecord, event: &GameEvent) -> String {
             agent.name, event.title
         ),
     }
-}
-
-fn department_tasks(department: &str) -> Vec<&'static str> {
-    match department {
-        "Engineering" => vec![
-            "Refactored service boundaries for the core platform",
-            "Reviewed pull requests and unblocked integration tests",
-            "Paired on performance profiling for hot paths",
-            "Drafted API contract updates for the next sprint",
-        ],
-        "Human Resources" => vec![
-            "Updated onboarding checklist for new hires",
-            "Scheduled 1:1 check-ins across departments",
-            "Drafted culture pulse survey questions",
-            "Reviewed compensation bands against market data",
-        ],
-        "Executive" => vec![
-            "Reviewed quarterly targets with department leads",
-            "Prioritized portfolio bets for the next month",
-            "Aligned roadmap trade-offs with finance constraints",
-            "Prepared board-ready operating metrics summary",
-        ],
-        "Marketplace" => vec![
-            "Screened new Soul profiles for recruitment pipeline",
-            "Updated gig pricing guidance on the hub board",
-            "Synced candidate shortlist with hiring managers",
-        ],
-        _ => vec![
-            "Completed assigned deliverables on schedule",
-            "Updated shared project tracker with blockers",
-            "Coordinated handoffs with adjacent teams",
-        ],
-    }
-    .into_iter()
-    .collect()
 }

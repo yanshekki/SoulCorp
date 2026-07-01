@@ -1,6 +1,4 @@
-import { BUILDING_ENTRANCES, deskForAgent } from "./worldLayout";
-import type { Agent, Building } from "../types/world";
-import { generateAgentAppearance } from "../utils/agentAppearance";
+import type { Building } from "../types/world";
 
 export const INITIAL_BUILDINGS: Building[] = [
   {
@@ -60,41 +58,3 @@ export const INITIAL_BUILDINGS: Building[] = [
   },
 ];
 
-function seedAgent(
-  id: string,
-  name: string,
-  department: string,
-  role: string,
-  buildingId: string,
-): Agent {
-  const appearance = generateAgentAppearance(id);
-  const desk = deskForAgent(buildingId, id);
-  const entrance = BUILDING_ENTRANCES[buildingId] ?? desk;
-
-  return {
-    id,
-    name,
-    department,
-    role,
-    color: appearance.shirtColor,
-    status: "walking",
-    statusLabel: "Heading to desk",
-    position: [entrance[0], 0, entrance[2]],
-    target: [desk[0], 0, desk[2]],
-    speed: 1.1,
-    appearance,
-    behavior: {
-      intent: "commute_to_desk",
-      waitSeconds: 0,
-      homeDesk: [desk[0], 0, desk[2]],
-      buildingId,
-    },
-    walkPhase: 0,
-  };
-}
-
-export const INITIAL_AGENTS: Agent[] = [
-  seedAgent("agent-1", "Mira", "Engineering", "Senior Dev", "engineering"),
-  seedAgent("agent-2", "Kai", "Human Resources", "HR Lead", "hr"),
-  seedAgent("agent-3", "Ren", "Executive", "COO", "hq"),
-];

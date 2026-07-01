@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceType {
     Company,
+    Department,
     Agent,
     User,
     Custom,
@@ -27,6 +28,8 @@ pub struct WorkspaceFolder {
     pub permissions: Vec<Permission>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub sort_order: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +63,8 @@ pub struct WorkspacePage {
     pub last_edited_by: String,
     pub version: u32,
     pub dirty: bool,
+    #[serde(default)]
+    pub sort_order: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +80,14 @@ pub struct WorkspacePageSummary {
     pub folder_id: String,
     pub last_edited_at: String,
     pub last_edited_by: String,
+    #[serde(default)]
+    pub sort_order: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReorderWorkspacePagesRequest {
+    pub folder_id: String,
+    pub page_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +103,22 @@ pub struct SearchResult {
 pub struct CreatePageRequest {
     pub folder_id: String,
     pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFolderRequest {
+    pub parent_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeletePageRequest {
+    pub page_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteFolderRequest {
+    pub folder_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -75,14 +75,19 @@ pub fn seed_default_relationships(state: &mut AppState) {
         return;
     }
 
-    let pairs = [
-        ("agent-1", "agent-2", "friend", 0.72),
-        ("agent-1", "agent-3", "mentor", 0.58),
-        ("agent-2", "agent-3", "tense", 0.34),
-    ];
+    let mut agent_ids: Vec<String> = state.agents.keys().cloned().collect();
+    agent_ids.sort();
+    if agent_ids.len() < 2 {
+        return;
+    }
 
-    for (left, right, relationship_type, score) in pairs {
-        upsert_relationship(state, left, right, relationship_type, score);
+    let relationship_types = ["friend", "mentor", "tense"];
+    for index in 0..agent_ids.len().saturating_sub(1) {
+        let left = agent_ids[index].clone();
+        let right = agent_ids[index + 1].clone();
+        let relationship_type = relationship_types[index % relationship_types.len()];
+        let score = 0.42 + (index as f32 * 0.12);
+        upsert_relationship(state, &left, &right, relationship_type, score.min(0.82));
     }
 }
 
@@ -235,7 +240,7 @@ mod tests {
         let mut state = AppState::default();
         state.seed_defaults();
         seed_default_relationships(&mut state);
-        assert_eq!(state.agent_relationships.len(), 3);
+        assert_eq!(state.agent_relationships.len(), 2);
     }
 
     #[test]
@@ -245,6 +250,6 @@ mod tests {
         seed_default_relationships(&mut state);
         let graph = build_relationship_graph(&state);
         assert_eq!(graph.nodes.len(), 3);
-        assert_eq!(graph.edges.len(), 3);
+        assert_eq!(graph.edges.len(), 2);
     }
 }

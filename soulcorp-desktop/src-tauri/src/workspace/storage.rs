@@ -1,8 +1,10 @@
 use super::models::{
-    AddPageCommentRequest, Block, CreatePageRequest, LinkedEntity, PageBacklink, PageComment,
-    PageVersionSummary, SearchResult, UpdatePageRequest, WorkspaceFolder, WorkspacePage,
+    AddPageCommentRequest, Block, CreateFolderRequest, CreatePageRequest, DeleteFolderRequest,
+    DeletePageRequest, LinkedEntity, PageBacklink, PageComment, PageVersionSummary,
+    ReorderWorkspacePagesRequest, SearchResult, UpdatePageRequest, WorkspaceFolder, WorkspacePage,
     WorkspacePageSummary, WorkspacePresenceEntry, WorkspaceTree, WorkspaceType,
 };
+use std::collections::{HashMap, HashSet};
 use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -25,12 +27,173 @@ impl WorkspaceStorage {
         Ok(())
     }
 
+    pub fn ensure_organization_structure(
+        &self,
+        departments: &[String],
+        agents: &[(String, String, String)],
+    ) -> Result<(), String> {
+        let mut folders = self.read_folders()?;
+        let now = Utc::now().to_rfc3339();
+        let mut changed = false;
+
+        if !folders.iter().any(|folder| folder.id == "folder-teams") {
+            folders.push(WorkspaceFolder {
+                id: "folder-teams".to_string(),
+                name: "Teams".to_string(),
+                icon: Some("👥".to_string()),
+                parent_id: None,
+                workspace_type: WorkspaceType::Company,
+                owner_id: "player".to_string(),
+                is_private: false,
+                permissions: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                sort_order: 0,
+            });
+            changed = true;
+        }
+
+        for department in departments {
+            let folder_id = department_folder_id(department);
+            if folders.iter().any(|folder| folder.id == folder_id) {
+                continue;
+            }
+            folders.push(WorkspaceFolder {
+                id: folder_id.clone(),
+                name: department.clone(),
+                icon: Some(department_icon(department)),
+                parent_id: Some("folder-teams".to_string()),
+                workspace_type: WorkspaceType::Department,
+                owner_id: "player".to_string(),
+                is_private: false,
+                permissions: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                sort_order: 0,
+            });
+            changed = true;
+        }
+
+        if let Some(projects) = folders.iter_mut().find(|folder| folder.id == "folder-projects") {
+            if projects.parent_id.as_deref() != Some("folder-company") {
+                projects.parent_id = Some("folder-company".to_string());
+                projects.updated_at = now.clone();
+                changed = true;
+            }
+        }
+
+        for (agent_id, agent_name, department) in agents {
+            let folder_id = format!("folder-{agent_id}");
+            let parent_id = department_folder_id(department);
+            if let Some(folder) = folders.iter_mut().find(|folder| folder.id == folder_id) {
+                if folder.parent_id.as_deref() != Some(parent_id.as_str()) {
+                    folder.parent_id = Some(parent_id);
+                    folder.name = agent_name.clone();
+                    folder.updated_at = now.clone();
+                    changed = true;
+                }
+                continue;
+            }
+            folders.push(WorkspaceFolder {
+                id: folder_id,
+                name: agent_name.clone(),
+                icon: Some("🤖".to_string()),
+                parent_id: Some(parent_id),
+                workspace_type: WorkspaceType::Agent,
+                owner_id: agent_id.clone(),
+                is_private: true,
+                permissions: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                sort_order: 0,
+            });
+            changed = true;
+        }
+
+        if changed {
+            self.write_folders(&folders)?;
+        }
+
+        for department in departments {
+            self.ensure_department_seed_pages(department)?;
+        }
+
+        Ok(())
+    }
+
+    fn ensure_department_seed_pages(&self, department: &str) -> Result<(), String> {
+        let folder_id = department_folder_id(department);
+        if !self
+            .read_all_pages()?
+            .iter()
+            .any(|page| page.folder_id == folder_id && page.title == "Team Overview")
+        {
+            let overview = self.create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "Team Overview".to_string(),
+                },
+                "system",
+            )?;
+            self.update_page(&UpdatePageRequest {
+                page_id: overview.id,
+                title: None,
+                blocks: Some(vec![
+                    Block {
+                        id: Uuid::new_v4().to_string(),
+                        block_type: "heading".to_string(),
+                        content: format!("{department} Team Overview"),
+                        checked: None,
+                    },
+                    Block {
+                        id: Uuid::new_v4().to_string(),
+                        block_type: "text".to_string(),
+                        content: "Mission, owners, rituals, and shared team context live here.".to_string(),
+                        checked: None,
+                    },
+                    Block {
+                        id: Uuid::new_v4().to_string(),
+                        block_type: "heading".to_string(),
+                        content: "Members".to_string(),
+                        checked: None,
+                    },
+                    Block {
+                        id: Uuid::new_v4().to_string(),
+                        block_type: "text".to_string(),
+                        content: "Link agents and projects from this page to keep the team board current.".to_string(),
+                        checked: None,
+                    },
+                ]),
+                rich_doc: None,
+                linked_entities: None,
+                last_edited_by: Some("system".to_string()),
+            })?;
+        }
+
+        if !self
+            .read_all_pages()?
+            .iter()
+            .any(|page| page.folder_id == folder_id && page.title == "Weekly Priorities")
+        {
+            self.create_page(
+                &CreatePageRequest {
+                    folder_id,
+                    title: "Weekly Priorities".to_string(),
+                },
+                "system",
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn seed_defaults(&self) -> Result<(), String> {
         let now = Utc::now().to_rfc3339();
-        let folders = vec![
+        let departments = default_departments();
+        let mut folders = vec![
             WorkspaceFolder {
                 id: "folder-company".to_string(),
-                name: "Company Docs".to_string(),
+                name: "Company Hub".to_string(),
                 icon: Some("🏢".to_string()),
                 parent_id: None,
                 workspace_type: WorkspaceType::Company,
@@ -39,6 +202,7 @@ impl WorkspaceStorage {
                 permissions: vec![],
                 created_at: now.clone(),
                 updated_at: now.clone(),
+                sort_order: 0,
             },
             WorkspaceFolder {
                 id: "folder-projects".to_string(),
@@ -51,44 +215,38 @@ impl WorkspaceStorage {
                 permissions: vec![],
                 created_at: now.clone(),
                 updated_at: now.clone(),
+                sort_order: 1,
             },
             WorkspaceFolder {
-                id: "folder-agent-1".to_string(),
-                name: "Mira".to_string(),
-                icon: Some("👩‍💻".to_string()),
+                id: "folder-teams".to_string(),
+                name: "Teams".to_string(),
+                icon: Some("👥".to_string()),
                 parent_id: None,
-                workspace_type: WorkspaceType::Agent,
-                owner_id: "agent-1".to_string(),
-                is_private: true,
+                workspace_type: WorkspaceType::Company,
+                owner_id: "player".to_string(),
+                is_private: false,
                 permissions: vec![],
                 created_at: now.clone(),
                 updated_at: now.clone(),
-            },
-            WorkspaceFolder {
-                id: "folder-agent-2".to_string(),
-                name: "Kai".to_string(),
-                icon: Some("🧑‍💼".to_string()),
-                parent_id: None,
-                workspace_type: WorkspaceType::Agent,
-                owner_id: "agent-2".to_string(),
-                is_private: true,
-                permissions: vec![],
-                created_at: now.clone(),
-                updated_at: now.clone(),
-            },
-            WorkspaceFolder {
-                id: "folder-agent-3".to_string(),
-                name: "Ren".to_string(),
-                icon: Some("🧭".to_string()),
-                parent_id: None,
-                workspace_type: WorkspaceType::Agent,
-                owner_id: "agent-3".to_string(),
-                is_private: true,
-                permissions: vec![],
-                created_at: now.clone(),
-                updated_at: now.clone(),
+                sort_order: 2,
             },
         ];
+
+        for department in &departments {
+            folders.push(WorkspaceFolder {
+                id: department_folder_id(department),
+                name: department.clone(),
+                icon: Some(department_icon(department)),
+                parent_id: Some("folder-teams".to_string()),
+                workspace_type: WorkspaceType::Department,
+                owner_id: "player".to_string(),
+                is_private: false,
+                permissions: vec![],
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                sort_order: 0,
+            });
+        }
 
         self.write_folders(&folders)?;
 
@@ -98,12 +256,17 @@ impl WorkspaceStorage {
         };
         self.create_page(&welcome, "player")?;
 
+        for department in departments {
+            self.ensure_department_seed_pages(&department)?;
+        }
+
         Ok(())
     }
 
     pub fn list_tree(&self) -> Result<WorkspaceTree, String> {
+        self.normalize_page_orders()?;
         let folders = self.read_folders()?;
-        let pages = self
+        let mut pages: Vec<WorkspacePageSummary> = self
             .read_all_pages()?
             .into_iter()
             .map(|page| WorkspacePageSummary {
@@ -112,8 +275,15 @@ impl WorkspaceStorage {
                 folder_id: page.folder_id,
                 last_edited_at: page.last_edited_at,
                 last_edited_by: page.last_edited_by,
+                sort_order: page.sort_order,
             })
             .collect();
+        pages.sort_by(|left, right| {
+            left.folder_id
+                .cmp(&right.folder_id)
+                .then(left.sort_order.cmp(&right.sort_order))
+                .then(left.title.cmp(&right.title))
+        });
         Ok(WorkspaceTree { folders, pages })
     }
 
@@ -132,6 +302,7 @@ impl WorkspaceStorage {
         }
 
         let now = Utc::now().to_rfc3339();
+        let sort_order = self.next_page_sort_order(&request.folder_id)?;
         let page = WorkspacePage {
             id: format!("page-{}", Uuid::new_v4()),
             title: request.title.clone(),
@@ -155,10 +326,100 @@ impl WorkspaceStorage {
             last_edited_by: editor.to_string(),
             version: 1,
             dirty: true,
+            sort_order,
         };
 
         self.write_page(&page)?;
         Ok(page)
+    }
+
+    pub fn reorder_pages(&self, request: &ReorderWorkspacePagesRequest) -> Result<(), String> {
+        let pages = self.read_all_pages()?;
+        let mut folder_pages: Vec<&WorkspacePage> = pages
+            .iter()
+            .filter(|page| page.folder_id == request.folder_id)
+            .collect();
+        folder_pages.sort_by(|left, right| {
+            left.sort_order
+                .cmp(&right.sort_order)
+                .then(left.last_edited_at.cmp(&right.last_edited_at))
+                .then(left.title.cmp(&right.title))
+        });
+
+        if folder_pages.is_empty() {
+            return Err("Folder has no pages to reorder.".to_string());
+        }
+
+        let folder_page_ids: HashSet<String> =
+            folder_pages.iter().map(|page| page.id.clone()).collect();
+        let mut ordered_ids: Vec<String> = request
+            .page_ids
+            .iter()
+            .filter(|page_id| folder_page_ids.contains(*page_id))
+            .cloned()
+            .collect();
+
+        for page in folder_pages {
+            if !ordered_ids.iter().any(|page_id| page_id == &page.id) {
+                ordered_ids.push(page.id.clone());
+            }
+        }
+
+        for (index, page_id) in ordered_ids.iter().enumerate() {
+            let mut page = self.read_page(page_id)?;
+            page.sort_order = index as u32;
+            self.write_page(&page)?;
+        }
+
+        Ok(())
+    }
+
+    fn next_page_sort_order(&self, folder_id: &str) -> Result<u32, String> {
+        let max_order = self
+            .read_all_pages()?
+            .into_iter()
+            .filter(|page| page.folder_id == folder_id)
+            .map(|page| page.sort_order)
+            .max()
+            .unwrap_or(0);
+        Ok(max_order.saturating_add(1))
+    }
+
+    fn normalize_page_orders(&self) -> Result<(), String> {
+        let pages = self.read_all_pages()?;
+        let mut by_folder: HashMap<String, Vec<WorkspacePage>> = HashMap::new();
+        for page in pages {
+            by_folder
+                .entry(page.folder_id.clone())
+                .or_default()
+                .push(page);
+        }
+
+        for mut folder_pages in by_folder.into_values() {
+            let expected_orders: HashSet<u32> =
+                (0..folder_pages.len() as u32).collect();
+            let actual_orders: HashSet<u32> =
+                folder_pages.iter().map(|page| page.sort_order).collect();
+            if actual_orders == expected_orders {
+                continue;
+            }
+
+            folder_pages.sort_by(|left, right| {
+                left.sort_order
+                    .cmp(&right.sort_order)
+                    .then(left.last_edited_at.cmp(&right.last_edited_at))
+                    .then(left.title.cmp(&right.title))
+            });
+
+            for (index, page) in folder_pages.iter_mut().enumerate() {
+                if page.sort_order != index as u32 {
+                    page.sort_order = index as u32;
+                    self.write_page(page)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn update_page(&self, request: &UpdatePageRequest) -> Result<WorkspacePage, String> {
@@ -254,6 +515,7 @@ impl WorkspaceStorage {
         {
             return Ok(page);
         }
+        self.snapshot_page_version(&page)?;
         page.linked_entities.push(link);
         page.version += 1;
         page.last_edited_at = Utc::now().to_rfc3339();
@@ -271,6 +533,7 @@ impl WorkspaceStorage {
         editor: &str,
     ) -> Result<WorkspacePage, String> {
         let mut page = self.read_page(page_id)?;
+        self.snapshot_page_version(&page)?;
         page.linked_entities.retain(|link| {
             !(link.entity_type == entity_type && link.id == entity_id)
         });
@@ -299,14 +562,28 @@ impl WorkspaceStorage {
             .collect())
     }
 
+    pub fn find_page_linked_to_meeting(&self, meeting_id: &str) -> Result<Option<WorkspacePage>, String> {
+        Ok(self
+            .read_all_pages()?
+            .into_iter()
+            .find(|page| {
+                page.linked_entities.iter().any(|link| {
+                    link.entity_type == "meeting" && link.id == meeting_id
+                })
+            }))
+    }
+
     pub fn append_meeting_notes(
         &self,
         meeting_id: &str,
         meeting_type: &str,
         messages: &[(String, String)],
-        participant_ids: &[String],
-        participant_names: &[String],
+        participants: &[(String, String, String)],
     ) -> Result<Vec<WorkspacePage>, String> {
+        if let Some(existing) = self.find_page_linked_to_meeting(meeting_id)? {
+            return Ok(vec![existing]);
+        }
+
         let mut created = Vec::new();
 
         let company_page = self.create_page(
@@ -327,7 +604,14 @@ impl WorkspaceStorage {
             Block {
                 id: Uuid::new_v4().to_string(),
                 block_type: "text".to_string(),
-                content: format!("Participants: {}", participant_names.join(", ")),
+                content: format!(
+                    "Participants: {}",
+                    participants
+                        .iter()
+                        .map(|(_, name, _)| name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
                 checked: None,
             },
         ];
@@ -346,7 +630,7 @@ impl WorkspaceStorage {
             id: meeting_id.to_string(),
             title: format!("{meeting_type} meeting"),
         }];
-        for (agent_id, name) in participant_ids.iter().zip(participant_names.iter()) {
+        for (agent_id, name, _) in participants {
             company_links.push(LinkedEntity {
                 entity_type: "agent".to_string(),
                 id: agent_id.clone(),
@@ -364,9 +648,9 @@ impl WorkspaceStorage {
         })?;
         created.push(company_updated);
 
-        for (agent_id, name) in participant_ids.iter().zip(participant_names.iter()) {
+        for (agent_id, name, department) in participants {
             let folder_id = self
-                .ensure_agent_folder(agent_id, name)
+                .ensure_agent_folder(agent_id, name, department)
                 .unwrap_or_else(|_| format!("folder-{agent_id}"));
             if self.read_folders()?.iter().any(|f| f.id == folder_id) {
                 let personal = self.create_page(
@@ -401,10 +685,22 @@ impl WorkspaceStorage {
         Ok(created)
     }
 
-    pub fn ensure_agent_folder(&self, agent_id: &str, agent_name: &str) -> Result<String, String> {
+    pub fn ensure_agent_folder(
+        &self,
+        agent_id: &str,
+        agent_name: &str,
+        department: &str,
+    ) -> Result<String, String> {
         let folder_id = format!("folder-{agent_id}");
+        let parent_id = department_folder_id(department);
         let mut folders = self.read_folders()?;
-        if folders.iter().any(|folder| folder.id == folder_id) {
+        if let Some(folder) = folders.iter_mut().find(|folder| folder.id == folder_id) {
+            if folder.parent_id.as_deref() != Some(parent_id.as_str()) {
+                folder.parent_id = Some(parent_id);
+                folder.name = agent_name.to_string();
+                folder.updated_at = Utc::now().to_rfc3339();
+                self.write_folders(&folders)?;
+            }
             return Ok(folder_id);
         }
 
@@ -413,16 +709,118 @@ impl WorkspaceStorage {
             id: folder_id.clone(),
             name: agent_name.to_string(),
             icon: Some("🤖".to_string()),
-            parent_id: None,
+            parent_id: Some(parent_id),
             workspace_type: WorkspaceType::Agent,
             owner_id: agent_id.to_string(),
             is_private: true,
             permissions: vec![],
             created_at: now.clone(),
             updated_at: now,
+            sort_order: 0,
         });
         self.write_folders(&folders)?;
         Ok(folder_id)
+    }
+
+    pub fn create_folder(&self, request: &CreateFolderRequest) -> Result<WorkspaceFolder, String> {
+        let mut folders = self.read_folders()?;
+        let parent = folders
+            .iter()
+            .find(|folder| folder.id == request.parent_id)
+            .ok_or_else(|| "Parent folder not found.".to_string())?;
+
+        if !matches!(
+            parent.workspace_type,
+            WorkspaceType::Company | WorkspaceType::Department | WorkspaceType::Custom
+        ) {
+            return Err("Custom folders can only be created under company or team folders.".to_string());
+        }
+
+        let name = request.name.trim();
+        if name.len() < 2 {
+            return Err("Folder name must be at least 2 characters.".to_string());
+        }
+
+        let now = Utc::now().to_rfc3339();
+        let sort_order = self.next_folder_sort_order(&request.parent_id)?;
+        let folder = WorkspaceFolder {
+            id: format!("folder-custom-{}", Uuid::new_v4()),
+            name: name.to_string(),
+            icon: Some("📂".to_string()),
+            parent_id: Some(request.parent_id.clone()),
+            workspace_type: WorkspaceType::Custom,
+            owner_id: "player".to_string(),
+            is_private: false,
+            permissions: vec![],
+            created_at: now.clone(),
+            updated_at: now,
+            sort_order,
+        };
+        folders.push(folder.clone());
+        self.write_folders(&folders)?;
+        Ok(folder)
+    }
+
+    pub fn delete_page(&self, request: &DeletePageRequest) -> Result<(), String> {
+        let _ = self.read_page(&request.page_id)?;
+        let json_path = self.pages_dir().join(format!("{}.json", request.page_id));
+        let md_path = self.pages_dir().join(format!("{}.md", request.page_id));
+        let versions_dir = self.versions_dir().join(&request.page_id);
+        let comments_path = self.comments_dir().join(format!("{}.json", request.page_id));
+
+        if json_path.exists() {
+            fs::remove_file(json_path).map_err(|e| e.to_string())?;
+        }
+        if md_path.exists() {
+            fs::remove_file(md_path).map_err(|e| e.to_string())?;
+        }
+        if versions_dir.exists() {
+            fs::remove_dir_all(versions_dir).map_err(|e| e.to_string())?;
+        }
+        if comments_path.exists() {
+            fs::remove_file(comments_path).map_err(|e| e.to_string())?;
+        }
+
+        let mut presence = self.read_presence()?;
+        let before = presence.len();
+        presence.retain(|entry| entry.page_id != request.page_id);
+        if presence.len() != before {
+            self.write_presence(&presence)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_folder(&self, request: &DeleteFolderRequest) -> Result<(), String> {
+        let folders = self.read_folders()?;
+        let folder = folders
+            .iter()
+            .find(|folder| folder.id == request.folder_id)
+            .ok_or_else(|| "Folder not found.".to_string())?;
+
+        if !matches!(folder.workspace_type, WorkspaceType::Custom) {
+            return Err("Only custom team folders can be deleted.".to_string());
+        }
+
+        let has_child_folders = folders
+            .iter()
+            .any(|child| child.parent_id.as_deref() == Some(request.folder_id.as_str()));
+        if has_child_folders {
+            return Err("Remove nested folders before deleting this folder.".to_string());
+        }
+
+        let has_pages = self
+            .read_all_pages()?
+            .iter()
+            .any(|page| page.folder_id == request.folder_id);
+        if has_pages {
+            return Err("Delete or move pages out of this folder first.".to_string());
+        }
+
+        let mut folders = folders;
+        folders.retain(|entry| entry.id != request.folder_id);
+        self.write_folders(&folders)?;
+        Ok(())
     }
 
     pub fn find_page_in_folder(&self, folder_id: &str, title: &str) -> Result<Option<WorkspacePage>, String> {
@@ -642,6 +1040,12 @@ impl WorkspaceStorage {
         self.write_presence(&entries)
     }
 
+    pub fn clear_workspace_presence(&self, editor: &str) -> Result<(), String> {
+        let mut entries = self.read_presence()?;
+        entries.retain(|entry| entry.editor != editor);
+        self.write_presence(&entries)
+    }
+
     pub fn get_workspace_presence(&self, page_id: &str) -> Result<Vec<WorkspacePresenceEntry>, String> {
         Ok(self
             .read_presence()?
@@ -662,6 +1066,17 @@ impl WorkspaceStorage {
     fn write_presence(&self, entries: &[WorkspacePresenceEntry]) -> Result<(), String> {
         let json = serde_json::to_string_pretty(entries).map_err(|e| e.to_string())?;
         fs::write(self.presence_path(), json).map_err(|e| e.to_string())
+    }
+
+    fn next_folder_sort_order(&self, parent_id: &str) -> Result<u32, String> {
+        let max_order = self
+            .read_folders()?
+            .into_iter()
+            .filter(|folder| folder.parent_id.as_deref() == Some(parent_id))
+            .map(|folder| folder.sort_order)
+            .max()
+            .unwrap_or(0);
+        Ok(max_order.saturating_add(1))
     }
 
     fn read_folders(&self) -> Result<Vec<WorkspaceFolder>, String> {
@@ -880,4 +1295,171 @@ fn extract_mentions(content: &str) -> Vec<String> {
         .map(|name| name.trim_matches(|c: char| !c.is_alphanumeric() && c != '-').to_string())
         .filter(|name| !name.is_empty())
         .collect()
+}
+
+pub fn default_departments() -> Vec<String> {
+    vec![
+        "Engineering".to_string(),
+        "Human Resources".to_string(),
+        "Executive".to_string(),
+        "Marketing".to_string(),
+        "Marketplace".to_string(),
+    ]
+}
+
+fn department_slug(department: &str) -> String {
+    department
+        .to_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+pub fn department_folder_id(department: &str) -> String {
+    match department.to_lowercase().as_str() {
+        "engineering" => "folder-dept-engineering".to_string(),
+        "human resources" => "folder-dept-hr".to_string(),
+        "executive" => "folder-dept-executive".to_string(),
+        "marketing" => "folder-dept-marketing".to_string(),
+        "marketplace" => "folder-dept-marketplace".to_string(),
+        other => format!("folder-dept-{}", department_slug(other)),
+    }
+}
+
+fn department_icon(department: &str) -> String {
+    match department.to_lowercase().as_str() {
+        "engineering" => "🛠".to_string(),
+        "human resources" => "👥".to_string(),
+        "executive" => "💼".to_string(),
+        "marketing" => "📣".to_string(),
+        "marketplace" => "🏪".to_string(),
+        _ => "📂".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod organization_tests {
+    use super::*;
+
+    fn temp_storage() -> WorkspaceStorage {
+        let root = std::env::temp_dir().join(format!("soulcorp-ws-test-{}", Uuid::new_v4()));
+        let storage = WorkspaceStorage::new(root).expect("temp workspace");
+        storage.ensure_seed().expect("seed workspace");
+        storage
+    }
+
+    #[test]
+    fn department_folder_ids_are_stable() {
+        assert_eq!(department_folder_id("Engineering"), "folder-dept-engineering");
+        assert_eq!(department_folder_id("Human Resources"), "folder-dept-hr");
+    }
+
+    #[test]
+    fn reorder_pages_appends_missing_page_ids() {
+        let storage = temp_storage();
+        let folder_id = "folder-company".to_string();
+        let first = storage
+            .create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "First".to_string(),
+                },
+                "player",
+            )
+            .expect("create first page");
+        let second = storage
+            .create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "Second".to_string(),
+                },
+                "player",
+            )
+            .expect("create second page");
+        let third = storage
+            .create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "Third".to_string(),
+                },
+                "player",
+            )
+            .expect("create third page");
+
+        storage
+            .reorder_pages(&ReorderWorkspacePagesRequest {
+                folder_id: folder_id.clone(),
+                page_ids: vec![third.id.clone(), first.id.clone()],
+            })
+            .expect("reorder with partial ids");
+
+        let tree = storage.list_tree().expect("list tree");
+        let mut folder_pages: Vec<_> = tree
+            .pages
+            .into_iter()
+            .filter(|page| page.folder_id == folder_id)
+            .collect();
+        folder_pages.sort_by_key(|page| page.sort_order);
+        let ordered_ids: Vec<String> = folder_pages.iter().map(|page| page.id.clone()).collect();
+
+        assert_eq!(ordered_ids[0], third.id);
+        assert_eq!(ordered_ids[1], first.id);
+        assert!(ordered_ids.contains(&second.id));
+        assert_eq!(
+            folder_pages.iter().map(|page| page.sort_order).collect::<Vec<_>>(),
+            (0..folder_pages.len() as u32).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn normalize_page_orders_reindexes_one_based_legacy_orders() {
+        let storage = temp_storage();
+        let folder_id = "folder-company".to_string();
+        storage
+            .create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "Legacy A".to_string(),
+                },
+                "player",
+            )
+            .expect("create legacy a");
+        storage
+            .create_page(
+                &CreatePageRequest {
+                    folder_id: folder_id.clone(),
+                    title: "Legacy B".to_string(),
+                },
+                "player",
+            )
+            .expect("create legacy b");
+
+        let mut legacy_pages: Vec<WorkspacePage> = storage
+            .read_all_pages()
+            .expect("read pages")
+            .into_iter()
+            .filter(|page| page.folder_id == folder_id)
+            .collect();
+        for (index, page) in legacy_pages.iter_mut().enumerate() {
+            page.sort_order = (index + 1) as u32;
+            storage.write_page(page).expect("write legacy order");
+        }
+
+        let tree = storage.list_tree().expect("normalize via list_tree");
+        let mut folder_pages: Vec<_> = tree
+            .pages
+            .into_iter()
+            .filter(|page| page.folder_id == folder_id)
+            .collect();
+        folder_pages.sort_by_key(|page| page.sort_order);
+
+        assert_eq!(
+            folder_pages.iter().map(|page| page.sort_order).collect::<Vec<_>>(),
+            (0..folder_pages.len() as u32).collect::<Vec<_>>()
+        );
+    }
 }

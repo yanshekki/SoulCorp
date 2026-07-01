@@ -12,7 +12,7 @@ export function PageComments({ pageId }: PageCommentsProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void invoke<PageComment[]>("list_page_comments", { page_id: pageId })
+    void invoke<PageComment[]>("list_page_comments", { pageId })
       .then(setComments)
       .catch(() => setComments([]));
   }, [pageId]);
@@ -61,7 +61,7 @@ export function PageComments({ pageId }: PageCommentsProps) {
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Share feedback or @Mira for follow-up"
+          placeholder="Share feedback or @AgentName for follow-up"
           rows={3}
         />
       </label>

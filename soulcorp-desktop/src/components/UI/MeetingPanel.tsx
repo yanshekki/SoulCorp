@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { MeetingAiStatus, MeetingSnapshot } from "../../types/game";
+import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
+import type { CompanyDepartmentsSnapshot, MeetingAiStatus, MeetingSnapshot } from "../../types/game";
 
 const MEETING_TYPES = [
   "Daily Standup",
@@ -12,15 +13,19 @@ const MEETING_TYPES = [
 ];
 
 export function MeetingPanel() {
+  const settings = useGameStore((state) => state.settings);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const activeMeeting = useGameStore((state) => state.activeMeeting);
   const setActiveMeeting = useGameStore((state) => state.setActiveMeeting);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [meetingType, setMeetingType] = useState(MEETING_TYPES[0]);
-  const [selectedIds, setSelectedIds] = useState<string[]>(["agent-1", "agent-2"]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [aiStatus, setAiStatus] = useState<MeetingAiStatus | null>(null);
   const [advancing, setAdvancing] = useState(false);
+  const [departmentProviders, setDepartmentProviders] = useState<Map<string, string | null>>(
+    () => new Map(),
+  );
 
   const selectableAgents = useMemo(() => agentRecords, [agentRecords]);
   const usingLiveLlm = aiStatus?.active_provider !== "mock";
@@ -28,14 +33,39 @@ export function MeetingPanel() {
   useEffect(() => {
     const load = async () => {
       try {
-        const status = await invoke<MeetingAiStatus>("get_meeting_ai_status");
+        const [status, departments] = await Promise.all([
+          invoke<MeetingAiStatus>("get_meeting_ai_status"),
+          invoke<CompanyDepartmentsSnapshot>("list_company_departments"),
+        ]);
         setAiStatus(status);
+        setDepartmentProviders(
+          new Map(
+            (departments.department_ai_providers ?? []).map((entry) => [
+              entry.department,
+              entry.ai_provider ?? null,
+            ]),
+          ),
+        );
       } catch (error) {
         setStatusMessage(String(error));
       }
     };
     void load();
-  }, [setStatusMessage]);
+  }, [setStatusMessage, agentRecords.length]);
+
+  useEffect(() => {
+    if (agentRecords.length === 0) {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds((current) => {
+      const valid = current.filter((id) => agentRecords.some((agent) => agent.id === id));
+      if (valid.length > 0) {
+        return valid;
+      }
+      return agentRecords.slice(0, Math.min(2, agentRecords.length)).map((agent) => agent.id);
+    });
+  }, [agentRecords]);
 
   const toggleAgent = (agentId: string) => {
     setSelectedIds((current) => {
@@ -70,7 +100,7 @@ export function MeetingPanel() {
     setAdvancing(true);
     try {
       const meeting = await invoke<MeetingSnapshot>("advance_meeting", {
-        meeting_id: activeMeeting.id,
+        meetingId: activeMeeting.id,
       });
       setActiveMeeting(meeting);
       if (meeting.completed) {
@@ -78,6 +108,8 @@ export function MeetingPanel() {
         setStatusMessage(
           `${outcome} Project +${(meeting.project_progress_delta * 100).toFixed(0)}%, revenue impact $${meeting.revenue_delta.toFixed(0)}.`,
         );
+        const { refreshWorkspaceTree } = await import("../../services/workspaceClient");
+        await refreshWorkspaceTree(true).catch(() => undefined);
       }
     } catch (error) {
       setStatusMessage(String(error));
@@ -108,7 +140,9 @@ export function MeetingPanel() {
           <span className="hub-pill tier">{aiStatus.configured_provider}</span>
           {aiStatus.ollama_reachable ? <span className="hub-pill online">Ollama ready</span> : null}
           {aiStatus.hub_reachable ? <span className="hub-pill online">Hub chat ready</span> : null}
-          <p className="muted">{aiStatus.message}</p>
+          <p className="muted">
+            {aiStatus.message} Configure department and per-agent LLM brains in Agent Brains.
+          </p>
         </div>
       ) : null}
 
@@ -132,7 +166,12 @@ export function MeetingPanel() {
               onChange={() => toggleAgent(agent.id)}
             />
             <span>
-              {agent.name} · {agent.department}
+              {agent.name} · {agent.department} ·{" "}
+              {resolveEffectiveAiProviderLabel(
+                agent.ai_provider,
+                departmentProviders.get(agent.department) ?? null,
+                settings.ai_provider,
+              )}
             </span>
           </label>
         ))}

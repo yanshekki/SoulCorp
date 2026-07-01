@@ -11,6 +11,7 @@ import { MarketplacePanel } from "./MarketplacePanel";
 import { MeetingPanel } from "./MeetingPanel";
 import { PauseMenu } from "./PauseMenu";
 import { RecruitmentPanel } from "./RecruitmentPanel";
+import { AgentsPanel } from "./AgentsPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { TierPanel } from "./TierPanel";
 import { VipExecutivePanel } from "./VipExecutivePanel";
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "finance", label: "Finance" },
       { id: "marketplace", label: "Marketplace" },
       { id: "recruitment", label: "Recruitment" },
+      { id: "agents", label: "Agent Brains" },
     ],
   },
   {
@@ -80,9 +82,26 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
   switch (panel) {
     case "workspace":
       return (
-        <section className="panel-card">
-          <h2>Workspace</h2>
-          <p className="muted">Use the main panel to browse folders, edit pages, and search docs.</p>
+        <section className="panel-card workspace-guide">
+          <h2>Workspace Guide</h2>
+          <p className="muted">
+            Company Hub holds strategy and activity feed. Teams are organized by department with
+            shared pages and employee journals underneath.
+          </p>
+          <ul className="workspace-guide-list">
+            <li>
+              <strong>CEO (you)</strong> — edit team pages, link projects/agents, create or delete
+              docs.
+            </li>
+            <li>
+              <strong>Employees</strong> — simulation auto-updates daily journals and meeting notes
+              in their folder.
+            </li>
+            <li>
+              <strong>Teams</strong> — use Team Overview + Weekly Priorities, or add custom
+              subfolders per squad.
+            </li>
+          </ul>
         </section>
       );
     case "meeting":
@@ -93,6 +112,8 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
       return <MarketplacePanel />;
     case "recruitment":
       return <RecruitmentPanel />;
+    case "agents":
+      return <AgentsPanel />;
     case "tier":
       return <TierPanel />;
     case "executive":

@@ -3,9 +3,10 @@ export interface WorkspaceFolder {
   name: string;
   icon?: string | null;
   parent_id?: string | null;
-  workspace_type: "company" | "agent" | "user" | "custom";
+  workspace_type: "company" | "department" | "agent" | "user" | "custom";
   owner_id: string;
   is_private: boolean;
+  sort_order?: number;
 }
 
 export interface WorkspaceBlock {
@@ -45,6 +46,7 @@ export interface WorkspacePage {
   last_edited_at: string;
   last_edited_by: string;
   version: number;
+  sort_order?: number;
 }
 
 export interface WorkspacePageSummary {
@@ -53,6 +55,7 @@ export interface WorkspacePageSummary {
   folder_id: string;
   last_edited_at: string;
   last_edited_by: string;
+  sort_order?: number;
 }
 
 export interface WorkspaceTree {

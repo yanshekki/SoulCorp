@@ -232,7 +232,7 @@ export function OnboardingWizard() {
                 onClick={() => setPureLocalMode(true)}
               >
                 <strong>Pure Local Mode</strong>
-                <span>Offline-only play with mock marketplace data.</span>
+                <span>Offline-only play. Marketplace uses your last hub sync cache.</span>
               </button>
             </div>
           </section>

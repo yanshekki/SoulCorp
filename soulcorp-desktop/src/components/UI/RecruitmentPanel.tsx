@@ -117,9 +117,13 @@ export function RecruitmentPanel() {
     try {
       await invoke<number>("record_recruitment_interview");
       const panelAgents = agentRecords.slice(0, 3).map((agent) => agent.id);
+      if (panelAgents.length === 0) {
+        setStatusMessage("Hire or onboard agents before running interviews.");
+        return;
+      }
       const meeting = await invoke<MeetingSnapshot>("start_meeting", {
         request: {
-          agent_ids: panelAgents.length > 0 ? panelAgents : ["agent-1", "agent-2"],
+          agent_ids: panelAgents,
           meeting_type: `Interview: ${names}`,
         },
       });
@@ -180,7 +184,9 @@ export function RecruitmentPanel() {
       </div>
 
       {settings.pure_local_mode ? (
-        <p className="hub-warning">Pure Local Mode: showing offline candidate samples.</p>
+        <p className="hub-warning">
+          Pure Local Mode: hub candidates are unavailable. Connect to soulmd-hub or use God Mode bonus recruits.
+        </p>
       ) : null}
 
       {analytics ? (

@@ -14,6 +14,18 @@ pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentReco
     agents.values().map(|agent| agent.salary as f64).sum()
 }
 
+pub fn count_active_agents(state: &AppState, include_throttled: bool) -> u32 {
+    state
+        .agents
+        .values()
+        .filter(|agent| {
+            agent.status == "working"
+                || agent.status == "meeting"
+                || (include_throttled && agent.status == "throttled")
+        })
+        .count() as u32
+}
+
 pub fn normalize_allocations(allocations: &mut BudgetAllocations) {
     let sum = allocations.compute_pct
         + allocations.salaries_pct
@@ -35,7 +47,9 @@ pub fn normalize_allocations(allocations: &mut BudgetAllocations) {
 pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
     let agent_count = state.agents.len().max(1) as f64;
     let compute_weight = state.finance.allocations.compute_pct as f64 / 100.0;
+    let salary_weight = state.finance.allocations.salaries_pct as f64 / 100.0;
     let marketing_weight = state.finance.allocations.marketing_pct as f64 / 100.0;
+    let rnd_weight = state.finance.allocations.rnd_pct as f64 / 100.0;
 
     let base_compute_cost = agent_count * 2.5 * compute_weight.max(0.2);
     let compute_spent = if state.finance.compute_starved {
@@ -50,11 +64,14 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
     let mut daily_salary_paid = 0.0;
     if state.tick % 30 == 0 {
         state.day_number += 1;
-        daily_salary_paid = total_monthly_salary(&state.agents) / 30.0;
-        state.finance.cash_balance -= daily_salary_paid;
+        daily_salary_paid =
+            total_monthly_salary(&state.agents) / 30.0 * salary_weight.max(0.25);
+        let rnd_spend = agent_count * 75.0 * rnd_weight / 30.0;
+        state.finance.cash_balance -= daily_salary_paid + rnd_spend;
         state.finance.cash_balance += state.finance.monthly_revenue / 30.0;
         state.finance.cash_balance += state.finance.monthly_revenue * marketing_weight * 0.05;
-        state.finance.monthly_burn = total_monthly_salary(&state.agents) + agent_count * 75.0;
+        state.finance.monthly_burn =
+            total_monthly_salary(&state.agents) * salary_weight.max(0.25) + agent_count * 75.0 * rnd_weight;
     }
 
     let compute_starved = state.finance.compute_tokens < COMPUTE_STARVE_THRESHOLD;
@@ -92,6 +109,69 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
         cash_crisis,
         daily_salary_paid,
         compute_spent,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{AgentRecord, AppState, BudgetAllocations, FinanceState};
+    use std::collections::HashMap;
+
+    fn sample_state() -> AppState {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent-1".to_string(),
+            AgentRecord {
+                id: "agent-1".to_string(),
+                name: "Mira".to_string(),
+                role: "Engineer".to_string(),
+                department: "Engineering".to_string(),
+                morale: 0.8,
+                energy: 0.8,
+                salary: 3000.0,
+                status: "working".to_string(),
+                soul: None,
+                soul_id: None,
+                ai_provider: None,
+            },
+        );
+        AppState {
+            agents,
+            finance: FinanceState {
+                allocations: BudgetAllocations {
+                    compute_pct: 25.0,
+                    salaries_pct: 50.0,
+                    marketing_pct: 15.0,
+                    rnd_pct: 10.0,
+                },
+                ..FinanceState::default()
+            },
+            tick: 29,
+            day_number: 0,
+            ..AppState::default()
+        }
+    }
+
+    #[test]
+    fn payroll_runs_on_day_boundary() {
+        let mut state = sample_state();
+        let before = apply_tick_finance(&mut state);
+        assert_eq!(before.daily_salary_paid, 0.0);
+        assert_eq!(state.day_number, 0);
+
+        state.tick = 30;
+        let after = apply_tick_finance(&mut state);
+        assert!(after.daily_salary_paid > 0.0);
+        assert_eq!(state.day_number, 1);
+    }
+
+    #[test]
+    fn count_active_agents_includes_throttled_when_requested() {
+        let mut state = sample_state();
+        state.agents.get_mut("agent-1").unwrap().status = "throttled".to_string();
+        assert_eq!(count_active_agents(&state, false), 0);
+        assert_eq!(count_active_agents(&state, true), 1);
     }
 }
 

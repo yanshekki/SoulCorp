@@ -28,8 +28,9 @@ export function DesignStudioPage() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setVisualDesign = useGameStore((state) => state.setVisualDesign);
   const buildings = useGameStore((state) => state.buildings);
-  const agents = useGameStore((state) => state.agents);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
+  const agents = useGameStore((state) => state.agents);
   const setBuildings = useGameStore((state) => state.setBuildings);
   const setAgents = useGameStore((state) => state.setAgents);
 
@@ -37,13 +38,15 @@ export function DesignStudioPage() {
     void getVisualDesign()
       .then((design) => setDraft(design))
       .catch(() => setDraft(useGameStore.getState().visualDesign));
+  }, [activeCompanyId, setDraft]);
 
+  useEffect(() => {
     if (agentRecords[0]) {
       setSelectedAgentId(agentRecords[0].id);
     } else if (agents[0]) {
       setSelectedAgentId(agents[0].id);
     }
-  }, [agents, agentRecords, setDraft, setSelectedAgentId]);
+  }, [agentRecords, agents, setSelectedAgentId]);
 
   const handleSave = async () => {
     setSaving(true);

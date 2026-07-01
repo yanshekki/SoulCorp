@@ -1,30 +1,62 @@
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use crate::workspace::{
-    create_page_from_template, list_templates, storage::company_workspace_root,
-    write_meeting_notes_from_state, AddPageCommentRequest, CreatePageFromTemplateRequest,
-    CreatePageRequest, LinkableEntity, LinkEntityRequest, PageBacklink, PageComment,
-    PageVersionSummary, RestorePageVersionRequest, SearchResult, UnlinkEntityRequest,
-    UpdatePageRequest, WorkspaceDatabaseView, WorkspacePage, WorkspacePresenceEntry,
+    create_page_from_template, list_templates, storage::{company_workspace_root, default_departments},
+    write_meeting_notes_from_state, AddPageCommentRequest, CreateFolderRequest,
+    CreatePageFromTemplateRequest, CreatePageRequest, DeleteFolderRequest, DeletePageRequest,
+    LinkableEntity, LinkEntityRequest, PageBacklink, PageComment, PageVersionSummary,
+    ReorderWorkspacePagesRequest, RestorePageVersionRequest, SearchResult, UnlinkEntityRequest,
+    UpdatePageRequest,
+    WorkspaceDatabaseView, WorkspaceFolder, WorkspacePage, WorkspacePresenceEntry,
     WorkspaceStorage, WorkspaceTemplate, WorkspaceTree,
 };
 use crate::workspace::LinkedEntity;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
-fn storage_for_app(app: &AppHandle, state: &AppState) -> Result<WorkspaceStorage, String> {
+fn collect_departments(state: &AppState) -> Vec<String> {
+    let mut departments = default_departments();
+    for custom in &state.custom_departments {
+        if !departments.iter().any(|department| department == &custom.name) {
+            departments.push(custom.name.clone());
+        }
+    }
+    departments
+}
+
+fn storage_for_app(
+    app: &AppHandle,
+    state: &AppState,
+    sync_structure: bool,
+) -> Result<WorkspaceStorage, String> {
     if state.company_id.is_empty() {
         return Err("Create a company before using the workspace.".to_string());
     }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
+    if sync_structure {
+        let agents: Vec<(String, String, String)> = state
+            .agents
+            .values()
+            .map(|agent| (agent.id.clone(), agent.name.clone(), agent.department.clone()))
+            .collect();
+        storage.ensure_organization_structure(&collect_departments(state), &agents)?;
+    }
     Ok(storage)
 }
 
 fn storage_for_app_handle(app: &AppHandle, state: &State<'_, Mutex<AppState>>) -> Result<WorkspaceStorage, String> {
     let locked = state.lock().map_err(|e| e.to_string())?;
-    storage_for_app(app, &locked)
+    storage_for_app(app, &locked, false)
+}
+
+fn storage_for_app_handle_sync(
+    app: &AppHandle,
+    state: &State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceStorage, String> {
+    let locked = state.lock().map_err(|e| e.to_string())?;
+    storage_for_app(app, &locked, true)
 }
 
 #[tauri::command]
@@ -32,7 +64,7 @@ pub fn init_workspace(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceTree, String> {
-    let storage = storage_for_app_handle(&app, &state)?;
+    let storage = storage_for_app_handle_sync(&app, &state)?;
     storage.list_tree()
 }
 
@@ -41,7 +73,7 @@ pub fn list_workspace_tree(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceTree, String> {
-    let storage = storage_for_app_handle(&app, &state)?;
+    let storage = storage_for_app_handle_sync(&app, &state)?;
     storage.list_tree()
 }
 
@@ -61,7 +93,7 @@ pub fn create_workspace_page(
     request: CreatePageRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app_handle(&app, &state)?;
+    let storage = storage_for_app_handle_sync(&app, &state)?;
     let page = storage.create_page(&request, "player")?;
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.stats.pages_created += 1;
@@ -198,7 +230,7 @@ pub fn create_page_from_template_cmd(
     request: CreatePageFromTemplateRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app_handle(&app, &state)?;
+    let storage = storage_for_app_handle_sync(&app, &state)?;
     let page = create_page_from_template(
         &storage,
         &request.template_id,
@@ -271,6 +303,16 @@ pub fn get_workspace_presence(
 ) -> Result<Vec<WorkspacePresenceEntry>, String> {
     let storage = storage_for_app_handle(&app, &state)?;
     storage.get_workspace_presence(&page_id)
+}
+
+#[tauri::command]
+pub fn clear_workspace_presence(
+    app: AppHandle,
+    editor: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let storage = storage_for_app_handle(&app, &state)?;
+    storage.clear_workspace_presence(&editor)
 }
 
 #[tauri::command]
@@ -347,4 +389,45 @@ pub fn generate_meeting_notes(
     let pages = write_meeting_notes_from_state(&app, &mut state, &meeting_id)?;
     commit(app, &state)?;
     Ok(pages)
+}
+
+#[tauri::command]
+pub fn create_workspace_folder(
+    app: AppHandle,
+    request: CreateFolderRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceFolder, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.create_folder(&request)
+}
+
+#[tauri::command]
+pub fn delete_workspace_page(
+    app: AppHandle,
+    request: DeletePageRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.delete_page(&request)
+}
+
+#[tauri::command]
+pub fn delete_workspace_folder(
+    app: AppHandle,
+    request: DeleteFolderRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.delete_folder(&request)
+}
+
+#[tauri::command]
+pub fn reorder_workspace_pages(
+    app: AppHandle,
+    request: ReorderWorkspacePagesRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceTree, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.reorder_pages(&request)?;
+    storage.list_tree()
 }

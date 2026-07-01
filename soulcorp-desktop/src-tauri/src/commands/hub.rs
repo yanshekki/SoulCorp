@@ -1,5 +1,5 @@
 use crate::db::persistence::commit;
-use crate::hub::{filter_gigs_for_tier, mock_gigs, HubClient, HubGig, HubSyncPull};
+use crate::hub::{filter_gigs_for_tier, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
 use crate::tier::can_use_feature;
 use chrono::Utc;
@@ -37,10 +37,6 @@ pub struct HubStatus {
 
 fn client_from_state(state: &AppState) -> HubClient {
     HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
-}
-
-fn allow_mock_hub_fallback() -> bool {
-    cfg!(debug_assertions)
 }
 
 fn hub_status_from(state: &AppState) -> HubStatus {
@@ -87,29 +83,44 @@ pub fn update_hub_config(
 }
 
 #[tauri::command]
-pub async fn list_hub_gigs(app_state: State<'_, Mutex<AppState>>) -> Result<Vec<HubGig>, String> {
-    let (client, tier, pure_local) = {
+pub async fn list_hub_gigs(
+    app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<Vec<HubGig>, String> {
+    let (client, tier, pure_local, cached_gigs) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         let tier = state.hub.user_tier.clone();
         let pure_local = state.settings.pure_local_mode;
+        let cached_gigs = state.hub.cached_open_gigs.clone();
         let client = if pure_local {
             None
         } else {
             Some(client_from_state(&state))
         };
-        (client, tier, pure_local)
+        (client, tier, pure_local, cached_gigs)
     };
 
     let gigs = if pure_local {
-        mock_gigs()
+        cached_gigs
     } else if let Some(client) = client {
         match client.list_open_gigs().await {
-            Ok(gigs) => gigs,
-            Err(error) if allow_mock_hub_fallback() => mock_gigs(),
-            Err(error) => return Err(format!("Failed to load marketplace gigs: {error}")),
+            Ok(gigs) => {
+                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                state.hub.cached_open_gigs = gigs.clone();
+                commit(app, &state)?;
+                gigs
+            }
+            Err(error) => {
+                if cached_gigs.is_empty() {
+                    return Err(format!(
+                        "Failed to load marketplace gigs: {error}. Sync with the hub when online."
+                    ));
+                }
+                cached_gigs
+            }
         }
     } else {
-        mock_gigs()
+        Vec::new()
     };
 
     Ok(filter_gigs_for_tier(gigs, &tier))
@@ -168,35 +179,23 @@ pub async fn sync_with_hub(
     };
 
     if !queue.is_empty() {
-        match client.push_sync(json!({ "queue": queue })).await {
-            Ok(_) => {}
-            Err(error) if allow_mock_hub_fallback() => {
-                eprintln!("hub sync push fallback: {error}");
-            }
-            Err(error) => return Err(format!("Hub sync push failed: {error}")),
-        }
+        client
+            .push_sync(json!({ "queue": queue }))
+            .await
+            .map_err(|error| format!("Hub sync push failed: {error}"))?;
     }
 
-    let pull = match client.pull_sync().await {
-        Ok(pull) => pull,
-        Err(error) => {
-            if allow_mock_hub_fallback() {
-                HubSyncPull {
-                    tier: "free".to_string(),
-                    soul_balance: 0.0,
-                    open_gigs: mock_gigs(),
-                }
-            } else {
-                return Err(format!("Hub sync pull failed: {error}"));
-            }
-        }
-    };
+    let pull = client
+        .pull_sync()
+        .await
+        .map_err(|error| format!("Hub sync pull failed: {error}"))?;
 
     {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
         state.hub.connected = true;
         state.hub.user_tier = pull.tier.clone();
         state.hub.soul_balance = pull.soul_balance;
+        state.hub.cached_open_gigs = pull.open_gigs.clone();
         state.hub.last_sync_at = Some(Utc::now().to_rfc3339());
         state.sync_queue.clear();
         commit(app, &state)?;

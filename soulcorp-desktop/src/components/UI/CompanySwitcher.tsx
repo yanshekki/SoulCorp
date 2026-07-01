@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { deleteCompany, switchCompany } from "../../services/companyClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
@@ -6,20 +6,40 @@ import { useGameStore } from "../../stores/gameStore";
 export function CompanySwitcher() {
   const companies = useGameStore((state) => state.companies);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
+  const companyName = useGameStore((state) => state.companyName);
   const onboardingCompleted = useGameStore((state) => state.onboardingCompleted);
   const setShowCreateCompany = useGameStore((state) => state.setShowCreateCompany);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
 
   if (!onboardingCompleted) {
     return null;
   }
+
+  const activeCompany = companies.find((company) => company.id === activeCompanyId);
+  const displayName =
+    activeCompany?.name ||
+    companyName ||
+    (companies.length > 0 ? "Select company" : "No companies");
 
   const handleSwitch = async (companyId: string) => {
     if (companyId === activeCompanyId || busy) {
       return;
     }
     setBusy(true);
+    setOpen(false);
     try {
       await switchCompany(companyId);
       await reloadGameState();
@@ -31,19 +51,20 @@ export function CompanySwitcher() {
     }
   };
 
-  const handleDelete = async (companyId: string, companyName: string) => {
+  const handleDelete = async (companyId: string, name: string) => {
     if (busy || companies.length <= 1) {
       return;
     }
-    const confirmed = window.confirm(`Delete "${companyName}" and its local workspace data?`);
+    const confirmed = window.confirm(`Delete "${name}" and its local workspace data?`);
     if (!confirmed) {
       return;
     }
     setBusy(true);
+    setOpen(false);
     try {
       await deleteCompany(companyId);
       await reloadGameState();
-      setStatusMessage(`Deleted ${companyName}.`);
+      setStatusMessage(`Deleted ${name}.`);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -52,32 +73,51 @@ export function CompanySwitcher() {
   };
 
   return (
-    <div className="company-switcher">
-      <label className="company-switcher-label" htmlFor="company-switcher-select">
-        Company
-      </label>
-      <select
-        id="company-switcher-select"
-        className="company-switcher-select"
-        value={activeCompanyId ?? ""}
-        disabled={busy || companies.length === 0}
-        onChange={(event) => void handleSwitch(event.target.value)}
-      >
-        {companies.length === 0 ? (
-          <option value="">No companies</option>
+    <div className="company-switcher" ref={rootRef}>
+      <span className="company-switcher-label">Company</span>
+      <div className="company-switcher-control">
+        <button
+          type="button"
+          className="company-switcher-trigger"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          disabled={busy || companies.length === 0}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="company-switcher-current">
+            <span className="company-switcher-name">{displayName}</span>
+            {activeCompany?.industry ? (
+              <span className="company-switcher-meta">{activeCompany.industry}</span>
+            ) : null}
+          </span>
+          <span className="company-switcher-chevron" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+        {open && companies.length > 0 ? (
+          <div className="company-switcher-menu" role="menu">
+            {companies.map((company) => {
+              const isActive = company.id === activeCompanyId;
+              return (
+                <button
+                  key={company.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isActive}
+                  className={`company-switcher-option${isActive ? " active" : ""}`}
+                  disabled={busy}
+                  onClick={() => void handleSwitch(company.id)}
+                >
+                  <span className="company-switcher-option-name">{company.name}</span>
+                  {company.industry ? (
+                    <span className="company-switcher-option-meta">{company.industry}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         ) : null}
-        {!activeCompanyId && companies.length > 0 ? (
-          <option value="" disabled>
-            Select company
-          </option>
-        ) : null}
-        {companies.map((company) => (
-          <option key={company.id} value={company.id}>
-            {company.name}
-            {company.industry ? ` · ${company.industry}` : ""}
-          </option>
-        ))}
-      </select>
+      </div>
       <button
         type="button"
         className="company-switcher-new"
@@ -92,9 +132,8 @@ export function CompanySwitcher() {
           className="company-switcher-delete"
           disabled={busy}
           onClick={() => {
-            const active = companies.find((company) => company.id === activeCompanyId);
-            if (active) {
-              void handleDelete(active.id, active.name);
+            if (activeCompany) {
+              void handleDelete(activeCompany.id, activeCompany.name);
             }
           }}
         >

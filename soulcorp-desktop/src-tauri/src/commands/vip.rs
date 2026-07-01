@@ -1,4 +1,4 @@
-use crate::ai::{self, provider::ChatRequest};
+use crate::ai::{self, normalize_ai_provider_override, provider::ChatRequest};
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::soul::parse_soul_content;
@@ -33,10 +33,24 @@ pub struct CustomDepartmentBuilding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepartmentAiConfig {
+    pub department: String,
+    pub ai_provider: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompanyDepartmentsSnapshot {
     pub builtin: Vec<String>,
     pub custom: Vec<CustomDepartment>,
     pub buildings: Vec<CustomDepartmentBuilding>,
+    #[serde(default)]
+    pub department_ai_providers: Vec<DepartmentAiConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateDepartmentAiProviderRequest {
+    pub department: String,
+    pub ai_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,18 +148,35 @@ pub fn list_company_departments(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    let buildings = state
-        .custom_departments
-        .iter()
-        .enumerate()
-        .map(|(index, department)| custom_building_for_department(department, index))
-        .collect();
+    Ok(list_company_departments_from_state(&state))
+}
 
-    Ok(CompanyDepartmentsSnapshot {
-        builtin: builtin_departments(),
-        custom: state.custom_departments.clone(),
-        buildings,
-    })
+#[tauri::command]
+pub fn update_department_ai_provider(
+    request: UpdateDepartmentAiProviderRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<DepartmentAiConfig, String> {
+    let department = request.department.trim();
+    if department.is_empty() {
+        return Err("Department name is required.".to_string());
+    }
+
+    let ai_provider = normalize_ai_provider_override(request.ai_provider.as_deref())?;
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    if let Some(provider) = ai_provider.clone() {
+        state
+            .department_ai_providers
+            .insert(department.to_string(), provider);
+    } else {
+        state.department_ai_providers.remove(department);
+    }
+    let snapshot = DepartmentAiConfig {
+        department: department.to_string(),
+        ai_provider,
+    };
+    commit(app, &state)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -197,12 +228,20 @@ pub fn delete_custom_department(
 ) -> Result<CompanyDepartmentsSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ensure_vip_feature(&state, "custom_departments")?;
+    let removed_name = state
+        .custom_departments
+        .iter()
+        .find(|department| department.id == department_id)
+        .map(|department| department.name.clone());
     let before = state.custom_departments.len();
     state
         .custom_departments
         .retain(|department| department.id != department_id);
     if state.custom_departments.len() == before {
         return Err("Custom department not found.".to_string());
+    }
+    if let Some(name) = removed_name {
+        state.department_ai_providers.remove(&name);
     }
     let snapshot = list_company_departments_from_state(&state);
     commit(app, &state)?;
@@ -274,6 +313,7 @@ pub fn spawn_co_ceo(
         status: "working".to_string(),
         soul,
         soul_id: None,
+        ai_provider: None,
     };
 
     state.agents.insert(agent_id.clone(), record);
@@ -289,7 +329,7 @@ pub async fn run_co_ceo_briefing(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CoCeoBriefing, String> {
-    let (settings, hub, context, co_ceo_id) = {
+    let (settings, hub, context, co_ceo_id, co_ceo_department, co_ceo_provider, department_providers) = {
         let state = state.lock().map_err(|e| e.to_string())?;
         ensure_vip_feature(&state, "ai_co_ceo")?;
         let co_ceo_id = state
@@ -297,11 +337,20 @@ pub async fn run_co_ceo_briefing(
             .agent_id
             .clone()
             .ok_or_else(|| "Spawn the AI Co-CEO before requesting a briefing.".to_string())?;
+        let co_ceo_agent = state
+            .agents
+            .get(&co_ceo_id)
+            .ok_or_else(|| "AI Co-CEO agent record is missing.".to_string())?;
+        let co_ceo_department = co_ceo_agent.department.clone();
+        let co_ceo_provider = co_ceo_agent.ai_provider.clone();
         (
             state.settings.clone(),
             state.hub.clone(),
             build_co_ceo_context(&state),
             co_ceo_id,
+            co_ceo_department,
+            co_ceo_provider,
+            state.department_ai_providers.clone(),
         )
     };
 
@@ -316,8 +365,16 @@ pub async fn run_co_ceo_briefing(
         conversation_turns: Vec::new(),
     };
 
+    let provider_override = co_ceo_provider.clone();
     let response = tokio::task::spawn_blocking(move || {
-        ai::chat_with_fallback(&settings, &hub, chat_request)
+        ai::chat_with_fallback(
+            &settings,
+            &hub,
+            chat_request,
+            &department_providers,
+            &co_ceo_department,
+            provider_override.as_deref(),
+        )
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -586,6 +643,29 @@ fn co_ceo_status_from_state(state: &AppState) -> CoCeoStatus {
     }
 }
 
+fn collect_company_departments(state: &AppState) -> Vec<String> {
+    let mut departments = builtin_departments();
+    for custom in &state.custom_departments {
+        if !departments
+            .iter()
+            .any(|department| department == &custom.name)
+        {
+            departments.push(custom.name.clone());
+        }
+    }
+    for agent in state.agents.values() {
+        if !departments
+            .iter()
+            .any(|department| department == &agent.department)
+        {
+            departments.push(agent.department.clone());
+        }
+    }
+    departments.sort();
+    departments.dedup();
+    departments
+}
+
 fn list_company_departments_from_state(state: &AppState) -> CompanyDepartmentsSnapshot {
     let buildings = state
         .custom_departments
@@ -593,11 +673,19 @@ fn list_company_departments_from_state(state: &AppState) -> CompanyDepartmentsSn
         .enumerate()
         .map(|(index, department)| custom_building_for_department(department, index))
         .collect();
+    let department_ai_providers = collect_company_departments(state)
+        .into_iter()
+        .map(|department| DepartmentAiConfig {
+            ai_provider: state.department_ai_providers.get(&department).cloned(),
+            department,
+        })
+        .collect();
 
     CompanyDepartmentsSnapshot {
         builtin: builtin_departments(),
         custom: state.custom_departments.clone(),
         buildings,
+        department_ai_providers,
     }
 }
 

@@ -294,6 +294,7 @@ mod tests {
                     status: "idle".into(),
                     soul: None,
                     soul_id: None,
+                    ai_provider: None,
                 },
             );
         }

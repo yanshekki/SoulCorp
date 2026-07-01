@@ -1,15 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceDatabaseView } from "../../types/workspace";
 
 export function WorkspaceDatabase() {
+  const dataRevision = useWorkspaceStore((state) => state.dataRevision);
   const [views, setViews] = useState<WorkspaceDatabaseView[]>([]);
 
   useEffect(() => {
     void invoke<WorkspaceDatabaseView[]>("get_workspace_database")
       .then(setViews)
       .catch(() => setViews([]));
-  }, []);
+  }, [dataRevision]);
 
   if (views.length === 0) {
     return null;

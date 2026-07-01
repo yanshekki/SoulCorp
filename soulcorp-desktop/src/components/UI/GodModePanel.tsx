@@ -72,14 +72,14 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_force_relationship",
     label: "Force Romance",
-    args: { relationship_type: "romance" },
+    args: { relationshipType: "romance" },
     preview: "Create an artificial romance between two agents.",
     risk: "May spark drama or resentment if discovered.",
   },
   {
     command: "god_mode_force_relationship",
     label: "Force Rivalry",
-    args: { relationship_type: "rivalry" },
+    args: { relationshipType: "rivalry" },
     preview: "Create an artificial rivalry between two agents.",
     risk: "Can tank meeting productivity until resolved.",
   },

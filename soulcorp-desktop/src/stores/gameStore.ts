@@ -48,6 +48,7 @@ interface GameStore {
   setAgentRecords: (records: AgentRecord[]) => void;
   selectBuilding: (building: Building | null) => void;
   togglePause: () => void;
+  setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
   setFinance: (finance: FinanceState) => void;
   setSettings: (settings: GameSettings) => void;
@@ -149,6 +150,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setAgentRecords: (records) => set({ agentRecords: records }),
   selectBuilding: (building) => set({ selectedBuilding: building }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  setIsPaused: (paused) => set({ isPaused: paused }),
   setSimulation: (simulation) =>
     set((state) => ({
       simulation: { ...state.simulation, ...simulation },

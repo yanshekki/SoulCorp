@@ -22,7 +22,12 @@ export function DesignPreviewViewport() {
     const state = useGameStore.getState();
     baseBuildingsRef.current = state.buildings;
     baseAgentsRef.current = state.agents;
-  }, []);
+
+    return () => {
+      setBuildings(baseBuildingsRef.current);
+      setAgents(baseAgentsRef.current);
+    };
+  }, [setAgents, setBuildings]);
 
   useEffect(() => {
     setBuildings(applyBuildingsVisualDesign(baseBuildingsRef.current, draft));

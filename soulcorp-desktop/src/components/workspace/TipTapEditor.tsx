@@ -44,6 +44,12 @@ export function TipTapEditor({ value, onChange, editable = true }: TipTapEditorP
     }
   }, [editor, value]);
 
+  useEffect(() => {
+    return () => {
+      editor?.destroy();
+    };
+  }, [editor]);
+
   if (!editor) {
     return <div className="tiptap-editor loading">Loading editor...</div>;
   }

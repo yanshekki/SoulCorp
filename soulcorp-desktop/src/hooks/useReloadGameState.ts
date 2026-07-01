@@ -5,6 +5,7 @@ import { listCompanies } from "../services/companyClient";
 import { useGameStore } from "../stores/gameStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { syncAgentsFromRecords } from "../utils/agentBehavior";
+import { syncAgentRuntime } from "../utils/agentRuntime";
 import { INITIAL_BUILDINGS } from "../data/initialWorld";
 import { getVisualDesign } from "../services/visualDesignClient";
 import { clearEmptyGameState, hasActiveCompany } from "../utils/companyState";
@@ -23,12 +24,6 @@ import type {
 } from "../types/game";
 import type { Building } from "../types/world";
 import type { WorkspaceTree } from "../types/workspace";
-
-const SAMPLE_SOULS = [
-  { agentId: "agent-1", path: "/samples/mira.soul.md" },
-  { agentId: "agent-2", path: "/samples/kai.soul.md" },
-  { agentId: "agent-3", path: "/samples/ren.soul.md" },
-];
 
 function toWorldBuilding(building: CustomDepartmentBuilding): Building {
   return {
@@ -153,33 +148,19 @@ export async function reloadGameState(): Promise<void> {
   setBuildings(applyBuildingsVisualDesign(buildings, visualDesign));
 
   if (onboarding.completed && companyReady) {
-    await Promise.all(
-      SAMPLE_SOULS.map(async ({ agentId, path }) => {
-        const response = await fetch(path);
-        const soul_md_content = await response.text();
-        await invoke("load_agent_soul", {
-          request: {
-            agent_id: agentId,
-            soul_md_path: null,
-            soul_md_content,
-          },
-        });
-      }),
-    );
-
-    const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
-    setAgentRecords(refreshedAgents);
     const mergedAgents = applyAgentsVisualDesign(
-      syncAgentsFromRecords(refreshedAgents, useGameStore.getState().agents),
+      syncAgentsFromRecords(agents, useGameStore.getState().agents),
       visualDesign,
     );
     setAgents(mergedAgents);
+    syncAgentRuntime(mergedAgents);
     setSimulation({ dayNumber: 1 });
+    useGameStore.getState().setIsPaused(false);
     setStatusMessage("Company loaded. Office simulation ready.");
 
     try {
       const tree = await invoke<WorkspaceTree>("list_workspace_tree");
-      useWorkspaceStore.getState().setTree(tree);
+      await useWorkspaceStore.getState().reloadForCompany(tree);
     } catch {
       useWorkspaceStore.getState().reset();
     }

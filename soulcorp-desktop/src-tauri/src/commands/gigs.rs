@@ -2,7 +2,7 @@ use crate::db::persistence::commit;
 use crate::gigs::{
     compute_qc_score, finalize_contract_at_index, payout_for_budget, submit_contract_for_qc_at_index,
 };
-use crate::hub::{filter_gigs_for_tier, mock_gigs, HubClient, HubGig};
+use crate::hub::{filter_gigs_for_tier, HubClient, HubGig};
 use crate::state::{AppState, GigContract};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -31,22 +31,23 @@ fn client_from_state(state: &AppState) -> HubClient {
     HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
 }
 
-fn allow_mock_hub_fallback() -> bool {
-    cfg!(debug_assertions)
-}
-
 async fn resolve_gig_for_accept(
     pure_local: bool,
     base_url: String,
     api_key: Option<String>,
     tier: &str,
     gig_id: u64,
+    cached_gigs: Vec<HubGig>,
 ) -> Result<HubGig, String> {
     if pure_local {
-        return filter_gigs_for_tier(mock_gigs(), tier)
+        return filter_gigs_for_tier(cached_gigs, tier)
             .into_iter()
             .find(|gig| gig.gig_id == gig_id)
-            .ok_or_else(|| format!("Gig {gig_id} not found in local marketplace."));
+            .ok_or_else(|| {
+                format!(
+                    "Gig {gig_id} not found. Sync with the hub when online to refresh marketplace listings."
+                )
+            });
     }
 
     let client = HubClient::new(base_url, api_key);
@@ -55,11 +56,12 @@ async fn resolve_gig_for_accept(
             .into_iter()
             .find(|gig| gig.gig_id == gig_id)
             .ok_or_else(|| format!("Gig {gig_id} is no longer open.")),
-        Err(error) if allow_mock_hub_fallback() => filter_gigs_for_tier(mock_gigs(), tier)
-            .into_iter()
-            .find(|gig| gig.gig_id == gig_id)
-            .ok_or_else(|| format!("Gig {gig_id} not found. Hub error: {error}")),
-        Err(error) => Err(format!("Failed to load gig {gig_id}: {error}")),
+        Err(error) => {
+            filter_gigs_for_tier(cached_gigs, tier)
+                .into_iter()
+                .find(|gig| gig.gig_id == gig_id)
+                .ok_or_else(|| format!("Failed to load gig {gig_id}: {error}"))
+        }
     }
 }
 
@@ -70,15 +72,23 @@ fn contract_exists_for_gig(state: &AppState, gig_id: u64) -> bool {
         .any(|contract| contract.gig_id == gig_id && contract.status != "completed")
 }
 
-fn find_contract_mut<'a>(
-    state: &'a mut AppState,
+fn contract_index_with_status(
+    state: &AppState,
     contract_id: &str,
-) -> Result<&'a mut GigContract, String> {
-    state
+    expected_status: &str,
+) -> Result<usize, String> {
+    let index = state
         .gig_contracts
-        .iter_mut()
-        .find(|contract| contract.contract_id == contract_id)
-        .ok_or_else(|| format!("Contract {contract_id} not found."))
+        .iter()
+        .position(|contract| contract.contract_id == contract_id)
+        .ok_or_else(|| format!("Contract {contract_id} not found."))?;
+    let status = state.gig_contracts[index].status.clone();
+    if status != expected_status {
+        return Err(format!(
+            "Contract status changed to {status}. Refresh and try again."
+        ));
+    }
+    Ok(index)
 }
 
 #[tauri::command]
@@ -95,7 +105,7 @@ pub async fn accept_hub_gig(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GigContract, String> {
-    let (client, pure_local, base_url, api_key, tier) = {
+    let (client, pure_local, base_url, api_key, tier, cached_gigs) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if contract_exists_for_gig(&state, request.gig_id) {
             return Err("You already have an active contract for this gig.".to_string());
@@ -112,25 +122,34 @@ pub async fn accept_hub_gig(
             state.hub.base_url.clone(),
             state.hub.api_key.clone(),
             state.hub.user_tier.clone(),
+            state.hub.cached_open_gigs.clone(),
         )
     };
 
-    let gig = resolve_gig_for_accept(pure_local, base_url, api_key, &tier, request.gig_id).await?;
+    let gig = resolve_gig_for_accept(
+        pure_local,
+        base_url,
+        api_key,
+        &tier,
+        request.gig_id,
+        cached_gigs,
+    )
+    .await?;
 
     if !pure_local {
         if let Some(client) = client {
-            match client.assign_gig(request.gig_id).await {
-                Ok(_) => {}
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("assign_gig fallback: {error}");
-                }
-                Err(error) => return Err(format!("Failed to accept gig: {error}")),
-            }
+            client
+                .assign_gig(request.gig_id)
+                .await
+                .map_err(|error| format!("Failed to accept gig: {error}"))?;
         }
     }
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        if contract_exists_for_gig(&state, request.gig_id) {
+            return Err("You already have an active contract for this gig.".to_string());
+        }
         let contract = GigContract {
             contract_id: Uuid::new_v4().to_string(),
             gig_id: gig.gig_id,
@@ -187,9 +206,6 @@ pub async fn start_gig_work(
         if let Some(client) = client {
             match client.start_gig(gig_id).await {
                 Ok(_) => {}
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("start_gig fallback: {error}");
-                }
                 Err(error) => return Err(format!("Failed to start gig: {error}")),
             }
         }
@@ -197,10 +213,10 @@ pub async fn start_gig_work(
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        let contract = find_contract_mut(&mut state, &request.contract_id)?;
-        contract.status = "in_progress".to_string();
-        contract.started_at = Some(Utc::now().to_rfc3339());
-        let snapshot = contract.clone();
+        let index = contract_index_with_status(&state, &request.contract_id, "accepted")?;
+        state.gig_contracts[index].status = "in_progress".to_string();
+        state.gig_contracts[index].started_at = Some(Utc::now().to_rfc3339());
+        let snapshot = state.gig_contracts[index].clone();
         commit(app, &state)?;
         snapshot
     };
@@ -248,9 +264,6 @@ pub async fn submit_gig_for_qc(
                 .await
             {
                 Ok(_) => {}
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("submit_gig_for_qc fallback: {error}");
-                }
                 Err(error) => return Err(format!("Failed to submit gig for QC: {error}")),
             }
         }
@@ -258,11 +271,13 @@ pub async fn submit_gig_for_qc(
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        let index = state
-            .gig_contracts
-            .iter()
-            .position(|contract| contract.contract_id == request.contract_id)
-            .ok_or_else(|| format!("Contract {} not found.", request.contract_id))?;
+        let index = contract_index_with_status(&state, &request.contract_id, "in_progress")?;
+        if state.gig_contracts[index].progress < 0.95 {
+            return Err(format!(
+                "Work is only {:.0}% complete. Keep agents working or wait for simulation ticks.",
+                state.gig_contracts[index].progress * 100.0
+            ));
+        }
         submit_contract_for_qc_at_index(&mut state, index);
         let snapshot = state.gig_contracts[index].clone();
         commit(app, &state)?;
@@ -305,10 +320,6 @@ pub async fn complete_hub_gig(
                 Ok(body) => body
                     .get("payout_usdt")
                     .and_then(|value| value.as_f64()),
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("complete_gig fallback: {error}");
-                    None
-                }
                 Err(error) => return Err(format!("Failed to complete gig on hub: {error}")),
             }
         } else {
@@ -320,11 +331,7 @@ pub async fn complete_hub_gig(
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        let index = state
-            .gig_contracts
-            .iter()
-            .position(|contract| contract.contract_id == request.contract_id)
-            .ok_or_else(|| format!("Contract {} not found.", request.contract_id))?;
+        let index = contract_index_with_status(&state, &request.contract_id, "in_qc")?;
         if let Some(payout) = hub_payout {
             state.gig_contracts[index].payout_usdt = payout;
             state.gig_contracts[index].platform_fee_usdt =
@@ -377,9 +384,6 @@ pub async fn reject_gig_qc(
                 .await
             {
                 Ok(_) => {}
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("reject_gig_qc fallback: {error}");
-                }
                 Err(error) => return Err(format!("Failed to reject gig QC: {error}")),
             }
         }
@@ -387,18 +391,18 @@ pub async fn reject_gig_qc(
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        let contract = find_contract_mut(&mut state, &request.contract_id)?;
-        contract.status = "in_progress".to_string();
-        contract.progress = (contract.progress - 0.2).max(0.6);
-        contract.qc_notes = Some(
+        let index = contract_index_with_status(&state, &request.contract_id, "in_qc")?;
+        state.gig_contracts[index].status = "in_progress".to_string();
+        state.gig_contracts[index].progress = (state.gig_contracts[index].progress - 0.2).max(0.6);
+        state.gig_contracts[index].qc_notes = Some(
             request
                 .qc_notes
                 .filter(|note| !note.trim().is_empty())
                 .unwrap_or_else(|| "Revision requested — improve deliverable quality.".to_string()),
         );
-        contract.qc_score = None;
-        contract.submitted_at = None;
-        let snapshot = contract.clone();
+        state.gig_contracts[index].qc_score = None;
+        state.gig_contracts[index].submitted_at = None;
+        let snapshot = state.gig_contracts[index].clone();
         commit(app, &state)?;
         snapshot
     };
@@ -439,9 +443,6 @@ pub async fn dispute_hub_gig(
                 .await
             {
                 Ok(_) => {}
-                Err(error) if allow_mock_hub_fallback() => {
-                    eprintln!("dispute_gig fallback: {error}");
-                }
                 Err(error) => return Err(format!("Failed to open gig dispute: {error}")),
             }
         }
@@ -449,15 +450,25 @@ pub async fn dispute_hub_gig(
 
     let contract = {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        let contract = find_contract_mut(&mut state, &request.contract_id)?;
-        contract.status = "disputed".to_string();
-        contract.qc_notes = Some(
+        let index = state
+            .gig_contracts
+            .iter()
+            .position(|contract| contract.contract_id == request.contract_id)
+            .ok_or_else(|| format!("Contract {} not found.", request.contract_id))?;
+        let status = state.gig_contracts[index].status.clone();
+        if status != "in_qc" && status != "in_progress" {
+            return Err(format!(
+                "Contract status changed to {status}. Refresh and try again."
+            ));
+        }
+        state.gig_contracts[index].status = "disputed".to_string();
+        state.gig_contracts[index].qc_notes = Some(
             request
                 .qc_notes
                 .filter(|note| !note.trim().is_empty())
                 .unwrap_or_else(|| "Dispute opened — awaiting platform mediation.".to_string()),
         );
-        let snapshot = contract.clone();
+        let snapshot = state.gig_contracts[index].clone();
         commit(app, &state)?;
         snapshot
     };

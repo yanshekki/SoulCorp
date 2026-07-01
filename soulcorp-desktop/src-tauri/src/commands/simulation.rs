@@ -3,7 +3,7 @@ use crate::commands::events::{apply_god_mode_reality_debt, maybe_roll_event};
 use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::export::write_auto_backup;
 use crate::db::persistence::commit;
-use crate::finance::apply_tick_finance;
+use crate::finance::{apply_tick_finance, count_active_agents};
 use crate::gigs::apply_gig_contract_ticks;
 use crate::commands::vip::apply_co_ceo_autonomy_tick;
 use crate::relationships::apply_relationship_tick;
@@ -32,6 +32,8 @@ pub fn run_simulation_tick(
     app: AppHandle,
 ) -> Result<SimulationTickResult, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    let pre_tick_snapshot = state.clone();
+
     state.tick += 1;
     apply_chaos_mode_tick(&mut state);
 
@@ -62,19 +64,16 @@ pub fn run_simulation_tick(
         }
     }
 
-    let agents_active = state
-        .agents
-        .values()
-        .filter(|agent| {
-            agent.status == "working" || agent.status == "meeting" || agent.status == "throttled"
-        })
-        .count() as u32;
+    let agents_active = count_active_agents(&state, true);
 
     if state.settings.backup_interval_minutes > 0 {
         let interval_ticks = state.settings.backup_interval_minutes as u64 * 60;
         if state.tick.saturating_sub(state.last_backup_tick) >= interval_ticks {
-            write_auto_backup(&app, &state)?;
-            state.last_backup_tick = state.tick;
+            if let Err(err) = write_auto_backup(&app, &state) {
+                eprintln!("Auto-backup skipped: {err}");
+            } else {
+                state.last_backup_tick = state.tick;
+            }
         }
     }
 
@@ -135,7 +134,12 @@ pub fn run_simulation_tick(
         message,
         event,
     };
-    commit(app, &state)?;
+
+    if let Err(error) = commit(app, &state) {
+        *state = pre_tick_snapshot;
+        return Err(error);
+    }
+
     Ok(result)
 }
 
@@ -153,11 +157,7 @@ pub fn get_simulation_snapshot(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<SimulationSnapshot, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    let agents_active = state
-        .agents
-        .values()
-        .filter(|agent| agent.status == "working" || agent.status == "meeting")
-        .count() as u32;
+    let agents_active = count_active_agents(&state, true);
 
     Ok(SimulationSnapshot {
         tick: state.tick,

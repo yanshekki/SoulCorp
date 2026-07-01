@@ -4,8 +4,10 @@ pub mod mock;
 pub mod ollama;
 pub mod openai_compatible;
 pub mod provider;
+pub mod selection;
 
-pub use health::{probe_meeting_ai, MeetingAiStatus};
+pub use health::{probe_agent_ai, probe_meeting_ai, MeetingAiStatus};
+pub use selection::{normalize_agent_ai_provider, normalize_ai_provider_override};
 
 use hub_chat::HubChatProvider;
 use mock::MockProvider;
@@ -15,6 +17,7 @@ use provider::{AiProvider, ChatRequest, ChatResponse};
 use std::sync::Arc;
 
 use crate::state::{GameSettings, HubState};
+use std::collections::HashMap;
 
 pub fn provider_for(settings: &GameSettings, hub: &HubState) -> Arc<dyn AiProvider> {
     match settings.ai_provider.as_str() {
@@ -52,8 +55,17 @@ pub fn chat_with_fallback(
     settings: &GameSettings,
     hub: &HubState,
     request: ChatRequest,
+    department_providers: &HashMap<String, String>,
+    department: &str,
+    agent_override: Option<&str>,
 ) -> Result<ChatResponse, String> {
-    let status = probe_meeting_ai(settings, hub);
+    let status = probe_agent_ai(
+        settings,
+        hub,
+        department_providers,
+        department,
+        agent_override,
+    );
     let provider = provider_for_active(&status, settings, hub);
     match provider.chat(request.clone()) {
         Ok(response) => Ok(response),

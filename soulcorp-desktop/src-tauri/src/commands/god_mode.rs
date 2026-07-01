@@ -76,7 +76,8 @@ pub fn god_mode_time_warp(
     state.finance.monthly_burn *= 1.02;
     state.finance.monthly_revenue *= 1.03;
     state.finance.cash_balance += state.finance.monthly_revenue * (days as f64 / 30.0);
-    state.finance.compute_tokens -= state.finance.monthly_burn * 0.05;
+    state.finance.compute_tokens =
+        (state.finance.compute_tokens - state.finance.monthly_burn * 0.05).max(0.0);
 
     let result = record_use(
         &mut state,

@@ -22,16 +22,30 @@ export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
   }, [page.id]);
 
   useEffect(() => {
-    const primary = page.linked_entities[0];
-    if (!primary) {
+    if (page.linked_entities.length === 0) {
       setBacklinks([]);
       return;
     }
-    void invoke<{ page_id: string; title: string }[]>("find_workspace_backlinks", {
-      entityType: primary.entity_type,
-      entityId: primary.id,
-    })
-      .then((results) => setBacklinks(results.filter((item) => item.page_id !== page.id)))
+
+    void Promise.all(
+      page.linked_entities.map((link) =>
+        invoke<{ page_id: string; title: string }[]>("find_workspace_backlinks", {
+          entityType: link.entity_type,
+          entityId: link.id,
+        }),
+      ),
+    )
+      .then((results) => {
+        const merged = new Map<string, { page_id: string; title: string }>();
+        for (const batch of results) {
+          for (const item of batch) {
+            if (item.page_id !== page.id) {
+              merged.set(item.page_id, item);
+            }
+          }
+        }
+        setBacklinks([...merged.values()]);
+      })
       .catch(() => setBacklinks([]));
   }, [page.id, page.linked_entities]);
 

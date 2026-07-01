@@ -281,7 +281,7 @@ export function MarketplacePanel() {
 
       {settings.pure_local_mode ? (
         <p className="hub-warning">
-          Pure Local Mode is on. Gig lifecycle runs locally with mock marketplace data.
+          Pure Local Mode is on. Browse cached hub gigs from your last sync, or manage local contracts.
         </p>
       ) : null}
 
