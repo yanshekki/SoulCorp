@@ -18,7 +18,6 @@ import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
 import "./styles/startup-warm-ui.css";
-import "./styles/tph-game-ui.css";
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);

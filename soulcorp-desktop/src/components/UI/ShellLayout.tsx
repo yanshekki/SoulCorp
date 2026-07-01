@@ -160,7 +160,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
 
   return (
     <div
-      className={`app-shell${immersiveInterior || immersiveDesignStudio ? " app-shell--immersive-office" : ""}${immersiveInterior ? " app-shell--tph-interior" : ""}`}
+      className={`app-shell${immersiveInterior || immersiveDesignStudio ? " app-shell--immersive-office" : ""}`}
     >
       <header className="app-topbar">
         <div className="app-topbar-row app-topbar-row-primary">
@@ -244,13 +244,11 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
         </main>
       </div>
 
-      {!immersiveInterior ? (
-        <footer className="app-statusbar">
-          <OfflineStatusBar />
-          <TestModeButton placement="statusbar" />
-          <span className="status-message">{statusMessage}</span>
-        </footer>
-      ) : null}
+      <footer className="app-statusbar">
+        <OfflineStatusBar />
+        <TestModeButton placement="statusbar" />
+        <span className="status-message">{statusMessage}</span>
+      </footer>
 
       <PauseMenu />
     </div>
