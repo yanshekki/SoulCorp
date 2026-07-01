@@ -1,77 +1,122 @@
-use crate::state::{AgentRecord, AppState, GameEvent};
-use crate::workspace::models::{LinkedEntity, WorkspacePage};
+use crate::state::{
+    AgentRecord, AppState, FinanceState, GameEvent, GigContract, InternalProject, MeetingState,
+};
+use crate::workspace::models::LinkedEntity;
 use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
+use rayon::prelude::*;
+use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
-pub fn write_daily_activity_docs(app: &AppHandle, state: &mut AppState) -> Result<u32, String> {
-    if state.company_id.is_empty() {
+#[derive(Clone)]
+pub struct ActivitySnapshot {
+    pub company_id: String,
+    pub day_number: u32,
+    pub agents: Vec<AgentRecord>,
+    pub projects: Vec<InternalProject>,
+    pub meetings: HashMap<String, MeetingState>,
+    pub gig_contracts: Vec<GigContract>,
+    pub events: Vec<GameEvent>,
+    pub finance: FinanceState,
+}
+
+impl ActivitySnapshot {
+    pub fn from_state(state: &AppState) -> Self {
+        Self {
+            company_id: state.company_id.clone(),
+            day_number: state.day_number,
+            agents: state.agents.values().cloned().collect(),
+            projects: state.projects.clone(),
+            meetings: state.meetings.clone(),
+            gig_contracts: state.gig_contracts.clone(),
+            events: state.events.clone(),
+            finance: state.finance.clone(),
+        }
+    }
+}
+
+pub fn write_daily_activity_docs(app: &AppHandle, snapshot: &ActivitySnapshot) -> Result<u32, String> {
+    if snapshot.company_id.is_empty() {
         return Ok(0);
     }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &snapshot.company_id))?;
     storage.ensure_seed()?;
 
-    let mut pages_written = 0u32;
-    let day = state.day_number;
-    let agents: Vec<AgentRecord> = state.agents.values().cloned().collect();
+    let day = snapshot.day_number;
+    let agents = &snapshot.agents;
 
-    for agent in &agents {
-        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
-        let journal_title = format!("{} — Daily Journal", agent.name);
-        let heading = format!("Day {day} Activity Log");
-        let lines = activity_lines_for_agent(agent, state);
+    for agent in agents {
+        storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
+    }
 
-        let page = storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
-        let _ = storage.link_entity_to_page(
-            &page.id,
-            LinkedEntity {
-                entity_type: "agent".to_string(),
-                id: agent.id.clone(),
-                title: agent.name.clone(),
-            },
-            &agent.name,
-        );
-        if let Some(project) = state
-            .projects
-            .iter()
-            .find(|project| project.owner_department == agent.department)
-        {
-            let _ = storage.link_entity_to_page(
+    let agent_pages: Result<Vec<_>, String> = agents
+        .par_iter()
+        .map(|agent| {
+            let folder_id = format!("folder-{}", agent.id);
+            let journal_title = format!("{} — Daily Journal", agent.name);
+            let heading = format!("Day {day} Activity Log");
+            let lines = activity_lines_for_agent(agent, snapshot);
+
+            let page = storage.append_journal_entry(
+                &folder_id,
+                &journal_title,
+                &heading,
+                &lines,
+                &agent.name,
+            )?;
+            storage.link_entity_to_page(
                 &page.id,
                 LinkedEntity {
-                    entity_type: "project".to_string(),
-                    id: project.id.clone(),
-                    title: project.title.clone(),
+                    entity_type: "agent".to_string(),
+                    id: agent.id.clone(),
+                    title: agent.name.clone(),
                 },
                 &agent.name,
-            );
-        }
-        pages_written += 1;
-    }
+            )?;
+            if let Some(project) = snapshot
+                .projects
+                .iter()
+                .find(|project| project.owner_department == agent.department)
+            {
+                let _ = storage.link_entity_to_page(
+                    &page.id,
+                    LinkedEntity {
+                        entity_type: "project".to_string(),
+                        id: project.id.clone(),
+                        title: project.title.clone(),
+                    },
+                    &agent.name,
+                );
+            }
+            Ok(())
+        })
+        .collect();
+
+    agent_pages?;
+    let mut pages_written = agents.len() as u32;
 
     let summary = format!(
         "Payroll and operations logged for {} agents. Cash ${:.0}, compute {:.0} tokens.",
         agents.len(),
-        state.finance.cash_balance,
-        state.finance.compute_tokens
+        snapshot.finance.cash_balance,
+        snapshot.finance.compute_tokens
     );
     storage.append_company_feed_entry(day, "Daily Operations", &summary)?;
     pages_written += 1;
 
-    state.stats.pages_created += pages_written;
     Ok(pages_written)
 }
 
 pub fn write_event_activity_doc(
     app: &AppHandle,
-    state: &mut AppState,
+    snapshot: &ActivitySnapshot,
     event: &GameEvent,
-) -> Result<(), String> {
-    if state.company_id.is_empty() {
-        return Ok(());
+) -> Result<u32, String> {
+    if snapshot.company_id.is_empty() {
+        return Ok(0);
     }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &snapshot.company_id))?;
     storage.ensure_seed()?;
 
     let body = format!(
@@ -80,29 +125,36 @@ pub fn write_event_activity_doc(
         event.morale_delta * 100.0,
         event.cash_delta
     );
-    storage.append_company_feed_entry(state.day_number, &event.title, &body)?;
+    storage.append_company_feed_entry(snapshot.day_number, &event.title, &body)?;
 
-    for agent in state.agents.values() {
-        let folder_id = storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
-        let journal_title = format!("{} — Daily Journal", agent.name);
-        let heading = format!("Day {} — Event Response", state.day_number);
-        let lines = vec![
-            format!("Company event: {}", event.title),
-            format!("Personal impact: morale {:+.0}%", event.morale_delta * 100.0),
-            reaction_line_for_agent(agent, event),
-        ];
-        storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+    for agent in &snapshot.agents {
+        storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
     }
 
-    state.stats.pages_created += 1 + state.agents.len() as u32;
-    Ok(())
+    snapshot
+        .agents
+        .par_iter()
+        .try_for_each(|agent| {
+            let folder_id = format!("folder-{}", agent.id);
+            let journal_title = format!("{} — Daily Journal", agent.name);
+            let heading = format!("Day {} — Event Response", snapshot.day_number);
+            let lines = vec![
+                format!("Company event: {}", event.title),
+                format!("Personal impact: morale {:+.0}%", event.morale_delta * 100.0),
+                reaction_line_for_agent(agent, event),
+            ];
+            storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+            Ok::<(), String>(())
+        })?;
+
+    Ok(1 + snapshot.agents.len() as u32)
 }
 
 pub fn write_meeting_notes_from_state(
     app: &AppHandle,
     state: &mut AppState,
     meeting_id: &str,
-) -> Result<Vec<WorkspacePage>, String> {
+) -> Result<Vec<crate::workspace::models::WorkspacePage>, String> {
     if state
         .meetings
         .get(meeting_id)
@@ -155,7 +207,7 @@ pub fn write_meeting_notes_from_state(
     Ok(pages)
 }
 
-fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String> {
+fn activity_lines_for_agent(agent: &AgentRecord, snapshot: &ActivitySnapshot) -> Vec<String> {
     let mut lines = Vec::new();
 
     match agent.status.as_str() {
@@ -168,7 +220,7 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
         _ => lines.push("Started the day with planning and inbox triage.".to_string()),
     }
 
-    for project in state
+    for project in snapshot
         .projects
         .iter()
         .filter(|project| project.owner_department == agent.department)
@@ -181,7 +233,7 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
         ));
     }
 
-    for meeting in state.meetings.values() {
+    for meeting in snapshot.meetings.values() {
         if !meeting.participant_ids.contains(&agent.id) {
             continue;
         }
@@ -196,7 +248,7 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
         ));
     }
 
-    for contract in state
+    for contract in snapshot
         .gig_contracts
         .iter()
         .filter(|contract| contract.status != "completed")
@@ -207,7 +259,7 @@ fn activity_lines_for_agent(agent: &AgentRecord, state: &AppState) -> Vec<String
         ));
     }
 
-    if let Some(event) = state.events.last() {
+    if let Some(event) = snapshot.events.last() {
         lines.push(format!(
             "- Latest company event: \"{}\" ({})",
             event.title, event.tone

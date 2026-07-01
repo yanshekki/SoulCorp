@@ -5,6 +5,8 @@ import { AgentRenderSystem } from "./agentRenderSystem";
 import { getPixelBuildingTexture } from "./pixelBuildingTexture";
 
 const ISO_OFFSET = new THREE.Vector3(14, 14, 14);
+const cameraTarget = new THREE.Vector3();
+const cameraDesired = new THREE.Vector3();
 
 export interface OfficeSceneHandles {
   scene: THREE.Scene;
@@ -173,6 +175,7 @@ export function createOfficeScene(
   canvas: HTMLCanvasElement,
   width: number,
   height: number,
+  lowPowerMode = false,
 ): OfficeSceneHandles {
   if (width < 1 || height < 1) {
     throw new OfficeSceneError(`Invalid canvas size: ${width}x${height}`);
@@ -218,10 +221,13 @@ export function createOfficeScene(
     throw new OfficeSceneError("WebGLRenderer returned no rendering context.");
   }
 
+  const pixelRatio = lowPowerMode
+    ? 1
+    : Math.min(window.devicePixelRatio, 2);
   renderer.setSize(width, height, false);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(pixelRatio);
   renderer.setClearColor("#8ec8ef", 1);
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !lowPowerMode;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene.add(createGround());
@@ -234,13 +240,13 @@ export function createOfficeScene(
   path.position.set(0, 0.02, 1.5);
   scene.add(path);
 
-  createPropInstances(scene, false);
+  createPropInstances(scene, lowPowerMode);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.65);
-  const sun = new THREE.DirectionalLight(0xfff2d6, 1.2);
+  const ambient = new THREE.AmbientLight(0xffffff, lowPowerMode ? 0.8 : 0.65);
+  const sun = new THREE.DirectionalLight(0xfff2d6, lowPowerMode ? 0.9 : 1.2);
   sun.position.set(12, 20, 8);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.castShadow = !lowPowerMode;
+  sun.shadow.mapSize.set(lowPowerMode ? 512 : 1024, lowPowerMode ? 512 : 1024);
   scene.add(ambient, sun);
 
   const buildingGroups = new Map<string, THREE.Group>();
@@ -322,10 +328,10 @@ export function updateCamera(
 ) {
   if (selectedBuilding) {
     const [x, , z] = selectedBuilding.position;
-    const target = new THREE.Vector3(x, 0, z);
-    const desired = new THREE.Vector3(x + 7, 10, z + 7);
-    camera.position.lerp(desired, Math.min(delta * 2.5, 1));
-    camera.lookAt(target);
+    cameraTarget.set(x, 0, z);
+    cameraDesired.set(x + 7, 10, z + 7);
+    camera.position.lerp(cameraDesired, Math.min(delta * 2.5, 1));
+    camera.lookAt(cameraTarget);
     return;
   }
   camera.position.lerp(ISO_OFFSET, Math.min(delta * 2, 1));

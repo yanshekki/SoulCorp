@@ -8,7 +8,9 @@ import { OnboardingWizard } from "./components/UI/OnboardingWizard";
 import { ShellLayout } from "./components/UI/ShellLayout";
 import { DesignStudioPage } from "./components/design/DesignStudioPage";
 import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
+import { LoadingOverlay } from "./components/UI/LoadingOverlay";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
+import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
 import { TestModeButton } from "./components/UI/TestModeButton";
@@ -28,6 +30,7 @@ function App() {
   const companyReady = hasActiveCompany(activeCompanyId, companies);
 
   useGameBootstrap();
+  useOperationProgress();
   useSimulationLoop();
 
   useEffect(() => {
@@ -69,6 +72,7 @@ function App() {
   return (
     <>
       {content}
+      <LoadingOverlay />
       <TestModeButton />
     </>
   );

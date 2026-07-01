@@ -366,6 +366,8 @@ pub async fn run_co_ceo_briefing(
     };
 
     let provider_override = co_ceo_provider.clone();
+    let progress = crate::progress::ProgressReporter::new(app.clone(), "co_ceo_briefing");
+    progress.emit_indeterminate("Generating Co-CEO executive briefing…", Some("llm"));
     let response = tokio::task::spawn_blocking(move || {
         ai::chat_with_fallback(
             &settings,
@@ -394,6 +396,8 @@ pub async fn run_co_ceo_briefing(
         agent.status = "working".to_string();
     }
     commit(app, &state)?;
+    progress.finish("Executive briefing ready");
+    progress.clear();
     Ok(briefing)
 }
 

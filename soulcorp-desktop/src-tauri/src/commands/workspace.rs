@@ -1,4 +1,5 @@
 use crate::db::persistence::commit;
+use crate::progress::ProgressReporter;
 use crate::state::AppState;
 use crate::workspace::{
     create_page_from_template, list_templates, storage::{company_workspace_root, default_departments},
@@ -64,8 +65,14 @@ pub fn init_workspace(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceTree, String> {
+    let progress = ProgressReporter::new(app.clone(), "workspace_init");
+    progress.emit_percent("Syncing workspace folders…", 40.0, Some("folders"));
     let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.list_tree()
+    progress.emit_percent("Loading workspace pages…", 80.0, Some("pages"));
+    let tree = storage.list_tree()?;
+    progress.finish("Workspace ready");
+    progress.clear();
+    Ok(tree)
 }
 
 #[tauri::command]

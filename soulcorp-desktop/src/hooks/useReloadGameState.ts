@@ -13,6 +13,10 @@ import {
   applyAgentsVisualDesign,
   applyBuildingsVisualDesign,
 } from "../utils/applyVisualDesign";
+import {
+  clearLocalProgress,
+  reportLocalProgress,
+} from "../stores/progressStore";
 import type {
   AgentRecord,
   CompanyDepartmentsSnapshot,
@@ -24,6 +28,8 @@ import type {
 } from "../types/game";
 import type { Building } from "../types/world";
 import type { WorkspaceTree } from "../types/workspace";
+
+const BOOTSTRAP_OP = "bootstrap";
 
 function toWorldBuilding(building: CustomDepartmentBuilding): Building {
   return {
@@ -39,7 +45,9 @@ function toWorldBuilding(building: CustomDepartmentBuilding): Building {
   };
 }
 
-export async function reloadGameState(): Promise<void> {
+export async function reloadGameState(
+  operationId = BOOTSTRAP_OP,
+): Promise<void> {
   const store = useGameStore.getState();
   const {
     setAgentRecords,
@@ -60,7 +68,12 @@ export async function reloadGameState(): Promise<void> {
     setVisualDesign,
   } = store;
 
-  const [agents, finance, settings, onboarding, hubStatus, companyList] = await Promise.all([
+  reportLocalProgress(operationId, "Loading company list…", 10, "companies");
+
+  const companyList = await listCompanies();
+  reportLocalProgress(operationId, "Loading agents…", 30, "agents");
+
+  const [agents, finance, settings, onboarding, hubStatus] = await Promise.all([
     invoke<AgentRecord[]>("list_agents"),
     invoke<FinanceState>("get_finance_state"),
     invoke<GameSettings>("get_game_settings"),
@@ -78,8 +91,9 @@ export async function reloadGameState(): Promise<void> {
         last_sync_at: null,
       }),
     ),
-    listCompanies(),
   ]);
+
+  reportLocalProgress(operationId, "Loading finance & settings…", 45, "finance");
 
   setCompanies(companyList.companies);
   setActiveCompanyId(companyList.active_company_id);
@@ -103,12 +117,17 @@ export async function reloadGameState(): Promise<void> {
         : "Create a company to start your simulation.",
     );
     useWorkspaceStore.getState().reset();
+    clearLocalProgress(operationId);
     return;
   }
+
+  reportLocalProgress(operationId, "Syncing hub status…", 60, "hub");
 
   setCompanyName(onboarding.company_name);
   setCompanyIndustry(onboarding.company_industry);
   setCompanyTagline(onboarding.company_tagline);
+
+  reportLocalProgress(operationId, "Loading visual design…", 75, "visual");
   const visualDesign = await getVisualDesign().catch(() => store.visualDesign);
   setVisualDesign(visualDesign);
   setAgentRecords(agents);
@@ -158,13 +177,17 @@ export async function reloadGameState(): Promise<void> {
     useGameStore.getState().setIsPaused(false);
     setStatusMessage("Company loaded. Office simulation ready.");
 
+    reportLocalProgress(operationId, "Loading workspace…", 90, "workspace");
     try {
       const tree = await invoke<WorkspaceTree>("list_workspace_tree");
       await useWorkspaceStore.getState().reloadForCompany(tree);
     } catch {
       useWorkspaceStore.getState().reset();
     }
+    reportLocalProgress(operationId, "Ready", 100, "done");
+    clearLocalProgress(operationId);
   } else {
     setStatusMessage("Complete company setup to start your simulation.");
+    clearLocalProgress(operationId);
   }
 }

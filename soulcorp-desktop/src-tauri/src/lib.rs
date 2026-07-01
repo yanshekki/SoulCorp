@@ -2,6 +2,7 @@ mod achievements;
 mod ai;
 mod commands;
 mod db;
+mod progress;
 mod finance;
 mod gigs;
 mod hub;

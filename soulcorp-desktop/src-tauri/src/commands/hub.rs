@@ -163,6 +163,9 @@ pub async fn sync_with_hub(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<HubSyncPull, String> {
+    let progress = crate::progress::ProgressReporter::new(app.clone(), "hub_sync");
+    progress.emit_percent("Connecting to SoulMD Hub…", 30.0, Some("connect"));
+
     let (client, queue) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
@@ -179,12 +182,14 @@ pub async fn sync_with_hub(
     };
 
     if !queue.is_empty() {
+        progress.emit_percent("Pushing local changes…", 45.0, Some("push"));
         client
             .push_sync(json!({ "queue": queue }))
             .await
             .map_err(|error| format!("Hub sync push failed: {error}"))?;
     }
 
+    progress.emit_percent("Pulling hub data…", 70.0, Some("pull"));
     let pull = client
         .pull_sync()
         .await
@@ -207,6 +212,8 @@ pub async fn sync_with_hub(
     };
     let mut pull = pull;
     pull.open_gigs = filter_gigs_for_tier(pull.open_gigs, &tier);
+    progress.emit_percent("Hub sync complete", 100.0, Some("done"));
+    progress.clear();
     Ok(pull)
 }
 

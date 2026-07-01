@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
 import { useGameStore } from "../stores/gameStore";
+import { useProgressStore } from "../stores/progressStore";
 import type {
   AchievementSnapshot,
   AgentRecord,
@@ -83,6 +84,7 @@ export function useSimulationLoop() {
       if (tickAccumulatorRef.current >= tickInterval && !tickInFlightRef.current) {
         tickAccumulatorRef.current = 0;
         tickInFlightRef.current = true;
+        useProgressStore.getState().setTickInFlight(true);
         invoke<SimulationTickResult>("run_simulation_tick")
           .then(async (result) => {
             setSimulation({
@@ -115,6 +117,7 @@ export function useSimulationLoop() {
           .catch((error) => setStatusMessage(String(error)))
           .finally(() => {
             tickInFlightRef.current = false;
+            useProgressStore.getState().setTickInFlight(false);
           });
       }
 

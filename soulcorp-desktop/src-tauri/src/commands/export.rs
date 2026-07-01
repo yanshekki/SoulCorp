@@ -1,4 +1,5 @@
 use crate::db::persistence::commit;
+use crate::progress::ProgressReporter;
 use crate::report::{
     build_html, build_markdown, build_pdf_lines, company_name_for, slugify, workspace_index,
 };
@@ -372,10 +373,13 @@ pub fn deploy_staging_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn export_static_site_zip(
+pub async fn export_static_site_zip(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
+    let progress = ProgressReporter::new(app.clone(), "export_static_site");
+    progress.emit_percent("Preparing static site bundle…", 15.0, Some("prepare"));
+
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let pages_dir = app_data.join("workspaces/pages");
     let exports_dir = exports_dir(&app)?;
@@ -384,14 +388,53 @@ pub fn export_static_site_zip(
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let zip_filename = format!("soulcorp-static-site-{timestamp}.zip");
     let zip_path = exports_dir.join(&zip_filename);
-    let file = File::create(&zip_path).map_err(|e| e.to_string())?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default();
 
     let (bundle, tree) = {
         let locked = state.lock().map_err(|e| e.to_string())?;
         prepare_static_site_bundle(&app, &locked, &zip_filename)?
     };
+
+    let white_label = bundle.white_label;
+    let app_clone = app.clone();
+    let zip_path_clone = zip_path.clone();
+    progress.emit_percent("Building static site ZIP…", 45.0, Some("zip"));
+
+    tokio::task::spawn_blocking(move || {
+        build_static_site_zip_file(&app_clone, &zip_path_clone, &bundle, &tree, &pages_dir)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    locked.stats.exports_created += 1;
+    let branding = if white_label {
+        "white-label"
+    } else {
+        "SoulCorp-branded"
+    };
+    let result = ExportResult {
+        path: zip_path.to_string_lossy().to_string(),
+        format: "zip".to_string(),
+        message: format!(
+            "Static site ZIP created ({branding}). Upload to Netlify, Vercel, or GitHub Pages."
+        ),
+    };
+    commit(app, &locked)?;
+    progress.finish("Static site export complete");
+    progress.clear();
+    Ok(result)
+}
+
+fn build_static_site_zip_file(
+    _app: &AppHandle,
+    zip_path: &Path,
+    bundle: &StaticSiteBundle,
+    tree: &crate::workspace::WorkspaceTree,
+    pages_dir: &Path,
+) -> Result<(), String> {
+    let file = File::create(zip_path).map_err(|e| e.to_string())?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default();
 
     zip_write_text(&mut zip, "index.html", &bundle.index_html, options)?;
     zip_write_text(&mut zip, "report.html", &bundle.report_html, options)?;
@@ -403,7 +446,7 @@ pub fn export_static_site_zip(
     zip_write_text(&mut zip, "vercel.json", build_vercel_json(), options)?;
     zip_write_text(&mut zip, "manifest.json", &bundle.manifest_json, options)?;
 
-    let workspace_index_html = build_workspace_index_html(&tree, &bundle.company_name);
+    let workspace_index_html = build_workspace_index_html(tree, &bundle.company_name);
     zip_write_text(
         &mut zip,
         "workspace/index.html",
@@ -422,8 +465,9 @@ pub fn export_static_site_zip(
         .map(|folder| (folder.id.clone(), folder.name.clone()))
         .collect();
 
+    let total_pages = tree.pages.len().max(1);
     if pages_dir.exists() {
-        for page in tree.pages.iter() {
+        for (index, page) in tree.pages.iter().enumerate() {
             let md_path = pages_dir.join(format!("{}.md", page.id));
             if !md_path.exists() {
                 continue;
@@ -446,34 +490,28 @@ pub fn export_static_site_zip(
             );
             let archive_path = format!("workspace/{folder_slug}/{page_slug}.html");
             zip_write_text(&mut zip, &archive_path, &page_html, options)?;
+            let percent = 45.0 + ((index + 1) as f64 / total_pages as f64) * 45.0;
+            crate::progress::emit_progress(
+                _app,
+                "export_static_site",
+                &format!("Packing page {} of {}…", index + 1, total_pages),
+                percent,
+            );
         }
     }
 
     zip.finish().map_err(|e| e.to_string())?;
-
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    state.stats.exports_created += 1;
-    let branding = if bundle.white_label {
-        "white-label"
-    } else {
-        "SoulCorp-branded"
-    };
-    let result = ExportResult {
-        path: zip_path.to_string_lossy().to_string(),
-        format: "zip".to_string(),
-        message: format!(
-            "Static site ZIP created ({branding}). Upload to Netlify, Vercel, or GitHub Pages."
-        ),
-    };
-    commit(app, &state)?;
-    Ok(result)
+    Ok(())
 }
 
 #[tauri::command]
-pub fn export_workspace_markdown_zip(
+pub async fn export_workspace_markdown_zip(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
+    let progress = ProgressReporter::new(app.clone(), "export_workspace");
+    progress.emit_percent("Loading workspace tree…", 20.0, Some("tree"));
+
     let company_id = {
         let locked = state.lock().map_err(|e| e.to_string())?;
         if locked.company_id.is_empty() {
@@ -489,19 +527,49 @@ pub fn export_workspace_markdown_zip(
 
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let zip_path = exports_dir.join(format!("soulcorp-workspace-{timestamp}.zip"));
-    let file = File::create(&zip_path).map_err(|e| e.to_string())?;
+    let tree = storage.list_tree()?;
+
+    progress.emit_percent("Packing workspace Markdown…", 50.0, Some("zip"));
+    let app_clone = app.clone();
+    let zip_path_clone = zip_path.clone();
+    tokio::task::spawn_blocking(move || {
+        build_workspace_markdown_zip(&app_clone, &zip_path_clone, &tree, &pages_dir)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    locked.stats.exports_created += 1;
+
+    let result = ExportResult {
+        path: zip_path.to_string_lossy().to_string(),
+        format: "zip".to_string(),
+        message: "Workspace export created with folder-organized Markdown.".to_string(),
+    };
+    commit(app, &locked)?;
+    progress.finish("Workspace export complete");
+    progress.clear();
+    Ok(result)
+}
+
+fn build_workspace_markdown_zip(
+    app: &AppHandle,
+    zip_path: &Path,
+    tree: &crate::workspace::WorkspaceTree,
+    pages_dir: &Path,
+) -> Result<(), String> {
+    let file = File::create(zip_path).map_err(|e| e.to_string())?;
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default();
-
-    let tree = storage.list_tree()?;
     let folder_names: std::collections::HashMap<String, String> = tree
         .folders
         .iter()
         .map(|folder| (folder.id.clone(), slugify(&folder.name)))
         .collect();
+    let total_pages = tree.pages.len().max(1);
 
     if pages_dir.exists() {
-        for page in tree.pages.iter() {
+        for (index, page) in tree.pages.iter().enumerate() {
             let md_path = pages_dir.join(format!("{}.md", page.id));
             if !md_path.exists() {
                 continue;
@@ -517,32 +585,29 @@ pub fn export_workspace_markdown_zip(
                 .map_err(|e| e.to_string())?;
             zip.write_all(content.as_bytes())
                 .map_err(|e| e.to_string())?;
+            let percent = 50.0 + ((index + 1) as f64 / total_pages as f64) * 40.0;
+            crate::progress::emit_progress(
+                app,
+                "export_workspace",
+                &format!("Exporting page {} of {}…", index + 1, total_pages),
+                percent,
+            );
         }
     }
 
-    let index = workspace_index(&tree);
+    let index = workspace_index(tree);
     zip.start_file("INDEX.md", options)
         .map_err(|e| e.to_string())?;
     zip.write_all(index.as_bytes()).map_err(|e| e.to_string())?;
 
-    let manifest = serde_json::to_string_pretty(&tree).map_err(|e| e.to_string())?;
+    let manifest = serde_json::to_string_pretty(tree).map_err(|e| e.to_string())?;
     zip.start_file("manifest.json", options)
         .map_err(|e| e.to_string())?;
     zip.write_all(manifest.as_bytes())
         .map_err(|e| e.to_string())?;
 
     zip.finish().map_err(|e| e.to_string())?;
-
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    state.stats.exports_created += 1;
-
-    let result = ExportResult {
-        path: zip_path.to_string_lossy().to_string(),
-        format: "zip".to_string(),
-        message: "Workspace export created with folder-organized Markdown.".to_string(),
-    };
-    commit(app, &state)?;
-    Ok(result)
+    Ok(())
 }
 
 #[tauri::command]

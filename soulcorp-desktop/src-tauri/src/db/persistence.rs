@@ -3,10 +3,13 @@ use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex as StdMutex;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use super::database_path;
+
+const COMMIT_DEBOUNCE_TICKS: u64 = 5;
 
 const SNAPSHOT_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS app_snapshot (
@@ -33,7 +36,55 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.execute_batch(SNAPSHOT_SQL)
         .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| e.to_string())?;
     Ok(conn)
+}
+
+struct PendingCommit {
+    last_committed_tick: u64,
+    last_committed_day: u32,
+}
+
+static PENDING_COMMIT: StdMutex<Option<PendingCommit>> = StdMutex::new(None);
+
+pub fn commit_debounced(app: AppHandle, state: &AppState) -> Result<(), String> {
+    let force = {
+        let mut guard = PENDING_COMMIT.lock().map_err(|e| e.to_string())?;
+        let entry = guard.get_or_insert(PendingCommit {
+            last_committed_tick: 0,
+            last_committed_day: 0,
+        });
+
+        let day_changed = state.day_number != entry.last_committed_day;
+        let tick_delta = state.tick.saturating_sub(entry.last_committed_tick);
+        let should_commit =
+            day_changed || tick_delta >= COMMIT_DEBOUNCE_TICKS || state.tick == 0;
+
+        if should_commit {
+            entry.last_committed_tick = state.tick;
+            entry.last_committed_day = state.day_number;
+            true
+        } else {
+            false
+        }
+    };
+
+    if force {
+        commit(app, state)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn flush_pending_commit(app: AppHandle, state: &AppState) -> Result<(), String> {
+    {
+        let mut guard = PENDING_COMMIT.lock().map_err(|e| e.to_string())?;
+        if let Some(entry) = guard.as_mut() {
+            entry.last_committed_tick = 0;
+        }
+    }
+    commit(app, state)
 }
 
 fn load_registry_conn(conn: &Connection) -> Result<CompanyRegistry, String> {

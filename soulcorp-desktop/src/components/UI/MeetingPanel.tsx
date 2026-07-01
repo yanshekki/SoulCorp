@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
+import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
 import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
 import type { CompanyDepartmentsSnapshot, MeetingAiStatus, MeetingSnapshot } from "../../types/game";
 
@@ -98,6 +99,7 @@ export function MeetingPanel() {
   const advanceMeeting = async () => {
     if (!activeMeeting || advancing) return;
     setAdvancing(true);
+    reportLocalProgress("meeting_advance", "Advancing meeting turn…", -1, "llm");
     try {
       const meeting = await invoke<MeetingSnapshot>("advance_meeting", {
         meetingId: activeMeeting.id,
@@ -114,6 +116,7 @@ export function MeetingPanel() {
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
+      clearLocalProgress("meeting_advance");
       setAdvancing(false);
     }
   };

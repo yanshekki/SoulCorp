@@ -1,5 +1,6 @@
 use crate::ai::{self, provider::ChatRequest, provider::ChatTurn, MeetingAiStatus};
 use crate::db::persistence::commit;
+use crate::progress::ProgressReporter;
 use crate::relationships::{relationship_label, upsert_relationship};
 use crate::soul::build_system_prompt;
 use crate::state::{AgentRecord, AppState, InternalProject, MeetingMessage, MeetingState};
@@ -139,6 +140,15 @@ pub async fn advance_meeting(
     let department_providers = turn_plan.department_ai_providers.clone();
     let speaker_department = turn_plan.speaker_department.clone();
     let speaker_ai_provider = turn_plan.speaker_ai_provider.clone();
+    let speaker_name = turn_plan.speaker_name.clone();
+    let provider_label = speaker_ai_provider
+        .clone()
+        .unwrap_or_else(|| settings.ai_provider.clone());
+    let progress = ProgressReporter::new(app.clone(), "meeting_advance");
+    progress.emit_indeterminate(
+        format!("Waiting for {speaker_name} · {provider_label}"),
+        Some("llm"),
+    );
     let response = tokio::task::spawn_blocking(move || {
         ai::chat_with_fallback(
             &settings,
@@ -200,6 +210,8 @@ pub async fn advance_meeting(
     );
     let snapshot = snapshot_from_meeting(&meeting_snapshot, &ai_status, turns_per_agent);
     commit(app, &state)?;
+    progress.finish("Meeting turn complete");
+    progress.clear();
     Ok(snapshot)
 }
 

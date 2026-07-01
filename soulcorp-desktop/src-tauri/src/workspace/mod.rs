@@ -5,6 +5,7 @@ pub mod templates;
 
 pub use activity_docs::{
     write_daily_activity_docs, write_event_activity_doc, write_meeting_notes_from_state,
+    ActivitySnapshot,
 };
 pub use models::*;
 pub use storage::{company_workspace_root, workspace_root, WorkspaceStorage};

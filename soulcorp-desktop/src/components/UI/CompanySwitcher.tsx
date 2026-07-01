@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { deleteCompany, switchCompany } from "../../services/companyClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
+import { reportLocalProgress } from "../../stores/progressStore";
 
 export function CompanySwitcher() {
   const companies = useGameStore((state) => state.companies);
@@ -40,9 +41,10 @@ export function CompanySwitcher() {
     }
     setBusy(true);
     setOpen(false);
+    reportLocalProgress("company_switch", "Switching company…", 5, "switch");
     try {
       await switchCompany(companyId);
-      await reloadGameState();
+      await reloadGameState("company_switch");
       setStatusMessage("Switched company.");
     } catch (error) {
       setStatusMessage(String(error));

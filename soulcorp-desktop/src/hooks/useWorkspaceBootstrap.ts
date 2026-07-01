@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { pickDefaultPageId } from "../services/workspaceClient";
 import { useGameStore } from "../stores/gameStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { clearLocalProgress, reportLocalProgress } from "../stores/progressStore";
 import type { WorkspaceTree } from "../types/workspace";
 
 export function useWorkspaceBootstrap(enabled: boolean) {
@@ -17,6 +18,7 @@ export function useWorkspaceBootstrap(enabled: boolean) {
 
     const load = async () => {
       setIsLoading(true);
+      reportLocalProgress("workspace_init", "Initializing workspace…", 20, "init");
       try {
         const tree = await invoke<WorkspaceTree>("init_workspace");
         const { selectedPageId, openPage } = useWorkspaceStore.getState();
@@ -30,6 +32,7 @@ export function useWorkspaceBootstrap(enabled: boolean) {
       } catch (error) {
         useWorkspaceStore.setState({ pageOpenError: String(error) });
       } finally {
+        clearLocalProgress("workspace_init");
         setIsLoading(false);
       }
     };

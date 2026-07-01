@@ -14,6 +14,8 @@ const STATUS_DISTANCE = 16;
 
 const tempObject = new THREE.Object3D();
 const cameraPosition = new THREE.Vector3();
+const agentPosition = new THREE.Vector3();
+const billboardMatrix = new THREE.Matrix4();
 
 interface LodBucket {
   far: Agent[];
@@ -31,9 +33,8 @@ function classifyAgents(
   const bucket: LodBucket = { far: [], medium: new Map(), close: [] };
 
   for (const agent of agents) {
-    const distance = cameraPosition.distanceTo(
-      new THREE.Vector3(agent.position[0], agent.position[1], agent.position[2]),
-    );
+    agentPosition.set(agent.position[0], agent.position[1], agent.position[2]);
+    const distance = cameraPosition.distanceTo(agentPosition);
     if (distance > farDistance) {
       bucket.far.push(agent);
       continue;
@@ -57,7 +58,7 @@ function agentBob(agent: Agent): number {
   return Math.abs(Math.sin(agent.walkPhase)) * 0.05;
 }
 
-function billboardMatrix(agent: Agent, scale: number): THREE.Matrix4 {
+function agentBillboardMatrix(agent: Agent, scale: number): THREE.Matrix4 {
   const bob = agentBob(agent);
   tempObject.position.set(agent.position[0], agent.position[1] + bob + 0.55, agent.position[2]);
   tempObject.rotation.set(0, Math.atan2(
@@ -66,7 +67,7 @@ function billboardMatrix(agent: Agent, scale: number): THREE.Matrix4 {
   ), 0);
   tempObject.scale.set(scale, scale * 1.25, scale);
   tempObject.updateMatrix();
-  return tempObject.matrix.clone();
+  return billboardMatrix.copy(tempObject.matrix);
 }
 
 function createStatusBubble(label: string): THREE.Sprite {
@@ -300,7 +301,7 @@ export class AgentRenderSystem {
 
       mesh.count = Math.min(agents.length, MAX_DEPT_AGENTS);
       agents.slice(0, MAX_DEPT_AGENTS).forEach((agent, index) => {
-        mesh!.setMatrixAt(index, billboardMatrix(agent, 0.95));
+        mesh!.setMatrixAt(index, agentBillboardMatrix(agent, 0.95));
       });
       mesh.instanceMatrix.needsUpdate = true;
       activeDepartments.add(department);
@@ -361,9 +362,8 @@ export class AgentRenderSystem {
     const statusDistance = lowPowerMode ? 12 : STATUS_DISTANCE;
 
     for (const agent of agents) {
-      const distance = cameraPosition.distanceTo(
-        new THREE.Vector3(agent.position[0], agent.position[1], agent.position[2]),
-      );
+      agentPosition.set(agent.position[0], agent.position[1], agent.position[2]);
+      const distance = cameraPosition.distanceTo(agentPosition);
       if (distance > statusDistance) {
         const existing = this.statusSprites.get(agent.id);
         if (existing) {

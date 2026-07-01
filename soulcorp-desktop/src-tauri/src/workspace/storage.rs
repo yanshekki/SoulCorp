@@ -6,6 +6,7 @@ use super::models::{
 };
 use std::collections::{HashMap, HashSet};
 use chrono::Utc;
+use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -1116,17 +1117,26 @@ impl WorkspaceStorage {
             return Ok(vec![]);
         }
 
-        let mut pages = Vec::new();
-        for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
-            pages.push(serde_json::from_str(&raw).map_err(|e| e.to_string())?);
-        }
-        Ok(pages)
+        let paths: Vec<PathBuf> = fs::read_dir(dir)
+            .map_err(|e| e.to_string())?
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        paths
+            .par_iter()
+            .map(|path| {
+                let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+                serde_json::from_str(&raw).map_err(|e| e.to_string())
+            })
+            .collect()
     }
 }
 

@@ -28,6 +28,7 @@ export function ThreeOfficeRenderer({
   const handlesRef = useRef<OfficeSceneHandles | null>(null);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(performance.now());
+  const buildingsSignatureRef = useRef("");
   const onStatusChangeRef = useRef(onStatusChange);
   const smokeFramesRef = useRef(0);
   const smokeDoneRef = useRef(false);
@@ -46,7 +47,8 @@ export function ThreeOfficeRenderer({
     onStatusChangeRef.current("initializing");
 
     try {
-      handlesRef.current = createOfficeScene(canvas, width, height);
+      const lowPowerMode = useGameStore.getState().settings.low_power_mode;
+      handlesRef.current = createOfficeScene(canvas, width, height, lowPowerMode);
       onStatusChangeRef.current("ready");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -64,7 +66,13 @@ export function ThreeOfficeRenderer({
       const state = useGameStore.getState();
       const agents =
         agentRuntimeRef.current.length > 0 ? agentRuntimeRef.current : state.agents;
-      syncSceneBuildings(handlesRef.current, state.buildings);
+      const buildingsSignature = state.buildings
+        .map((building) => `${building.id}:${building.color}:${building.roofColor}`)
+        .join("|");
+      if (buildingsSignature !== buildingsSignatureRef.current) {
+        buildingsSignatureRef.current = buildingsSignature;
+        syncSceneBuildings(handlesRef.current, state.buildings);
+      }
       syncSceneAgents(handlesRef.current, agents, state.settings.low_power_mode);
       updateCamera(handlesRef.current.camera, state.selectedBuilding, delta);
       renderScene(handlesRef.current);

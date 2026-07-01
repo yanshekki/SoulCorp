@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useContainerSize } from "../hooks/useContainerSize";
 import { is3dSmokeTestEnabled, submit3dSmokeFailure } from "../services/scene3dSmoke";
 import { useGameStore } from "../stores/gameStore";
+import { useProgressStore } from "../stores/progressStore";
 import { campusSkyGradient } from "../utils/applyVisualDesign";
 import { OfficeMapFallback } from "./world/OfficeMapFallback";
 import {
@@ -42,6 +43,16 @@ export function GameScene() {
     renderError ??
     (webglProbe && !webglProbe.ok ? webglProbe.reason : null) ??
     "3D renderer failed to start.";
+
+  useEffect(() => {
+    const setScene3dLabel = useProgressStore.getState().setScene3dLabel;
+    if (renderStatus === "initializing" && ready && mode === "3d") {
+      setScene3dLabel("Initializing 3D campus…");
+    } else {
+      setScene3dLabel(null);
+    }
+    return () => setScene3dLabel(null);
+  }, [mode, ready, renderStatus]);
 
   useEffect(() => {
     let cancelled = false;
