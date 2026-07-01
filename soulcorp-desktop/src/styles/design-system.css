@@ -631,6 +631,11 @@ select optgroup {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* 3D Design: full-width stage but keep top nav for panel switching */
+.app-shell--design-studio {
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--statusbar-height);
+}
+
 .app-stage--immersive {
   grid-column: 1 / -1;
   width: 100%;

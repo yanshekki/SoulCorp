@@ -154,13 +154,14 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
 
   const immersiveInterior = worldView === "interior" && activePanel === "office";
   const immersiveDesignStudio = activePanel === "design_studio";
+  /** Full-width stage without left inspector — design studio has its own editor rail. */
   const immersiveStage = immersiveInterior || immersiveDesignStudio;
   const inspectorDrawerOpen = immersiveInterior && inspectorExpanded;
   const hideShellInspector = immersiveDesignStudio || (immersiveInterior && !inspectorExpanded);
 
   return (
     <div
-      className={`app-shell${immersiveInterior || immersiveDesignStudio ? " app-shell--immersive-office" : ""}`}
+      className={`app-shell${immersiveInterior ? " app-shell--immersive-office" : ""}${immersiveDesignStudio ? " app-shell--design-studio" : ""}`}
     >
       <header className="app-topbar">
         <div className="app-topbar-row app-topbar-row-primary">
