@@ -7,6 +7,10 @@ import type {
 } from "../types/visualDesign";
 
 export const STUDIO_SNAP_GRID = 0.5;
+/** Floor plan SVG fine grid (metres). */
+export const FLOOR_PLAN_FINE_GRID = 0.25;
+/** Floor plan SVG coarse grid (metres). */
+export const FLOOR_PLAN_COARSE_GRID = 1;
 /** Minimum gap between furniture footprints in the design studio (metres). */
 export const FURNITURE_CLEARANCE = 0.08;
 
@@ -290,7 +294,8 @@ export function planCoordsToItemPosition(
 }
 
 export function newFurnitureId(catalogId: string, buildingId: string): string {
-  return `${catalogId}-${buildingId}-${Date.now().toString(36)}`;
+  const nonce = Math.random().toString(36).slice(2, 8);
+  return `${catalogId}-${buildingId}-${Date.now().toString(36)}-${nonce}`;
 }
 
 export function zoneAtPlanPoint(

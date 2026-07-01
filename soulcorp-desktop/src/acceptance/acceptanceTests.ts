@@ -1,4 +1,4 @@
-import { placeFurniture } from "../utils/buildModeActions";
+import { runPlacementParityTests } from "./placementParity";
 import {
   bindAgentToDesk,
   furnitureActionForCatalog,
@@ -6,7 +6,6 @@ import {
   sfxForFurnitureAction,
 } from "../utils/furnitureInteractions";
 import {
-  collidesInZone,
   floorPlanLayout,
   snapPosition,
   snapScalar,
@@ -54,31 +53,7 @@ export function runAcceptanceTests(): AcceptanceResult[] {
     ),
   );
 
-  const placed = placeFurniture(office, "hq", "desk_open", "office", [0, 0, 0]);
-  results.push(assert("placeFurniture returns array", Array.isArray(placed)));
-  if (placed && placed.length > 0) {
-    const overlapDesk = placed[placed.length - 1];
-    const blocked = placeFurniture(
-      { ...office, furniture: placed },
-      "hq",
-      "desk_open",
-      "office",
-      overlapDesk.position,
-    );
-    results.push(assert("placeFurniture blocks overlap", blocked === null));
-    results.push(
-      assert(
-        "collidesInZone detects stacked desks",
-        collidesInZone(overlapDesk, placed.slice(0, -1), [1.2, 0.75]),
-      ),
-    );
-  }
-  results.push(
-    assert(
-      "placeFurniture adds item",
-      (placed?.length ?? 0) > office.furniture.length,
-    ),
-  );
+  results.push(...runPlacementParityTests());
 
   const automated = GAME_DESIGN_CHECKLIST.filter((item) => item.automated).length;
   results.push(

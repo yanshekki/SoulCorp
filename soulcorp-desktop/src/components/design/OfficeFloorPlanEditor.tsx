@@ -16,7 +16,11 @@ import {
   zoneDimensions,
   type FloorPlanZone,
 } from "../../utils/placementEngine";
-import { clampToZone } from "../../utils/furnitureEditor";
+import {
+  clampToZone,
+  FLOOR_PLAN_COARSE_GRID,
+  FLOOR_PLAN_FINE_GRID,
+} from "../../utils/furnitureEditor";
 import { formatFootprintDimensions } from "../../utils/furniturePlanSilhouette";
 import { FurniturePlanSilhouette } from "./FurniturePlanSilhouette";
 
@@ -254,18 +258,32 @@ export function OfficeFloorPlanEditor() {
         onPointerLeave={onPointerUp}
       >
         <defs>
-          <pattern id="floor-grid-fine" width="0.25" height="0.25" patternUnits="userSpaceOnUse">
+          <pattern
+            id="floor-grid-fine"
+            width={FLOOR_PLAN_FINE_GRID}
+            height={FLOOR_PLAN_FINE_GRID}
+            patternUnits="userSpaceOnUse"
+          >
             <path
-              d="M 0.25 0 L 0 0 0 0.25"
+              d={`M ${FLOOR_PLAN_FINE_GRID} 0 L 0 0 0 ${FLOOR_PLAN_FINE_GRID}`}
               fill="none"
               stroke="rgba(255,255,255,0.05)"
               strokeWidth="0.015"
             />
           </pattern>
-          <pattern id="floor-grid-coarse" width="1" height="1" patternUnits="userSpaceOnUse">
-            <rect width="1" height="1" fill="url(#floor-grid-fine)" />
+          <pattern
+            id="floor-grid-coarse"
+            width={FLOOR_PLAN_COARSE_GRID}
+            height={FLOOR_PLAN_COARSE_GRID}
+            patternUnits="userSpaceOnUse"
+          >
+            <rect
+              width={FLOOR_PLAN_COARSE_GRID}
+              height={FLOOR_PLAN_COARSE_GRID}
+              fill="url(#floor-grid-fine)"
+            />
             <path
-              d="M 1 0 L 0 0 0 1"
+              d={`M ${FLOOR_PLAN_COARSE_GRID} 0 L 0 0 0 ${FLOOR_PLAN_COARSE_GRID}`}
               fill="none"
               stroke="rgba(255,255,255,0.12)"
               strokeWidth="0.03"
