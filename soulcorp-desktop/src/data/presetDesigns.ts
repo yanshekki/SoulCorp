@@ -58,8 +58,9 @@ export function presetDesignFor(presetId: string): CompanyVisualDesign {
         };
         const rooms = defaultRoomsForBuilding(id);
         design.offices[id] = {
-          floor_color: "#e8dfd2",
-          wall_color: "#faf6ef",
+          theme_pack: "startup_warm",
+          floor_color: "#c9a882",
+          wall_color: "#f5f0e8",
           accent_color: accent,
           desk_style: desk,
           lighting: "warm",

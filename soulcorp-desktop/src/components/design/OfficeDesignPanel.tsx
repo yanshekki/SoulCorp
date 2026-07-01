@@ -1,4 +1,9 @@
 import { OFFICE_DESK_OPTIONS } from "../../data/designPresets";
+import {
+  applyOfficeThemePack,
+  DEFAULT_OFFICE_THEME_PACK_ID,
+  OFFICE_THEME_PACK_LIST,
+} from "../../data/officeThemePacks";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
 import {
@@ -31,9 +36,25 @@ export function OfficeDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Office style</h2>
-        <p className="muted">Colors, lighting, and default decor flags for this department.</p>
+        <h2>配色主題</h2>
+        <p className="muted">Sims 式主題包 — 地板、牆身、accent 一鍵套用（預設：暖色初創）。</p>
       </header>
+
+      <div className="design-style-grid">
+        {OFFICE_THEME_PACK_LIST.map((pack) => (
+          <button
+            key={pack.id}
+            type="button"
+            className={`design-style-card${
+              (config.theme_pack ?? DEFAULT_OFFICE_THEME_PACK_ID) === pack.id ? " active" : ""
+            }`}
+            onClick={() => updateConfig(applyOfficeThemePack(config, pack.id))}
+          >
+            <strong>{pack.labelZh}</strong>
+            <span>{pack.description}</span>
+          </button>
+        ))}
+      </div>
 
       <label className="field-label">
         Department office

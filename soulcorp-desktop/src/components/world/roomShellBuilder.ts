@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import type { InteriorZone, OfficeVisualConfig, OfficeLighting, RoomDimensions } from "../../types/visualDesign";
+import { getOfficeThemePack } from "../../data/officeThemePacks";
+import type { InteriorZone, OfficeVisualConfig, RoomDimensions } from "../../types/visualDesign";
 import { floorTextureRepeat } from "../../utils/interiorScale";
 import { tagInteriorWall } from "../../utils/interiorWallFade";
 
@@ -61,14 +62,15 @@ function adjustHex(hex: string, amount: number): string {
   return `#${color.getHexString()}`;
 }
 
-function lightingTint(lighting: OfficeLighting): { window: string; intensity: number } {
-  switch (lighting) {
+function lightingTint(office: OfficeVisualConfig): { window: string; intensity: number; opacity: number } {
+  const theme = getOfficeThemePack(office.theme_pack);
+  switch (office.lighting) {
     case "warm":
-      return { window: "#ffe8c8", intensity: 0.22 };
+      return { window: theme.window_tint, intensity: 0.24, opacity: 0.72 };
     case "cool":
-      return { window: "#d8ecff", intensity: 0.18 };
+      return { window: theme.window_tint, intensity: 0.2, opacity: 0.68 };
     default:
-      return { window: "#f4f8ff", intensity: 0.15 };
+      return { window: theme.window_tint, intensity: 0.18, opacity: 0.65 };
   }
 }
 
@@ -168,7 +170,7 @@ function buildZoneBox(
         emissive: new THREE.Color(accentColor),
         emissiveIntensity: 0.12,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.72,
         side: THREE.DoubleSide,
       }),
     );
@@ -208,7 +210,7 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
   const lobby = office.lobby_room;
   const corridor = office.corridor_room;
   const room = office.room;
-  const windowTint = lightingTint(office.lighting);
+  const windowTint = lightingTint(office);
 
   const totalDepth = lobby.depth + corridor.depth + room.depth;
   const maxWidth = Math.max(lobby.width, corridor.width, room.width);
@@ -265,7 +267,7 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
       emissive: new THREE.Color(office.accent_color),
       emissiveIntensity: windowTint.intensity,
       transparent: true,
-      opacity: 0.6,
+      opacity: windowTint.opacity,
     }),
   );
   windowStrip.position.set(0, 1.8, lobbyZ + lobby.depth / 2 + 0.08);
@@ -278,7 +280,7 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
       emissive: new THREE.Color(office.accent_color),
       emissiveIntensity: windowTint.intensity * 0.85,
       transparent: true,
-      opacity: 0.5,
+      opacity: windowTint.opacity * 0.92,
     }),
   );
   officeWindow.position.set(0, 1.65, officeZ - room.depth / 2 - 0.05);

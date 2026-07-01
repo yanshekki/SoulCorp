@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getOfficeThemePack } from "../data/officeThemePacks";
 import type { OfficeVisualConfig, OfficeLighting } from "../types/visualDesign";
 import { boostColor } from "../components/world/campusPolish";
 
@@ -46,9 +47,9 @@ export function interiorLightingPreset(lighting: OfficeLighting): InteriorLighti
 export { configureCozyRenderer as configureInteriorRenderer } from "./cozyPostPipeline";
 
 export function applyInteriorScenePolish(scene: THREE.Scene, office: OfficeVisualConfig): void {
-  const base = office.floor_color || "#e8e0d4";
-  const polished = boostColor(base, 1.1, 1.03);
+  const theme = getOfficeThemePack(office.theme_pack);
+  const base = theme.scene_background || office.floor_color || "#e8dfd2";
+  const polished = boostColor(base, 1.08, 1.04);
   scene.background = polished;
-  // Interior rooms are small — distance fog at 10–22m washes out the whole scene.
   scene.fog = null;
 }

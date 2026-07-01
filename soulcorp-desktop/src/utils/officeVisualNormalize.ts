@@ -1,5 +1,6 @@
 import { layoutForBuilding } from "../data/interiorLayouts";
 import { deskCatalogId, getCatalogEntry } from "../data/furnitureCatalog";
+import { DEFAULT_OFFICE_THEME_PACK_ID } from "../data/officeThemePacks";
 import { FURNITURE_CLEARANCE } from "./furnitureEditor";
 import { BUILDING_DESKS } from "../data/worldLayout";
 import type { FurnitureInstance, OfficeVisualConfig, RoomDimensions } from "../types/visualDesign";
@@ -166,6 +167,7 @@ export function normalizeOfficeVisual(
   const base: OfficeVisualConfig = {
     ...DEFAULT_OFFICE_VISUAL,
     ...raw,
+    theme_pack: raw?.theme_pack ?? DEFAULT_OFFICE_THEME_PACK_ID,
     lobby_room: mergeRoomDimensions(raw?.lobby_room, rooms.lobby_room),
     corridor_room: mergeRoomDimensions(raw?.corridor_room, rooms.corridor_room),
     room: mergeRoomDimensions(raw?.room, rooms.room),

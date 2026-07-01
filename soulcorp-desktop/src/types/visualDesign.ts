@@ -1,6 +1,7 @@
 export type BuildingStyle = "modern" | "classic" | "glass" | "industrial" | "startup";
 export type OfficeDeskStyle = "open" | "cubicle" | "executive" | "creative" | "lounge";
 export type OfficeLighting = "warm" | "cool" | "natural";
+export type OfficeThemePackId = "startup_warm" | "corporate_cool" | "clinical_playful";
 export type DesignHairStyle = "short" | "bob" | "spiky" | "long";
 export type DesignCategory = "campus" | "buildings" | "offices" | "agents";
 export type InteriorZone = "lobby" | "corridor" | "office";
@@ -53,6 +54,8 @@ export interface BuildingVisualConfig {
 }
 
 export interface OfficeVisualConfig {
+  /** Sims×TPH theme pack; default startup_warm for new offices */
+  theme_pack?: OfficeThemePackId;
   floor_color: string;
   wall_color: string;
   accent_color: string;
@@ -127,11 +130,12 @@ export const DEFAULT_CORRIDOR_ROOM: RoomDimensions = { width: 1.3, depth: 0.85, 
 export const DEFAULT_OFFICE_ROOM: RoomDimensions = { width: 3.6, depth: 2.9, height: 2.55 };
 
 export const DEFAULT_OFFICE_VISUAL: OfficeVisualConfig = {
-  floor_color: "#d9cfc0",
+  theme_pack: "startup_warm",
+  floor_color: "#c9a882",
   wall_color: "#f5f0e8",
-  accent_color: "#5ec8ff",
+  accent_color: "#e8a838",
   desk_style: "open",
-  lighting: "natural",
+  lighting: "warm",
   has_plants: true,
   has_whiteboard: true,
   has_lounge_seating: false,

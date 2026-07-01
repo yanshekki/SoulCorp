@@ -5,18 +5,19 @@ import { useGameStore } from "../../stores/gameStore";
 import { DEFAULT_OFFICE_VISUAL, type FurnitureInstance } from "../../types/visualDesign";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import {
-  clampToZone,
   floorPlanLayout,
   isFurniturePlacementValid,
   itemToPlanCoords,
-  newFurnitureId,
+  moveInstance,
+  placeFromPlanPoint,
   planCoordsToItemPosition,
   pointInFurniturePlan,
-  snapRotation,
+  rotateInstance,
   zoneAtPlanPoint,
   zoneDimensions,
   type FloorPlanZone,
-} from "../../utils/furnitureEditor";
+} from "../../utils/placementEngine";
+import { clampToZone } from "../../utils/furnitureEditor";
 
 const PLAN_PADDING = 1.2;
 
@@ -115,22 +116,17 @@ export function OfficeFloorPlanEditor() {
     [],
   );
 
+  const placementBlockedHint = "呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住";
+
   const commitItem = useCallback(
     (nextItem: FurnitureInstance) => {
-      const entry = getCatalogEntry(nextItem.catalog_id);
-      if (!entry) {
+      const result = moveInstance(nextItem, config, nextItem.position);
+      if (!result.ok || !result.item) {
+        setPlacementHint(placementBlockedHint);
         return false;
       }
-      const room = zoneDimensions(config, nextItem.zone);
-      const others = config.furniture.filter((item) => item.id !== nextItem.id);
-      if (!isFurniturePlacementValid(nextItem, others, entry.footprint, room)) {
-        setPlacementHint("呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住");
-        return false;
-      }
-      const [x, y, z] = clampToZone(nextItem, entry.footprint, room);
-      const clamped = { ...nextItem, position: [x, y, z] as [number, number, number] };
       updateFurniture(buildingId, (items) =>
-        items.map((item) => (item.id === clamped.id ? clamped : item)),
+        items.map((item) => (item.id === result.item!.id ? result.item! : item)),
       );
       setPlacementHint(null);
       return true;
@@ -139,32 +135,18 @@ export function OfficeFloorPlanEditor() {
   );
 
   const placeItem = useCallback(
-    (catalogId: string, zone: FloorPlanZone, planX: number, planY: number) => {
-      const entry = getCatalogEntry(catalogId);
-      if (!entry) {
+    (catalogId: string, _zone: FloorPlanZone, planX: number, planY: number) => {
+      const result = placeFromPlanPoint(catalogId, buildingId, config, layout, planX, planY);
+      if (!result.ok || !result.item) {
+        setPlacementHint(placementBlockedHint);
         return;
       }
-      const position = planCoordsToItemPosition(zone, planX, planY);
-      const candidate: FurnitureInstance = {
-        id: newFurnitureId(catalogId, buildingId),
-        catalog_id: catalogId,
-        zone: zone.id,
-        position,
-        rotation_y: 0,
-      };
-      const room = zoneDimensions(config, zone.id);
-      const [x, y, z] = clampToZone(candidate, entry.footprint, room);
-      const clamped = { ...candidate, position: [x, y, z] as [number, number, number] };
-      if (!isFurniturePlacementValid(clamped, config.furniture, entry.footprint, room)) {
-        setPlacementHint("呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住");
-        return;
-      }
-      updateFurniture(buildingId, (items) => [...items, clamped]);
-      setSelectedFurnitureId(clamped.id);
+      updateFurniture(buildingId, (items) => [...items, result.item!]);
+      setSelectedFurnitureId(result.item!.id);
       setPlaceCatalogId(null);
       setPlacementHint(null);
     },
-    [buildingId, config, setPlaceCatalogId, setSelectedFurnitureId, updateFurniture],
+    [buildingId, config, layout, setPlaceCatalogId, setSelectedFurnitureId, updateFurniture],
   );
 
   const deleteSelected = useCallback(() => {
@@ -183,16 +165,16 @@ export function OfficeFloorPlanEditor() {
     if (!target) {
       return;
     }
-    const entry = getCatalogEntry(target.catalog_id);
-    if (!entry || !entry.rotatable) {
+    const result = rotateInstance(target, config);
+    if (!result.ok || !result.item) {
+      setPlacementHint(placementBlockedHint);
       return;
     }
-    const rotated = {
-      ...target,
-      rotation_y: snapRotation(target.rotation_y + Math.PI / 2),
-    };
-    commitItem(rotated);
-  }, [commitItem, config.furniture, selectedFurnitureId]);
+    updateFurniture(buildingId, (items) =>
+      items.map((item) => (item.id === result.item!.id ? result.item! : item)),
+    );
+    setPlacementHint(null);
+  }, [buildingId, config.furniture, selectedFurnitureId, updateFurniture]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

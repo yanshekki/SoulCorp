@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
-import { DEFAULT_OFFICE_VISUAL } from "../../types/visualDesign";
+import { DEFAULT_OFFICE_VISUAL, type InteriorZone } from "../../types/visualDesign";
 import type { Building } from "../../types/world";
 import {
   applyInteriorPan,
@@ -15,6 +15,11 @@ import {
   snapIsometricAzimuth,
   type InteriorOrbitState,
 } from "../../utils/interiorCamera";
+import {
+  createPlacementCandidate,
+  moveInstance,
+  validatePlacement,
+} from "../../utils/placementEngine";
 import { withPreviewDecor } from "../../utils/previewOfficeDecor";
 import { INTERIOR_LAYOUT_VERSION } from "../../utils/interiorScale";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
@@ -26,6 +31,13 @@ interface InteriorDesignViewportProps {
   compact?: boolean;
 }
 
+type StudioPendingAction = {
+  type: "place";
+  catalogId: string;
+  zone: InteriorZone;
+  localPosition: [number, number, number];
+};
+
 interface PanDragState {
   dragging: boolean;
   startX: number;
@@ -33,6 +45,12 @@ interface PanDragState {
   lastX: number;
   lastY: number;
   moved: boolean;
+  pending: StudioPendingAction | null;
+}
+
+interface FurnitureDragPreview {
+  localPosition: [number, number, number];
+  zone: InteriorZone;
 }
 
 function fallbackBuilding(buildingId: string, buildings: Building[]): Building {
@@ -62,7 +80,11 @@ function furnitureIdForObject(object: THREE.Object3D): string | null {
   return null;
 }
 
-function applySelectionHighlight(root: THREE.Group, selectedId: string | null): void {
+function applySelectionHighlight(
+  root: THREE.Group,
+  selectedId: string | null,
+  accentColor: string,
+): void {
   root.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) {
       return;
@@ -73,7 +95,7 @@ function applySelectionHighlight(root: THREE.Group, selectedId: string | null): 
     }
     const furnitureId = furnitureIdForObject(child);
     if (furnitureId && furnitureId === selectedId) {
-      mat.emissive.set("#5ec8ff");
+      mat.emissive.set(accentColor);
       mat.emissiveIntensity = 0.35;
       child.userData._studioHighlight = true;
     } else if (child.userData._studioHighlight) {
@@ -84,6 +106,17 @@ function applySelectionHighlight(root: THREE.Group, selectedId: string | null): 
   });
 }
 
+function normalizedPointer(
+  canvas: HTMLCanvasElement,
+  event: React.PointerEvent<HTMLCanvasElement> | PointerEvent,
+): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    y: -((event.clientY - rect.top) / rect.height) * 2 + 1,
+  };
+}
+
 export function InteriorDesignViewport({ compact = false }: InteriorDesignViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -91,6 +124,8 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
   const orbitRef = useRef<InteriorOrbitState>(createGameInteriorOrbit(DEFAULT_OFFICE_VISUAL));
   const panDragRef = useRef<PanDragState | null>(null);
   const orbitDragRef = useRef<{ dragging: boolean; lastX: number; lastY: number } | null>(null);
+  const dragFurnitureRef = useRef<string | null>(null);
+  const dragPreviewRef = useRef<FurnitureDragPreview | null>(null);
   const frameRef = useRef<number | null>(null);
   const lastFrameRef = useRef(performance.now());
   const lastRebuildSignatureRef = useRef("");
@@ -109,6 +144,11 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const selectedFurnitureId = useDesignStudioStore((state) => state.selectedFurnitureId);
   const activeZone = useDesignStudioStore((state) => state.activeZone);
+  const placeCatalogId = useDesignStudioStore((state) => state.placeCatalogId);
+  const setSelectedFurnitureId = useDesignStudioStore((state) => state.setSelectedFurnitureId);
+  const setActiveZone = useDesignStudioStore((state) => state.setActiveZone);
+  const setPlaceCatalogId = useDesignStudioStore((state) => state.setPlaceCatalogId);
+  const updateFurniture = useDesignStudioStore((state) => state.updateFurniture);
 
   const buildingId = selectedBuildingId ?? buildings[0]?.id ?? "hq";
   const buildingName =
@@ -229,18 +269,38 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
     if (!handles) {
       return;
     }
-    applySelectionHighlight(handles.root, selectedFurnitureId);
-  }, [selectedFurnitureId, signature]);
+    applySelectionHighlight(handles.root, selectedFurnitureId, office.accent_color);
+  }, [office.accent_color, selectedFurnitureId, signature]);
 
   useEffect(() => {
     sceneRef.current?.setFocusZone(activeZone);
   }, [activeZone, signature]);
 
-  const applyPanDrag = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const resolvePendingAction = (pending: StudioPendingAction) => {
+    const candidate = createPlacementCandidate(
+      pending.catalogId,
+      buildingId,
+      pending.zone,
+      pending.localPosition,
+    );
+    if (!candidate) {
+      return;
+    }
+    const result = validatePlacement(candidate, office, office.furniture);
+    if (!result.ok || !result.item) {
+      return;
+    }
+    updateFurniture(buildingId, (items) => [...items, result.item!]);
+    setSelectedFurnitureId(result.item.id);
+    setPlaceCatalogId(null);
+    setActiveZone(pending.zone);
+  };
+
+  const applyPanDrag = (event: React.PointerEvent<HTMLCanvasElement>): boolean => {
     const pan = panDragRef.current;
     const orbit = orbitRef.current;
     if (!pan?.dragging) {
-      return;
+      return false;
     }
     const totalDx = event.clientX - pan.startX;
     const totalDy = event.clientY - pan.startY;
@@ -249,9 +309,10 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
       (Math.abs(totalDx) > DRAG_THRESHOLD_PX || Math.abs(totalDy) > DRAG_THRESHOLD_PX)
     ) {
       pan.moved = true;
+      pan.pending = null;
     }
     if (!pan.moved) {
-      return;
+      return false;
     }
     const dx = event.clientX - pan.lastX;
     const dy = event.clientY - pan.lastY;
@@ -259,9 +320,16 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
     pan.lastY = event.clientY;
     const frustum = interiorFrustumForOrbit(previewOffice, orbit);
     applyInteriorPan(orbit, dx, dy, size.width, frustum);
+    return true;
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const handles = sceneRef.current;
+    if (!canvas || !handles) {
+      return;
+    }
+
     if (event.button === 2) {
       orbitDragRef.current = { dragging: true, lastX: event.clientX, lastY: event.clientY };
       event.preventDefault();
@@ -270,6 +338,38 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
     if (event.button !== 0) {
       return;
     }
+
+    const { x, y } = normalizedPointer(canvas, event);
+    const furnitureHit = handles.raycastFurniture(x, y);
+    const floorHit = handles.raycastFloor(x, y);
+
+    if (furnitureHit) {
+      dragFurnitureRef.current = furnitureHit.furnitureId;
+      dragPreviewRef.current = {
+        localPosition: furnitureHit.localPosition,
+        zone: furnitureHit.zone,
+      };
+      setSelectedFurnitureId(furnitureHit.furnitureId);
+      setActiveZone(furnitureHit.zone);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    let pending: StudioPendingAction | null = null;
+    if (placeCatalogId && floorHit) {
+      pending = {
+        type: "place",
+        catalogId: placeCatalogId,
+        zone: floorHit.zone,
+        localPosition: floorHit.localPosition,
+      };
+    } else if (floorHit) {
+      setActiveZone(floorHit.zone);
+      setSelectedFurnitureId(null);
+    } else {
+      setSelectedFurnitureId(null);
+    }
+
     panDragRef.current = {
       dragging: true,
       startX: event.clientX,
@@ -277,11 +377,18 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
       lastX: event.clientX,
       lastY: event.clientY,
       moved: false,
+      pending,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const handles = sceneRef.current;
+    if (!canvas || !handles) {
+      return;
+    }
+
     const orbitDrag = orbitDragRef.current;
     if (orbitDrag?.dragging) {
       const dx = event.clientX - orbitDrag.lastX;
@@ -295,14 +402,86 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
       orbitDrag.lastY = event.clientY;
       return;
     }
-    applyPanDrag(event);
+
+    const { x, y } = normalizedPointer(canvas, event);
+    const furnitureHit = handles.raycastFurniture(x, y);
+    const floorHit = handles.raycastFloor(x, y);
+
+    handles.setFurnitureHighlight(selectedFurnitureId ?? furnitureHit?.furnitureId ?? null);
+
+    const furnitureDragId = dragFurnitureRef.current;
+    if (furnitureDragId && floorHit) {
+      dragPreviewRef.current = {
+        localPosition: floorHit.localPosition,
+        zone: floorHit.zone,
+      };
+      const dragged = office.furniture.find((item) => item.id === furnitureDragId);
+      handles.updateGhostPreview(
+        dragged?.catalog_id ?? null,
+        floorHit.zone,
+        floorHit.localPosition,
+        dragged?.rotation_y ?? 0,
+      );
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    if (applyPanDrag(event)) {
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    if (placeCatalogId && floorHit) {
+      handles.updateGhostPreview(placeCatalogId, floorHit.zone, floorHit.localPosition);
+      canvas.style.cursor = "copy";
+      return;
+    }
+
+    handles.updateGhostPreview(null, null, null);
+    canvas.style.cursor = furnitureHit ? "pointer" : "default";
   };
 
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    panDragRef.current = null;
+    const canvas = canvasRef.current;
+    const handles = sceneRef.current;
+
+    const pan = panDragRef.current;
+    if (pan) {
+      if (!pan.moved && pan.pending) {
+        resolvePendingAction(pan.pending);
+      }
+      panDragRef.current = null;
+    }
+
+    const furnitureDragId = dragFurnitureRef.current;
+    const preview = dragPreviewRef.current;
+    if (furnitureDragId && preview && handles) {
+      const item = office.furniture.find((entry) => entry.id === furnitureDragId);
+      if (item) {
+        const result = moveInstance(
+          { ...item, zone: preview.zone },
+          office,
+          preview.localPosition,
+        );
+        if (result.ok && result.item) {
+          updateFurniture(buildingId, (items) =>
+            items.map((entry) => (entry.id === result.item!.id ? result.item! : entry)),
+          );
+          setActiveZone(result.item.zone);
+        }
+      }
+      dragFurnitureRef.current = null;
+      dragPreviewRef.current = null;
+      handles.updateGhostPreview(null, null, null);
+    }
+
     if (orbitDragRef.current) {
       orbitRef.current.azimuth = snapIsometricAzimuth(orbitRef.current.azimuth);
       orbitDragRef.current = null;
+    }
+
+    if (canvas) {
+      canvas.style.cursor = "default";
     }
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
@@ -326,7 +505,9 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
         <header className="design-interior-viewport-header">
           <div>
             <h2>{buildingName} — 3D 預覽</h2>
-            <p className="muted">跟平面圖即時同步 · 拖曳平移 · 滾輪縮放 · 右鍵旋轉</p>
+            <p className="muted">
+              跟平面圖即時同步 · 3D 可拖放傢俬 · 拖曳平移 · 滾輪縮放 · 右鍵旋轉
+            </p>
           </div>
         </header>
       )}
