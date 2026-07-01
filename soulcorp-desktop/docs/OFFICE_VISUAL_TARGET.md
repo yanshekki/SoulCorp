@@ -106,7 +106,7 @@ Lighting: natural
 |------|--------|---------|
 | Build | Orthographic isometric | Full office footprint |
 | Walk (Phase 2) ✅ | Perspective 42° FOV | Room focus, wall peel — play mode **漫遊** toggle |
-| Render (Phase 3) | Perspective + SSAO | Static screenshot |
+| Render (Phase 3) ✅ | Perspective + SSAO | Static screenshot — play mode **渲染** + **截圖** |
 
 ---
 
@@ -171,3 +171,27 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | playCozy lighting | `playCozyLightingPreset` (studioClarity base) |
 | UI toggle | Interior top bar **等角 / 漫遊** (play mode only) |
 | Build mode | Stays orthographic isometric |
+
+---
+
+## Acceptance (Phase 3) — **COMPLETE**
+
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase 3 complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | 42° perspective render camera on office zone | ✅ `P3 render orbit focuses office zone` |
+| 2 | studioClarity SSAO + bloom post pipeline | ✅ `P3 studioClarity bloom cap` + `renderMode` → clarity |
+| 3 | PNG screenshot export from interior canvas | ✅ `P3 screenshot filename png` + **截圖** button |
+| 4 | UI toggle in play mode | ✅ Interior top bar **等角 / 漫遊 / 渲染** |
+| 5 | Build mode stays isometric | ✅ `setBuildMode` forces iso |
+
+### Phase 3 features
+
+| Feature | Implementation |
+|---------|----------------|
+| Render perspective camera | `createRenderInteriorOrbit` + `applyOrbitToPerspectiveCamera` |
+| SSAO post pipeline | `renderMode` → `clarityMode` + `createStudioInteriorPostPipeline` |
+| studioClarity lighting | Opaque walls, no wall peel |
+| Screenshot export | `interiorScreenshot.ts` + `requestInteriorScreenshot` |
+| UI | **渲染** toggle + **截圖** button (Cantonese) |

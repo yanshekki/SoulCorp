@@ -69,6 +69,8 @@ export interface InteriorVisualStyle {
   perspectiveMode?: boolean;
   /** Phase 2 play walk — room focus + aggressive wall peel. */
   walkMode?: boolean;
+  /** Phase 3 render — studioClarity SSAO + perspective screenshot. */
+  renderMode?: boolean;
 }
 
 export interface FloorHit {
@@ -279,6 +281,7 @@ export function createInteriorScene(
     clarityMode: false,
     perspectiveMode: false,
     walkMode: false,
+    renderMode: false,
   };
   let lastRebuildContext: {
     building: Building;
@@ -874,9 +877,12 @@ export function createInteriorScene(
     },
     setVisualStyle(style) {
       const nextPixel = style.pixelAgents ?? visualStyle.pixelAgents;
-      const nextClarity = style.clarityMode ?? visualStyle.clarityMode ?? false;
-      const nextWalk = style.walkMode ?? visualStyle.walkMode ?? false;
-      const nextPerspective = nextWalk
+      const nextRender = style.renderMode ?? visualStyle.renderMode ?? false;
+      const nextWalk = nextRender ? false : (style.walkMode ?? visualStyle.walkMode ?? false);
+      const nextClarity = nextRender
+        ? true
+        : (style.clarityMode ?? visualStyle.clarityMode ?? false);
+      const nextPerspective = nextWalk || nextRender
         ? true
         : (style.perspectiveMode ?? visualStyle.perspectiveMode ?? false);
       const nextCozy = nextClarity ? false : (style.cozyEffects ?? visualStyle.cozyEffects);
@@ -885,6 +891,7 @@ export function createInteriorScene(
       const clarityChanged = nextClarity !== visualStyle.clarityMode;
       const perspectiveChanged = nextPerspective !== visualStyle.perspectiveMode;
       const walkChanged = nextWalk !== visualStyle.walkMode;
+      const renderChanged = nextRender !== visualStyle.renderMode;
       visualStyle = {
         pixelAgents: nextPixel,
         cozyEffects: nextCozy,
@@ -892,6 +899,7 @@ export function createInteriorScene(
         clarityMode: nextClarity,
         perspectiveMode: nextPerspective,
         walkMode: nextWalk,
+        renderMode: nextRender,
       };
       perspectiveMode = nextPerspective;
       activeCamera = perspectiveMode ? perspectiveCamera : camera;
@@ -907,7 +915,7 @@ export function createInteriorScene(
           focusZone = "office";
           focusPoint.set(0, 0.75, zoneCenterZ("office", shellMeta));
         }
-      } else if (walkChanged && !nextWalk && shellMeta) {
+      } else if ((walkChanged || renderChanged) && !nextWalk && !nextRender && shellMeta) {
         const themed = interiorLightingPreset(shellMeta.office.lighting);
         ambient.intensity = themed.ambientIntensity;
         key.intensity = themed.keyIntensity;
@@ -916,7 +924,7 @@ export function createInteriorScene(
           light.intensity = themed.zoneLightIntensity;
         });
       }
-      if (clarityChanged || perspectiveChanged) {
+      if (clarityChanged || perspectiveChanged || renderChanged) {
         rebuildPostPipeline();
         if (postPipeline && "setCamera" in postPipeline) {
           postPipeline.setCamera(activeCamera);
@@ -925,7 +933,7 @@ export function createInteriorScene(
         postPipeline.setEnabled(nextCozy);
         postPipeline.setCrtEnabled(nextCrt && nextCozy);
       }
-      if (walkChanged && !nextWalk && shellMeta) {
+      if ((walkChanged || renderChanged) && !nextWalk && !nextRender && shellMeta) {
         for (const wall of interiorWalls) {
           const material = wall.material;
           if (material instanceof THREE.MeshStandardMaterial) {
@@ -935,7 +943,7 @@ export function createInteriorScene(
           }
         }
       }
-      if (nextClarity) {
+      if (nextClarity || nextRender) {
         const studioLight = studioClarityLightingPreset();
         ambient.intensity = studioLight.ambientIntensity;
         key.intensity = studioLight.keyIntensity;
@@ -952,7 +960,7 @@ export function createInteriorScene(
           }
         }
       }
-      if (clarityChanged && lastRebuildContext) {
+      if ((clarityChanged || renderChanged) && lastRebuildContext) {
         const ctx = lastRebuildContext;
         void rebuild(ctx.building, ctx.office, ctx.agents, ctx.records, ctx.companyName);
       } else if (pixelChanged && lastRebuildContext) {

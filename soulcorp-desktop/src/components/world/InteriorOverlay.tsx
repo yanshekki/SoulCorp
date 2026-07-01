@@ -19,6 +19,7 @@ export function InteriorOverlay() {
   const setInteriorCameraMode = useGameStore((state) => state.setInteriorCameraMode);
   const interiorWalkZone = useGameStore((state) => state.interiorWalkZone);
   const requestInteriorWalkZone = useGameStore((state) => state.requestInteriorWalkZone);
+  const requestInteriorScreenshot = useGameStore((state) => state.requestInteriorScreenshot);
   const selectedAgentId = useGameStore((state) => state.selectedAgentId);
   const selectedFurnitureId = useGameStore((state) => state.selectedFurnitureId);
   const hoveredFurnitureId = useGameStore((state) => state.hoveredFurnitureId);
@@ -60,7 +61,9 @@ export function InteriorOverlay() {
           <span className="interior-topbar-hint muted">
             {interiorCameraMode === "walk"
               ? "漫遊：WASD 移動 · 右鍵旋轉 · 滾輪縮放 · 牆身自動透明"
-              : "等角：拖曳平移 · 滾輪縮放 · 右鍵旋轉 · 雙擊重設"}
+              : interiorCameraMode === "render"
+                ? "渲染：SSAO 清晰視角 · 拖曳平移 · 右鍵旋轉 · 滾輪縮放 · 截圖匯出 PNG"
+                : "等角：拖曳平移 · 滾輪縮放 · 右鍵旋轉 · 雙擊重設"}
           </span>
         </div>
         <div className="interior-topbar-actions">
@@ -80,6 +83,18 @@ export function InteriorOverlay() {
                 </button>
               ))}
             </div>
+          ) : null}
+          {buildMode === "play" && interiorCameraMode === "render" ? (
+            <button
+              type="button"
+              className="interior-screenshot-btn"
+              onClick={() => {
+                audioDirector.playSfx("ui_click");
+                requestInteriorScreenshot();
+              }}
+            >
+              截圖
+            </button>
           ) : null}
           {buildMode === "play" ? (
             <div className="interior-camera-toggle" role="group" aria-label="Camera mode">
@@ -102,6 +117,16 @@ export function InteriorOverlay() {
                 }}
               >
                 漫遊
+              </button>
+              <button
+                type="button"
+                className={interiorCameraMode === "render" ? "active" : ""}
+                onClick={() => {
+                  audioDirector.playSfx("ui_click");
+                  setInteriorCameraMode("render");
+                }}
+              >
+                渲染
               </button>
             </div>
           ) : null}

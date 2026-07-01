@@ -19,7 +19,7 @@ import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
 import type { Agent, Building, SimulationState } from "../types/world";
 
 export type WorldView = "campus" | "interior";
-export type InteriorCameraMode = "iso" | "walk";
+export type InteriorCameraMode = "iso" | "walk" | "render";
 
 interface GameStore {
   companyName: string;
@@ -56,6 +56,8 @@ interface GameStore {
   interiorCameraMode: InteriorCameraMode;
   interiorWalkFocusZone: InteriorZone | null;
   interiorWalkZone: InteriorZone;
+  /** Phase 3: incremented to trigger one-shot interior screenshot capture. */
+  interiorScreenshotEpoch: number;
   isPaused: boolean;
   simulation: SimulationState;
   finance: TokenEconomy;
@@ -91,6 +93,7 @@ interface GameStore {
   requestInteriorWalkZone: (zone: InteriorZone) => void;
   clearInteriorWalkFocusZone: () => void;
   setInteriorWalkZone: (zone: InteriorZone) => void;
+  requestInteriorScreenshot: () => void;
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
@@ -150,6 +153,7 @@ export const useGameStore = create<GameStore>((set) => ({
   interiorCameraMode: "iso",
   interiorWalkFocusZone: null,
   interiorWalkZone: "office",
+  interiorScreenshotEpoch: 0,
   isPaused: true,
   simulation: {
     tick: 0,
@@ -324,6 +328,8 @@ export const useGameStore = create<GameStore>((set) => ({
     set({ interiorWalkFocusZone, cameraTransition: 0 }),
   clearInteriorWalkFocusZone: () => set({ interiorWalkFocusZone: null }),
   setInteriorWalkZone: (interiorWalkZone) => set({ interiorWalkZone }),
+  requestInteriorScreenshot: () =>
+    set((state) => ({ interiorScreenshotEpoch: state.interiorScreenshotEpoch + 1 })),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setIsPaused: (paused) => set({ isPaused: paused }),
   setSimulation: (simulation) =>

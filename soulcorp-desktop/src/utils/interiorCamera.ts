@@ -112,6 +112,35 @@ export function officeZoneFocusPan(office: OfficeVisualConfig): { panX: number; 
   return { panX: 0, panZ: officeZ - interiorSceneFocusZ() };
 }
 
+/** Phase 3 render mode — studio perspective framing on office zone (SSAO screenshot). */
+export function createRenderInteriorOrbit(office: OfficeVisualConfig): InteriorOrbitState {
+  const focus = officeZoneFocusPan(office);
+  return {
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+    azimuth: ISO_SNAP,
+    elevation: 0.52,
+    frustum: defaultInteriorFrustum(office, "office"),
+    zoom: 0.92,
+    panX: focus.panX,
+    panZ: focus.panZ,
+  };
+}
+
+export function createInteriorOrbitForMode(
+  office: OfficeVisualConfig,
+  mode: "iso" | "walk" | "render",
+): InteriorOrbitState {
+  if (mode === "walk") {
+    return createWalkInteriorOrbit(office);
+  }
+  if (mode === "render") {
+    return createRenderInteriorOrbit(office);
+  }
+  return createGameInteriorOrbit(office);
+}
+
 /** Play walk mode — perspective framing on the office zone (Phase 2). */
 export function createWalkInteriorOrbit(office: OfficeVisualConfig): InteriorOrbitState {
   const focus = officeZoneFocusPan(office);

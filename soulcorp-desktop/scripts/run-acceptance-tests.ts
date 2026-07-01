@@ -8,6 +8,9 @@ const phase1Gate = results.find((result) => result.name === "Phase 1 complete ga
 const phase2Results = results.filter((result) => result.name.startsWith("P2 "));
 const phase2Summary = summarizeResults(phase2Results);
 const phase2Gate = results.find((result) => result.name === "Phase 2 complete gate");
+const phase3Results = results.filter((result) => result.name.startsWith("P3 "));
+const phase3Summary = summarizeResults(phase3Results);
+const phase3Gate = results.find((result) => result.name === "Phase 3 complete gate");
 
 for (const result of results) {
   const mark = result.passed ? "✓" : "✗";
@@ -21,6 +24,9 @@ console.log(
 );
 console.log(
   `  Phase 2: ${phase2Summary.passed}/${phase2Results.length} checks — ${phase2Gate?.passed ? "COMPLETE" : "INCOMPLETE"}`,
+);
+console.log(
+  `  Phase 3: ${phase3Summary.passed}/${phase3Results.length} checks — ${phase3Gate?.passed ? "COMPLETE" : "INCOMPLETE"}`,
 );
 
 if (!summary.ok) {

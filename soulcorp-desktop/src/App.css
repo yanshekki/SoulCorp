@@ -1321,6 +1321,25 @@
   color: #ffe8b8;
 }
 
+.interior-screenshot-btn {
+  appearance: none;
+  border: 1px solid rgba(94, 200, 255, 0.45);
+  border-radius: 6px;
+  background: rgba(94, 200, 255, 0.22);
+  color: #e8f7ff;
+  padding: 0.28rem 0.62rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.interior-screenshot-btn:hover {
+  background: rgba(94, 200, 255, 0.34);
+  color: #f6f1e8;
+}
+
 .interior-zoom-controls {
   display: inline-flex;
   gap: 0.2rem;
