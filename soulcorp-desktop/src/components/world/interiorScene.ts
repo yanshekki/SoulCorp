@@ -17,6 +17,12 @@ import {
   STUDIO_PERSPECTIVE_FOV,
 } from "../../utils/interiorCamera";
 import { snapPosition } from "../../utils/furnitureEditor";
+import {
+  diffFurnitureScene,
+  furnitureDiffIsEmpty,
+  officeShellFingerprint,
+  type FurnitureSceneDiff,
+} from "../../utils/furnitureSceneDiff";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { createFurnitureObject, disposeFurnitureObject } from "./furnitureRenderer";
 import { buildRoomShell, officeZoneOffset } from "./roomShellBuilder";
@@ -187,19 +193,29 @@ function furnitureIdForObject(object: THREE.Object3D): string | null {
   return null;
 }
 
-function zoneOffset(
-  item: FurnitureInstance,
-  shell: ReturnType<typeof buildRoomShell>,
-  officeZ: number,
-): [number, number, number] {
+function zoneOffsetFromMeta(item: FurnitureInstance, meta: ShellMeta): [number, number, number] {
   const [x, y, z] = item.position;
   if (item.zone === "office") {
-    return [x, y, z + officeZ];
+    return [x, y, z + meta.officeZ];
   }
   if (item.zone === "lobby") {
-    return [x, y, z + (shell.group.userData.lobbyZ as number)];
+    return [x, y, z + meta.lobbyZ];
   }
   return [x, y, z];
+}
+
+function departmentAgentIds(
+  agents: Agent[],
+  records: AgentRecord[],
+  building: Building,
+): string[] {
+  return agents
+    .filter((agent) => {
+      const record = records.find((r) => r.id === agent.id);
+      return record && building.department === record.department;
+    })
+    .map((agent) => agent.id)
+    .sort();
 }
 
 export function createInteriorScene(
@@ -328,7 +344,6 @@ export function createInteriorScene(
   };
 
   const clearRoot = () => {
-    rebuildGeneration += 1;
     clearFurniture();
     for (const entry of agentMeshes.values()) {
       root.remove(entry.group);
@@ -356,6 +371,124 @@ export function createInteriorScene(
     }
   };
 
+  const removeFurnitureById = (furnitureId: string) => {
+    const index = furnitureObjects.findIndex(
+      (object) => object.userData.furnitureId === furnitureId,
+    );
+    if (index === -1) {
+      return;
+    }
+    const object = furnitureObjects[index];
+    root.remove(object);
+    disposeFurnitureObject(object);
+    furnitureObjects.splice(index, 1);
+  };
+
+  const applyDeskIndices = (office: OfficeVisualConfig) => {
+    let deskIndex = 0;
+    for (const item of office.furniture) {
+      if (!item.catalog_id.startsWith("desk_")) {
+        continue;
+      }
+      const object = furnitureObjects.find((entry) => entry.userData.furnitureId === item.id);
+      if (object) {
+        object.userData.deskIndex = deskIndex;
+      }
+      deskIndex += 1;
+    }
+  };
+
+  const syncAgentsToDesks = (
+    agents: Agent[],
+    records: AgentRecord[],
+    building: Building,
+    office: OfficeVisualConfig,
+    officeZ: number,
+  ) => {
+    const deptAgents = agents.filter((agent) => {
+      const record = records.find((r) => r.id === agent.id);
+      return record && building.department === record.department;
+    });
+    const deskFurniture = office.furniture.filter((item) => item.catalog_id.startsWith("desk_"));
+    deptAgents.forEach((agent, index) => {
+      const visual = agentMeshes.get(agent.id);
+      if (!visual) {
+        return;
+      }
+      const desk = deskFurniture[index % deskFurniture.length];
+      const interiorPos: [number, number, number] = desk
+        ? [desk.position[0], 0, desk.position[2] + officeZ]
+        : [0, 0, officeZ];
+      visual.group.position.set(interiorPos[0], interiorPos[1], interiorPos[2]);
+      visual.group.userData.baseY = interiorPos[1];
+    });
+  };
+
+  const syncFurnitureIncremental = async (
+    office: OfficeVisualConfig,
+    diff: FurnitureSceneDiff,
+    generation: number,
+  ): Promise<boolean> => {
+    const meta = shellMeta;
+    if (!meta) {
+      return false;
+    }
+
+    for (const furnitureId of diff.removedIds) {
+      removeFurnitureById(furnitureId);
+    }
+    for (const item of diff.recreated) {
+      removeFurnitureById(item.id);
+    }
+
+    for (const item of diff.transformUpdated) {
+      const object = furnitureObjects.find((entry) => entry.userData.furnitureId === item.id);
+      if (!object) {
+        continue;
+      }
+      const [x, y, z] = zoneOffsetFromMeta(item, meta);
+      object.position.set(x, y, z);
+      object.rotation.y = item.rotation_y;
+    }
+
+    const toCreate = [...diff.added, ...diff.recreated];
+    const created = await Promise.all(
+      toCreate.map(async (item) => {
+        const entry = getCatalogEntry(item.catalog_id);
+        if (!entry) {
+          return null;
+        }
+        const [x, y, z] = zoneOffsetFromMeta(item, meta);
+        return createFurnitureObject(
+          { ...item, position: [x, y, z] },
+          entry,
+          office.accent_color,
+        );
+      }),
+    );
+
+    if (generation !== rebuildGeneration) {
+      created.forEach((object) => {
+        if (object) {
+          disposeFurnitureObject(object);
+        }
+      });
+      return false;
+    }
+
+    for (const object of created) {
+      if (!object) {
+        continue;
+      }
+      furnitureObjects.push(object);
+      root.add(object);
+    }
+
+    applyDeskIndices(office);
+    meta.office = office;
+    return true;
+  };
+
   const rebuild = async (
     building: Building,
     rawOffice: OfficeVisualConfig,
@@ -363,9 +496,49 @@ export function createInteriorScene(
     records: AgentRecord[],
     companyName: string,
   ) => {
-    clearRoot();
+    rebuildGeneration += 1;
     const generation = rebuildGeneration;
     const office = normalizeOfficeVisual(rawOffice, building.id);
+
+    const prev = lastRebuildContext;
+    const canIncremental =
+      prev &&
+      shellMeta &&
+      prev.building.id === building.id &&
+      prev.companyName === companyName &&
+      officeShellFingerprint(normalizeOfficeVisual(prev.office, building.id)) ===
+        officeShellFingerprint(office) &&
+      departmentAgentIds(prev.agents, prev.records, prev.building).join(",") ===
+        departmentAgentIds(agents, records, building).join(",");
+
+    if (canIncremental && shellMeta) {
+      const meta = shellMeta;
+      const prevOffice = normalizeOfficeVisual(prev.office, building.id);
+      const diff = diffFurnitureScene(prevOffice.furniture, office.furniture);
+      if (furnitureDiffIsEmpty(diff)) {
+        if (generation !== rebuildGeneration) {
+          return;
+        }
+        meta.office = office;
+        lastRebuildContext = { building, office: rawOffice, agents, records, companyName };
+        return;
+      }
+      const synced = await syncFurnitureIncremental(office, diff, generation);
+      if (generation !== rebuildGeneration) {
+        return;
+      }
+      if (synced) {
+        syncAgentsToDesks(agents, records, building, office, meta.officeZ);
+        lastRebuildContext = { building, office: rawOffice, agents, records, companyName };
+        return;
+      }
+    }
+
+    if (generation !== rebuildGeneration) {
+      return;
+    }
+
+    clearRoot();
     applyInteriorScenePolish(scene, office);
     const lighting = visualStyle.clarityMode
       ? studioClarityLightingPreset()
@@ -435,7 +608,7 @@ export function createInteriorScene(
         if (!entry) {
           return null;
         }
-        const [x, y, z] = zoneOffset(item, shell, officeZ);
+        const [x, y, z] = zoneOffsetFromMeta(item, shellMeta!);
         const object = await createFurnitureObject(
           { ...item, position: [x, y, z] },
           entry,

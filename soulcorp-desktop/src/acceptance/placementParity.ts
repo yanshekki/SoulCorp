@@ -1,6 +1,11 @@
 import { DEFAULT_OFFICE_THEME_PACK_ID } from "../data/officeThemePacks";
 import { DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
-import type { OfficeVisualConfig } from "../types/visualDesign";
+import type { FurnitureInstance, OfficeVisualConfig } from "../types/visualDesign";
+import {
+  diffFurnitureScene,
+  furnitureDiffIsEmpty,
+  officeShellFingerprint,
+} from "../utils/furnitureSceneDiff";
 import { placeFurniture } from "../utils/buildModeActions";
 import {
   FLOOR_PLAN_COARSE_GRID,
@@ -238,6 +243,30 @@ export function runPlacementParityTests(): ParityResult[] {
       `count=${office.furniture.length}`,
     ),
   );
+
+  const lamp: FurnitureInstance = {
+    id: "lamp-a",
+    catalog_id: "floor_lamp",
+    zone: "office",
+    position: [0, 0, 0],
+    rotation_y: 0,
+  };
+  const addDiff = diffFurnitureScene([], [lamp]);
+  results.push(assert("C2 diff detects added furniture", addDiff.added.length === 1));
+  const moveDiff = diffFurnitureScene([lamp], [{ ...lamp, position: [1, 0, 0] }]);
+  results.push(assert("C2 diff detects transform update", moveDiff.transformUpdated.length === 1));
+  const recreateDiff = diffFurnitureScene([lamp], [{ ...lamp, catalog_id: "plant_ficus" }]);
+  results.push(assert("C2 diff detects catalog recreate", recreateDiff.recreated.length === 1));
+  const removeDiff = diffFurnitureScene([lamp], []);
+  results.push(
+    assert(
+      "C2 diff detects removed furniture",
+      removeDiff.removedIds.length === 1 && furnitureDiffIsEmpty(addDiff) === false,
+    ),
+  );
+  const shellA = officeShellFingerprint(office);
+  const shellB = officeShellFingerprint({ ...office, furniture: [] });
+  results.push(assert("C2 shell fingerprint ignores furniture", shellA === shellB));
 
   return results;
 }
