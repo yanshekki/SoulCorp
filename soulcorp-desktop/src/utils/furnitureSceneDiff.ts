@@ -91,5 +91,6 @@ export function officeShellFingerprint(office: OfficeVisualConfig): string {
     has_plants: office.has_plants,
     has_whiteboard: office.has_whiteboard,
     has_lounge_seating: office.has_lounge_seating,
+    architecture: office.architecture,
   });
 }

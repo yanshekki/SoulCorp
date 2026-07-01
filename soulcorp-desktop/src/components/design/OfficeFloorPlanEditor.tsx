@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCatalogEntry } from "../../data/furnitureCatalog";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
@@ -22,6 +22,13 @@ import {
   FLOOR_PLAN_FINE_GRID,
 } from "../../utils/furnitureEditor";
 import { formatFootprintDimensions } from "../../utils/furniturePlanSilhouette";
+import {
+  createWallSegment,
+  officeArchitecture,
+  snapWallPoint,
+  wallSegmentLength,
+  wallsOnFloor,
+} from "../../utils/officeArchitecture";
 import { FurniturePlanSilhouette } from "./FurniturePlanSilhouette";
 
 const PLAN_PADDING = 1.2;
@@ -63,6 +70,13 @@ export function OfficeFloorPlanEditor() {
   const setSelectedFurnitureId = useDesignStudioStore((state) => state.setSelectedFurnitureId);
   const setPlaceCatalogId = useDesignStudioStore((state) => state.setPlaceCatalogId);
   const updateFurniture = useDesignStudioStore((state) => state.updateFurniture);
+  const planTool = useDesignStudioStore((state) => state.planTool);
+  const activeArchitectureFloor = useDesignStudioStore((state) => state.activeArchitectureFloor);
+  const selectedWallId = useDesignStudioStore((state) => state.selectedWallId);
+  const wallDrawAnchor = useDesignStudioStore((state) => state.wallDrawAnchor);
+  const setSelectedWallId = useDesignStudioStore((state) => state.setSelectedWallId);
+  const setWallDrawAnchor = useDesignStudioStore((state) => state.setWallDrawAnchor);
+  const patchOfficeDraft = useDesignStudioStore((state) => state.patchOfficeDraft);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
@@ -79,6 +93,11 @@ export function OfficeFloorPlanEditor() {
     [draft.offices, buildingId],
   );
   const layout = useMemo(() => floorPlanLayout(config), [config]);
+  const architecture = useMemo(() => officeArchitecture(config), [config]);
+  const visibleWalls = useMemo(
+    () => wallsOnFloor(architecture, activeArchitectureFloor),
+    [architecture, activeArchitectureFloor],
+  );
 
   const viewBox = `${-PLAN_PADDING} ${-PLAN_PADDING} ${layout.maxWidth + PLAN_PADDING * 2} ${layout.totalDepth + PLAN_PADDING * 2}`;
 
@@ -102,6 +121,60 @@ export function OfficeFloorPlanEditor() {
   );
 
   const placementBlockedHint = "呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住";
+
+  const removeWall = useCallback(
+    (wallId: string) => {
+      patchOfficeDraft(buildingId, {
+        architecture: {
+          ...architecture,
+          walls: architecture.walls.filter((wall) => wall.id !== wallId),
+        },
+      });
+      setSelectedWallId(null);
+      setWallDrawAnchor(null);
+    },
+    [architecture, buildingId, patchOfficeDraft, setSelectedWallId, setWallDrawAnchor],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
+      if (!(event.target instanceof HTMLInputElement) && selectedWallId) {
+        event.preventDefault();
+        removeWall(selectedWallId);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [removeWall, selectedWallId]);
+
+  const wallAtPoint = useCallback(
+    (planX: number, planY: number) => {
+      const threshold = 0.22;
+      for (let index = visibleWalls.length - 1; index >= 0; index -= 1) {
+        const wall = visibleWalls[index];
+        const length = wallSegmentLength(wall.start, wall.end);
+        if (length < 1e-6) {
+          continue;
+        }
+        const dx = wall.end[0] - wall.start[0];
+        const dy = wall.end[1] - wall.start[1];
+        const t = Math.max(
+          0,
+          Math.min(1, ((planX - wall.start[0]) * dx + (planY - wall.start[1]) * dy) / (length * length)),
+        );
+        const projX = wall.start[0] + t * dx;
+        const projY = wall.start[1] + t * dy;
+        if (Math.hypot(planX - projX, planY - projY) <= threshold) {
+          return wall;
+        }
+      }
+      return null;
+    },
+    [visibleWalls],
+  );
 
   const commitItem = useCallback(
     (nextItem: FurnitureInstance) => {
@@ -140,6 +213,33 @@ export function OfficeFloorPlanEditor() {
       return;
     }
     const [planX, planY] = point;
+
+    if (architecture.freeform_enabled && planTool === "wall") {
+      const hitWall = wallAtPoint(planX, planY);
+      if (hitWall) {
+        setSelectedWallId(hitWall.id);
+        setWallDrawAnchor(null);
+        return;
+      }
+      if (!wallDrawAnchor) {
+        setWallDrawAnchor(snapWallPoint(planX, planY));
+        setSelectedWallId(null);
+        return;
+      }
+      const segment = createWallSegment(activeArchitectureFloor, wallDrawAnchor, [planX, planY]);
+      if (segment) {
+        patchOfficeDraft(buildingId, {
+          architecture: {
+            ...architecture,
+            walls: [...architecture.walls, segment],
+          },
+        });
+        setSelectedWallId(segment.id);
+      }
+      setWallDrawAnchor(null);
+      return;
+    }
+
     const hit = hitFurnitureAtPoint(config.furniture, layout, planX, planY);
 
     if (hit) {
@@ -320,6 +420,29 @@ export function OfficeFloorPlanEditor() {
           </g>
         ))}
 
+        {architecture.freeform_enabled
+          ? visibleWalls.map((wall) => (
+              <line
+                key={wall.id}
+                x1={wall.start[0]}
+                y1={wall.start[1]}
+                x2={wall.end[0]}
+                y2={wall.end[1]}
+                className={`design-floor-wall${selectedWallId === wall.id ? " selected" : ""}`}
+                strokeWidth={0.14}
+              />
+            ))
+          : null}
+
+        {architecture.freeform_enabled && wallDrawAnchor ? (
+          <circle
+            cx={wallDrawAnchor[0]}
+            cy={wallDrawAnchor[1]}
+            r={0.12}
+            className="design-floor-wall-anchor"
+          />
+        ) : null}
+
         {config.furniture.map((item) => {
           const previewPosition =
             dragPreview?.id === item.id ? dragPreview.position : item.position;
@@ -372,6 +495,11 @@ export function OfficeFloorPlanEditor() {
               </>
             ) : null}{" "}
             · 拖曳移動 · R 旋轉 · Delete 刪除
+          </span>
+        ) : architecture.freeform_enabled && planTool === "wall" ? (
+          <span>
+            畫牆模式（{activeArchitectureFloor + 1}F）· 連續撳兩點 · 撳牆選取 · Delete 刪除
+            {selectedWallId ? " · 已選牆段" : ""}
           </span>
         ) : (
           <span>拖曳傢俬 · 頂部工具列還原/旋轉 · 右邊 panel 揀傢俬</span>

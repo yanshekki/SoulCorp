@@ -2912,6 +2912,93 @@ body.workspace-resizing {
   border-top: none;
 }
 
+.design-architecture-panel {
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.design-architecture-panel h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.92rem;
+}
+
+.design-architecture-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.design-architecture-floors {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  font-size: 0.78rem;
+}
+
+.design-architecture-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.design-architecture-floor-tabs,
+.design-architecture-tools {
+  display: inline-flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  margin: var(--space-2) 0;
+}
+
+.design-architecture-floor-tabs button,
+.design-architecture-tools button {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  padding: 0.22rem 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.design-architecture-floor-tabs button.active,
+.design-architecture-tools button.active {
+  background: rgba(232, 168, 56, 0.22);
+  border-color: rgba(232, 168, 56, 0.45);
+  color: var(--text-primary);
+}
+
+.design-architecture-hint {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.design-floor-wall {
+  stroke: rgba(246, 241, 232, 0.72);
+  stroke-linecap: round;
+  pointer-events: stroke;
+}
+
+.design-floor-wall.selected {
+  stroke: #9fe8ff;
+  stroke-width: 0.18;
+}
+
+.design-floor-wall-anchor {
+  fill: #ffd166;
+  stroke: #fff;
+  stroke-width: 0.03;
+  pointer-events: none;
+}
+
 .design-room-dim-row {
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) auto;

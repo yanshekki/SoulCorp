@@ -6,6 +6,7 @@ import {
   createRoomFloorTexture,
   createWallPlasterMaterial,
 } from "../../utils/roomKitTextures";
+import { buildFreeformArchitectureGroup } from "../../utils/officeArchitecture";
 import { tagInteriorWall } from "../../utils/interiorWallFade";
 
 export interface RoomShellResult {
@@ -290,6 +291,11 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
 
   group.userData.officeZ = officeZ;
   group.userData.lobbyZ = lobbyZ;
+
+  const freeform = buildFreeformArchitectureGroup(office);
+  if (freeform) {
+    group.add(freeform);
+  }
 
   return { group, exitDoor, lobbyGroup, corridorGroup, officeGroup };
 }

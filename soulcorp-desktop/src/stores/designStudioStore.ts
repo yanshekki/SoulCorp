@@ -20,6 +20,11 @@ interface DesignStudioStore {
   placeCatalogId: string | null;
   /** B4: perspective camera in design studio 3D viewport */
   studioPerspectiveCamera: boolean;
+  /** Phase 4: floor-plan tool — furniture placement vs freeform wall draw */
+  planTool: "furniture" | "wall";
+  activeArchitectureFloor: number;
+  selectedWallId: string | null;
+  wallDrawAnchor: [number, number] | null;
   dirty: boolean;
   saving: boolean;
   undoStack: CompanyVisualDesign[];
@@ -36,6 +41,10 @@ interface DesignStudioStore {
   setActiveZone: (zone: InteriorZone) => void;
   setPlaceCatalogId: (catalogId: string | null) => void;
   setStudioPerspectiveCamera: (enabled: boolean) => void;
+  setPlanTool: (tool: "furniture" | "wall") => void;
+  setActiveArchitectureFloor: (floor: number) => void;
+  setSelectedWallId: (wallId: string | null) => void;
+  setWallDrawAnchor: (point: [number, number] | null) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
   resetDraft: () => void;
@@ -55,6 +64,10 @@ export const useDesignStudioStore = create<DesignStudioStore>((set, get) => ({
   activeZone: "office",
   placeCatalogId: null,
   studioPerspectiveCamera: false,
+  planTool: "furniture",
+  activeArchitectureFloor: 0,
+  selectedWallId: null,
+  wallDrawAnchor: null,
   dirty: false,
   saving: false,
   undoStack: [],
@@ -115,6 +128,18 @@ export const useDesignStudioStore = create<DesignStudioStore>((set, get) => ({
   setPlaceCatalogId: (placeCatalogId) =>
     set({ placeCatalogId, selectedFurnitureId: placeCatalogId ? null : get().selectedFurnitureId }),
   setStudioPerspectiveCamera: (studioPerspectiveCamera) => set({ studioPerspectiveCamera }),
+  setPlanTool: (planTool) =>
+    set({
+      planTool,
+      placeCatalogId: planTool === "wall" ? null : get().placeCatalogId,
+      selectedFurnitureId: planTool === "wall" ? null : get().selectedFurnitureId,
+      wallDrawAnchor: null,
+    }),
+  setActiveArchitectureFloor: (activeArchitectureFloor) =>
+    set({ activeArchitectureFloor, wallDrawAnchor: null, selectedWallId: null }),
+  setSelectedWallId: (selectedWallId) =>
+    set({ selectedWallId, selectedFurnitureId: selectedWallId ? null : get().selectedFurnitureId }),
+  setWallDrawAnchor: (wallDrawAnchor) => set({ wallDrawAnchor }),
   setDirty: (dirty) => set({ dirty }),
   setSaving: (saving) => set({ saving }),
   resetDraft: () =>

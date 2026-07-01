@@ -5,6 +5,7 @@ import { FURNITURE_CLEARANCE } from "./furnitureEditor";
 import { BUILDING_DESKS } from "../data/worldLayout";
 import type { FurnitureInstance, OfficeVisualConfig, RoomDimensions } from "../types/visualDesign";
 import { DEFAULT_CORRIDOR_ROOM, DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
+import { normalizeOfficeArchitecture } from "./officeArchitecture";
 import { defaultBuildingForId, roomsFromBuilding, scaleFurnitureForGameRooms } from "./interiorScale";
 
 function mergeRoomDimensions(
@@ -178,6 +179,8 @@ export function normalizeOfficeVisual(
   } else {
     base.furniture = scaleFurnitureForGameRooms(base.furniture, buildingId, base);
   }
+
+  base.architecture = normalizeOfficeArchitecture(raw?.architecture ?? base.architecture);
 
   return base;
 }

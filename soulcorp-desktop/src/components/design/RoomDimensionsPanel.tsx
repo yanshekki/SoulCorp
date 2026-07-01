@@ -6,6 +6,7 @@ import {
   type RoomDimensions,
 } from "../../types/visualDesign";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
+import { OfficeArchitecturePanel } from "./OfficeArchitecturePanel";
 
 function zoneArea(room: RoomDimensions): number {
   return room.width * room.depth;
@@ -58,6 +59,8 @@ export function RoomDimensionsPanel() {
           <strong>{totalArea.toFixed(1)} m²</strong>
         </p>
       </header>
+
+      <OfficeArchitecturePanel />
 
       {(
         [

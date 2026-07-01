@@ -15,7 +15,7 @@ Interior offices use a dedicated sub-style: cozy low-poly game readability (Sims
 | Light | Soft fill, window glow | High readability, no muddy corners |
 | Mood | Homey startup loft | Light humour, not clinical |
 
-**Not in scope:** photoreal PBR, CAD-accurate dimensions, freeform architecture (Phase 4).
+**Not in scope:** photoreal PBR, CAD-accurate dimensions.
 
 ---
 
@@ -195,3 +195,27 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | studioClarity lighting | Opaque walls, no wall peel |
 | Screenshot export | `interiorScreenshot.ts` + `requestInteriorScreenshot` |
 | UI | **渲染** toggle + **截圖** button (Cantonese) |
+
+---
+
+## Acceptance (Phase 4) — **COMPLETE**
+
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase 4 complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Optional freeform wall draw (RoomSketcher-style) | ✅ `P4 wall segment` + design studio **畫牆** tool |
+| 2 | Multi-floor stacking (1–3 floors) | ✅ `P4 multi-floor walls` + **樓層** slider |
+| 3 | 2D plan + 3D shell parity | ✅ walls render in `buildRoomShell` + floor plan SVG |
+| 4 | Preset 3-zone layout remains default | ✅ `P4 architecture default off` |
+| 5 | Grid-snapped wall endpoints (0.5m) | ✅ `P4 snap wall point` |
+
+### Phase 4 features
+
+| Feature | Implementation |
+|---------|----------------|
+| Architecture data model | `OfficeArchitecture` + `OfficeWallSegment` on `OfficeVisualConfig` |
+| Freeform walls | `officeArchitecture.ts` + **畫牆** in `OfficeFloorPlanEditor` |
+| Multi-floor | `floor_count` 1–3, stacked meshes in `buildFreeformArchitectureGroup` |
+| Design studio UI | `OfficeArchitecturePanel` in room inspector (Cantonese) |
+| Shell rebuild | `architecture` in `officeShellFingerprint` |

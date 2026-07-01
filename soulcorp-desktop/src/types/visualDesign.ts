@@ -34,6 +34,30 @@ export interface RoomDimensions {
   height: number;
 }
 
+/** Phase 4 — freeform wall segment in floor-plan coordinates (x, planY). */
+export interface OfficeWallSegment {
+  id: string;
+  floor: number;
+  start: [number, number];
+  end: [number, number];
+}
+
+/** Phase 4 — optional RoomSketcher-style architecture + multi-floor. */
+export interface OfficeArchitecture {
+  freeform_enabled: boolean;
+  floor_count: number;
+  walls: OfficeWallSegment[];
+}
+
+export const DEFAULT_OFFICE_ARCHITECTURE: OfficeArchitecture = {
+  freeform_enabled: false,
+  floor_count: 1,
+  walls: [],
+};
+
+export const OFFICE_ARCHITECTURE_FLOOR_MIN = 1;
+export const OFFICE_ARCHITECTURE_FLOOR_MAX = 3;
+
 export interface FurnitureInstance {
   id: string;
   catalog_id: string;
@@ -70,6 +94,8 @@ export interface OfficeVisualConfig {
   corridor_room: RoomDimensions;
   room: RoomDimensions;
   furniture: FurnitureInstance[];
+  /** Phase 4 — optional freeform walls and stacked floors (default off). */
+  architecture?: OfficeArchitecture;
 }
 
 export interface AgentVisualConfig {
