@@ -3002,10 +3002,26 @@ body.workspace-resizing {
   user-select: none;
 }
 
-.design-floor-furniture-label {
-  fill: rgba(255, 255, 255, 0.88);
+.design-floor-furniture-silhouette {
+  pointer-events: none;
+  user-select: none;
+}
+
+.design-floor-furniture-fallback {
+  pointer-events: none;
+}
+
+.design-floor-furniture-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 0.04;
+  cursor: grab;
+}
+
+.design-floor-furniture-dims {
+  fill: #9fe8ff;
   font-family: system-ui, sans-serif;
-  font-weight: 700;
+  font-weight: 600;
   pointer-events: none;
   user-select: none;
 }
@@ -3031,23 +3047,33 @@ body.workspace-resizing {
   border-top: 1px solid var(--border-subtle);
 }
 
-.design-floor-furniture rect {
+.design-floor-furniture-fallback {
   fill: rgba(109, 159, 120, 0.55);
   stroke: rgba(159, 208, 168, 0.8);
   stroke-width: 0.04;
-  cursor: grab;
 }
 
-.design-floor-furniture.selected rect {
-  fill: rgba(94, 200, 255, 0.5);
+.design-floor-furniture.selected .design-floor-furniture-hit {
   stroke: #9fe8ff;
   stroke-width: 0.07;
 }
 
-.design-floor-furniture.colliding rect {
+.design-floor-furniture.selected .design-floor-furniture-silhouette {
+  filter: drop-shadow(0 0 0.12rem rgba(94, 200, 255, 0.85));
+}
+
+.design-floor-furniture.colliding .design-floor-furniture-fallback {
   fill: rgba(224, 112, 112, 0.45);
   stroke: #f0a0a0;
+}
+
+.design-floor-furniture.colliding .design-floor-furniture-hit {
+  stroke: #f0a0a0;
   stroke-width: 0.07;
+}
+
+.design-floor-furniture.colliding .design-floor-furniture-silhouette {
+  filter: saturate(0.5) hue-rotate(-25deg) drop-shadow(0 0 0.1rem rgba(240, 160, 160, 0.9));
 }
 
 .design-floor-plan-status-warn {

@@ -15,6 +15,7 @@ import { CORE_FURNITURE_ASSET_IDS } from "../data/coreFurnitureAssets";
 import { catalogEntryIcon, getCatalogEntry } from "../data/furnitureCatalog";
 import { normalizeOfficeVisual } from "../utils/officeVisualNormalize";
 import { withPreviewDecor } from "../utils/previewOfficeDecor";
+import { formatFootprintDimensions } from "../utils/furniturePlanSilhouette";
 import { furnitureThumbnailPath } from "../utils/furnitureThumbnail";
 import { DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
 import { GAME_DESIGN_CHECKLIST } from "./gameDesignChecklist";
@@ -136,6 +137,12 @@ export function runAcceptanceTests(): AcceptanceResult[] {
       "B2 core furniture catalog entries resolve",
       CORE_FURNITURE_ASSET_IDS.every((id) => Boolean(getCatalogEntry(id)?.gltfPath)),
       CORE_FURNITURE_ASSET_IDS.join(","),
+    ),
+  );
+  results.push(
+    assert(
+      "A4 footprint dimension label format",
+      formatFootprintDimensions([1.2, 0.75]) === "1.20 × 0.75 m",
     ),
   );
   results.push(

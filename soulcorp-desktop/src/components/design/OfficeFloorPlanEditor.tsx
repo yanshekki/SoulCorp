@@ -18,6 +18,8 @@ import {
   type FloorPlanZone,
 } from "../../utils/placementEngine";
 import { clampToZone } from "../../utils/furnitureEditor";
+import { formatFootprintDimensions } from "../../utils/furniturePlanSilhouette";
+import { FurniturePlanSilhouette } from "./FurniturePlanSilhouette";
 
 const PLAN_PADDING = 1.2;
 
@@ -26,22 +28,6 @@ const ZONE_MARKERS: Record<FloorPlanZone["id"], string> = {
   corridor: "C",
   office: "O",
 };
-
-function furniturePlanLabel(catalogId: string): string {
-  const entry = getCatalogEntry(catalogId);
-  if (!entry) {
-    return "?";
-  }
-  const words = entry.label.split(/\s+/).filter(Boolean);
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-  return words
-    .map((word) => word[0])
-    .join("")
-    .slice(0, 3)
-    .toUpperCase();
-}
 
 function hitFurnitureAtPoint(
   items: FurnitureInstance[],
@@ -294,7 +280,9 @@ export function OfficeFloorPlanEditor() {
   const selectedItem = selectedFurnitureId
     ? config.furniture.find((item) => item.id === selectedFurnitureId)
     : null;
-  const selectedLabel = selectedItem ? getCatalogEntry(selectedItem.catalog_id)?.label : null;
+  const selectedEntry = selectedItem ? getCatalogEntry(selectedItem.catalog_id) : null;
+  const selectedLabel = selectedEntry?.label ?? null;
+  const selectedDims = selectedEntry ? formatFootprintDimensions(selectedEntry.footprint) : null;
 
   return (
     <section className="design-floor-plan-editor">
@@ -337,12 +325,21 @@ export function OfficeFloorPlanEditor() {
         onPointerLeave={onPointerUp}
       >
         <defs>
-          <pattern id="floor-grid" width="0.5" height="0.5" patternUnits="userSpaceOnUse">
+          <pattern id="floor-grid-fine" width="0.25" height="0.25" patternUnits="userSpaceOnUse">
             <path
-              d="M 0.5 0 L 0 0 0 0.5"
+              d="M 0.25 0 L 0 0 0 0.25"
               fill="none"
-              stroke="rgba(255,255,255,0.06)"
-              strokeWidth="0.02"
+              stroke="rgba(255,255,255,0.05)"
+              strokeWidth="0.015"
+            />
+          </pattern>
+          <pattern id="floor-grid-coarse" width="1" height="1" patternUnits="userSpaceOnUse">
+            <rect width="1" height="1" fill="url(#floor-grid-fine)" />
+            <path
+              d="M 1 0 L 0 0 0 1"
+              fill="none"
+              stroke="rgba(255,255,255,0.12)"
+              strokeWidth="0.03"
             />
           </pattern>
         </defs>
@@ -352,7 +349,7 @@ export function OfficeFloorPlanEditor() {
           y={-PLAN_PADDING}
           width={layout.maxWidth + PLAN_PADDING * 2}
           height={layout.totalDepth + PLAN_PADDING * 2}
-          fill="url(#floor-grid)"
+          fill="url(#floor-grid-coarse)"
         />
 
         {layout.zones.map((zone) => (
@@ -385,7 +382,6 @@ export function OfficeFloorPlanEditor() {
           if (!entry || !coords) {
             return null;
           }
-          const [w, d] = entry.footprint;
           const selected = item.id === selectedFurnitureId;
           const colliding =
             dragPreview?.id === item.id && dragPreview.valid === false;
@@ -400,24 +396,13 @@ export function OfficeFloorPlanEditor() {
                 setActiveZone(item.zone);
               }}
             >
-              <rect
-                x={-w / 2}
-                y={-d / 2}
-                width={w}
-                height={d}
-                rx={0.08}
+              <FurniturePlanSilhouette
+                catalogId={item.catalog_id}
+                gltfPath={entry.gltfPath}
+                footprint={entry.footprint}
+                showDimensions={selected}
+                title={entry.label}
               />
-              <text
-                x={0}
-                y={0}
-                className="design-floor-furniture-label"
-                fontSize={Math.min(0.18, w * 0.35)}
-                textAnchor="middle"
-                dominantBaseline="middle"
-              >
-                {furniturePlanLabel(item.catalog_id)}
-              </text>
-              <title>{entry.label}</title>
             </g>
           );
         })}
@@ -432,7 +417,14 @@ export function OfficeFloorPlanEditor() {
           </span>
         ) : selectedLabel ? (
           <span>
-            已選 <strong>{selectedLabel}</strong> · 拖曳移動 · R 旋轉 · Delete 刪除
+            已選 <strong>{selectedLabel}</strong>
+            {selectedDims ? (
+              <>
+                {" "}
+                · <strong>{selectedDims}</strong>
+              </>
+            ) : null}{" "}
+            · 拖曳移動 · R 旋轉 · Delete 刪除
           </span>
         ) : (
           <span>拖曳傢俬 · 喺右邊 panel 揀傢俬後撳平面圖放置</span>
