@@ -1,0 +1,110 @@
+import { useGameStore } from "../../stores/gameStore";
+import { hasMoraleDecorNearby } from "../../utils/furnitureInteractions";
+import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
+import { DEPARTMENT_BUILDING, deskForAgent } from "../../data/worldLayout";
+
+interface AgentDetailPanelProps {
+  agentId: string;
+}
+
+const SKILL_ICONS: Record<string, string> = {
+  coding: "💻",
+  ai: "🤖",
+  design: "🎨",
+  marketing: "📣",
+  leadership: "⭐",
+  default: "🔧",
+};
+
+function iconForSkill(skill: string): string {
+  const key = skill.toLowerCase();
+  for (const [match, icon] of Object.entries(SKILL_ICONS)) {
+    if (match !== "default" && key.includes(match)) {
+      return icon;
+    }
+  }
+  return SKILL_ICONS.default;
+}
+
+export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
+  const record = useGameStore((state) =>
+    state.agentRecords.find((agent) => agent.id === agentId),
+  );
+  const agent = useGameStore((state) => state.agents.find((item) => item.id === agentId));
+  const selectAgent = useGameStore((state) => state.selectAgent);
+
+  if (!record) {
+    return null;
+  }
+
+  const skills = record.skills ?? defaultSkillsForRole(record.role);
+  const buildingId = DEPARTMENT_BUILDING[record.department] ?? "hq";
+  const office = normalizeOfficeVisual(
+    useGameStore.getState().visualDesign.offices[buildingId],
+    buildingId,
+  );
+  const desk = deskForAgent(buildingId, agentId);
+  const moraleZone = hasMoraleDecorNearby(desk, office);
+
+  return (
+    <aside className="agent-detail-panel" role="complementary">
+      <header>
+        <h3>{record.name}</h3>
+        <button type="button" onClick={() => selectAgent(null)} aria-label="Close agent panel">
+          ×
+        </button>
+      </header>
+      <p className="muted">
+        {record.role} · {record.department}
+      </p>
+      <dl className="agent-detail-stats">
+        <div>
+          <dt>Morale</dt>
+          <dd>{(record.morale * 100).toFixed(0)}%</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{agent?.statusLabel ?? record.status}</dd>
+        </div>
+        {moraleZone ? (
+          <div>
+            <dt>Zone buff</dt>
+            <dd>+5% morale (decor nearby)</dd>
+          </div>
+        ) : null}
+      </dl>
+      <section>
+        <h4>Skills & tools</h4>
+        {skills.length === 0 ? (
+          <p className="muted">No skills assigned yet.</p>
+        ) : (
+          <ul className="agent-skill-list">
+            {skills.map((skill) => (
+              <li key={skill}>
+                <span aria-hidden="true">{iconForSkill(skill)}</span>
+                {skill}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </aside>
+  );
+}
+
+function defaultSkillsForRole(role: string): string[] {
+  const lower = role.toLowerCase();
+  if (lower.includes("engineer") || lower.includes("developer")) {
+    return ["Coding", "AI"];
+  }
+  if (lower.includes("design")) {
+    return ["Design", "UI"];
+  }
+  if (lower.includes("ceo") || lower.includes("executive")) {
+    return ["Leadership", "Strategy"];
+  }
+  if (lower.includes("hr") || lower.includes("recruit")) {
+    return ["People", "Culture"];
+  }
+  return ["Collaboration"];
+}

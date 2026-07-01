@@ -446,6 +446,6 @@ mod tests {
         assert_eq!(restored.company_id, "company-test");
         assert_eq!(restored.tick, 42);
         assert_eq!(restored.day_number, 7);
-        assert_eq!(restored.agents.len(), 3);
+        assert_eq!(restored.agents.len(), 4);
     }
 }

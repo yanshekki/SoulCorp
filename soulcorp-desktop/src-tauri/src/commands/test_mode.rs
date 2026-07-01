@@ -3,7 +3,7 @@ use crate::db::persistence::{clear_all_persisted_data, commit};
 use crate::relationships;
 use crate::state::fresh_company_state;
 use crate::state::visual_design::CompanyVisualDesign;
-use crate::state::{AppState, EventMode, GameEvent, GigContract};
+use crate::state::{AppState, GameEvent, GigContract, PlayMode};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -25,9 +25,10 @@ fn build_fake_company_state() -> AppState {
         "Nova Dynamics",
         "AI SaaS",
         "Building agent-native companies at lightspeed",
-        EventMode::Fun,
+        PlayMode::Game,
         false,
         true,
+        0.18,
     );
     state.onboarding_completed = true;
     state.day_number = 87;
@@ -54,6 +55,8 @@ fn build_fake_company_state() -> AppState {
             tone: "positive".into(),
             morale_delta: 0.08,
             cash_delta: 1200.0,
+            narrator: Some("Fate".into()),
+            generated_by_ai: true,
         },
         GameEvent {
             id: "evt-test-2".into(),
@@ -62,6 +65,8 @@ fn build_fake_company_state() -> AppState {
             tone: "positive".into(),
             morale_delta: 0.05,
             cash_delta: 2800.0,
+            narrator: None,
+            generated_by_ai: false,
         },
         GameEvent {
             id: "evt-test-3".into(),
@@ -70,6 +75,8 @@ fn build_fake_company_state() -> AppState {
             tone: "negative".into(),
             morale_delta: -0.04,
             cash_delta: -400.0,
+            narrator: Some("Fate".into()),
+            generated_by_ai: true,
         },
     ];
 
@@ -141,7 +148,8 @@ mod tests {
     fn fake_state_is_onboarded_with_agents() {
         let state = build_fake_company_state();
         assert!(state.onboarding_completed);
-        assert_eq!(state.agents.len(), 3);
+        assert_eq!(state.agents.len(), 4);
+        assert!(state.agents.contains_key("agent-fate"));
         assert_eq!(state.day_number, 87);
         assert!(!state.events.is_empty());
     }

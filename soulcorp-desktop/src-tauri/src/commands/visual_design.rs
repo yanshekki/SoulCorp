@@ -1,7 +1,7 @@
 use crate::db::persistence::commit;
 use crate::state::visual_design::{
-    AgentVisualConfig, BuildingVisualConfig, CampusThemeConfig, CompanyVisualDesign,
-    OfficeVisualConfig,
+    AgentVisualConfig, BuildingStyle, BuildingVisualConfig, CampusThemeConfig, CompanyVisualDesign,
+    OfficeDeskStyle, OfficeLighting, OfficeVisualConfig,
 };
 use crate::state::AppState;
 use chrono::Utc;
@@ -39,6 +39,54 @@ pub struct ApplyDesignPresetRequest {
 
 fn touch_design(state: &mut AppState) {
     state.visual_design.updated_at = Some(Utc::now().to_rfc3339());
+}
+
+fn office_preset(
+    floor: &str,
+    wall: &str,
+    accent: &str,
+    desk: OfficeDeskStyle,
+    lighting: OfficeLighting,
+    lounge: bool,
+) -> OfficeVisualConfig {
+    OfficeVisualConfig {
+        floor_color: floor.to_string(),
+        wall_color: wall.to_string(),
+        accent_color: accent.to_string(),
+        desk_style: desk,
+        lighting,
+        has_plants: true,
+        has_whiteboard: true,
+        has_lounge_seating: lounge,
+        desk_positions: Vec::new(),
+        lobby_room: crate::state::visual_design::RoomDimensions {
+            width: 10.0,
+            depth: 7.0,
+            height: 3.2,
+        },
+        corridor_room: crate::state::visual_design::RoomDimensions {
+            width: 2.5,
+            depth: 3.0,
+            height: 3.2,
+        },
+        room: crate::state::visual_design::RoomDimensions::default(),
+        furniture: Vec::new(),
+    }
+}
+
+fn building_preset(
+    color: &str,
+    roof: &str,
+    accent: &str,
+    style: BuildingStyle,
+) -> BuildingVisualConfig {
+    BuildingVisualConfig {
+        color: color.to_string(),
+        roof_color: roof.to_string(),
+        accent_color: accent.to_string(),
+        style,
+        ..BuildingVisualConfig::default()
+    }
 }
 
 #[tauri::command]
@@ -176,37 +224,92 @@ pub fn preset_for(preset_id: &str) -> CompanyVisualDesign {
                 ground_secondary: "#2f4a36".to_string(),
                 ambient_intensity: 0.55,
             };
-        }
-        "glass-towers" => {
-            for id in ["hq", "engineering", "hr"] {
+            for id in ["hq", "engineering", "hr", "plaza", "park"] {
                 design.buildings.insert(
                     id.to_string(),
-                    BuildingVisualConfig {
-                        color: "#8eb8d8".to_string(),
-                        roof_color: "#5a8fb8".to_string(),
-                        accent_color: "#d9f0ff".to_string(),
-                        style: crate::state::visual_design::BuildingStyle::Glass,
-                        ..BuildingVisualConfig::default()
-                    },
+                    building_preset("#5a6d82", "#3d4f62", "#9fd5ff", BuildingStyle::Modern),
+                );
+            }
+        }
+        "glass-towers" => {
+            for id in ["hq", "engineering", "hr", "plaza", "park"] {
+                design.buildings.insert(
+                    id.to_string(),
+                    building_preset("#8eb8d8", "#5a8fb8", "#d9f0ff", BuildingStyle::Glass),
+                );
+                design.offices.insert(
+                    id.to_string(),
+                    office_preset(
+                        "#e4edf5",
+                        "#f5fafd",
+                        "#9fd5ff",
+                        OfficeDeskStyle::Open,
+                        OfficeLighting::Cool,
+                        false,
+                    ),
                 );
             }
         }
         "warm-startup" => {
             design.campus.ground_primary = "#8faa62".to_string();
-            for (id, color, roof, accent) in [
-                ("hq", "#c9856a", "#a86d52", "#ffd166"),
-                ("engineering", "#7d9eb8", "#5f7f9a", "#9fd5ff"),
-                ("hr", "#c98ba0", "#a86d7f", "#ffb3c7"),
+            design.campus.ground_secondary = "#7a9a55".to_string();
+            design.campus.ambient_intensity = 0.92;
+            for (id, color, roof, accent, desk, lounge) in [
+                (
+                    "hq",
+                    "#c9856a",
+                    "#a86d52",
+                    "#ffd166",
+                    OfficeDeskStyle::Executive,
+                    false,
+                ),
+                (
+                    "engineering",
+                    "#7d9eb8",
+                    "#5f7f9a",
+                    "#9fd5ff",
+                    OfficeDeskStyle::Creative,
+                    false,
+                ),
+                (
+                    "hr",
+                    "#c98ba0",
+                    "#a86d7f",
+                    "#ffb3c7",
+                    OfficeDeskStyle::Lounge,
+                    true,
+                ),
+                (
+                    "plaza",
+                    "#a6896b",
+                    "#8a7258",
+                    "#f2c879",
+                    OfficeDeskStyle::Open,
+                    false,
+                ),
+                (
+                    "park",
+                    "#6f9b7a",
+                    "#5a8a65",
+                    "#b8e6c8",
+                    OfficeDeskStyle::Lounge,
+                    true,
+                ),
             ] {
                 design.buildings.insert(
                     id.to_string(),
-                    BuildingVisualConfig {
-                        color: color.to_string(),
-                        roof_color: roof.to_string(),
-                        accent_color: accent.to_string(),
-                        style: crate::state::visual_design::BuildingStyle::Startup,
-                        ..BuildingVisualConfig::default()
-                    },
+                    building_preset(color, roof, accent, BuildingStyle::Startup),
+                );
+                design.offices.insert(
+                    id.to_string(),
+                    office_preset(
+                        "#e8dfd2",
+                        "#faf6ef",
+                        accent,
+                        desk,
+                        OfficeLighting::Warm,
+                        lounge,
+                    ),
                 );
             }
         }
@@ -224,5 +327,16 @@ mod tests {
     fn preset_returns_updated_design() {
         let design = preset_for("glass-towers");
         assert!(design.buildings.contains_key("hq"));
+        assert!(design.buildings.contains_key("park"));
+        assert!(design.offices.contains_key("engineering"));
+    }
+
+    #[test]
+    fn warm_startup_sets_all_buildings() {
+        let design = preset_for("warm-startup");
+        for id in ["hq", "engineering", "hr", "plaza", "park"] {
+            assert!(design.buildings.contains_key(id));
+            assert!(design.offices.contains_key(id));
+        }
     }
 }

@@ -3,6 +3,45 @@ export type OfficeDeskStyle = "open" | "cubicle" | "executive" | "creative" | "l
 export type OfficeLighting = "warm" | "cool" | "natural";
 export type DesignHairStyle = "short" | "bob" | "spiky" | "long";
 export type DesignCategory = "campus" | "buildings" | "offices" | "agents";
+export type InteriorZone = "lobby" | "corridor" | "office";
+export type FurnitureCategory =
+  | "desk"
+  | "chair"
+  | "decor"
+  | "plant"
+  | "tech"
+  | "storage"
+  | "lighting"
+  | "structure";
+
+export interface FurnitureCatalogEntry {
+  id: string;
+  label: string;
+  category: FurnitureCategory;
+  footprint: [number, number];
+  gltfPath: string;
+  snapToGrid: boolean;
+  gridSize: number;
+  rotatable: boolean;
+  deskStyle?: OfficeDeskStyle;
+  defaultProps?: Record<string, unknown>;
+}
+
+export interface RoomDimensions {
+  width: number;
+  depth: number;
+  height: number;
+}
+
+export interface FurnitureInstance {
+  id: string;
+  catalog_id: string;
+  zone: InteriorZone;
+  position: [number, number, number];
+  rotation_y: number;
+  scale?: number;
+  linked_agent_id?: string | null;
+}
 
 export interface BuildingVisualConfig {
   color: string;
@@ -22,6 +61,12 @@ export interface OfficeVisualConfig {
   has_plants: boolean;
   has_whiteboard: boolean;
   has_lounge_seating: boolean;
+  /** @deprecated Migrated into furniture[] — kept for save compatibility */
+  desk_positions?: [number, number, number][];
+  lobby_room: RoomDimensions;
+  corridor_room: RoomDimensions;
+  room: RoomDimensions;
+  furniture: FurnitureInstance[];
 }
 
 export interface AgentVisualConfig {
@@ -77,6 +122,10 @@ export const DEFAULT_BUILDING_VISUAL: BuildingVisualConfig = {
   signage: "",
 };
 
+export const DEFAULT_LOBBY_ROOM: RoomDimensions = { width: 3.9, depth: 2.1, height: 2.55 };
+export const DEFAULT_CORRIDOR_ROOM: RoomDimensions = { width: 1.3, depth: 0.85, height: 2.55 };
+export const DEFAULT_OFFICE_ROOM: RoomDimensions = { width: 3.6, depth: 2.9, height: 2.55 };
+
 export const DEFAULT_OFFICE_VISUAL: OfficeVisualConfig = {
   floor_color: "#d9cfc0",
   wall_color: "#f5f0e8",
@@ -86,6 +135,11 @@ export const DEFAULT_OFFICE_VISUAL: OfficeVisualConfig = {
   has_plants: true,
   has_whiteboard: true,
   has_lounge_seating: false,
+  desk_positions: [],
+  lobby_room: DEFAULT_LOBBY_ROOM,
+  corridor_room: DEFAULT_CORRIDOR_ROOM,
+  room: DEFAULT_OFFICE_ROOM,
+  furniture: [],
 };
 
 export const DEFAULT_AGENT_VISUAL: AgentVisualConfig = {

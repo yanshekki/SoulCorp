@@ -11,6 +11,10 @@ import type { Agent, AgentStatus, BehaviorIntent, Building } from "../types/worl
 import { useGameStore } from "../stores/gameStore";
 import { appearanceFromVisualConfig } from "./applyVisualDesign";
 import { generateAgentAppearance } from "./agentAppearance";
+import { hasMoraleDecorNearby } from "./furnitureInteractions";
+import { normalizeOfficeVisual } from "./officeVisualNormalize";
+import { getCampusNavGrid } from "./campusNavGrid";
+import { ensurePath, followPath } from "./pathFollower";
 
 const STATUS_LABELS: Record<BehaviorIntent, string> = {
   commute_to_desk: "Heading to desk",
@@ -53,6 +57,10 @@ function resolveBuildingId(department: string): string {
   return DEPARTMENT_BUILDING[department] ?? "hq";
 }
 
+export function isVisibleOfficeAgent(record: AgentRecord): boolean {
+  return record.status !== "dormant";
+}
+
 export function createAgentFromRecord(record: AgentRecord): Agent {
   const buildingId = resolveBuildingId(record.department);
   const homeDesk = deskForAgent(buildingId, record.id);
@@ -61,13 +69,14 @@ export function createAgentFromRecord(record: AgentRecord): Agent {
   const appearance = visualOverride
     ? appearanceFromVisualConfig(record.id, visualOverride)
     : generateAgentAppearance(record.id);
+  const isFate = record.agent_kind === "fate";
 
   return {
     id: record.id,
     name: record.name,
     department: record.department,
     role: record.role,
-    color: appearance.shirtColor,
+    color: isFate ? "#c9a227" : appearance.shirtColor,
     status: mapBackendStatus(record.status),
     statusLabel: statusLabelFor("commute_to_desk", record.role),
     position: withY(entrance),
@@ -182,6 +191,14 @@ export function advanceAgentBehavior(
   let waitSeconds = Math.max(0, agent.behavior.waitSeconds - delta);
   const atTarget = distance2D(agent.position, agent.target) < 0.12;
 
+  const playMode = useGameStore.getState().settings.play_mode;
+  const office = normalizeOfficeVisual(
+    useGameStore.getState().visualDesign.offices[agent.behavior.buildingId],
+    agent.behavior.buildingId,
+  );
+  const moraleBoost =
+    playMode === "game" && hasMoraleDecorNearby(agent.position, office);
+
   if (atTarget) {
     if (intent === "commute_to_desk") {
       intent = "working";
@@ -191,7 +208,7 @@ export function advanceAgentBehavior(
       waitSeconds = 12;
     } else if (intent === "walking_to_break") {
       intent = "on_break";
-      waitSeconds = 10;
+      waitSeconds = moraleBoost ? 7 : 10;
     } else if (intent === "walking_to_plaza") {
       intent = "visiting_plaza";
       waitSeconds = 9;
@@ -216,9 +233,45 @@ export function advanceAgentBehavior(
   const target = targetForIntent({ ...agent, behavior: { ...agent.behavior, intent } }, intent);
   const moving = distance2D(agent.position, target) >= 0.12;
   const speedMultiplier = record?.status === "throttled" ? 0.45 : 1;
-  const position = moving
-    ? moveTowards(agent.position, target, agent.speed * speedMultiplier, delta)
-    : [target[0], 0, target[2]] as [number, number, number];
+
+  let position = agent.position;
+  let path = agent.path;
+  let pathIndex = agent.pathIndex ?? 0;
+  let pathTargetKey = agent.pathTargetKey;
+
+  if (moving) {
+    const navGrid = getCampusNavGrid(buildings);
+    const pathState = ensurePath(
+      navGrid,
+      agent.position,
+      target,
+      path,
+      pathTargetKey,
+      pathIndex,
+    );
+    path = pathState.path;
+    pathIndex = pathState.pathIndex;
+    pathTargetKey = pathState.pathTargetKey;
+
+    const followed = followPath(
+      agent.position,
+      path,
+      pathIndex,
+      agent.speed * speedMultiplier,
+      delta,
+    );
+    position = followed.position;
+    pathIndex = followed.pathIndex;
+
+    if (distance2D(position, target) >= 0.12 && pathIndex >= path.length) {
+      position = moveTowards(position, target, agent.speed * speedMultiplier, delta);
+    }
+  } else {
+    position = [target[0], 0, target[2]];
+    path = undefined;
+    pathIndex = 0;
+    pathTargetKey = undefined;
+  }
 
   const isWalking =
     moving &&
@@ -233,15 +286,21 @@ export function advanceAgentBehavior(
         ? "working"
         : "idle";
 
-  const statusLabel =
+  let statusLabel =
     record?.status === "throttled"
       ? `${agent.role} · throttled (low compute)`
       : statusLabelFor(intent, agent.role);
+  if (moraleBoost && (intent === "working" || intent === "on_break")) {
+    statusLabel = `${statusLabel} · cozy zone`;
+  }
 
   return {
     ...agent,
     position,
     target,
+    path,
+    pathIndex,
+    pathTargetKey,
     status,
     statusLabel,
     walkPhase: isWalking ? agent.walkPhase + delta * 9 : 0,
@@ -259,7 +318,7 @@ export function syncAgentsFromRecords(
 ): Agent[] {
   const existingMap = new Map(existing.map((agent) => [agent.id, agent]));
 
-  return records.map((record) => {
+  return records.filter(isVisibleOfficeAgent).map((record) => {
     const current = existingMap.get(record.id);
     if (current) {
       return {

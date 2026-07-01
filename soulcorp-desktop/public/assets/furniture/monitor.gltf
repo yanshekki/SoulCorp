@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "monitor",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "monitor",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "monitor",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 32,
+      "type": "VEC3",
+      "max": [
+        0.25,
+        2,
+        2
+      ],
+      "min": [
+        -0.25,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 32,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 144,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 384
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 384,
+      "byteLength": 384
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 768,
+      "byteLength": 288
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 1056,
+      "uri": "data:application/octet-stream;base64,j8J1vh+F6z4K16O8j8J1Ph+F6z4K16O8j8J1PhSuRz8K16O8j8J1vhSuRz8K16O8j8J1vh+F6z4K16M8j8J1Ph+F6z4K16M8j8J1PhSuRz8K16M8j8J1vhSuRz8K16M8AACAvmZm5j6PwvW8AACAPmZm5j6PwvW8AACAPnE9Sj+PwvW8AACAvnE9Sj+PwvW8AACAvmZm5j4K1yO8AACAPmZm5j4K1yO8AACAPnE9Sj8K1yO8AACAvnE9Sj8K1yO8j8J1vQrXoz7NzEy9j8J1PQrXoz7NzEy9j8J1Pa5H4T7NzEy9j8J1va5H4T7NzEy9j8J1vQrXoz7NzEw9j8J1PQrXoz7NzEw9j8J1Pa5H4T7NzEw9j8J1va5H4T7NzEw9KVwPvlK4nj7sUbi9KVwPPlK4nj7sUbi9KVwPPsP1qD7sUbi9KVwPvsP1qD7sUbi9KVwPvlK4nj7sUbg9KVwPPlK4nj7sUbg9KVwPPsP1qD7sUbg9KVwPvsP1qD7sUbg9j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+j8L1PSlcDz7sUTg+zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MDD+amVk/zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+zcxMPs3MTD6uR2E+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+7FE4PuxROD7NzEw+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIAGAAZABoAGAAaABsAHAAeAB0AHAAfAB4AGAAcAB0AGAAdABkAGgAeAB8AGgAfABsAGAAbAB8AGAAfABwAGQAdAB4AGQAeABoA"
+    }
+  ]
+}

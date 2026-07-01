@@ -1,5 +1,7 @@
 import { useGameStore } from "../../stores/gameStore";
 import type { Building } from "../../types/world";
+import { tryExitInterior } from "../../utils/buildModeExit";
+import { FallbackFloorPlan } from "./FallbackFloorPlan";
 
 function toMapPosition(x: number, z: number) {
   return {
@@ -12,16 +14,62 @@ export function OfficeMapFallback() {
   const agents = useGameStore((state) => state.agents);
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuilding = useGameStore((state) => state.selectedBuilding);
+  const visualDesign = useGameStore((state) => state.visualDesign);
   const selectBuilding = useGameStore((state) => state.selectBuilding);
+  const enterInterior = useGameStore((state) => state.enterInterior);
+  const worldView = useGameStore((state) => state.worldView);
+  const interiorBuildingId = useGameStore((state) => state.interiorBuildingId);
 
   const handleSelect = (building: Building) => {
     selectBuilding(selectedBuilding?.id === building.id ? null : building);
   };
 
+  const skyStyle = {
+    background: `linear-gradient(180deg, ${visualDesign.campus.sky_top}, ${visualDesign.campus.sky_bottom})`,
+  };
+
+  if (worldView === "interior" && interiorBuildingId) {
+    const building = buildings.find((b) => b.id === interiorBuildingId);
+    const office = visualDesign.offices[interiorBuildingId];
+    const buildingAgents = agents.filter((agent) => agent.department === building?.department);
+    return (
+      <div className="office-map-fallback interior-fallback" aria-label="Interior map view">
+        <div className="office-map-sky" style={skyStyle} />
+        <div
+          className="office-map-interior-room"
+          style={{
+            background: `linear-gradient(180deg, ${office?.wall_color ?? "#f5f0e8"}, ${office?.floor_color ?? "#d9cfc0"})`,
+          }}
+        >
+          <header className="fallback-interior-header">
+            <h3>{building?.name ?? "Interior"}</h3>
+            <p className="muted">{building?.department}</p>
+          </header>
+          <div className="fallback-floor-plan-wrap">
+            <FallbackFloorPlan
+              buildingId={interiorBuildingId}
+              office={office}
+              agents={buildingAgents}
+              accentColor={office?.accent_color ?? "#5ec8ff"}
+            />
+          </div>
+          <button type="button" className="primary-action" onClick={() => void tryExitInterior()}>
+            Back to campus
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="office-map-fallback" aria-label="Office map fallback view">
-      <div className="office-map-sky" />
-      <div className="office-map-ground" />
+      <div className="office-map-sky" style={skyStyle} />
+      <div
+        className="office-map-ground"
+        style={{
+          background: `linear-gradient(180deg, ${visualDesign.campus.ground_primary}, ${visualDesign.campus.ground_secondary})`,
+        }}
+      />
       {buildings.map((building) => {
         const [x, , z] = building.position;
         const [width, height] = building.size;
@@ -44,6 +92,23 @@ export function OfficeMapFallback() {
           >
             <span className="office-building-name">{building.name}</span>
             <span className="office-building-dept">{building.department}</span>
+            <span
+              className="office-building-enter"
+              onClick={(event) => {
+                event.stopPropagation();
+                enterInterior(building.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.stopPropagation();
+                  enterInterior(building.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              Enter
+            </span>
           </button>
         );
       })}

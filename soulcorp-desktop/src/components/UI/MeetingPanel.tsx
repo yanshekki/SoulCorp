@@ -34,7 +34,10 @@ export function MeetingPanel() {
     () => new Map(),
   );
 
-  const selectableAgents = useMemo(() => agentRecords, [agentRecords]);
+  const selectableAgents = useMemo(
+    () => agentRecords.filter((agent) => agent.agent_kind !== "fate"),
+    [agentRecords],
+  );
   const usingLiveLlm = aiStatus?.active_provider !== "mock";
 
   useEffect(() => {

@@ -67,9 +67,10 @@ pub fn fresh_company_state(
     name: &str,
     industry: &str,
     tagline: &str,
-    event_mode: super::EventMode,
+    play_mode: super::PlayMode,
     pure_local_mode: bool,
     random_events_enabled: bool,
+    random_event_chance: f32,
 ) -> AppState {
     let company_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
@@ -80,16 +81,15 @@ pub fn fresh_company_state(
     state.company_tagline = tagline.to_string();
     state.company_created_at = Some(created_at);
     state.onboarding_completed = false;
-    state.settings.event_mode = event_mode;
+    state.settings.play_mode = play_mode;
     state.settings.pure_local_mode = pure_local_mode;
     state.settings.random_events_enabled = random_events_enabled;
-    if event_mode == super::EventMode::Serious {
-        state.settings.random_events_enabled = false;
-    }
+    state.settings.random_event_chance = random_event_chance;
     if pure_local_mode {
         state.settings.ai_provider = "mock".to_string();
         state.hub.connected = false;
     }
     state.seed_defaults();
+    crate::fate::sync_play_mode_side_effects(&mut state);
     state
 }

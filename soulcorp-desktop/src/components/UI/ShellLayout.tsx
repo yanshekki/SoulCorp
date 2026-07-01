@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
+import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { OfflineStatusBar } from "./OfflineStatusBar";
@@ -146,6 +147,15 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const isPaused = useGameStore((state) => state.isPaused);
   const activePanel = useGameStore((state) => state.activePanel);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
+  const worldView = useGameStore((state) => state.worldView);
+  const inspectorExpanded = useGameStore((state) => state.inspectorExpanded);
+  const setInspectorExpanded = useGameStore((state) => state.setInspectorExpanded);
+
+  const immersiveInterior = worldView === "interior" && activePanel === "office";
+  const immersiveDesignStudio = activePanel === "design_studio";
+  const immersiveStage = immersiveInterior || immersiveDesignStudio;
+  const inspectorDrawerOpen = immersiveInterior && inspectorExpanded;
+  const hideShellInspector = immersiveDesignStudio || (immersiveInterior && !inspectorExpanded);
 
   return (
     <div className="app-shell">
@@ -157,6 +167,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
             <TierBadge />
           </div>
           <div className="app-topbar-actions">
+            <AudioMuteButton className="audio-mute-btn app-topbar-mute" />
             <CompanySwitcher />
             <button type="button" className="app-pause-btn" onClick={togglePause}>
               {isPaused ? "Resume" : "Pause"}
@@ -184,13 +195,48 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
         </div>
       </header>
 
-      <div className="app-body">
-        <aside className="app-inspector" aria-label="Inspector panel">
-          <div className="app-inspector-scroll">
-            <SidebarPanelContent panel={activePanel} />
-          </div>
-        </aside>
-        <main className="app-stage">
+      <div className={`app-body${immersiveStage ? " app-body--immersive" : ""}`}>
+        {inspectorDrawerOpen ? (
+          <button
+            type="button"
+            className="app-inspector-backdrop"
+            onClick={() => setInspectorExpanded(false)}
+            aria-label="Close inspector"
+          />
+        ) : null}
+        {!hideShellInspector ? (
+          <aside
+            className={`app-inspector${inspectorDrawerOpen ? " app-inspector--immersive-drawer" : ""}`}
+            aria-label="Inspector panel"
+          >
+            {inspectorDrawerOpen ? (
+              <button
+                type="button"
+                className="app-inspector-collapse-btn"
+                onClick={() => setInspectorExpanded(false)}
+                aria-label="Hide inspector"
+                title="Hide inspector"
+              >
+                ‹
+              </button>
+            ) : null}
+            <div className="app-inspector-scroll">
+              <SidebarPanelContent panel={activePanel} />
+            </div>
+          </aside>
+        ) : null}
+        {immersiveInterior && !inspectorExpanded ? (
+          <button
+            type="button"
+            className="app-inspector-expand-tab"
+            onClick={() => setInspectorExpanded(true)}
+            aria-label="Show inspector"
+            title="Show inspector"
+          >
+            ›
+          </button>
+        ) : null}
+        <main className={`app-stage${immersiveStage ? " app-stage--immersive" : ""}`}>
           <div className="main-panel-viewport">{children}</div>
         </main>
       </div>

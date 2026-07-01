@@ -13,6 +13,7 @@ import {
   applyAgentsVisualDesign,
   applyBuildingsVisualDesign,
 } from "../utils/applyVisualDesign";
+import { normalizeVisualDesignOffices } from "../utils/officeVisualNormalize";
 import {
   clearLocalProgress,
   reportLocalProgress,
@@ -78,6 +79,20 @@ export async function reloadGameState(
   } = store;
 
   selectBuilding(null);
+  useGameStore.setState({
+    worldView: "campus",
+    interiorBuildingId: null,
+    selectedAgentId: null,
+    hoveredDoorBuildingId: null,
+    buildMode: "play",
+    buildTool: "place",
+    buildCatalogId: null,
+    selectedFurnitureId: null,
+    hoveredFurnitureId: null,
+    buildDirty: false,
+    buildSnapshot: null,
+    cameraTransition: 1,
+  });
   setActiveMeeting(null);
 
   reportLocalProgress(operationId, "Loading company list…", 10, "companies");
@@ -142,7 +157,11 @@ export async function reloadGameState(
   setCompanyTagline(onboarding.company_tagline);
 
   reportLocalProgress(operationId, "Loading visual design…", 75, "visual");
-  const visualDesign = await getVisualDesign().catch(() => store.visualDesign);
+  const visualDesignRaw = await getVisualDesign().catch(() => store.visualDesign);
+  const visualDesign = {
+    ...visualDesignRaw,
+    offices: normalizeVisualDesignOffices(visualDesignRaw.offices),
+  };
   setVisualDesign(visualDesign);
   setAgentRecords(agents);
   const baseAgents = syncAgentsFromRecords(agents, []);

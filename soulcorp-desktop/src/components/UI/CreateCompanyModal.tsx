@@ -1,36 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { createCompany } from "../../services/companyClient";
 import { applyDesignPreset } from "../../services/visualDesignClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
-import type { EventMode } from "../../types/game";
-
-const STYLE_OPTIONS: {
-  id: EventMode;
-  title: string;
-  description: string;
-  events: boolean;
-}[] = [
-  {
-    id: "fun",
-    title: "Fun Mode",
-    description: "Chaotic events and surprise twists.",
-    events: true,
-  },
-  {
-    id: "balanced",
-    title: "Balanced Mode",
-    description: "Productivity with occasional drama.",
-    events: true,
-  },
-  {
-    id: "serious",
-    title: "Serious Work Mode",
-    description: "Pure productivity. No random events.",
-    events: false,
-  },
-];
+import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
+import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
 
 export function CreateCompanyModal() {
   const showCreateCompany = useGameStore((state) => state.showCreateCompany);
@@ -41,16 +16,15 @@ export function CreateCompanyModal() {
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
   const [tagline, setTagline] = useState("");
-  const [eventMode, setEventMode] = useState<EventMode>("balanced");
+  const [playModeConfig, setPlayModeConfig] = useState<PlayModeConfig>({
+    playMode: "work",
+    randomEventsEnabled: false,
+    randomEventChance: DEFAULT_EVENT_CHANCE,
+  });
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [openDesignStudioAfter, setOpenDesignStudioAfter] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  const selectedStyle = useMemo(
-    () => STYLE_OPTIONS.find((option) => option.id === eventMode) ?? STYLE_OPTIONS[1],
-    [eventMode],
-  );
 
   if (!showCreateCompany) {
     return null;
@@ -73,22 +47,27 @@ export function CreateCompanyModal() {
         company_name: companyName.trim(),
         industry: industry.trim(),
         tagline: tagline.trim(),
-        event_mode: eventMode,
+        play_mode: playModeConfig.playMode,
         pure_local_mode: pureLocalMode,
-        random_events_enabled: selectedStyle.events,
+        random_events_enabled:
+          playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
+        random_event_chance: playModeConfig.randomEventChance,
       });
-      await reloadGameState();
       if (designPresetId && designPresetId !== "default") {
         await applyDesignPreset(designPresetId);
-        await reloadGameState();
       }
+      await reloadGameState();
       setActivePanel(openDesignStudioAfter ? "design_studio" : "office");
       useGameStore.setState({ isPaused: false });
       setShowCreateCompany(false);
       setCompanyName("");
       setIndustry("");
       setTagline("");
-      setEventMode("balanced");
+      setPlayModeConfig({
+        playMode: "work",
+        randomEventsEnabled: false,
+        randomEventChance: DEFAULT_EVENT_CHANCE,
+      });
       setPureLocalMode(false);
       setStatusMessage(`Created ${companyName.trim()}. Your new office is live.`);
     } catch (error) {
@@ -100,7 +79,7 @@ export function CreateCompanyModal() {
 
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="create-company-title">
-      <div className="onboarding-wizard create-company-modal">
+      <div className="onboarding-wizard onboarding-wizard-wide create-company-modal">
         <header className="onboarding-header">
           <p className="modal-eyebrow">Multi-company</p>
           <h2 id="create-company-title">Start another company</h2>
@@ -140,19 +119,7 @@ export function CreateCompanyModal() {
           </label>
 
           <h3>Play style</h3>
-          <div className="onboarding-choice-grid">
-            {STYLE_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`onboarding-choice ${eventMode === option.id ? "selected" : ""}`}
-                onClick={() => setEventMode(option.id)}
-              >
-                <strong>{option.title}</strong>
-                <span>{option.description}</span>
-              </button>
-            ))}
-          </div>
+          <PlayModePicker compact value={playModeConfig} onChange={setPlayModeConfig} />
 
           <label className="checkbox-row">
             <input
@@ -165,7 +132,11 @@ export function CreateCompanyModal() {
 
           <h3>3D campus look</h3>
           <p className="muted">Optional preset for buildings and campus theme.</p>
-          <DesignPresetPicker compact onSelect={(presetId) => setDesignPresetId(presetId)} />
+          <DesignPresetPicker
+            compact
+            selectedId={designPresetId}
+            onSelect={(presetId) => setDesignPresetId(presetId)}
+          />
 
           <label className="checkbox-row">
             <input

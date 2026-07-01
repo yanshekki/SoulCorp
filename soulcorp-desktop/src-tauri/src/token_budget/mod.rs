@@ -357,6 +357,8 @@ mod tests {
                 soul: None,
                 soul_id: None,
                 ai_provider: None,
+                agent_kind: None,
+                skills: crate::state::skills_for_role("Engineer"),
             },
         );
         state.token_economy.company_balance = 1000;

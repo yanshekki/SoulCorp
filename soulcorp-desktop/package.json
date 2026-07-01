@@ -12,6 +12,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "verify": "pnpm typecheck && pnpm build",
+    "acceptance": "node scripts/acceptance-check.mjs",
+    "generate:furniture-thumbs": "node scripts/generate-furniture-thumbnails.mjs",
+    "generate:furniture-gltf": "node scripts/generate-furniture-gltf.mjs",
     "release:bundle": "pnpm build && pnpm tauri build"
   },
   "dependencies": {
@@ -42,6 +45,7 @@
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "^4.6.0",
     "prisma": "^6.16.2",
+    "tsx": "^4.20.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   },

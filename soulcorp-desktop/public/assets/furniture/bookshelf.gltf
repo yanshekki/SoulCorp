@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "bookshelf",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "bookshelf",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "bookshelf",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 48,
+      "type": "VEC3",
+      "max": [
+        0.45,
+        2,
+        2
+      ],
+      "min": [
+        -0.45,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 48,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 216,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 576
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 576
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1152,
+      "byteLength": 432
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 1584,
+      "uri": "data:application/octet-stream;base64,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"
+    }
+  ]
+}

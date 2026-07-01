@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "desk_lounge",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "desk_lounge",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "desk_lounge",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 16,
+      "type": "VEC3",
+      "max": [
+        0.5,
+        2,
+        2
+      ],
+      "min": [
+        -0.5,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 16,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 72,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 192
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 192,
+      "byteLength": 192
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 384,
+      "byteLength": 144
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 528,
+      "uri": "data:application/octet-stream;base64,AAAAvxSuBz/NzAy/AAAAPxSuBz/NzAy/AAAAP4XrET/NzAy/AAAAv4XrET/NzAy/AAAAvxSuBz/NzAw/AAAAPxSuBz/NzAw/AAAAP4XrET/NzAw/AAAAv4XrET/NzAw/ZmbmvgrXo7szMzM+ZmbmPgrXo7szMzM+ZmbmPgrX4z4zMzM+ZmbmvgrX4z4zMzM+ZmbmvgrXo7tmZgY/ZmbmPgrXo7tmZgY/ZmbmPgrX4z5mZgY/ZmbmvgrX4z5mZgY/mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+mpkZP83MDD+PwvU+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+zcwMPwAAAD+uR+E+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoA"
+    }
+  ]
+}

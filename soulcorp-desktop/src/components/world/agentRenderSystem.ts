@@ -5,9 +5,13 @@ import {
   getDepartmentPixelTexture,
   walkFrameIndex,
 } from "./pixelAgentSprite";
+import { createStylizedAgent, type StylizedAgentMesh } from "./stylizedAgent";
 
-const MAX_FAR_AGENTS = 256;
-const MAX_DEPT_AGENTS = 64;
+const MAX_FAR_AGENTS = 512;
+const MAX_BILLBOARD_AGENTS = 384;
+const MAX_HERO_AGENTS = 16;
+const MAX_CLOSE_PIXEL_SPRITES = 24;
+const MAX_STATUS_BUBBLES = 24;
 const FAR_DISTANCE = 18;
 const CLOSE_DISTANCE = 10;
 const STATUS_DISTANCE = 16;
@@ -58,13 +62,25 @@ function agentBob(agent: Agent): number {
   return Math.abs(Math.sin(agent.walkPhase)) * 0.05;
 }
 
+function sortAgentsByDistance(agents: Agent[], camera: THREE.Camera, farthestFirst = false): Agent[] {
+  camera.getWorldPosition(cameraPosition);
+  return [...agents].sort((a, b) => {
+    agentPosition.set(a.position[0], a.position[1], a.position[2]);
+    const distA = cameraPosition.distanceTo(agentPosition);
+    agentPosition.set(b.position[0], b.position[1], b.position[2]);
+    const distB = cameraPosition.distanceTo(agentPosition);
+    return farthestFirst ? distB - distA : distA - distB;
+  });
+}
+
 function agentBillboardMatrix(agent: Agent, scale: number): THREE.Matrix4 {
   const bob = agentBob(agent);
   tempObject.position.set(agent.position[0], agent.position[1] + bob + 0.55, agent.position[2]);
-  tempObject.rotation.set(0, Math.atan2(
-    cameraPosition.x - agent.position[0],
-    cameraPosition.z - agent.position[2],
-  ), 0);
+  tempObject.rotation.set(
+    0,
+    Math.atan2(cameraPosition.x - agent.position[0], cameraPosition.z - agent.position[2]),
+    0,
+  );
   tempObject.scale.set(scale, scale * 1.25, scale);
   tempObject.updateMatrix();
   return billboardMatrix.copy(tempObject.matrix);
@@ -159,8 +175,10 @@ function roundRect(
 export class AgentRenderSystem {
   private readonly scene: THREE.Scene;
   private readonly farMesh: THREE.InstancedMesh;
+  private readonly mediumBoxMesh: THREE.InstancedMesh;
   private readonly deptMeshes = new Map<string, THREE.InstancedMesh>();
   private readonly closeSprites = new Map<string, THREE.Sprite>();
+  private readonly closeMeshes = new Map<string, StylizedAgentMesh>();
   private readonly statusSprites = new Map<string, THREE.Sprite>();
   private readonly workEffectSprites = new Map<string, THREE.Sprite>();
   private readonly textureCache = new Map<string, THREE.CanvasTexture>();
@@ -177,15 +195,30 @@ export class AgentRenderSystem {
     this.farMesh = new THREE.InstancedMesh(farGeometry, farMaterial, MAX_FAR_AGENTS);
     this.farMesh.count = 0;
     scene.add(this.farMesh);
+
+    const mediumGeometry = new THREE.BoxGeometry(0.34, 0.58, 0.34);
+    const mediumMaterial = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      flatShading: true,
+    });
+    this.mediumBoxMesh = new THREE.InstancedMesh(mediumGeometry, mediumMaterial, MAX_BILLBOARD_AGENTS);
+    this.mediumBoxMesh.count = 0;
+    scene.add(this.mediumBoxMesh);
   }
 
-  sync(agents: Agent[], camera: THREE.Camera, lowPowerMode: boolean) {
+  sync(
+    agents: Agent[],
+    camera: THREE.Camera,
+    lowPowerMode: boolean,
+    pixelFilterEnabled = false,
+  ) {
+    camera.getWorldPosition(cameraPosition);
     const bucket = classifyAgents(agents, camera, lowPowerMode);
     const seen = new Set(agents.map((agent) => agent.id));
 
-    this.syncFarAgents(bucket.far);
-    this.syncMediumAgents(bucket.medium);
-    this.syncCloseAgents(bucket.close);
+    this.syncFarAgents(sortAgentsByDistance(bucket.far, camera, true));
+    this.syncMediumAgents([...bucket.medium.values()].flat(), camera, pixelFilterEnabled);
+    this.syncCloseAgents(sortAgentsByDistance(bucket.close, camera), pixelFilterEnabled);
     this.syncStatusSprites(agents, camera, lowPowerMode, seen);
     if (!lowPowerMode) {
       this.syncWorkEffectSprites(bucket.close, seen);
@@ -195,6 +228,13 @@ export class AgentRenderSystem {
       if (!seen.has(id)) {
         this.scene.remove(sprite);
         this.closeSprites.delete(id);
+      }
+    }
+    for (const [id, mesh] of this.closeMeshes) {
+      if (!seen.has(id)) {
+        this.scene.remove(mesh.group);
+        this.disposeStylizedAgent(mesh);
+        this.closeMeshes.delete(id);
       }
     }
     for (const [id, sprite] of this.statusSprites) {
@@ -259,9 +299,71 @@ export class AgentRenderSystem {
     }
   }
 
+  private syncBillboardBatches(
+    agents: Agent[],
+    pixelFilterEnabled: boolean,
+    scale: number,
+    prefix: string,
+  ) {
+    const groups = new Map<string, Agent[]>();
+    for (const agent of agents.slice(0, MAX_BILLBOARD_AGENTS)) {
+      const frame = walkFrameIndex(agent.walkPhase, agent.status === "walking");
+      const key = pixelFilterEnabled
+        ? `${prefix}:${agent.department}:${frame}`
+        : `${prefix}:${agent.department}`;
+      const list = groups.get(key) ?? [];
+      list.push(agent);
+      groups.set(key, list);
+    }
+
+    const activeKeys = new Set<string>();
+    for (const [key, batchAgents] of groups) {
+      activeKeys.add(key);
+      let mesh = this.deptMeshes.get(key);
+      if (!mesh) {
+        const geometry = new THREE.PlaneGeometry(0.9, 1.2);
+        const material = pixelFilterEnabled
+          ? new THREE.MeshStandardMaterial({
+              map: getDepartmentPixelTexture(
+                this.textureCache,
+                key.split(":")[1] ?? "Engineering",
+              ),
+              transparent: true,
+              alphaTest: 0.4,
+              side: THREE.DoubleSide,
+              toneMapped: false,
+            })
+          : new THREE.MeshStandardMaterial({
+              color: "#79a86f",
+              transparent: true,
+              opacity: 0.92,
+              side: THREE.DoubleSide,
+            });
+        mesh = new THREE.InstancedMesh(geometry, material, MAX_BILLBOARD_AGENTS);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.deptMeshes.set(key, mesh);
+        this.scene.add(mesh);
+      }
+
+      mesh.count = batchAgents.length;
+      batchAgents.forEach((agent, index) => {
+        mesh!.setMatrixAt(index, agentBillboardMatrix(agent, scale));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    for (const [key, mesh] of this.deptMeshes) {
+      if (!key.startsWith(`${prefix}:`) || !activeKeys.has(key)) {
+        mesh.count = 0;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+
   private syncFarAgents(agents: Agent[]) {
-    this.farMesh.count = Math.min(agents.length, MAX_FAR_AGENTS);
-    agents.slice(0, MAX_FAR_AGENTS).forEach((agent, index) => {
+    const batch = agents.slice(0, MAX_FAR_AGENTS);
+    this.farMesh.count = batch.length;
+    batch.forEach((agent, index) => {
       const bob = agentBob(agent);
       tempObject.position.set(agent.position[0], agent.position[1] + bob + 0.25, agent.position[2]);
       tempObject.rotation.set(0, Math.atan2(
@@ -279,75 +381,183 @@ export class AgentRenderSystem {
     }
   }
 
-  private syncMediumAgents(groups: Map<string, Agent[]>) {
-    const activeDepartments = new Set(groups.keys());
-
-    for (const [department, agents] of groups) {
-      let mesh = this.deptMeshes.get(department);
-      if (!mesh) {
-        const geometry = new THREE.PlaneGeometry(0.9, 1.2);
-        const material = new THREE.MeshStandardMaterial({
-          map: getDepartmentPixelTexture(this.textureCache, department),
-          transparent: true,
-          alphaTest: 0.4,
-          side: THREE.DoubleSide,
-          toneMapped: false,
-        });
-        mesh = new THREE.InstancedMesh(geometry, material, MAX_DEPT_AGENTS);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.deptMeshes.set(department, mesh);
-        this.scene.add(mesh);
+  private disposeStylizedAgent(mesh: StylizedAgentMesh) {
+    mesh.group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const mat = child.material;
+        if (Array.isArray(mat)) {
+          mat.forEach((entry) => entry.dispose());
+        } else {
+          mat.dispose();
+        }
       }
+    });
+  }
 
-      mesh.count = Math.min(agents.length, MAX_DEPT_AGENTS);
-      agents.slice(0, MAX_DEPT_AGENTS).forEach((agent, index) => {
-        mesh!.setMatrixAt(index, agentBillboardMatrix(agent, 0.95));
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-      activeDepartments.add(department);
+  private syncMediumAgents(agents: Agent[], camera: THREE.Camera, pixelFilterEnabled: boolean) {
+    if (pixelFilterEnabled) {
+      this.mediumBoxMesh.count = 0;
+      this.mediumBoxMesh.instanceMatrix.needsUpdate = true;
+      this.syncBillboardBatches(agents, true, 0.92, "medium");
+      return;
     }
 
-    for (const [department, mesh] of this.deptMeshes) {
-      if (!activeDepartments.has(department)) {
+    for (const [key, mesh] of this.deptMeshes) {
+      if (key.startsWith("medium:")) {
         mesh.count = 0;
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
+
+    const sorted = sortAgentsByDistance(agents, camera);
+    const heroes = sorted.slice(0, MAX_HERO_AGENTS);
+    const overflow = sorted.slice(MAX_HERO_AGENTS, MAX_BILLBOARD_AGENTS);
+
+    this.mediumBoxMesh.count = overflow.length;
+    overflow.forEach((agent, index) => {
+      const bob = agentBob(agent);
+      tempObject.position.set(agent.position[0], agent.position[1] + bob + 0.28, agent.position[2]);
+      tempObject.rotation.set(
+        0,
+        Math.atan2(agent.target[0] - agent.position[0], agent.target[2] - agent.position[2]),
+        0,
+      );
+      tempObject.scale.setScalar(0.9);
+      tempObject.updateMatrix();
+      this.mediumBoxMesh.setMatrixAt(index, tempObject.matrix);
+      this.mediumBoxMesh.setColorAt(index, this.tempColor.set(agent.color));
+    });
+    this.mediumBoxMesh.instanceMatrix.needsUpdate = true;
+    if (this.mediumBoxMesh.instanceColor) {
+      this.mediumBoxMesh.instanceColor.needsUpdate = true;
+    }
+
+    const activeHeroes = new Set(heroes.map((agent) => agent.id));
+    for (const agent of heroes) {
+      const bob = agentBob(agent);
+      let mesh = this.closeMeshes.get(`medium:${agent.id}`);
+      if (!mesh) {
+        mesh = createStylizedAgent(agent, false);
+        mesh.group.scale.setScalar(0.82);
+        this.closeMeshes.set(`medium:${agent.id}`, mesh);
+        this.scene.add(mesh.group);
+      }
+      mesh.group.position.set(agent.position[0], agent.position[1] + bob, agent.position[2]);
+      mesh.group.rotation.y = Math.atan2(
+        agent.target[0] - agent.position[0],
+        agent.target[2] - agent.position[2],
+      );
+    }
+
+    for (const [id, mesh] of this.closeMeshes) {
+      if (!id.startsWith("medium:")) {
+        continue;
+      }
+      const agentId = id.slice("medium:".length);
+      if (!activeHeroes.has(agentId)) {
+        this.scene.remove(mesh.group);
+        this.disposeStylizedAgent(mesh);
+        this.closeMeshes.delete(id);
+      }
+    }
   }
 
-  private syncCloseAgents(agents: Agent[]) {
-    const active = new Set<string>();
-    for (const agent of agents) {
-      active.add(agent.id);
-      const frame = walkFrameIndex(agent.walkPhase, agent.status === "walking");
-      let sprite = this.closeSprites.get(agent.id);
-      if (!sprite) {
-        const material = new THREE.SpriteMaterial({
-          map: getAgentPixelTexture(this.textureCache, agent, frame),
-          transparent: true,
-          depthTest: true,
-          toneMapped: false,
-        });
-        sprite = new THREE.Sprite(material);
-        sprite.renderOrder = 5;
-        this.closeSprites.set(agent.id, sprite);
-        this.scene.add(sprite);
-      } else {
-        const material = sprite.material as THREE.SpriteMaterial;
-        material.map = getAgentPixelTexture(this.textureCache, agent, frame);
-        material.needsUpdate = true;
+  private syncCloseAgents(agents: Agent[], pixelFilterEnabled: boolean) {
+    const heroes = agents.slice(0, MAX_HERO_AGENTS);
+    const spriteHeroes = agents.slice(0, MAX_CLOSE_PIXEL_SPRITES);
+    const overflow = agents.slice(pixelFilterEnabled ? MAX_CLOSE_PIXEL_SPRITES : MAX_HERO_AGENTS);
+
+    if (pixelFilterEnabled) {
+      this.syncBillboardBatches(overflow, true, 1.0, "close");
+    } else {
+      for (const [key, mesh] of this.deptMeshes) {
+        if (key.startsWith("close:")) {
+          mesh.count = 0;
+          mesh.instanceMatrix.needsUpdate = true;
+        }
+      }
+    }
+
+    const activeHeroes = new Set(heroes.map((agent) => agent.id));
+    const activeSprites = new Set(spriteHeroes.map((agent) => agent.id));
+
+    for (const agent of spriteHeroes) {
+      const bob = agentBob(agent);
+      if (pixelFilterEnabled) {
+        const existingMesh = this.closeMeshes.get(agent.id);
+        if (existingMesh) {
+          this.scene.remove(existingMesh.group);
+          this.disposeStylizedAgent(existingMesh);
+          this.closeMeshes.delete(agent.id);
+        }
+
+        const frame = walkFrameIndex(agent.walkPhase, agent.status === "walking");
+        let sprite = this.closeSprites.get(agent.id);
+        if (!sprite) {
+          const material = new THREE.SpriteMaterial({
+            map: getAgentPixelTexture(this.textureCache, agent, frame),
+            transparent: true,
+            depthTest: true,
+            toneMapped: false,
+          });
+          sprite = new THREE.Sprite(material);
+          sprite.renderOrder = 5;
+          this.closeSprites.set(agent.id, sprite);
+          this.scene.add(sprite);
+        } else {
+          const material = sprite.material as THREE.SpriteMaterial;
+          material.map = getAgentPixelTexture(this.textureCache, agent, frame);
+          material.needsUpdate = true;
+        }
+        sprite.position.set(agent.position[0], agent.position[1] + bob + 0.75, agent.position[2]);
+        sprite.scale.set(1.15, 1.45, 1);
+        sprite.material.rotation = 0;
+        continue;
       }
 
+      const existingSprite = this.closeSprites.get(agent.id);
+      if (existingSprite) {
+        this.scene.remove(existingSprite);
+        this.closeSprites.delete(agent.id);
+      }
+    }
+
+    for (const agent of heroes) {
+      if (pixelFilterEnabled) {
+        continue;
+      }
       const bob = agentBob(agent);
-      sprite.position.set(agent.position[0], agent.position[1] + bob + 0.75, agent.position[2]);
-      sprite.scale.set(1.15, 1.45, 1);
-      sprite.material.rotation = 0;
+      let mesh = this.closeMeshes.get(agent.id);
+      if (!mesh) {
+        mesh = createStylizedAgent(agent, false);
+        this.closeMeshes.set(agent.id, mesh);
+        this.scene.add(mesh.group);
+      }
+      mesh.group.position.set(agent.position[0], agent.position[1] + bob, agent.position[2]);
+      mesh.group.rotation.y = Math.atan2(
+        agent.target[0] - agent.position[0],
+        agent.target[2] - agent.position[2],
+      );
+      if (agent.status === "working") {
+        mesh.body.position.y = 0.65 + Math.sin(this.effectPhase + hashOffset(agent.id)) * 0.02;
+      }
     }
 
     for (const [id, sprite] of this.closeSprites) {
-      if (!active.has(id)) {
+      if (!activeSprites.has(id)) {
         this.scene.remove(sprite);
         this.closeSprites.delete(id);
+      }
+    }
+    for (const [id, mesh] of this.closeMeshes) {
+      if (id.startsWith("medium:")) {
+        continue;
+      }
+      if (!activeHeroes.has(id)) {
+        this.scene.remove(mesh.group);
+        this.disposeStylizedAgent(mesh);
+        this.closeMeshes.delete(id);
       }
     }
   }
@@ -360,8 +570,9 @@ export class AgentRenderSystem {
   ) {
     camera.getWorldPosition(cameraPosition);
     const statusDistance = lowPowerMode ? 12 : STATUS_DISTANCE;
+    const statusAgents = sortAgentsByDistance(agents, camera).slice(0, MAX_STATUS_BUBBLES);
 
-    for (const agent of agents) {
+    for (const agent of statusAgents) {
       agentPosition.set(agent.position[0], agent.position[1], agent.position[2]);
       const distance = cameraPosition.distanceTo(agentPosition);
       if (distance > statusDistance) {
@@ -402,6 +613,10 @@ export class AgentRenderSystem {
     this.farMesh.geometry.dispose();
     (this.farMesh.material as THREE.Material).dispose();
 
+    this.scene.remove(this.mediumBoxMesh);
+    this.mediumBoxMesh.geometry.dispose();
+    (this.mediumBoxMesh.material as THREE.Material).dispose();
+
     for (const mesh of this.deptMeshes.values()) {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
@@ -415,6 +630,12 @@ export class AgentRenderSystem {
       sprite.material.dispose();
     }
     this.closeSprites.clear();
+
+    for (const mesh of this.closeMeshes.values()) {
+      this.scene.remove(mesh.group);
+      this.disposeStylizedAgent(mesh);
+    }
+    this.closeMeshes.clear();
 
     for (const sprite of this.statusSprites.values()) {
       this.scene.remove(sprite);

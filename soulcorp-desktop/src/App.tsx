@@ -9,6 +9,7 @@ import { ShellLayout } from "./components/UI/ShellLayout";
 import { DesignStudioPage } from "./components/design/DesignStudioPage";
 import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
 import { LoadingOverlay } from "./components/UI/LoadingOverlay";
+import { useGameAudio } from "./hooks/useGameAudio";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
@@ -30,6 +31,7 @@ function App() {
   const companyReady = hasActiveCompany(activeCompanyId, companies);
 
   useGameBootstrap();
+  useGameAudio();
   useOperationProgress();
   useSimulationLoop();
 

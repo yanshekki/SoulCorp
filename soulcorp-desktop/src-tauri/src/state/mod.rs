@@ -11,22 +11,28 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum EventMode {
-    Fun,
-    Balanced,
-    Serious,
+pub enum PlayMode {
+    Game,
+    Work,
 }
 
-impl Default for EventMode {
+impl Default for PlayMode {
     fn default() -> Self {
-        EventMode::Fun
+        PlayMode::Game
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+fn default_random_event_chance() -> f32 {
+    crate::fate::DEFAULT_EVENT_CHANCE
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct GameSettings {
+    #[serde(default)]
+    pub play_mode: PlayMode,
     pub random_events_enabled: bool,
-    pub event_mode: EventMode,
+    #[serde(default = "default_random_event_chance")]
+    pub random_event_chance: f32,
     pub god_mode_enabled: bool,
     pub ai_provider: String,
     #[serde(default = "default_ollama_base_url")]
@@ -57,8 +63,34 @@ pub struct GameSettings {
     pub meeting_llm_fallback: bool,
     pub pure_local_mode: bool,
     pub pixel_filter_enabled: bool,
+    #[serde(default)]
+    pub crt_filter_enabled: bool,
     pub low_power_mode: bool,
     pub backup_interval_minutes: u32,
+    #[serde(default = "default_music_enabled")]
+    pub music_enabled: bool,
+    #[serde(default = "default_music_volume")]
+    pub music_volume: f32,
+    #[serde(default = "default_sfx_enabled")]
+    pub sfx_enabled: bool,
+    #[serde(default = "default_sfx_volume")]
+    pub sfx_volume: f32,
+}
+
+fn default_music_enabled() -> bool {
+    true
+}
+
+fn default_music_volume() -> f32 {
+    0.25
+}
+
+fn default_sfx_enabled() -> bool {
+    true
+}
+
+fn default_sfx_volume() -> f32 {
+    0.45
 }
 
 pub fn default_onboarding_completed() -> bool {
@@ -105,11 +137,141 @@ fn default_true() -> bool {
     true
 }
 
+pub fn migrate_legacy_event_mode(
+    play_mode: Option<PlayMode>,
+    legacy_event_mode: Option<&str>,
+    chance: f32,
+    random_events_enabled: bool,
+) -> (PlayMode, f32, bool) {
+    if let Some(mode) = play_mode {
+        return (mode, crate::fate::clamp_event_chance(chance), random_events_enabled);
+    }
+    match legacy_event_mode.unwrap_or("fun") {
+        "serious" => (PlayMode::Work, 0.0, false),
+        "balanced" => (PlayMode::Game, 0.10, random_events_enabled),
+        _ => (PlayMode::Game, 0.18, random_events_enabled),
+    }
+}
+
+impl<'de> Deserialize<'de> for GameSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Helper {
+            #[serde(default)]
+            play_mode: Option<PlayMode>,
+            #[serde(default = "default_true")]
+            random_events_enabled: bool,
+            #[serde(default = "default_random_event_chance")]
+            random_event_chance: f32,
+            #[serde(default)]
+            event_mode: Option<String>,
+            #[serde(default)]
+            god_mode_enabled: bool,
+            #[serde(default = "default_ai_provider")]
+            ai_provider: String,
+            #[serde(default = "default_ollama_base_url")]
+            ollama_base_url: String,
+            #[serde(default = "default_ollama_model")]
+            ollama_model: String,
+            #[serde(default = "default_openai_base_url")]
+            openai_base_url: String,
+            #[serde(default)]
+            openai_api_key: String,
+            #[serde(default = "default_openai_model")]
+            openai_model: String,
+            #[serde(default = "default_grok_base_url")]
+            grok_base_url: String,
+            #[serde(default)]
+            grok_api_key: String,
+            #[serde(default = "default_grok_model")]
+            grok_model: String,
+            #[serde(default = "default_claude_base_url")]
+            claude_base_url: String,
+            #[serde(default)]
+            claude_api_key: String,
+            #[serde(default = "default_claude_model")]
+            claude_model: String,
+            #[serde(default = "default_meeting_turns_per_agent")]
+            meeting_turns_per_agent: u32,
+            #[serde(default = "default_true")]
+            meeting_llm_fallback: bool,
+            #[serde(default)]
+            pure_local_mode: bool,
+            #[serde(default)]
+            pixel_filter_enabled: bool,
+            #[serde(default)]
+            crt_filter_enabled: bool,
+            #[serde(default)]
+            low_power_mode: bool,
+            #[serde(default = "default_backup_interval")]
+            backup_interval_minutes: u32,
+            #[serde(default = "default_music_enabled")]
+            music_enabled: bool,
+            #[serde(default = "default_music_volume")]
+            music_volume: f32,
+            #[serde(default = "default_sfx_enabled")]
+            sfx_enabled: bool,
+            #[serde(default = "default_sfx_volume")]
+            sfx_volume: f32,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        let (play_mode, random_event_chance, random_events_enabled) = migrate_legacy_event_mode(
+            helper.play_mode,
+            helper.event_mode.as_deref(),
+            helper.random_event_chance,
+            helper.random_events_enabled,
+        );
+
+        Ok(Self {
+            play_mode,
+            random_events_enabled,
+            random_event_chance,
+            god_mode_enabled: helper.god_mode_enabled,
+            ai_provider: helper.ai_provider,
+            ollama_base_url: helper.ollama_base_url,
+            ollama_model: helper.ollama_model,
+            openai_base_url: helper.openai_base_url,
+            openai_api_key: helper.openai_api_key,
+            openai_model: helper.openai_model,
+            grok_base_url: helper.grok_base_url,
+            grok_api_key: helper.grok_api_key,
+            grok_model: helper.grok_model,
+            claude_base_url: helper.claude_base_url,
+            claude_api_key: helper.claude_api_key,
+            claude_model: helper.claude_model,
+            meeting_turns_per_agent: helper.meeting_turns_per_agent,
+            meeting_llm_fallback: helper.meeting_llm_fallback,
+            pure_local_mode: helper.pure_local_mode,
+            pixel_filter_enabled: helper.pixel_filter_enabled,
+            crt_filter_enabled: helper.crt_filter_enabled,
+            low_power_mode: helper.low_power_mode,
+            backup_interval_minutes: helper.backup_interval_minutes,
+            music_enabled: helper.music_enabled,
+            music_volume: helper.music_volume.clamp(0.0, 1.0),
+            sfx_enabled: helper.sfx_enabled,
+            sfx_volume: helper.sfx_volume.clamp(0.0, 1.0),
+        })
+    }
+}
+
+fn default_ai_provider() -> String {
+    "mock".to_string()
+}
+
+fn default_backup_interval() -> u32 {
+    30
+}
+
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
+            play_mode: PlayMode::Game,
             random_events_enabled: true,
-            event_mode: EventMode::Fun,
+            random_event_chance: default_random_event_chance(),
             god_mode_enabled: false,
             ai_provider: "mock".to_string(),
             ollama_base_url: default_ollama_base_url(),
@@ -127,8 +289,13 @@ impl Default for GameSettings {
             meeting_llm_fallback: true,
             pure_local_mode: false,
             pixel_filter_enabled: false,
+            crt_filter_enabled: false,
             low_power_mode: false,
             backup_interval_minutes: 30,
+            music_enabled: true,
+            music_volume: default_music_volume(),
+            sfx_enabled: true,
+            sfx_volume: default_sfx_volume(),
         }
     }
 }
@@ -233,6 +400,30 @@ pub struct AgentRecord {
     pub soul_id: Option<u64>,
     #[serde(default)]
     pub ai_provider: Option<String>,
+    #[serde(default)]
+    pub agent_kind: Option<String>,
+    #[serde(default)]
+    pub skills: Vec<String>,
+}
+
+pub fn skills_for_role(role: &str) -> Vec<String> {
+    let lower = role.to_lowercase();
+    if lower.contains("dev") || lower.contains("engineer") {
+        return vec!["Coding".to_string(), "AI".to_string()];
+    }
+    if lower.contains("design") {
+        return vec!["Design".to_string(), "UI".to_string()];
+    }
+    if lower.contains("ceo") || lower.contains("coo") || lower.contains("executive") {
+        return vec!["Leadership".to_string(), "Strategy".to_string()];
+    }
+    if lower.contains("hr") || lower.contains("recruit") {
+        return vec!["People".to_string(), "Culture".to_string()];
+    }
+    if lower.contains("fate") || lower.contains("chance") {
+        return vec!["Random Events".to_string(), "Narrative".to_string()];
+    }
+    vec!["Collaboration".to_string()]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -413,6 +604,10 @@ pub struct GameEvent {
     pub tone: String,
     pub morale_delta: f32,
     pub cash_delta: f64,
+    #[serde(default)]
+    pub narrator: Option<String>,
+    #[serde(default)]
+    pub generated_by_ai: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -599,12 +794,13 @@ impl AppState {
         ];
 
         for (id, name, role, department, morale, energy, salary) in defaults {
+            let role_string = role.to_string();
             self.agents.insert(
                 id.to_string(),
                 AgentRecord {
                     id: id.to_string(),
                     name: name.to_string(),
-                    role: role.to_string(),
+                    role: role_string.clone(),
                     department: department.to_string(),
                     morale,
                     energy,
@@ -613,8 +809,14 @@ impl AppState {
                     soul: None,
                     soul_id: None,
                     ai_provider: None,
+                    agent_kind: None,
+                    skills: skills_for_role(&role_string),
                 },
             );
+        }
+
+        if self.settings.play_mode == PlayMode::Game {
+            crate::fate::ensure_fate_agent(self);
         }
 
         self.seed_projects();
@@ -650,5 +852,44 @@ impl AppState {
                 owner_department: "Human Resources".into(),
             },
         ];
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+
+    #[test]
+    fn migrates_legacy_fun_mode() {
+        let raw = serde_json::json!({
+            "random_events_enabled": true,
+            "event_mode": "fun",
+            "god_mode_enabled": false,
+            "ai_provider": "mock",
+            "pure_local_mode": false,
+            "pixel_filter_enabled": false,
+            "low_power_mode": false,
+            "backup_interval_minutes": 30
+        });
+        let settings: GameSettings = serde_json::from_value(raw).expect("settings");
+        assert_eq!(settings.play_mode, PlayMode::Game);
+        assert!((settings.random_event_chance - 0.18).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn migrates_legacy_serious_mode_to_work() {
+        let raw = serde_json::json!({
+            "random_events_enabled": true,
+            "event_mode": "serious",
+            "god_mode_enabled": false,
+            "ai_provider": "mock",
+            "pure_local_mode": false,
+            "pixel_filter_enabled": false,
+            "low_power_mode": false,
+            "backup_interval_minutes": 30
+        });
+        let settings: GameSettings = serde_json::from_value(raw).expect("settings");
+        assert_eq!(settings.play_mode, PlayMode::Work);
+        assert!(!settings.random_events_enabled);
     }
 }

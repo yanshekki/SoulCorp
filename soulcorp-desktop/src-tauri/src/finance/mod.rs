@@ -1,3 +1,4 @@
+use crate::fate::is_system_agent;
 use crate::state::{AgentRecord, AppState, BudgetAllocations};
 use crate::token_budget::{apply_enforcement, charge_tokens, total_company_tokens, ChargeContext};
 use crate::ai::provider::TokenUsageSource;
@@ -9,7 +10,11 @@ pub struct FinanceTickResult {
 }
 
 pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentRecord>) -> u64 {
-    agents.values().map(|agent| agent.salary as u64).sum()
+    agents
+        .values()
+        .filter(|agent| !is_system_agent(agent))
+        .map(|agent| agent.salary as u64)
+        .sum()
 }
 
 pub fn count_active_agents(state: &AppState, include_throttled: bool) -> u32 {
@@ -62,6 +67,7 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
             let agent_charges: Vec<(String, String)> = state
                 .agents
                 .values()
+                .filter(|agent| !is_system_agent(agent))
                 .map(|agent| (agent.id.clone(), agent.department.clone()))
                 .collect();
             let share = payroll_total / agent_charges.len().max(1) as u64;
@@ -102,7 +108,7 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
     apply_enforcement(state);
 
     for agent in state.agents.values_mut() {
-        if agent.status == "meeting" || agent.status == "throttled" {
+        if is_system_agent(agent) || agent.status == "meeting" || agent.status == "throttled" {
             continue;
         }
         agent.energy = (agent.energy - 0.01).max(0.2);
@@ -140,6 +146,8 @@ mod tests {
                 soul: None,
                 soul_id: None,
                 ai_provider: None,
+                agent_kind: None,
+                skills: crate::state::skills_for_role("Engineer"),
             },
         );
         let mut state = AppState {

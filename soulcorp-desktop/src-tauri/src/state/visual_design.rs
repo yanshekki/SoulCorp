@@ -92,6 +92,64 @@ impl Default for BuildingVisualConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InteriorZone {
+    Lobby,
+    Corridor,
+    Office,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomDimensions {
+    pub width: f32,
+    pub depth: f32,
+    pub height: f32,
+}
+
+impl Default for RoomDimensions {
+    fn default() -> Self {
+        Self {
+            width: 12.0,
+            depth: 9.0,
+            height: 3.2,
+        }
+    }
+}
+
+fn default_lobby_room() -> RoomDimensions {
+    RoomDimensions {
+        width: 10.0,
+        depth: 7.0,
+        height: 3.2,
+    }
+}
+
+fn default_corridor_room() -> RoomDimensions {
+    RoomDimensions {
+        width: 2.5,
+        depth: 3.0,
+        height: 3.2,
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FurnitureInstance {
+    pub id: String,
+    pub catalog_id: String,
+    pub zone: InteriorZone,
+    pub position: [f32; 3],
+    pub rotation_y: f32,
+    #[serde(default = "default_furniture_scale")]
+    pub scale: f32,
+    #[serde(default)]
+    pub linked_agent_id: Option<String>,
+}
+
+fn default_furniture_scale() -> f32 {
+    1.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OfficeVisualConfig {
     pub floor_color: String,
@@ -107,6 +165,16 @@ pub struct OfficeVisualConfig {
     pub has_whiteboard: bool,
     #[serde(default)]
     pub has_lounge_seating: bool,
+    #[serde(default)]
+    pub desk_positions: Vec<[f32; 3]>,
+    #[serde(default = "default_lobby_room")]
+    pub lobby_room: RoomDimensions,
+    #[serde(default = "default_corridor_room")]
+    pub corridor_room: RoomDimensions,
+    #[serde(default)]
+    pub room: RoomDimensions,
+    #[serde(default)]
+    pub furniture: Vec<FurnitureInstance>,
 }
 
 impl Default for OfficeVisualConfig {
@@ -120,6 +188,11 @@ impl Default for OfficeVisualConfig {
             has_plants: true,
             has_whiteboard: true,
             has_lounge_seating: false,
+            desk_positions: Vec::new(),
+            lobby_room: default_lobby_room(),
+            corridor_room: default_corridor_room(),
+            room: RoomDimensions::default(),
+            furniture: Vec::new(),
         }
     }
 }

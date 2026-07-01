@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "water_cooler",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "water_cooler",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "water_cooler",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "max": [
+        0.175,
+        2,
+        2
+      ],
+      "min": [
+        -0.175,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 216
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 792,
+      "uri": "data:application/octet-stream;base64,MzMzvgAAAAAzMzO+MzMzPgAAAAAzMzO+MzMzPmZmZj8zMzO+MzMzvmZmZj8zMzO+MzMzvgAAAAAzMzM+MzMzPgAAAAAzMzM+MzMzPmZmZj8zMzM+MzMzvmZmZj8zMzM+KVwPvgAAYD8pXA++KVwPPgAAYD8pXA++KVwPPs3MnD8pXA++KVwPvs3MnD8pXA++KVwPvgAAYD8pXA8+KVwPPgAAYD8pXA8+KVwPPs3MnD8pXA8+KVwPvs3MnD8pXA8+CtcjvY/CNT8pXA8+CtcjPY/CNT8pXA8+CtcjPXE9Sj8pXA8+CtcjvXE9Sj8pXA8+CtcjvY/CNT+4HoU+CtcjPY/CNT+4HoU+CtcjPXE9Sj+4HoU+CtcjvXE9Sj+4HoU+AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/AABAPxSuRz+F61E/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/zczMPjMzMz8zM3M/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAAAP7geBT/NzAw/AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIA"
+    }
+  ]
+}

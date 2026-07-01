@@ -2,8 +2,9 @@ use crate::db::persistence::{
     commit, delete_company_snapshot, flush_pending_commit, load_registry, reset_commit_debounce,
     save_registry, switch_active_company,
 };
+use crate::fate::clamp_event_chance;
 use crate::state::{
-    fresh_company_state, summary_from_state, AppState, CompanySummary, EventMode,
+    fresh_company_state, summary_from_state, AppState, CompanySummary, PlayMode,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -20,9 +21,10 @@ pub struct CreateCompanyRequest {
     pub company_name: String,
     pub industry: String,
     pub tagline: String,
-    pub event_mode: EventMode,
+    pub play_mode: PlayMode,
     pub pure_local_mode: bool,
     pub random_events_enabled: bool,
+    pub random_event_chance: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,9 +106,10 @@ pub fn create_company(
         &company_name,
         &industry,
         &tagline,
-        request.event_mode,
+        request.play_mode,
         request.pure_local_mode,
         request.random_events_enabled,
+        clamp_event_chance(request.random_event_chance),
     );
     state.onboarding_completed = true;
 

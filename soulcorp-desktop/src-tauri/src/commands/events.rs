@@ -1,12 +1,11 @@
-use crate::state::{AppState, EventMode, GameEvent};
+use crate::fate::{eligible_for_random_events, event_roll_threshold};
+use crate::state::{AppState, GameEvent, PlayMode};
 use crate::tier::benefits_for_tier;
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
-use uuid::Uuid;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForesightEvent {
     pub id: String,
@@ -28,7 +27,7 @@ pub fn get_recent_events(state: State<'_, Mutex<AppState>>) -> Result<Vec<GameEv
 #[tauri::command]
 pub fn get_event_foresight(state: State<'_, Mutex<AppState>>) -> Result<Vec<ForesightEvent>, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    if !state.settings.random_events_enabled {
+    if state.settings.play_mode == PlayMode::Work || !state.settings.random_events_enabled {
         return Ok(Vec::new());
     }
     let days = benefits_for_tier(&state.hub.user_tier).event_foresight_days;
@@ -39,11 +38,7 @@ pub fn get_event_foresight(state: State<'_, Mutex<AppState>>) -> Result<Vec<Fore
 }
 
 pub fn generate_foresight(state: &AppState, horizon_days: u32) -> Vec<ForesightEvent> {
-    let threshold = match state.settings.event_mode {
-        EventMode::Fun => 0.18,
-        EventMode::Balanced => 0.1,
-        EventMode::Serious => 0.0,
-    };
+    let threshold = event_roll_threshold(state);
     if threshold <= 0.0 {
         return Vec::new();
     }
@@ -60,7 +55,7 @@ pub fn generate_foresight(state: &AppState, horizon_days: u32) -> Vec<ForesightE
         let template = event_template(rng.random_range(0..5));
         previews.push(ForesightEvent {
             id: format!("foresight-{expected_day}-{}", template.1),
-            title: template.1.to_string(),
+            title: format!("Fate whispers: {}", template.1),
             description: template.2.to_string(),
             tone: template.0.to_string(),
             expected_day,
@@ -72,7 +67,7 @@ pub fn generate_foresight(state: &AppState, horizon_days: u32) -> Vec<ForesightE
     previews
 }
 
-fn event_template(index: u32) -> (&'static str, &'static str, &'static str, f32, f64) {
+pub fn event_template(index: u32) -> (&'static str, &'static str, &'static str, f32, f64) {
     match index {
         0 => (
             "positive",
@@ -112,35 +107,8 @@ fn event_template(index: u32) -> (&'static str, &'static str, &'static str, f32,
     }
 }
 
-pub fn maybe_roll_event(state: &mut AppState) -> Option<GameEvent> {
-    if !state.settings.random_events_enabled {
-        return None;
-    }
-
-    let mut rng = rand::rng();
-    let roll: f32 = rng.random();
-    let threshold = match state.settings.event_mode {
-        EventMode::Fun => 0.18,
-        EventMode::Balanced => 0.1,
-        EventMode::Serious => 0.0,
-    };
-
-    if roll > threshold {
-        return None;
-    }
-
-    let template = event_template(rng.random_range(0..5));
-    let event = GameEvent {
-        id: Uuid::new_v4().to_string(),
-        title: template.1.to_string(),
-        description: template.2.to_string(),
-        tone: template.0.to_string(),
-        morale_delta: template.3,
-        cash_delta: template.4,
-    };
-
-    apply_event(state, &event);
-    Some(event)
+pub fn should_attempt_fate_event(state: &AppState) -> bool {
+    eligible_for_random_events(state) && crate::fate::events::passes_event_roll(state)
 }
 
 pub fn apply_event(state: &mut AppState, event: &GameEvent) {
@@ -158,6 +126,9 @@ pub fn apply_event(state: &mut AppState, event: &GameEvent) {
             .saturating_sub((-delta) as u64);
     }
     for agent in state.agents.values_mut() {
+        if crate::fate::is_system_agent(agent) {
+            continue;
+        }
         agent.morale = (agent.morale + event.morale_delta).clamp(0.0, 1.0);
     }
     state.events.push(event.clone());
@@ -178,6 +149,9 @@ pub fn apply_god_mode_reality_debt(state: &mut AppState) -> Option<String> {
     }
 
     for agent in state.agents.values_mut() {
+        if crate::fate::is_system_agent(agent) {
+            continue;
+        }
         agent.morale = (agent.morale - 0.015).max(0.0);
         agent.energy = (agent.energy - 0.01).max(0.0);
     }
@@ -188,17 +162,26 @@ pub fn apply_god_mode_reality_debt(state: &mut AppState) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::AppState;
+    use crate::state::{AppState, PlayMode};
 
     #[test]
     fn foresight_respects_tier_horizon() {
         let mut state = AppState::default();
         state.hub.user_tier = "pro".to_string();
+        state.settings.play_mode = PlayMode::Game;
         state.settings.random_events_enabled = true;
+        state.settings.random_event_chance = 0.15;
         let previews = generate_foresight(&state, 1);
         assert!(previews.len() <= 1);
         for preview in previews {
             assert_eq!(preview.expected_day, state.day_number + 1);
         }
+    }
+
+    #[test]
+    fn work_mode_never_attempts_events() {
+        let mut state = AppState::default();
+        state.settings.play_mode = PlayMode::Work;
+        assert!(!should_attempt_fate_event(&state));
     }
 }

@@ -70,6 +70,8 @@ pub fn start_local_agent(
             soul,
             soul_id: None,
             ai_provider,
+            agent_kind: None,
+            skills: crate::state::skills_for_role(&request.role),
         },
     );
 

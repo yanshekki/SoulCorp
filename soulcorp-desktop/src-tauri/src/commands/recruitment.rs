@@ -642,10 +642,11 @@ pub async fn hire_candidate(
         .candidate_id
         .strip_prefix("hub-soul-")
         .and_then(|id| id.parse::<u64>().ok());
+    let role = request.role.clone();
     let record = AgentRecord {
         id: agent_id.clone(),
         name,
-        role: request.role,
+        role: role.clone(),
         department: department.clone(),
         morale: 0.78,
         energy: 0.95,
@@ -654,6 +655,8 @@ pub async fn hire_candidate(
         soul,
         soul_id,
         ai_provider: None,
+        agent_kind: None,
+        skills: crate::state::skills_for_role(&role),
     };
 
     state.agents.insert(agent_id.clone(), record.clone());

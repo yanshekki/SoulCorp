@@ -6,6 +6,7 @@ import {
   type OfficeDeskStyle,
   type OfficeVisualConfig,
 } from "../../types/visualDesign";
+import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { ColorField } from "./ColorField";
 
 export function OfficeDesignPanel() {
@@ -16,7 +17,7 @@ export function OfficeDesignPanel() {
   const patchDraft = useDesignStudioStore((state) => state.patchDraft);
 
   const buildingId = selectedBuildingId ?? buildings[0]?.id ?? "hq";
-  const config = draft.offices[buildingId] ?? DEFAULT_OFFICE_VISUAL;
+  const config = normalizeOfficeVisual(draft.offices[buildingId] ?? DEFAULT_OFFICE_VISUAL, buildingId);
 
   const updateConfig = (patch: Partial<OfficeVisualConfig>) => {
     patchDraft({
@@ -30,8 +31,8 @@ export function OfficeDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Office interior</h2>
-        <p className="muted">Shape each department workspace — desks, lighting, and decor.</p>
+        <h2>Office style</h2>
+        <p className="muted">Colors, lighting, and default decor flags for this department.</p>
       </header>
 
       <label className="field-label">
@@ -94,32 +95,10 @@ export function OfficeDesignPanel() {
         onChange={(accent_color) => updateConfig({ accent_color })}
       />
 
-      <div className="design-toggle-grid">
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={config.has_plants}
-            onChange={(event) => updateConfig({ has_plants: event.target.checked })}
-          />
-          Plants & greenery
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={config.has_whiteboard}
-            onChange={(event) => updateConfig({ has_whiteboard: event.target.checked })}
-          />
-          Whiteboards
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={config.has_lounge_seating}
-            onChange={(event) => updateConfig({ has_lounge_seating: event.target.checked })}
-          />
-          Lounge seating
-        </label>
-      </div>
+      <p className="muted design-panel-note">
+        Plants, whiteboards, and lounge seating are placed via the floor plan editor and Build Mode
+        furniture catalog — not legacy toggles.
+      </p>
     </section>
   );
 }

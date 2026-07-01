@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "plant_ficus",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "plant_ficus",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "plant_ficus",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "max": [
+        0.375,
+        2,
+        2
+      ],
+      "min": [
+        -0.275,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 216
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 792,
+      "uri": "data:application/octet-stream;base64,KVwPvgrXo7spXA++KVwPPgrXo7spXA++KVwPPkjhej4pXA++KVwPvkjhej4pXA++KVwPvgrXo7spXA8+KVwPPgrXo7spXA8+KVwPPkjhej4pXA8+KVwPvkjhej4pXA8+zcyMvs3MjD7NzIy+zcyMPs3MjD7NzIy+zcyMPjMzUz/NzIy+zcyMvjMzUz/NzIy+zcyMvs3MjD7NzIw+zcyMPs3MjD7NzIw+zcyMPjMzUz/NzIw+zcyMvjMzUz/NzIw+zczMPDMzEz8zMzO+AADAPjMzEz8zMzO+AADAPs3MbD8zMzO+zczMPM3MbD8zMzO+zczMPDMzEz8zMzM+AADAPjMzEz8zMzM+AADAPs3MbD8zMzM+zczMPM3MbD8zMzM+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+zcwMP+xRuD6uR2E+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+UriePnE9Cj97FK4+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+MzOzPuF6FD9cj8I+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIA"
+    }
+  ]
+}

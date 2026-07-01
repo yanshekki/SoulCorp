@@ -4,6 +4,7 @@ import { is3dSmokeTestEnabled, submit3dSmokeFailure } from "../services/scene3dS
 import { useGameStore } from "../stores/gameStore";
 import { useProgressStore } from "../stores/progressStore";
 import { campusSkyGradient } from "../utils/applyVisualDesign";
+import { InteriorOverlay } from "./world/InteriorOverlay";
 import { OfficeMapFallback } from "./world/OfficeMapFallback";
 import {
   ThreeOfficeRenderer,
@@ -19,6 +20,10 @@ export function GameScene() {
   const pixelFilter = useGameStore((state) => state.settings.pixel_filter_enabled);
   const lowPowerMode = useGameStore((state) => state.settings.low_power_mode);
   const visualDesign = useGameStore((state) => state.visualDesign);
+  const worldView = useGameStore((state) => state.worldView);
+  const buildMode = useGameStore((state) => state.buildMode);
+  const activePanel = useGameStore((state) => state.activePanel);
+  const showOfficeChrome = activePanel === "office";
   const skyBackground = campusSkyGradient(visualDesign);
   const [renderStatus, setRenderStatus] = useState<RenderStatus>("initializing");
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -122,14 +127,22 @@ export function GameScene() {
         </div>
       ) : null}
 
-      <div className="scene-hint">
-        {mode === "3d"
-          ? "3D office campus — click buildings to inspect departments."
-          : "Map view — click buildings to inspect departments."}
-        {renderStatus === "ready" && mode === "3d" ? (
-          <span className="scene-hint-badge">WebGL</span>
-        ) : null}
-      </div>
+      {showOfficeChrome ? <InteriorOverlay /> : null}
+
+      {showOfficeChrome && !(worldView === "interior" && buildMode === "build") ? (
+        <div className="scene-hint">
+          {worldView === "interior"
+            ? mode === "fallback"
+              ? "Floor plan view — agents at desks. Use Back to campus to exit."
+              : "Inside building — click agents or use 🔨 to remodel."
+            : mode === "3d"
+              ? "3D campus — hover doors to enter, or click buildings for stats."
+              : "Map view — click Enter on a building; interior shows a 2D floor plan."}
+          {renderStatus === "ready" && mode === "3d" ? (
+            <span className="scene-hint-badge">WebGL</span>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

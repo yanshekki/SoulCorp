@@ -193,6 +193,8 @@ pub fn god_mode_black_swan(
             tone: "chaotic".to_string(),
             morale_delta: -0.06,
             cash_delta: -900.0,
+            narrator: None,
+            generated_by_ai: false,
         },
         1 => GameEvent {
             id: Uuid::new_v4().to_string(),
@@ -201,6 +203,8 @@ pub fn god_mode_black_swan(
             tone: "positive".to_string(),
             morale_delta: 0.12,
             cash_delta: 2200.0,
+            narrator: None,
+            generated_by_ai: false,
         },
         2 => GameEvent {
             id: Uuid::new_v4().to_string(),
@@ -209,6 +213,8 @@ pub fn god_mode_black_swan(
             tone: "negative".to_string(),
             morale_delta: -0.14,
             cash_delta: -600.0,
+            narrator: None,
+            generated_by_ai: false,
         },
         _ => GameEvent {
             id: Uuid::new_v4().to_string(),
@@ -218,6 +224,8 @@ pub fn god_mode_black_swan(
             tone: "chaotic".to_string(),
             morale_delta: 0.05,
             cash_delta: 1500.0,
+            narrator: None,
+            generated_by_ai: false,
         },
     };
     let summary = format!("{} — {}", event.title, event.description);

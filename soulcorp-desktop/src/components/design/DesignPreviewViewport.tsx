@@ -22,6 +22,9 @@ export function DesignPreviewViewport() {
     const state = useGameStore.getState();
     baseBuildingsRef.current = state.buildings;
     baseAgentsRef.current = state.agents;
+    if (state.worldView === "interior") {
+      state.exitInterior();
+    }
 
     return () => {
       setBuildings(baseBuildingsRef.current);
@@ -32,6 +35,7 @@ export function DesignPreviewViewport() {
   useEffect(() => {
     setBuildings(applyBuildingsVisualDesign(baseBuildingsRef.current, draft));
     setAgents(applyAgentsVisualDesign(baseAgentsRef.current, draft));
+    useGameStore.getState().setVisualDesign(draft);
     setSkyStyle(campusSkyGradient(draft));
   }, [draft, setAgents, setBuildings]);
 
@@ -39,7 +43,9 @@ export function DesignPreviewViewport() {
     <div className="design-preview-viewport" ref={containerRef}>
       <div className="design-preview-sky" style={{ background: skyStyle }} />
       <GameScene />
-      <p className="design-preview-hint">Live 3D preview — orbit by selecting buildings in Office view later.</p>
+      <p className="design-preview-hint">
+        Campus preview — edit office interiors under the <strong>Offices</strong> tab.
+      </p>
     </div>
   );
 }

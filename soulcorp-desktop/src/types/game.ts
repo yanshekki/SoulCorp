@@ -1,4 +1,4 @@
-export type EventMode = "fun" | "balanced" | "serious";
+export type PlayMode = "game" | "work";
 export type SidebarPanel =
   | "office"
   | "workspace"
@@ -323,8 +323,10 @@ export interface AgentRecord {
   energy: number;
   salary: number;
   status: string;
+  skills?: string[];
   soul?: SoulProfile | null;
   ai_provider?: string | null;
+  agent_kind?: string | null;
 }
 
 export interface CompanySummary {
@@ -347,9 +349,10 @@ export interface CreateCompanyRequest {
   company_name: string;
   industry: string;
   tagline: string;
-  event_mode: EventMode;
+  play_mode: PlayMode;
   pure_local_mode: boolean;
   random_events_enabled: boolean;
+  random_event_chance: number;
 }
 
 export interface SwitchCompanyResponse {
@@ -368,14 +371,16 @@ export interface CompleteOnboardingRequest {
   company_name: string;
   company_industry: string;
   company_tagline: string;
-  event_mode: EventMode;
+  play_mode: PlayMode;
   pure_local_mode: boolean;
   random_events_enabled: boolean;
+  random_event_chance: number;
 }
 
 export interface GameSettings {
+  play_mode: PlayMode;
   random_events_enabled: boolean;
-  event_mode: EventMode;
+  random_event_chance: number;
   god_mode_enabled: boolean;
   ai_provider: string;
   ollama_base_url: string;
@@ -393,8 +398,13 @@ export interface GameSettings {
   meeting_llm_fallback: boolean;
   pure_local_mode: boolean;
   pixel_filter_enabled: boolean;
+  crt_filter_enabled: boolean;
   low_power_mode: boolean;
   backup_interval_minutes: number;
+  music_enabled: boolean;
+  music_volume: number;
+  sfx_enabled: boolean;
+  sfx_volume: number;
 }
 
 export interface Achievement {
@@ -456,6 +466,8 @@ export interface GameEvent {
   tone: string;
   morale_delta: number;
   cash_delta: number;
+  narrator?: string | null;
+  generated_by_ai?: boolean;
 }
 
 export interface MeetingMessage {

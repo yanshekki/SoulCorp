@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { patchAudioSettings, setAudioMuted } from "../../hooks/useAudioSettings";
 import { reloadGameState } from "../../hooks/useReloadGameState";
+import { AudioMuteButton } from "./AudioMuteButton";
 import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
+import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
+import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
 import type {
   DeployResult,
   DeployStatus,
-  EventMode,
   ExportResult,
   GameSettings,
   MeetingAiStatus,
@@ -40,8 +43,9 @@ export function SettingsPanel() {
     try {
       const next = await invoke<GameSettings>("update_game_settings", {
         update: {
+          play_mode: patch.play_mode,
           random_events_enabled: patch.random_events_enabled,
-          event_mode: patch.event_mode,
+          random_event_chance: patch.random_event_chance,
           god_mode_enabled: patch.god_mode_enabled,
           ai_provider: patch.ai_provider,
           ollama_base_url: patch.ollama_base_url,
@@ -59,8 +63,13 @@ export function SettingsPanel() {
           meeting_llm_fallback: patch.meeting_llm_fallback,
           pure_local_mode: patch.pure_local_mode,
           pixel_filter_enabled: patch.pixel_filter_enabled,
+          crt_filter_enabled: patch.crt_filter_enabled,
           low_power_mode: patch.low_power_mode,
           backup_interval_minutes: patch.backup_interval_minutes,
+          music_enabled: patch.music_enabled,
+          music_volume: patch.music_volume,
+          sfx_enabled: patch.sfx_enabled,
+          sfx_volume: patch.sfx_volume,
         },
       });
       setSettings(next);
@@ -253,30 +262,23 @@ export function SettingsPanel() {
         <span>Pure Local Mode (zero cloud)</span>
       </label>
 
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={settings.random_events_enabled}
-          onChange={(event) =>
-            void updateSettings({ random_events_enabled: event.target.checked })
-          }
-        />
-        <span>Enable Random Events & Drama</span>
-      </label>
-
-      <label className="field-label">
-        Event mode
-        <select
-          value={settings.event_mode}
-          onChange={(event) =>
-            void updateSettings({ event_mode: event.target.value as EventMode })
-          }
-        >
-          <option value="fun">Fun Mode</option>
-          <option value="balanced">Balanced Mode</option>
-          <option value="serious">Serious Work Mode</option>
-        </select>
-      </label>
+      <h3>Play mode</h3>
+      <PlayModePicker
+        compact
+        value={{
+          playMode: settings.play_mode,
+          randomEventsEnabled: settings.random_events_enabled,
+          randomEventChance: settings.random_event_chance || DEFAULT_EVENT_CHANCE,
+        }}
+        onChange={(config: PlayModeConfig) => {
+          void updateSettings({
+            play_mode: config.playMode,
+            random_events_enabled:
+              config.playMode === "game" && config.randomEventsEnabled,
+            random_event_chance: config.randomEventChance,
+          });
+        }}
+      />
 
       <label className="checkbox-row">
         <input
@@ -297,7 +299,18 @@ export function SettingsPanel() {
             void updateSettings({ pixel_filter_enabled: event.target.checked })
           }
         />
-        <span>Pixel filter (cozy retro look)</span>
+        <span>Pixel filter (pixel agents + retro look)</span>
+      </label>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.crt_filter_enabled}
+          onChange={(event) =>
+            void updateSettings({ crt_filter_enabled: event.target.checked })
+          }
+        />
+        <span>CRT filter (scanlines + cozy post FX)</span>
       </label>
 
       <label className="checkbox-row">
@@ -309,6 +322,68 @@ export function SettingsPanel() {
           }
         />
         <span>Low power mode (better FPS)</span>
+      </label>
+
+      <h3>Audio</h3>
+      <div className="audio-settings-quick">
+        <AudioMuteButton className="audio-mute-btn audio-mute-btn-settings" showLabel />
+        <button
+          type="button"
+          className="secondary-action"
+          onClick={() => void setAudioMuted(true)}
+        >
+          Mute all
+        </button>
+      </div>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.music_enabled ?? true}
+          onChange={(event) =>
+            void patchAudioSettings({ music_enabled: event.target.checked })
+          }
+        />
+        <span>Background music</span>
+      </label>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.sfx_enabled ?? true}
+          onChange={(event) =>
+            void patchAudioSettings({ sfx_enabled: event.target.checked })
+          }
+        />
+        <span>Sound effects</span>
+      </label>
+      <label className="field-label">
+        Music volume
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={settings.music_volume ?? 0.25}
+          onChange={(event) =>
+            void patchAudioSettings({ music_volume: Number(event.target.value) })
+          }
+          disabled={!(settings.music_enabled ?? true)}
+        />
+        <span className="muted">{Math.round((settings.music_volume ?? 0.25) * 100)}%</span>
+      </label>
+      <label className="field-label">
+        Sound effects volume
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={settings.sfx_volume ?? 0.45}
+          onChange={(event) =>
+            void patchAudioSettings({ sfx_volume: Number(event.target.value) })
+          }
+          disabled={!(settings.sfx_enabled ?? true)}
+        />
+        <span className="muted">{Math.round((settings.sfx_volume ?? 0.45) * 100)}%</span>
       </label>
 
       <label className="field-label">

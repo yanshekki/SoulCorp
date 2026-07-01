@@ -112,13 +112,18 @@ pub fn write_event_activity_doc(
     let storage = WorkspaceStorage::new(company_workspace_root(&dir, &snapshot.company_id))?;
     storage.ensure_seed()?;
 
+    let title = if event.narrator.as_deref() == Some("Fate") {
+        format!("Fate · {}", event.title)
+    } else {
+        event.title.clone()
+    };
     let body = format!(
-        "{} (morale {:+.0}%, cash ${:+.0})",
+        "{} (morale {:+.0}%, tokens {:+.0})",
         event.description,
         event.morale_delta * 100.0,
         event.cash_delta
     );
-    storage.append_company_feed_entry(snapshot.day_number, &event.title, &body)?;
+    storage.append_company_feed_entry(snapshot.day_number, &title, &body)?;
 
     for agent in &snapshot.agents {
         storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;

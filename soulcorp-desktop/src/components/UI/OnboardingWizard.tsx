@@ -1,38 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { DesignPresetPicker } from "../design/DesignPresetPicker";
+import { presetDesignFor } from "../../data/presetDesigns";
+import { INITIAL_BUILDINGS } from "../../data/initialWorld";
 import { completeOnboarding } from "../../services/onboardingClient";
 import { applyDesignPreset } from "../../services/visualDesignClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
-import type { EventMode } from "../../types/game";
+import { applyBuildingsVisualDesign } from "../../utils/applyVisualDesign";
+import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
+import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
 
 const STEPS = ["welcome", "style", "connectivity", "design", "tour"] as const;
-
-const STYLE_OPTIONS: {
-  id: EventMode;
-  title: string;
-  description: string;
-  events: boolean;
-}[] = [
-  {
-    id: "fun",
-    title: "Fun Mode",
-    description: "Chaotic events, drama, and surprise twists while you build.",
-    events: true,
-  },
-  {
-    id: "balanced",
-    title: "Balanced Mode",
-    description: "A mix of productivity pressure and occasional office drama.",
-    events: true,
-  },
-  {
-    id: "serious",
-    title: "Serious Work Mode",
-    description: "Pure productivity. Random events are disabled.",
-    events: false,
-  },
-];
 
 const TOUR_ITEMS = [
   { panel: "Office", detail: "Watch agents move through the 3D office and track KPIs." },
@@ -55,16 +33,16 @@ export function OnboardingWizard() {
   const [companyName, setCompanyNameInput] = useState("");
   const [industry, setIndustry] = useState("");
   const [tagline, setTagline] = useState("");
-  const [eventMode, setEventMode] = useState<EventMode>("fun");
+  const [playModeConfig, setPlayModeConfig] = useState<PlayModeConfig>({
+    playMode: "game",
+    randomEventsEnabled: true,
+    randomEventChance: DEFAULT_EVENT_CHANCE,
+  });
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const step = STEPS[stepIndex];
-  const selectedStyle = useMemo(
-    () => STYLE_OPTIONS.find((option) => option.id === eventMode) ?? STYLE_OPTIONS[0],
-    [eventMode],
-  );
 
   useEffect(() => {
     if (!onboardingReady || onboardingCompleted) {
@@ -102,23 +80,28 @@ export function OnboardingWizard() {
         company_name: companyName.trim(),
         company_industry: industry.trim(),
         company_tagline: tagline.trim(),
-        event_mode: eventMode,
+        play_mode: playModeConfig.playMode,
         pure_local_mode: pureLocalMode,
-        random_events_enabled: selectedStyle.events,
+        random_events_enabled:
+          playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
+        random_event_chance: playModeConfig.randomEventChance,
       });
-      setOnboardingCompleted(true);
       setSettings({
         ...useGameStore.getState().settings,
-        event_mode: eventMode,
+        play_mode: playModeConfig.playMode,
         pure_local_mode: pureLocalMode,
-        random_events_enabled: selectedStyle.events,
+        random_events_enabled:
+          playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
+        random_event_chance: playModeConfig.randomEventChance,
         ai_provider: pureLocalMode ? "mock" : useGameStore.getState().settings.ai_provider,
+        pixel_filter_enabled: false,
+        crt_filter_enabled: false,
       });
-      await reloadGameState();
       if (designPresetId && designPresetId !== "default") {
         await applyDesignPreset(designPresetId);
-        await reloadGameState();
       }
+      await reloadGameState();
+      setOnboardingCompleted(true);
       setActivePanel("office");
       if (useGameStore.getState().isPaused) {
         useGameStore.getState().togglePause();
@@ -133,7 +116,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="onboarding-overlay onboarding-overlay-blocking" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-      <div className="onboarding-wizard">
+      <div className={`onboarding-wizard ${step === "style" ? "onboarding-wizard-wide" : ""}`}>
         <header className="onboarding-header">
           <p className="modal-eyebrow">First launch setup</p>
           <h2 id="onboarding-title">Set up your first company</h2>
@@ -191,22 +174,9 @@ export function OnboardingWizard() {
         ) : null}
 
         {step === "style" ? (
-          <section className="onboarding-step">
-            <h3>Choose your play style</h3>
-            <p className="muted">You can change this later in Settings.</p>
-            <div className="onboarding-choice-grid">
-              {STYLE_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`onboarding-choice ${eventMode === option.id ? "selected" : ""}`}
-                  onClick={() => setEventMode(option.id)}
-                >
-                  <strong>{option.title}</strong>
-                  <span>{option.description}</span>
-                </button>
-              ))}
-            </div>
+          <section className="onboarding-step onboarding-step-style">
+            <h3>Game Mode or Work Mode?</h3>
+            <PlayModePicker value={playModeConfig} onChange={setPlayModeConfig} />
           </section>
         ) : null}
 
@@ -247,8 +217,28 @@ export function OnboardingWizard() {
             </p>
             <DesignPresetPicker
               compact
-              onSelect={(presetId) => setDesignPresetId(presetId)}
+              selectedId={designPresetId}
+              onSelect={(presetId) => {
+                setDesignPresetId(presetId);
+                if (presetId === "default") {
+                  return;
+                }
+                const draft = presetDesignFor(presetId);
+                useGameStore.getState().setVisualDesign(draft);
+                useGameStore
+                  .getState()
+                  .setBuildings(applyBuildingsVisualDesign(INITIAL_BUILDINGS, draft));
+              }}
             />
+            {designPresetId && designPresetId !== "default" ? (
+              <div
+                className="onboarding-preset-preview"
+                style={{
+                  background: `linear-gradient(180deg, ${presetDesignFor(designPresetId).campus.sky_top}, ${presetDesignFor(designPresetId).campus.sky_bottom})`,
+                }}
+                aria-hidden
+              />
+            ) : null}
             {designPresetId ? (
               <p className="onboarding-ready-copy">Selected preset: {designPresetId}</p>
             ) : (
@@ -272,7 +262,8 @@ export function OnboardingWizard() {
               ))}
             </ul>
             <p className="onboarding-ready-copy">
-              {companyName.trim()} is ready. Mira, Kai, and Ren will join once you start.
+              {companyName.trim()} is ready. Mira, Kai, and Ren will join once you start
+              {playModeConfig.playMode === "game" ? ", and Fate will watch from the Meta office" : ""}.
             </p>
           </section>
         ) : null}

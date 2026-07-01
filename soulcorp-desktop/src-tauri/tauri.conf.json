@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "SoulCorp",
         "width": 1280,
         "height": 720,
+        "maximized": true,
         "resizable": true,
         "devtools": false
       }

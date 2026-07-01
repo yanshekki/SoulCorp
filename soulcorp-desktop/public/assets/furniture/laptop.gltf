@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "laptop",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "laptop",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "laptop",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "max": [
+        0.19,
+        2,
+        2
+      ],
+      "min": [
+        -0.19,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 216
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 792,
+      "uri": "data:application/octet-stream;base64,XI9CvjMzsz4pXA++XI9CPjMzsz4pXA++XI9CPqRwvT4pXA++XI9CvqRwvT4pXA++XI9CvjMzsz4pXA8+XI9CPjMzsz4pXA8+XI9CPqRwvT4pXA8+XI9CvqRwvT4pXA8+7FE4voXr0T64HgW+7FE4PoXr0T64HgW+7FE4Pq5HIT+4HgW+7FE4vq5HIT+4HgW+7FE4voXr0T6uR+G97FE4PoXr0T6uR+G97FE4Pq5HIT+uR+G97FE4vq5HIT+uR+G9exQuvvYo3D5xPQq+exQuPvYo3D5xPQq+exQuPvYoHD9xPQq+exQuvvYoHD9xPQq+exQuvvYo3D4AAAC+exQuPvYo3D4AAAC+exQuPvYoHD8AAAC+exQuvvYoHD8AAAC+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+rkdhPq5HYT4AAIA+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+mpkZPpqZGT7sUTg+AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AACAPpqZGT9mZmY/AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIA"
+    }
+  ]
+}

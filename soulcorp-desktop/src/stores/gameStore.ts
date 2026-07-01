@@ -13,9 +13,12 @@ import type {
   SidebarPanel,
   TierBenefits,
 } from "../types/game";
-import type { CompanyVisualDesign } from "../types/visualDesign";
+import type { BuildMode, BuildTool } from "../types/buildMode";
+import type { CompanyVisualDesign, OfficeVisualConfig } from "../types/visualDesign";
 import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
 import type { Agent, Building, SimulationState } from "../types/world";
+
+export type WorldView = "campus" | "interior";
 
 interface GameStore {
   companyName: string;
@@ -32,6 +35,22 @@ interface GameStore {
   agentRecords: AgentRecord[];
   buildings: Building[];
   selectedBuilding: Building | null;
+  worldView: WorldView;
+  interiorBuildingId: string | null;
+  selectedAgentId: string | null;
+  hoveredDoorBuildingId: string | null;
+  buildMode: BuildMode;
+  buildTool: BuildTool;
+  buildCatalogId: string | null;
+  selectedFurnitureId: string | null;
+  hoveredFurnitureId: string | null;
+  buildDirty: boolean;
+  buildSnapshot: OfficeVisualConfig | null;
+  recentBuildCatalogIds: string[];
+  inspectorExpanded: boolean;
+  cameraTransition: number;
+  interiorViewEpoch: number;
+  interiorZoomNudge: number;
   isPaused: boolean;
   simulation: SimulationState;
   finance: TokenEconomy;
@@ -47,6 +66,22 @@ interface GameStore {
   setAgents: (agents: Agent[]) => void;
   setAgentRecords: (records: AgentRecord[]) => void;
   selectBuilding: (building: Building | null) => void;
+  enterInterior: (buildingId: string) => void;
+  exitInterior: () => void;
+  selectAgent: (agentId: string | null) => void;
+  setHoveredDoorBuildingId: (buildingId: string | null) => void;
+  setBuildMode: (mode: BuildMode) => void;
+  setBuildTool: (tool: BuildTool) => void;
+  setBuildCatalogId: (catalogId: string | null) => void;
+  setSelectedFurnitureId: (furnitureId: string | null) => void;
+  setHoveredFurnitureId: (furnitureId: string | null) => void;
+  setBuildDirty: (dirty: boolean) => void;
+  toggleBuildMode: () => void;
+  addRecentBuildCatalog: (catalogId: string) => void;
+  setInspectorExpanded: (expanded: boolean) => void;
+  setCameraTransition: (value: number) => void;
+  nudgeInteriorZoom: (delta: number) => void;
+  clearInteriorZoomNudge: () => void;
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
@@ -87,6 +122,22 @@ export const useGameStore = create<GameStore>((set) => ({
   agentRecords: [],
   buildings: [],
   selectedBuilding: null,
+  worldView: "campus",
+  interiorBuildingId: null,
+  selectedAgentId: null,
+  hoveredDoorBuildingId: null,
+  buildMode: "play",
+  buildTool: "place",
+  buildCatalogId: null,
+  selectedFurnitureId: null,
+  hoveredFurnitureId: null,
+  buildDirty: false,
+  buildSnapshot: null,
+  recentBuildCatalogIds: ["desk_open", "chair_office", "monitor", "plant_ficus"],
+  inspectorExpanded: false,
+  cameraTransition: 1,
+  interiorViewEpoch: 0,
+  interiorZoomNudge: 0,
   isPaused: true,
   simulation: {
     tick: 0,
@@ -95,8 +146,9 @@ export const useGameStore = create<GameStore>((set) => ({
   },
   finance: EMPTY_FINANCE,
   settings: {
+    play_mode: "game",
     random_events_enabled: true,
-    event_mode: "fun",
+    random_event_chance: 0.15,
     god_mode_enabled: false,
     ai_provider: "mock",
     ollama_base_url: "http://127.0.0.1:11434",
@@ -114,8 +166,13 @@ export const useGameStore = create<GameStore>((set) => ({
     meeting_llm_fallback: true,
     pure_local_mode: false,
     pixel_filter_enabled: false,
+    crt_filter_enabled: false,
     low_power_mode: false,
     backup_interval_minutes: 30,
+    music_enabled: true,
+    music_volume: 0.25,
+    sfx_enabled: true,
+    sfx_volume: 0.45,
   },
   events: [],
   activeMeeting: null,
@@ -149,6 +206,100 @@ export const useGameStore = create<GameStore>((set) => ({
   setAgents: (agents) => set({ agents }),
   setAgentRecords: (records) => set({ agentRecords: records }),
   selectBuilding: (building) => set({ selectedBuilding: building }),
+  enterInterior: (buildingId) =>
+    set((state) => ({
+      worldView: "interior",
+      interiorBuildingId: buildingId,
+      selectedBuilding: null,
+      cameraTransition: 1,
+      interiorViewEpoch: state.interiorViewEpoch + 1,
+      buildMode: "play",
+      buildTool: "place",
+      buildCatalogId: null,
+      selectedFurnitureId: null,
+      hoveredFurnitureId: null,
+      buildDirty: false,
+      buildSnapshot: null,
+      selectedAgentId: null,
+      inspectorExpanded: false,
+    })),
+  exitInterior: () =>
+    set({
+      worldView: "campus",
+      interiorBuildingId: null,
+      cameraTransition: 1,
+      buildMode: "play",
+      buildTool: "place",
+      buildCatalogId: null,
+      selectedFurnitureId: null,
+      hoveredFurnitureId: null,
+      buildDirty: false,
+      buildSnapshot: null,
+      selectedAgentId: null,
+    }),
+  selectAgent: (agentId) => set({ selectedAgentId: agentId }),
+  setHoveredDoorBuildingId: (buildingId) => set({ hoveredDoorBuildingId: buildingId }),
+  setBuildMode: (buildMode) =>
+    set((state) => ({
+      buildMode,
+      selectedAgentId: buildMode === "build" ? null : state.selectedAgentId,
+      buildCatalogId: buildMode === "play" ? null : state.buildCatalogId,
+      selectedFurnitureId: buildMode === "play" ? null : state.selectedFurnitureId,
+      hoveredFurnitureId: buildMode === "play" ? null : state.hoveredFurnitureId,
+    })),
+  setBuildTool: (buildTool) =>
+    set((state) => ({
+      buildTool,
+      buildCatalogId: buildTool === "place" ? state.buildCatalogId : null,
+      selectedFurnitureId: buildTool === "place" ? null : state.selectedFurnitureId,
+    })),
+  setBuildCatalogId: (buildCatalogId) =>
+    set({
+      buildCatalogId,
+      buildTool: "place",
+      selectedFurnitureId: null,
+    }),
+  setSelectedFurnitureId: (selectedFurnitureId) => set({ selectedFurnitureId }),
+  setHoveredFurnitureId: (hoveredFurnitureId) => set({ hoveredFurnitureId }),
+  setBuildDirty: (buildDirty) => set({ buildDirty }),
+  toggleBuildMode: () =>
+    set((state) => {
+      if (state.buildMode === "build") {
+        return {
+          buildMode: "play",
+          buildTool: "place",
+          buildCatalogId: null,
+          selectedFurnitureId: null,
+          hoveredFurnitureId: null,
+          buildSnapshot: null,
+        };
+      }
+      const buildingId = state.interiorBuildingId;
+      const snapshot =
+        buildingId && state.visualDesign.offices[buildingId]
+          ? structuredClone(state.visualDesign.offices[buildingId])
+          : null;
+      return {
+        buildMode: "build",
+        buildTool: "place",
+        buildCatalogId: state.recentBuildCatalogIds[0] ?? "desk_open",
+        selectedAgentId: null,
+        buildDirty: false,
+        buildSnapshot: snapshot,
+      };
+    }),
+  setInspectorExpanded: (inspectorExpanded) => set({ inspectorExpanded }),
+  addRecentBuildCatalog: (catalogId) =>
+    set((state) => ({
+      recentBuildCatalogIds: [
+        catalogId,
+        ...state.recentBuildCatalogIds.filter((id) => id !== catalogId),
+      ].slice(0, 8),
+    })),
+  setCameraTransition: (value) => set({ cameraTransition: value }),
+  nudgeInteriorZoom: (delta) =>
+    set((state) => ({ interiorZoomNudge: state.interiorZoomNudge + delta })),
+  clearInteriorZoomNudge: () => set({ interiorZoomNudge: 0 }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setIsPaused: (paused) => set({ isPaused: paused }),
   setSimulation: (simulation) =>
@@ -160,7 +311,28 @@ export const useGameStore = create<GameStore>((set) => ({
   setEvents: (events) => set({ events }),
   prependEvent: (event) =>
     set((state) => ({ events: [event, ...state.events].slice(0, 8) })),
-  setActivePanel: (panel) => set({ activePanel: panel }),
+  setActivePanel: (panel) =>
+    set((state) => {
+      if (panel === "design_studio") {
+        const exitingInterior =
+          state.worldView === "interior"
+            ? {
+                worldView: "campus" as const,
+                interiorBuildingId: null,
+                cameraTransition: 1,
+                selectedAgentId: null,
+                selectedFurnitureId: null,
+                hoveredFurnitureId: null,
+              }
+            : {};
+        return {
+          activePanel: panel,
+          inspectorExpanded: false,
+          ...exitingInterior,
+        };
+      }
+      return { activePanel: panel };
+    }),
   setActiveMeeting: (meeting) => set({ activeMeeting: meeting }),
   setAchievements: (achievements) => set({ achievements }),
   setEndings: (endings) => set({ endings }),

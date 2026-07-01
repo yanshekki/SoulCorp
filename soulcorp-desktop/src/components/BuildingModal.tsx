@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { audioDirector } from "../audio/AudioDirector";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { totalCompanyTokens } from "../utils/companyState";
@@ -6,7 +7,9 @@ import type { InternalProject } from "../types/game";
 
 export function BuildingModal() {
   const selectedBuilding = useGameStore((state) => state.selectedBuilding);
+  const worldView = useGameStore((state) => state.worldView);
   const selectBuilding = useGameStore((state) => state.selectBuilding);
+  const enterInterior = useGameStore((state) => state.enterInterior);
   const agents = useGameStore((state) => state.agents);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const finance = useGameStore((state) => state.finance);
@@ -29,7 +32,7 @@ export function BuildingModal() {
       });
   }, [selectedBuilding?.id, setStatusMessage]);
 
-  if (!selectedBuilding) {
+  if (!selectedBuilding || worldView === "interior") {
     return null;
   }
 
@@ -62,9 +65,21 @@ export function BuildingModal() {
         </header>
         <p>{selectedBuilding.description}</p>
         <p className="muted building-zoom-hint">
-          Camera zoomed to this building. Click the building again or use Back to campus to reset
-          the view.
+          Click the door on campus or use Enter building below. Back to campus closes this panel.
         </p>
+
+        <button
+          type="button"
+          className="primary-action building-enter-btn"
+          onClick={() => {
+            audioDirector.unlock();
+            audioDirector.playSfx("door_open");
+            window.setTimeout(() => audioDirector.playSfx("camera_whoosh"), 120);
+            enterInterior(selectedBuilding.id);
+          }}
+        >
+          Enter building
+        </button>
 
         <section className="building-stats-grid">
           <article>

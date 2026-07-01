@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "sofa_corner",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "sofa_corner",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "sofa_corner",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "max": [
+        0.8,
+        2,
+        2
+      ],
+      "min": [
+        -0.7,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 216
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 792,
+      "uri": "data:application/octet-stream;base64,MzMzv+xROD3NzAy/MzMzP+xROD3NzAy/MzMzP3E9yj7NzAy/MzMzv3E9yj7NzAy/MzMzv+xROD3NzAw/MzMzP+xROD3NzAw/MzMzP3E9yj7NzAw/MzMzv3E9yj7NzAw/mpmZPuxROD2amZk+zcxMP+xROD2amZk+zcxMP3E9yj6amZk+mpmZPnE9yj6amZk+mpmZPuxROD3NzEw/zcxMP+xROD3NzEw/zcxMP3E9yj7NzEw/mpmZPnE9yj7NzEw/MzMzv7gehT5mZuY+MzMzP7gehT5mZuY+MzMzPwrXIz9mZuY+MzMzvwrXIz9mZuY+MzMzv7gehT7NzAw/MzMzP7gehT7NzAw/MzMzPwrXIz/NzAw/MzMzvwrXIz/NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/AAAAPz0K1z7NzAw/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/j8L1Ps3MzD64HgU/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/ZmbmPlyPwj4AAAA/AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIA"
+    }
+  ]
+}

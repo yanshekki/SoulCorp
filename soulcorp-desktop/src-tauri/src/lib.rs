@@ -1,5 +1,6 @@
 mod achievements;
 mod ai;
+mod fate;
 mod commands;
 mod db;
 mod progress;
@@ -20,11 +21,13 @@ use db::persistence::flush_pending_commit;
 use state::AppState;
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             db::init_database(app.handle())?;
             let (_registry, mut state) = db::persistence::bootstrap_companies(app.handle())?;
@@ -183,6 +186,7 @@ pub fn run() {
         .expect("error while running tauri application")
         .run(|app_handle, event| {
             if let RunEvent::Exit = event {
+                let _ = app_handle.save_window_state(StateFlags::all());
                 if let Some(state) = app_handle.try_state::<Mutex<AppState>>() {
                     if let Ok(locked) = state.lock() {
                         let _ = flush_pending_commit(app_handle.clone(), &locked);

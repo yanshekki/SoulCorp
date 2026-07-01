@@ -1,11 +1,12 @@
 use crate::achievements::evaluate;
-use crate::commands::events::{apply_god_mode_reality_debt, maybe_roll_event};
+use crate::commands::events::{apply_god_mode_reality_debt, should_attempt_fate_event};
 use crate::commands::export::write_auto_backup;
 use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::vip::apply_co_ceo_autonomy_tick;
 use crate::db::persistence::commit_debounced;
 use crate::finance::{apply_tick_finance, count_active_agents};
 use crate::token_budget::total_company_tokens;
+use crate::fate::events::generate_and_apply_fate_event;
 use crate::gigs::apply_gig_contract_ticks;
 use crate::progress::ProgressReporter;
 use crate::relationships::apply_relationship_tick;
@@ -15,7 +16,7 @@ use crate::workspace::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SimulationTickResult {
@@ -34,6 +35,23 @@ struct WorkspaceWriteOutcome {
     pages_written: u32,
 }
 
+struct TickSnapshot {
+    activity_snapshot: ActivitySnapshot,
+    write_daily: bool,
+    try_fate_event: bool,
+    finance_starved: bool,
+    finance_daily_salary_paid: u64,
+    gig_submitted: bool,
+    co_ceo_note: Option<String>,
+    reality_note: Option<String>,
+    agents_active: u32,
+    tick: u64,
+    day_number: u32,
+    token_balance: u64,
+    total_tokens: u64,
+    company_starved: bool,
+}
+
 #[tauri::command]
 pub async fn run_simulation_tick(
     state: State<'_, Mutex<AppState>>,
@@ -42,7 +60,7 @@ pub async fn run_simulation_tick(
     let progress = ProgressReporter::new(app.clone(), "sim_tick");
     progress.emit_percent("Starting simulation tick…", 5.0, Some("start"));
 
-    let (mut tick_result, activity_snapshot, write_daily, event_for_workspace) = {
+    let snapshot = {
         let mut state = state.lock().map_err(|e| e.to_string())?;
 
         state.tick += 1;
@@ -60,16 +78,10 @@ pub async fn run_simulation_tick(
         let co_ceo_note = apply_co_ceo_autonomy_tick(&mut state);
         let reality_note = apply_god_mode_reality_debt(&mut state);
 
-        progress.emit_percent("Rolling events…", 70.0, Some("events"));
-        let event = if state.tick % 15 == 0 {
-            maybe_roll_event(&mut state)
-        } else {
-            None
-        };
+        let try_fate_event = state.tick % 15 == 0 && should_attempt_fate_event(&state);
 
         let write_daily = finance_result.daily_salary_paid > 0;
         let activity_snapshot = ActivitySnapshot::from_state(&state);
-        let event_for_workspace = event.clone();
         let agents_active = count_active_agents(&state, true);
 
         if state.settings.backup_interval_minutes > 0 {
@@ -83,63 +95,107 @@ pub async fn run_simulation_tick(
             }
         }
 
-        let _achievement_snapshot = evaluate(&mut state);
-
-        let message = if finance_result.company_starved {
-            format!(
-                "Day {}: token balance depleted — agents throttled.",
-                state.day_number
-            )
-        } else if let Some(event) = &event {
-            format!(
-                "Day {} tick {}: event triggered — {}",
-                state.day_number, state.tick, event.title
-            )
-        } else if let Some(note) = co_ceo_note {
-            note
-        } else if let Some(note) = reality_note {
-            note
-        } else if gig_result.contracts_submitted_for_qc > 0 {
-            format!(
-                "Day {}: gig deliverable submitted for QC review.",
-                state.day_number
-            )
-        } else if finance_result.daily_salary_paid > 0 {
-            format!(
-                "Day {} payroll processed ({} tokens).",
-                state.day_number, finance_result.daily_salary_paid
-            )
-        } else {
-            format!(
-                "Day {} tick {}: simulation running with {} agents.",
-                state.day_number,
-                state.tick,
-                state.agents.len()
-            )
-        };
-
-        let result = SimulationTickResult {
-            tick: state.tick,
+        TickSnapshot {
+            activity_snapshot,
+            write_daily,
+            try_fate_event,
+            finance_starved: finance_result.company_starved,
+            finance_daily_salary_paid: finance_result.daily_salary_paid,
+            gig_submitted: gig_result.contracts_submitted_for_qc > 0,
+            co_ceo_note,
+            reality_note,
             agents_active,
+            tick: state.tick,
             day_number: state.day_number,
             token_balance: state.token_economy.company_balance,
             total_tokens: total_company_tokens(&state.token_economy),
             company_starved: finance_result.company_starved,
-            message,
-            event,
-        };
-
-        (result, activity_snapshot, write_daily, event_for_workspace)
+        }
     };
 
-    let workspace_outcome = if write_daily || event_for_workspace.is_some() {
+    let event = if snapshot.try_fate_event {
+        progress.emit_indeterminate("Fate is weaving an event…", Some("fate"));
+        let app_for_fate = app.clone();
+        match tokio::task::spawn_blocking(move || {
+            let mutex = app_for_fate.state::<Mutex<AppState>>();
+            let mut state = mutex.lock().map_err(|e| e.to_string())?;
+            Ok::<_, String>(generate_and_apply_fate_event(&mut state))
+        })
+        .await
+        {
+            Ok(Ok(generated)) => generated,
+            Ok(Err(error)) => {
+                eprintln!("Fate event tick failed: {error}");
+                None
+            }
+            Err(error) => {
+                eprintln!("Fate event task failed: {error}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let message = if snapshot.finance_starved {
+        format!(
+            "Day {}: token balance depleted — agents throttled.",
+            snapshot.day_number
+        )
+    } else if let Some(event) = &event {
+        format!(
+            "Day {} tick {}: Fate triggered — {}",
+            snapshot.day_number, snapshot.tick, event.title
+        )
+    } else if let Some(note) = snapshot.co_ceo_note {
+        note
+    } else if let Some(note) = snapshot.reality_note {
+        note
+    } else if snapshot.gig_submitted {
+        format!(
+            "Day {}: gig deliverable submitted for QC review.",
+            snapshot.day_number
+        )
+    } else if snapshot.finance_daily_salary_paid > 0 {
+        format!(
+            "Day {} payroll processed ({} tokens).",
+            snapshot.day_number, snapshot.finance_daily_salary_paid
+        )
+    } else {
+        format!(
+            "Day {} tick {}: simulation running with {} agents.",
+            snapshot.day_number,
+            snapshot.tick,
+            snapshot.agents_active
+        )
+    };
+
+    let mut tick_result = SimulationTickResult {
+        tick: snapshot.tick,
+        agents_active: snapshot.agents_active,
+        day_number: snapshot.day_number,
+        token_balance: snapshot.token_balance,
+        total_tokens: snapshot.total_tokens,
+        company_starved: snapshot.company_starved,
+        message,
+        event,
+    };
+
+    let workspace_outcome = if snapshot.write_daily || tick_result.event.is_some() {
         progress.emit_percent("Writing workspace journals…", 85.0, Some("journals"));
         let app_for_io = app.clone();
-        let snapshot = activity_snapshot.clone();
-        let event = event_for_workspace.clone();
-        tokio::task::spawn_blocking(move || run_workspace_writes(&app_for_io, &snapshot, write_daily, event.as_ref()))
-            .await
-            .map_err(|e| e.to_string())?
+        let activity_snapshot = snapshot.activity_snapshot.clone();
+        let event_for_workspace = tick_result.event.clone();
+        tokio::task::spawn_blocking(move || {
+            run_workspace_writes(
+                &app_for_io,
+                &activity_snapshot,
+                snapshot.write_daily,
+                event_for_workspace.as_ref(),
+            )
+        })
+        .await
+        .map_err(|e| e.to_string())?
     } else {
         Ok(WorkspaceWriteOutcome {
             note: None,
@@ -157,6 +213,7 @@ pub async fn run_simulation_tick(
             if outcome.pages_written > 0 {
                 state.stats.pages_created += outcome.pages_written;
             }
+            let _achievement_snapshot = evaluate(&mut state);
             commit_debounced(app.clone(), &state)?;
         }
         Err(err) => {

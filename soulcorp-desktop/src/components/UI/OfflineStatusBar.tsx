@@ -9,11 +9,12 @@ export function OfflineStatusBar() {
   const tickInFlight = useProgressStore((state) => state.tickInFlight);
 
   const cloudEnabled = !settings.pure_local_mode;
-  const eventsLabel = settings.random_events_enabled
-    ? settings.event_mode === "serious"
-      ? "Serious mode"
-      : "Events on"
-    : "Events off";
+  const eventsLabel =
+    settings.play_mode === "work"
+      ? "Work Mode"
+      : settings.random_events_enabled
+        ? `Game · ${Math.round((settings.random_event_chance || 0.15) * 100)}% Fate`
+        : "Game · Fate idle";
 
   return (
     <div className="offline-status-bar" aria-label="Offline capabilities">

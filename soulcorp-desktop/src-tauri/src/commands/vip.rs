@@ -314,6 +314,8 @@ pub fn spawn_co_ceo(
         soul,
         soul_id: None,
         ai_provider: None,
+        agent_kind: None,
+        skills: crate::state::skills_for_role("AI Co-CEO"),
     };
 
     state.agents.insert(agent_id.clone(), record);

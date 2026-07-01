@@ -63,7 +63,12 @@ pub fn start_meeting(
     let participant_ids: Vec<String> = request
         .agent_ids
         .iter()
-        .filter(|agent_id| state.agents.contains_key(*agent_id))
+        .filter(|agent_id| {
+            state
+                .agents
+                .get(*agent_id)
+                .is_some_and(|agent| !crate::fate::is_system_agent(agent))
+        })
         .cloned()
         .collect();
     if participant_ids.len() < 2 {

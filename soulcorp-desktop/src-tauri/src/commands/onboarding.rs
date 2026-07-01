@@ -1,5 +1,6 @@
 use crate::db::persistence::{commit, load_registry, save_registry};
-use crate::state::{fresh_company_state, summary_from_state, AppState, EventMode};
+use crate::fate::{clamp_event_chance, sync_play_mode_side_effects};
+use crate::state::{fresh_company_state, summary_from_state, AppState, PlayMode};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -17,9 +18,10 @@ pub struct CompleteOnboardingRequest {
     pub company_name: String,
     pub company_industry: String,
     pub company_tagline: String,
-    pub event_mode: EventMode,
+    pub play_mode: PlayMode,
     pub pure_local_mode: bool,
     pub random_events_enabled: bool,
+    pub random_event_chance: f32,
 }
 
 fn normalize_company_name(raw: &str) -> Result<String, String> {
@@ -64,6 +66,7 @@ pub fn complete_onboarding(
     let company_name = normalize_company_name(&request.company_name)?;
     let company_industry = normalize_optional_field(&request.company_industry, 64, "Industry")?;
     let company_tagline = normalize_optional_field(&request.company_tagline, 120, "Tagline")?;
+    let random_event_chance = clamp_event_chance(request.random_event_chance);
 
     let mut state = app_state.lock().map_err(|e| e.to_string())?;
     if state.company_id.is_empty() {
@@ -71,21 +74,21 @@ pub fn complete_onboarding(
             &company_name,
             &company_industry,
             &company_tagline,
-            request.event_mode,
+            request.play_mode,
             request.pure_local_mode,
             request.random_events_enabled,
+            random_event_chance,
         );
         *state = fresh;
     } else {
         state.company_name = company_name.clone();
         state.company_industry = company_industry.clone();
         state.company_tagline = company_tagline.clone();
-        state.settings.event_mode = request.event_mode;
+        state.settings.play_mode = request.play_mode;
         state.settings.pure_local_mode = request.pure_local_mode;
         state.settings.random_events_enabled = request.random_events_enabled;
-        if request.event_mode == EventMode::Serious {
-            state.settings.random_events_enabled = false;
-        }
+        state.settings.random_event_chance = random_event_chance;
+        sync_play_mode_side_effects(&mut state);
         if request.pure_local_mode {
             state.settings.ai_provider = "mock".to_string();
             state.hub.connected = false;

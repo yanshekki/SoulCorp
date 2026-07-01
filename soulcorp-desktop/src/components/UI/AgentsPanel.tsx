@@ -159,7 +159,12 @@ export function AgentsPanel() {
               return (
                 <article key={agent.id} className="agent-row brain-row">
                   <div>
-                    <strong>{agent.name}</strong>
+                    <strong>
+                      {agent.name}
+                      {agent.agent_kind === "fate" ? (
+                        <span className="fate-agent-badge"> · Controls random events</span>
+                      ) : null}
+                    </strong>
                     <p>
                       {agent.role} · {agent.department}
                     </p>
@@ -187,7 +192,7 @@ export function AgentsPanel() {
                     <select
                       value={selected}
                       onChange={(event) => void updateAgentProvider(agent.id, event.target.value)}
-                      disabled={settings.pure_local_mode}
+                      disabled={settings.pure_local_mode || agent.agent_kind === "fate"}
                     >
                       {AGENT_AI_PROVIDER_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>

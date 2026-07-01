@@ -45,6 +45,9 @@ export interface Agent {
   appearance: AgentAppearance;
   behavior: AgentBehavior;
   walkPhase: number;
+  path?: [number, number, number][];
+  pathIndex?: number;
+  pathTargetKey?: string;
 }
 
 export interface Building {

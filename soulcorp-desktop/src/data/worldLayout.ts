@@ -1,9 +1,11 @@
+import { useGameStore } from "../stores/gameStore";
 import type { Building } from "../types/world";
 
 export const DEPARTMENT_BUILDING: Record<string, string> = {
   Engineering: "engineering",
   "Human Resources": "hr",
   Executive: "hq",
+  Meta: "hq",
   Marketplace: "plaza",
   Recreation: "park",
 };
@@ -61,7 +63,26 @@ export const WORLD_PROPS = [
 ];
 
 export function deskForAgent(buildingId: string, agentId: string): [number, number, number] {
-  const desks = BUILDING_DESKS[buildingId] ?? BUILDING_DESKS.hq;
+  const office = useGameStore.getState().visualDesign.offices[buildingId];
+  let desks: [number, number, number][] = BUILDING_DESKS[buildingId] ?? BUILDING_DESKS.hq;
+
+  if (office) {
+    const boundDesk = office.furniture?.find(
+      (item) => item.catalog_id.startsWith("desk_") && item.linked_agent_id === agentId,
+    );
+    if (boundDesk) {
+      return boundDesk.position;
+    }
+
+    const furnitureDesks =
+      office.furniture?.filter((item) => item.catalog_id.startsWith("desk_")) ?? [];
+    if (furnitureDesks.length > 0) {
+      desks = furnitureDesks.map((item) => item.position);
+    } else if (office.desk_positions && office.desk_positions.length > 0) {
+      desks = office.desk_positions;
+    }
+  }
+
   let hash = 0;
   for (const char of agentId) {
     hash = (hash + char.charCodeAt(0) * 17) % desks.length;

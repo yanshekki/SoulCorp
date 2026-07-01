@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { audioDirector } from "../../audio/AudioDirector";
 import { applyDesignPreset, getVisualDesign, saveVisualDesign } from "../../services/visualDesignClient";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
@@ -13,7 +14,17 @@ import { CampusDesignPanel } from "./CampusDesignPanel";
 import { DesignCategoryNav } from "./DesignCategoryNav";
 import { DesignPresetPicker } from "./DesignPresetPicker";
 import { DesignPreviewViewport } from "./DesignPreviewViewport";
+import { FurnitureCatalogPanel } from "./FurnitureCatalogPanel";
+import { InteriorDesignViewport } from "./InteriorDesignViewport";
 import { OfficeDesignPanel } from "./OfficeDesignPanel";
+import { OfficeFloorPlanEditor } from "./OfficeFloorPlanEditor";
+import {
+  OfficeStudioToolbar,
+  type OfficeDesignStep,
+  type OfficeDrawerTab,
+  type OfficeWorkspaceView,
+} from "./OfficeStudioToolbar";
+import { RoomDimensionsPanel } from "./RoomDimensionsPanel";
 
 export function DesignStudioPage() {
   const category = useDesignStudioStore((state) => state.category);
@@ -34,6 +45,12 @@ export function DesignStudioPage() {
   const setBuildings = useGameStore((state) => state.setBuildings);
   const setAgents = useGameStore((state) => state.setAgents);
 
+  const [drawerOpen, setDrawerOpen] = useState(category !== "offices");
+  const [railCollapsed, setRailCollapsed] = useState(true);
+  const [officeDrawerTab, setOfficeDrawerTab] = useState<OfficeDrawerTab>("room");
+  const [officeActiveStep, setOfficeActiveStep] = useState<OfficeDesignStep>("size");
+  const [officeWorkspaceView, setOfficeWorkspaceView] = useState<OfficeWorkspaceView>("plan");
+
   useEffect(() => {
     void getVisualDesign()
       .then((design) => setDraft(design))
@@ -48,6 +65,25 @@ export function DesignStudioPage() {
     }
   }, [agentRecords, agents, setSelectedAgentId]);
 
+  useEffect(() => {
+    const state = useGameStore.getState();
+    if (state.worldView === "interior") {
+      state.exitInterior();
+    }
+  }, []);
+
+  useEffect(() => {
+    setRailCollapsed(true);
+    if (category === "offices") {
+      setDrawerOpen(true);
+      setOfficeActiveStep("size");
+      setOfficeWorkspaceView("plan");
+      setOfficeDrawerTab("room");
+      return;
+    }
+    setDrawerOpen(true);
+  }, [category]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -57,6 +93,7 @@ export function DesignStudioPage() {
       setBuildings(applyBuildingsVisualDesign(buildings, saved));
       setAgents(applyAgentsVisualDesign(agents, saved));
       setDirty(false);
+      audioDirector.playSfx("save_success");
       setStatusMessage("3D design saved for this company.");
     } catch (error) {
       setStatusMessage(String(error));
@@ -95,8 +132,59 @@ export function DesignStudioPage() {
     }
   };
 
+  const renderDrawerContent = () => {
+    if (category === "campus") {
+      return <CampusDesignPanel />;
+    }
+    if (category === "buildings") {
+      return <BuildingDesignPanel />;
+    }
+    if (category === "agents") {
+      return <AgentDesignPanel />;
+    }
+    if (category === "offices") {
+      return (
+        <>
+          <div className="design-drawer-tabs" role="tablist" aria-label="Office design panels">
+            {(
+              [
+                { id: "room", label: "房間大小" },
+                { id: "catalog", label: "傢俬" },
+                { id: "theme", label: "配色" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={officeDrawerTab === tab.id}
+                className={`design-drawer-tab${officeDrawerTab === tab.id ? " active" : ""}`}
+                onClick={() => setOfficeDrawerTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {officeDrawerTab === "catalog" ? <FurnitureCatalogPanel variant="grid" /> : null}
+          {officeDrawerTab === "room" ? <RoomDimensionsPanel /> : null}
+          {officeDrawerTab === "theme" ? <OfficeDesignPanel /> : null}
+        </>
+      );
+    }
+    return null;
+  };
+
+  const editorPanelLabel =
+    category === "campus"
+      ? "Campus theme"
+      : category === "buildings"
+        ? "Building style"
+        : category === "agents"
+          ? "Agent appearance"
+          : "Office editor";
+
   return (
-    <div className="design-studio-page">
+    <div className={`design-studio-page${category === "offices" ? " design-studio-page--offices" : ""}`}>
       <header className="design-studio-header">
         <div>
           <p className="modal-eyebrow">3D Design Studio</p>
@@ -106,11 +194,7 @@ export function DesignStudioPage() {
           </p>
         </div>
         <div className="design-studio-header-actions">
-          <button
-            type="button"
-            onClick={() => void reloadGameState()}
-            disabled={saving}
-          >
+          <button type="button" onClick={() => void reloadGameState()} disabled={saving}>
             Reload
           </button>
           <button
@@ -125,21 +209,101 @@ export function DesignStudioPage() {
       </header>
 
       <div className="design-studio-layout">
-        <aside className="design-studio-sidebar">
-          <DesignCategoryNav active={category} onChange={setCategory} />
-          <DesignPresetPicker onSelect={(presetId) => void handlePreset(presetId)} compact />
-        </aside>
-
         <main className="design-studio-main">
-          <DesignPreviewViewport />
+          {category === "offices" ? (
+            <div className="design-office-stage">
+              <OfficeStudioToolbar
+                workspaceView={officeWorkspaceView}
+                activeStep={officeActiveStep}
+                drawerTab={officeDrawerTab}
+                drawerOpen={drawerOpen}
+                onWorkspaceViewChange={setOfficeWorkspaceView}
+                onActiveStepChange={setOfficeActiveStep}
+                onDrawerTabChange={setOfficeDrawerTab}
+                onDrawerOpenChange={setDrawerOpen}
+              />
+              <div
+                className={`design-office-workspace design-office-workspace--${officeWorkspaceView}`}
+              >
+                {officeWorkspaceView !== "3d" ? <OfficeFloorPlanEditor /> : null}
+                {officeWorkspaceView !== "plan" ? (
+                  <InteriorDesignViewport compact={officeWorkspaceView === "split"} />
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <DesignPreviewViewport />
+          )}
         </main>
 
-        <aside className="design-studio-editor">
-          {category === "campus" ? <CampusDesignPanel /> : null}
-          {category === "buildings" ? <BuildingDesignPanel /> : null}
-          {category === "offices" ? <OfficeDesignPanel /> : null}
-          {category === "agents" ? <AgentDesignPanel /> : null}
-        </aside>
+        <div className="design-studio-right-chrome" data-drawer-open={drawerOpen ? "true" : "false"}>
+          <aside
+            className={`design-studio-drawer${drawerOpen ? " open" : ""}`}
+            aria-label="Design editor"
+            aria-hidden={!drawerOpen}
+          >
+            {renderDrawerContent()}
+          </aside>
+          <div className="design-studio-right-controls">
+            {category !== "offices" && !drawerOpen ? (
+              <button
+                type="button"
+                className="design-edit-fab"
+                onClick={() => setDrawerOpen(true)}
+                aria-label={`Open ${editorPanelLabel}`}
+                title={`Edit — ${editorPanelLabel}`}
+              >
+                Edit
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`design-drawer-toggle${drawerOpen ? " open" : ""}`}
+              onClick={() => setDrawerOpen((value) => !value)}
+              aria-expanded={drawerOpen}
+              aria-label={drawerOpen ? "Hide editor panel" : "Show editor panel"}
+              title={drawerOpen ? "Hide editor" : editorPanelLabel}
+            >
+              {drawerOpen ? "›" : "‹"}
+            </button>
+          </div>
+        </div>
+
+        <div className="design-studio-left-chrome" data-rail-open={railCollapsed ? "false" : "true"}>
+          {railCollapsed ? (
+            <button
+              type="button"
+              className="design-studio-rail-expand-tab"
+              onClick={() => setRailCollapsed(false)}
+              aria-label="Show categories and presets"
+              title="Categories & presets"
+            >
+              ›
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="design-studio-rail-backdrop"
+                onClick={() => setRailCollapsed(true)}
+                aria-label="Hide categories and presets"
+              />
+              <aside className="design-studio-rail design-studio-rail--drawer" aria-label="Design categories">
+                <button
+                  type="button"
+                  className="design-studio-rail-collapse-btn"
+                  onClick={() => setRailCollapsed(true)}
+                  aria-label="Hide categories and presets"
+                  title="Hide categories and presets"
+                >
+                  ‹
+                </button>
+                <DesignCategoryNav active={category} onChange={setCategory} compact />
+                <DesignPresetPicker onSelect={(presetId) => void handlePreset(presetId)} compact />
+              </aside>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

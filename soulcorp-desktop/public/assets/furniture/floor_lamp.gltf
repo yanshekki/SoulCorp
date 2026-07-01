@@ -1,0 +1,89 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "soulcorp-furniture-gen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "floor_lamp",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "floor_lamp",
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "floor_lamp",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 1
+          },
+          "indices": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "max": [
+        0.21,
+        2,
+        2
+      ],
+      "min": [
+        -0.21,
+        0,
+        -2
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 576,
+      "byteLength": 216
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 792,
+      "uri": "data:application/octet-stream;base64,CtcjvQrXo7sK1yO9CtcjPQrXo7sK1yO9CtcjPfYorD8K1yO9CtcjvfYorD8K1yO9CtcjvQrXo7sK1yM9CtcjPQrXo7sK1yM9CtcjPfYorD8K1yM9CtcjvfYorD8K1yM9exQuvnE9qj97FC6+exQuPnE9qj97FC6+exQuPq5HwT97FC6+exQuvq5HwT97FC6+exQuvnE9qj97FC4+exQuPnE9qj97FC4+exQuPq5HwT97FC4+exQuvq5HwT97FC4+PQpXvgAAAAA9Cle+PQpXPgAAAAA9Cle+PQpXPgrXIz09Cle+PQpXvgrXIz09Cle+PQpXvgAAAAA9Clc+PQpXPgAAAAA9Clc+PQpXPgrXIz09Clc+PQpXvgrXIz09Clc+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+CtejPpqZmT4pXI8+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+MzNzP4XrUT9mZuY+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+KVyPPrgehT6PwnU+AAABAAIAAAACAAMABAAGAAUABAAHAAYAAAAEAAUAAAAFAAEAAgAGAAcAAgAHAAMAAAADAAcAAAAHAAQAAQAFAAYAAQAGAAIACAAJAAoACAAKAAsADAAOAA0ADAAPAA4ACAAMAA0ACAANAAkACgAOAA8ACgAPAAsACAALAA8ACAAPAAwACQANAA4ACQAOAAoAEAARABIAEAASABMAFAAWABUAFAAXABYAEAAUABUAEAAVABEAEgAWABcAEgAXABMAEAATABcAEAAXABQAEQAVABYAEQAWABIA"
+    }
+  ]
+}

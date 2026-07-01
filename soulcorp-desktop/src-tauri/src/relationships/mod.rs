@@ -75,7 +75,12 @@ pub fn seed_default_relationships(state: &mut AppState) {
         return;
     }
 
-    let mut agent_ids: Vec<String> = state.agents.keys().cloned().collect();
+    let mut agent_ids: Vec<String> = state
+        .agents
+        .values()
+        .filter(|agent| agent.agent_kind.as_deref() != Some("fate"))
+        .map(|agent| agent.id.clone())
+        .collect();
     agent_ids.sort();
     if agent_ids.len() < 2 {
         return;
@@ -249,7 +254,7 @@ mod tests {
         state.seed_defaults();
         seed_default_relationships(&mut state);
         let graph = build_relationship_graph(&state);
-        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.nodes.len(), 4);
         assert_eq!(graph.edges.len(), 2);
     }
 }

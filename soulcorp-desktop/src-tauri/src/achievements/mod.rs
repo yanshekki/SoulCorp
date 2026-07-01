@@ -47,10 +47,18 @@ pub fn default_achievements() -> Vec<Achievement> {
             unlocked_at: None,
         },
         Achievement {
-            id: "serious_mode".into(),
-            title: "Serious Work Mode".into(),
-            description: "Switch to Serious Work Mode for pure productivity.".into(),
+            id: "work_mode".into(),
+            title: "Work Mode".into(),
+            description: "Switch to Work Mode for pure productivity.".into(),
             category: "productivity".into(),
+            unlocked: false,
+            unlocked_at: None,
+        },
+        Achievement {
+            id: "meet_fate".into(),
+            title: "Meet Fate".into(),
+            description: "Run Game Mode with Fate watching over your company.".into(),
+            category: "chaos".into(),
             unlocked: false,
             unlocked_at: None,
         },
@@ -186,8 +194,13 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
         ("ten_agents", state.agents.len() >= 10),
         ("first_meeting", state.stats.meetings_completed >= 1),
         (
-            "serious_mode",
-            state.settings.event_mode == crate::state::EventMode::Serious,
+            "work_mode",
+            state.settings.play_mode == crate::state::PlayMode::Work,
+        ),
+        (
+            "meet_fate",
+            state.settings.play_mode == crate::state::PlayMode::Game
+                && state.agents.contains_key(crate::fate::FATE_AGENT_ID),
         ),
         ("pure_local", state.settings.pure_local_mode),
         ("god_mode_user", state.stats.god_mode_uses >= 1),
@@ -216,7 +229,7 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
         unlock_ending(state, "legacy_builder", &now, &mut newly_unlocked);
     }
     if state.stats.events_triggered >= 20
-        && state.settings.event_mode == crate::state::EventMode::Fun
+        && state.settings.play_mode == crate::state::PlayMode::Game
     {
         unlock_ending(state, "maximum_chaos", &now, &mut newly_unlocked);
     }
@@ -254,7 +267,7 @@ fn unlock_ending(state: &mut AppState, id: &str, now: &str, newly_unlocked: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{AppState, EventMode, GameSettings};
+    use crate::state::{AppState, GameSettings, PlayMode};
 
     fn sample_state() -> AppState {
         let mut state = AppState::default();
@@ -295,6 +308,8 @@ mod tests {
                     soul: None,
                     soul_id: None,
                     ai_provider: None,
+                    agent_kind: None,
+                    skills: crate::state::skills_for_role("Engineer"),
                 },
             );
         }
@@ -307,14 +322,14 @@ mod tests {
     }
 
     #[test]
-    fn serious_mode_unlocks_serious_work_achievement() {
+    fn work_mode_unlocks_work_mode_achievement() {
         let mut state = sample_state();
-        state.settings.event_mode = EventMode::Serious;
+        state.settings.play_mode = PlayMode::Work;
         let snapshot = evaluate(&mut state);
         assert!(snapshot
             .achievements
             .iter()
-            .find(|item| item.id == "serious_mode")
+            .find(|item| item.id == "work_mode")
             .is_some_and(|item| item.unlocked));
     }
 }
