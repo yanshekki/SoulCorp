@@ -627,6 +627,7 @@ select optgroup {
 
 .app-body--immersive {
   --inspector-width: 0px;
+  --inspector-drawer-width: 360px;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -651,7 +652,8 @@ select optgroup {
   left: 0;
   top: 0;
   bottom: 0;
-  width: min(var(--inspector-width), 88vw);
+  width: min(var(--inspector-drawer-width), 88vw);
+  min-width: min(16rem, 88vw);
   z-index: 12;
   box-shadow: var(--shadow-lg);
   pointer-events: auto;
@@ -680,6 +682,8 @@ select optgroup {
   height: 3.25rem;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 0;
+  pointer-events: auto;
+  z-index: 14;
 }
 
 .app-inspector-expand-tab:hover,
