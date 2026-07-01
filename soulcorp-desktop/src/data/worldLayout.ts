@@ -10,42 +10,21 @@ export const DEPARTMENT_BUILDING: Record<string, string> = {
   Recreation: "park",
 };
 
+/** Legacy fallback — runtime uses furniture[] from HK layout (50 desks per building). */
 export const BUILDING_DESKS: Record<string, [number, number, number][]> = {
-  hq: [
-    [-1.2, 0, 1.4],
-    [1.1, 0, 1.2],
-    [0.2, 0, -1.3],
-  ],
-  engineering: [
-    [-7.2, 0, 2.8],
-    [-5.4, 0, 3.2],
-    [-6.8, 0, 0.8],
-    [-4.8, 0, 1.4],
-  ],
-  hr: [
-    [5.2, 0, -1.4],
-    [7.0, 0, -2.6],
-    [6.4, 0, -0.6],
-  ],
-  plaza: [
-    [-1.4, 0, -6.2],
-    [1.5, 0, -6.8],
-    [0.3, 0, -8.0],
-  ],
-  park: [
-    [7.8, 0, 4.0],
-    [9.2, 0, 5.2],
-    [8.4, 0, 6.0],
-    [9.8, 0, 3.6],
-  ],
+  hq: [[-3.5, 0, 0]],
+  engineering: [[-3.5, 0, 0]],
+  hr: [[-3.5, 0, 0]],
+  plaza: [[-3.5, 0, 0]],
+  park: [[-3.5, 0, 0]],
 };
 
 export const BUILDING_ENTRANCES: Record<string, [number, number, number]> = {
-  hq: [0, 0, 2.8],
-  engineering: [-6, 0, 4.2],
-  hr: [6, 0, -0.4],
-  plaza: [0, 0, -5.2],
-  park: [8.5, 0, 6.2],
+  hq: [0, 0, 7.5],
+  engineering: [-14, 0, 10.5],
+  hr: [14, 0, -2.5],
+  plaza: [0, 0, -10.5],
+  park: [18, 0, 16.5],
 };
 
 export const BREAK_SPOT: [number, number, number] = [8.5, 0, 5.0];

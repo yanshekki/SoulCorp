@@ -63,7 +63,7 @@ export function createGameInteriorOrbit(office: OfficeVisualConfig): InteriorOrb
     azimuth: ISO_SNAP,
     elevation: 0.48,
     frustum: defaultInteriorFrustum(office, "full"),
-    zoom: 0.5,
+    zoom: 0.35,
     panX: 0,
     panZ: 0,
   };

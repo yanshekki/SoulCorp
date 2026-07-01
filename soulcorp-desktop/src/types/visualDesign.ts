@@ -5,6 +5,8 @@ export type OfficeThemePackId = "startup_warm" | "corporate_cool" | "clinical_pl
 export type DesignHairStyle = "short" | "bob" | "spiky" | "long";
 export type DesignCategory = "campus" | "buildings" | "offices" | "agents";
 export type InteriorZone = "lobby" | "corridor" | "office";
+
+export type OfficeLayoutTemplateId = "hk_mixed_50";
 export type FurnitureCategory =
   | "desk"
   | "chair"
@@ -80,6 +82,8 @@ export interface BuildingVisualConfig {
 }
 
 export interface OfficeVisualConfig {
+  /** Professional floor-plan preset (e.g. Hong Kong 50-person mixed office). */
+  layout_template?: OfficeLayoutTemplateId;
   /** Sims×TPH theme pack; default startup_warm for new offices */
   theme_pack?: OfficeThemePackId;
   floor_color: string;
@@ -153,9 +157,9 @@ export const DEFAULT_BUILDING_VISUAL: BuildingVisualConfig = {
   signage: "",
 };
 
-export const DEFAULT_LOBBY_ROOM: RoomDimensions = { width: 3.9, depth: 2.1, height: 2.55 };
-export const DEFAULT_CORRIDOR_ROOM: RoomDimensions = { width: 1.3, depth: 0.85, height: 2.55 };
-export const DEFAULT_OFFICE_ROOM: RoomDimensions = { width: 3.6, depth: 2.9, height: 2.55 };
+export const DEFAULT_LOBBY_ROOM: RoomDimensions = { width: 8, depth: 5, height: 3.2 };
+export const DEFAULT_CORRIDOR_ROOM: RoomDimensions = { width: 4, depth: 3, height: 3.2 };
+export const DEFAULT_OFFICE_ROOM: RoomDimensions = { width: 22, depth: 16, height: 3.2 };
 
 export const DEFAULT_OFFICE_VISUAL: OfficeVisualConfig = {
   theme_pack: "startup_warm",

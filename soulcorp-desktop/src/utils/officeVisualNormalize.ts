@@ -1,12 +1,18 @@
 import { layoutForBuilding } from "../data/interiorLayouts";
 import { deskCatalogId, getCatalogEntry } from "../data/furnitureCatalog";
+import {
+  applyHkOfficeTemplate,
+  hkRoomsForBuilding,
+  isLegacySmallOffice,
+} from "../data/hkOfficeLayouts";
 import { DEFAULT_OFFICE_THEME_PACK_ID } from "../data/officeThemePacks";
 import { FURNITURE_CLEARANCE } from "./furnitureEditor";
 import { BUILDING_DESKS } from "../data/worldLayout";
 import type { FurnitureInstance, OfficeVisualConfig, RoomDimensions } from "../types/visualDesign";
 import { DEFAULT_CORRIDOR_ROOM, DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
 import { normalizeOfficeArchitecture } from "./officeArchitecture";
-import { defaultBuildingForId, roomsFromBuilding, scaleFurnitureForGameRooms } from "./interiorScale";
+import { generateHkOfficeFurniture } from "./hkOfficeFurnitureGenerator";
+import { scaleFurnitureForGameRooms } from "./interiorScale";
 
 function mergeRoomDimensions(
   saved: Partial<RoomDimensions> | undefined,
@@ -245,25 +251,36 @@ export function normalizeOfficeVisual(
   raw: Partial<OfficeVisualConfig> | undefined,
   buildingId: string,
 ): OfficeVisualConfig {
-  const building = defaultBuildingForId(buildingId);
-  const rooms = roomsFromBuilding(building);
+  const rooms = hkRoomsForBuilding(buildingId);
+  const useHkTemplate = isLegacySmallOffice(raw);
+
+  const hkSeed = useHkTemplate ? applyHkOfficeTemplate(buildingId, raw) : raw;
   const base: OfficeVisualConfig = {
     ...DEFAULT_OFFICE_VISUAL,
-    ...raw,
-    theme_pack: raw?.theme_pack ?? DEFAULT_OFFICE_THEME_PACK_ID,
-    lobby_room: mergeRoomDimensions(raw?.lobby_room, rooms.lobby_room),
-    corridor_room: mergeRoomDimensions(raw?.corridor_room, rooms.corridor_room),
-    room: mergeRoomDimensions(raw?.room, rooms.room),
+    ...hkSeed,
+    theme_pack: raw?.theme_pack ?? hkSeed?.theme_pack ?? DEFAULT_OFFICE_THEME_PACK_ID,
+    lobby_room: mergeRoomDimensions(
+      useHkTemplate ? hkSeed?.lobby_room : raw?.lobby_room,
+      rooms.lobby_room,
+    ),
+    corridor_room: mergeRoomDimensions(
+      useHkTemplate ? hkSeed?.corridor_room : raw?.corridor_room,
+      rooms.corridor_room,
+    ),
+    room: mergeRoomDimensions(useHkTemplate ? hkSeed?.room : raw?.room, rooms.room),
   };
 
-  if (!base.furniture || base.furniture.length === 0) {
+  if (useHkTemplate) {
+    base.furniture = generateHkOfficeFurniture(buildingId, base);
+    base.architecture = normalizeOfficeArchitecture(hkSeed?.architecture ?? base.architecture);
+  } else if (!base.furniture || base.furniture.length === 0) {
     base.furniture = legacyFurniture(base, buildingId);
+    base.architecture = normalizeOfficeArchitecture(raw?.architecture ?? base.architecture);
   } else {
     base.furniture = scaleFurnitureForGameRooms(base.furniture, buildingId, base);
     base.furniture = ensureDefaultArtDecor(base.furniture, buildingId, base);
+    base.architecture = normalizeOfficeArchitecture(raw?.architecture ?? base.architecture);
   }
-
-  base.architecture = normalizeOfficeArchitecture(raw?.architecture ?? base.architecture);
 
   return base;
 }
@@ -294,5 +311,5 @@ export function defaultRoomsForBuilding(buildingId: string): {
   corridor_room: RoomDimensions;
   room: RoomDimensions;
 } {
-  return roomsFromBuilding(defaultBuildingForId(buildingId));
+  return hkRoomsForBuilding(buildingId);
 }

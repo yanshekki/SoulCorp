@@ -1,6 +1,6 @@
 import type { CompanyVisualDesign } from "../types/visualDesign";
-import { DEFAULT_CORRIDOR_ROOM, EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
-import { defaultRoomsForBuilding } from "../utils/officeVisualNormalize";
+import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
+import { applyHkOfficeTemplate, hkRoomsForBuilding } from "./hkOfficeLayouts";
 
 /** Frontend mirror of Rust `preset_for` for live preview before save. */
 export function presetDesignFor(presetId: string): CompanyVisualDesign {
@@ -56,21 +56,24 @@ export function presetDesignFor(presetId: string): CompanyVisualDesign {
           style: "startup",
           signage: "",
         };
-        const rooms = defaultRoomsForBuilding(id);
+        const rooms = hkRoomsForBuilding(id);
+        const hkTemplate = applyHkOfficeTemplate(id);
         design.offices[id] = {
-          theme_pack: "startup_warm",
+          layout_template: hkTemplate.layout_template,
+          architecture: hkTemplate.architecture!,
+          lobby_room: rooms.lobby_room,
+          corridor_room: rooms.corridor_room,
+          room: rooms.room,
           floor_color: "#c9a882",
           wall_color: "#f5f0e8",
           accent_color: accent,
+          theme_pack: "startup_warm",
           desk_style: desk,
           lighting: "warm",
           has_plants: true,
           has_whiteboard: id === "engineering",
           has_lounge_seating: id === "hr" || id === "park",
           desk_positions: [],
-          lobby_room: rooms.lobby_room,
-          corridor_room: DEFAULT_CORRIDOR_ROOM,
-          room: rooms.room,
           furniture: [],
         };
       }

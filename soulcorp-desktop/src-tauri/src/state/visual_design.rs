@@ -110,8 +110,8 @@ pub struct RoomDimensions {
 impl Default for RoomDimensions {
     fn default() -> Self {
         Self {
-            width: 12.0,
-            depth: 9.0,
+            width: 22.0,
+            depth: 16.0,
             height: 3.2,
         }
     }
@@ -119,15 +119,15 @@ impl Default for RoomDimensions {
 
 fn default_lobby_room() -> RoomDimensions {
     RoomDimensions {
-        width: 10.0,
-        depth: 7.0,
+        width: 8.0,
+        depth: 5.0,
         height: 3.2,
     }
 }
 
 fn default_corridor_room() -> RoomDimensions {
     RoomDimensions {
-        width: 2.5,
+        width: 4.0,
         depth: 3.0,
         height: 3.2,
     }

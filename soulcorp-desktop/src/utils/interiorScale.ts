@@ -1,40 +1,20 @@
+import { hkRoomsForBuilding } from "../data/hkOfficeLayouts";
 import { INITIAL_BUILDINGS } from "../data/initialWorld";
 import type { Building } from "../types/world";
 import type { FurnitureInstance, InteriorZone, OfficeVisualConfig, RoomDimensions } from "../types/visualDesign";
 
 /** Bump when room/camera proportions change — forces interior rebuild. */
-export const INTERIOR_LAYOUT_VERSION = 3;
+export const INTERIOR_LAYOUT_VERSION = 4;
 
 /** Visual-only boost so GLTF props read clearly at game camera distance. */
 export const FURNITURE_DISPLAY_SCALE = 1.22;
-
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
-}
 
 export function roomsFromBuilding(building: Building): {
   lobby_room: RoomDimensions;
   corridor_room: RoomDimensions;
   room: RoomDimensions;
 } {
-  const [width, , depth] = building.size;
-  return {
-    lobby_room: {
-      width: round1(width * 0.92),
-      depth: round1(depth * 0.5),
-      height: 2.55,
-    },
-    corridor_room: {
-      width: round1(Math.max(1.2, width * 0.3)),
-      depth: round1(Math.max(1.2, depth * 0.2)),
-      height: 2.55,
-    },
-    room: {
-      width: round1(width * 0.86),
-      depth: round1(depth * 0.68),
-      height: 2.55,
-    },
-  };
+  return hkRoomsForBuilding(building.id);
 }
 
 export function defaultBuildingForId(buildingId: string): Building {
@@ -46,11 +26,11 @@ export const LEGACY_ZONE_SIZES: Record<
   string,
   { lobby: [number, number]; office: [number, number] }
 > = {
-  hq: { lobby: [10, 7], office: [12, 9] },
-  engineering: { lobby: [9, 6], office: [11, 8] },
-  hr: { lobby: [8, 6], office: [10, 7] },
-  plaza: { lobby: [11, 5], office: [12, 6] },
-  park: { lobby: [8, 5], office: [9, 6] },
+  hq: { lobby: [8, 5], office: [22, 16] },
+  engineering: { lobby: [8, 5], office: [22, 16] },
+  hr: { lobby: [8, 5], office: [22, 16] },
+  plaza: { lobby: [8, 5], office: [22, 16] },
+  park: { lobby: [8, 5], office: [22, 16] },
 };
 
 export function zoneRoomDimensions(

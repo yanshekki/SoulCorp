@@ -1,12 +1,13 @@
 import type { Building } from "../types/world";
 
+/** Campus footprints scaled to match HK 50-person interior (~22×16m office plate). */
 export const INITIAL_BUILDINGS: Building[] = [
   {
     id: "hq",
     name: "Company HQ",
     department: "Executive",
     position: [0, 0, 0],
-    size: [4.2, 3.2, 4.2],
+    size: [14, 8, 14],
     color: "#8b6f5c",
     roofColor: "#5f8a72",
     accentColor: "#ffd166",
@@ -16,8 +17,8 @@ export const INITIAL_BUILDINGS: Building[] = [
     id: "engineering",
     name: "Engineering Lab",
     department: "Engineering",
-    position: [-6, 0, 2],
-    size: [3.8, 2.8, 3.4],
+    position: [-14, 0, 4],
+    size: [13, 7, 12],
     color: "#6d7f9b",
     roofColor: "#4a6fa5",
     accentColor: "#5ec8ff",
@@ -27,8 +28,8 @@ export const INITIAL_BUILDINGS: Building[] = [
     id: "hr",
     name: "HR Lounge",
     department: "Human Resources",
-    position: [6, 0, -2],
-    size: [3.2, 2.4, 3.8],
+    position: [14, 0, -4],
+    size: [12, 6.5, 13],
     color: "#9b7a8d",
     roofColor: "#c97b84",
     accentColor: "#ff9bd5",
@@ -38,8 +39,8 @@ export const INITIAL_BUILDINGS: Building[] = [
     id: "plaza",
     name: "Hub Plaza",
     department: "Marketplace",
-    position: [0, 0, -7],
-    size: [5.4, 1.4, 3.4],
+    position: [0, 0, -16],
+    size: [16, 5, 12],
     color: "#a6896b",
     roofColor: "#d4b896",
     accentColor: "#f2c879",
@@ -49,12 +50,11 @@ export const INITIAL_BUILDINGS: Building[] = [
     id: "park",
     name: "Agent Park",
     department: "Recreation",
-    position: [8.5, 0, 4.5],
-    size: [3.6, 1.2, 3.6],
+    position: [18, 0, 10],
+    size: [12, 5, 12],
     color: "#6f9b7a",
     roofColor: "#8bc49a",
     accentColor: "#b8e6c8",
     description: "Break area for idle agents, relationships, and morale events.",
   },
 ];
-

@@ -43,6 +43,9 @@ const requiredFiles = [
   "src/utils/furnitureSceneDiff.ts",
   "src/acceptance/phase1Acceptance.ts",
   "src/acceptance/phase1FeelReview.ts",
+  "src/data/hkOfficeLayouts.ts",
+  "src/utils/hkOfficeFurnitureGenerator.ts",
+  "src/acceptance/hkOfficeAcceptance.ts",
   "docs/OFFICE_VISUAL_TARGET.md",
 ];
 
