@@ -75,12 +75,18 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/wood.png"
+      "uri": "textures/wood.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -244,5 +250,11 @@
       "byteLength": 1680,
       "uri": "desk_executive.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

@@ -24,6 +24,7 @@ import {
   type FurnitureSceneDiff,
 } from "../../utils/furnitureSceneDiff";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
+import { initFurnitureKtx2Support } from "./gltfAssetLoader";
 import { createFurnitureObject, disposeFurnitureObject } from "./furnitureRenderer";
 import { buildRoomShell, officeZoneOffset } from "./roomShellBuilder";
 import {
@@ -45,6 +46,7 @@ import {
   type InteriorPixelAgent,
 } from "./interiorPixelAgent";
 import { spawnParticleBurst } from "./particleBurst";
+import { applyStylizedAgentAnimation } from "./stylizedAgentAnimation";
 import {
   agentBillboardName,
   agentStatusBubble,
@@ -262,6 +264,7 @@ export function createInteriorScene(
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   configureInteriorRenderer(renderer);
+  initFurnitureKtx2Support(renderer);
 
   const root = new THREE.Group();
   scene.add(root);
@@ -1045,6 +1048,8 @@ export function createInteriorScene(
 
         if (visual.pixel) {
           updateInteriorPixelAgent(visual.pixel, agent, phase * 1.6);
+        } else if (visual.mesh) {
+          applyStylizedAgentAnimation(visual.mesh, agent, phase, true);
         }
 
         const bob =

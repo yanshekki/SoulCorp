@@ -47,7 +47,8 @@ import {
 import { FURNITURE_CATALOG } from "../../data/furnitureCatalog";
 import { invalidateCampusNavGrid } from "../../utils/campusNavGrid";
 import { createCampusScene, type CampusSceneHandles } from "./campusScene";
-import { preloadFurnitureCatalog } from "./gltfAssetLoader";
+import { initFurnitureKtx2Support, preloadFurnitureCatalog } from "./gltfAssetLoader";
+import { resolveFurnitureGltfPath } from "../../utils/furnitureAssetPath";
 import {
   createInteriorScene,
   type FloorHit,
@@ -210,10 +211,11 @@ export function ThreeOfficeRenderer({
         settings.low_power_mode,
       );
       interiorRef.current = createInteriorScene(canvas, initWidth, initHeight);
+      initFurnitureKtx2Support(interiorRef.current.renderer);
       labelsRef.current = new LabelSystem(parent);
       void preloadFurnitureCatalog(
         FURNITURE_CATALOG.map((entry) => ({
-          gltfPath: entry.gltfPath,
+          gltfPath: resolveFurnitureGltfPath(entry),
           footprint: entry.footprint,
         })),
       );

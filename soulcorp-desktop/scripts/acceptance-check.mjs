@@ -118,6 +118,30 @@ if (gltfFiles.length < 25 || !coreOk || !texOk || !decorTexOk) {
   console.log(`  OK — ${gltfFiles.length} GLTF + decor textures + 8 core B2 assets\n`);
 }
 
+console.log("2c/4 Stretch pipeline (KTX2 + Blender import + Basis transcoder)");
+const ktx2Count = existsSync(texDir)
+  ? readdirSync(texDir).filter((name) => name.endsWith(".ktx2")).length
+  : 0;
+const basisWasm = join(root, "public/libs/basis/basis_transcoder.wasm");
+const stretchScripts = [
+  "scripts/compress-furniture-ktx2.mjs",
+  "scripts/import-blender-gltf.mjs",
+  "src/components/world/stylizedAgentAnimation.ts",
+].every((file) => existsSync(join(root, file)));
+const sampleGltf = join(furnitureDir, "desk_open.gltf");
+const ktx2GltfOk =
+  existsSync(sampleGltf) &&
+  readFileSync(sampleGltf, "utf8").includes("KHR_texture_basisu") &&
+  readFileSync(sampleGltf, "utf8").includes(".ktx2");
+if (ktx2Count < 14 || !basisWasm || !stretchScripts || !ktx2GltfOk) {
+  console.error(
+    `  MISSING stretch assets (ktx2=${ktx2Count}, basis=${existsSync(basisWasm)}, scripts=${stretchScripts}, gltfKtx=${ktx2GltfOk})`,
+  );
+  failed += 1;
+} else {
+  console.log(`  OK — ${ktx2Count} KTX2 textures + Basis transcoder + stretch scripts\n`);
+}
+
 console.log("3/4 pnpm typecheck");
 const tsStatus = run("pnpm", ["typecheck"]);
 if (tsStatus !== 0) {

@@ -115,24 +115,42 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     },
     {
-      "source": 2
+      "source": 2,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 2
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/poster.png"
+      "uri": "textures/poster.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/plastic.png"
+      "uri": "textures/plastic.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/accent.png"
+      "uri": "textures/accent.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -372,5 +390,11 @@
       "byteLength": 2520,
       "uri": "wall_poster.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

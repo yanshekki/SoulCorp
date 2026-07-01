@@ -145,18 +145,30 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/metal.png"
+      "uri": "textures/metal.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/wood.png"
+      "uri": "textures/wood.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -548,5 +560,11 @@
       "byteLength": 4200,
       "uri": "coffee_table.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

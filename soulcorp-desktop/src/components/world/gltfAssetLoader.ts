@@ -1,8 +1,21 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
 import { boostColor } from "./campusPolish";
 
 const loader = new GLTFLoader();
+let ktx2Loader: KTX2Loader | null = null;
+
+/** Wire KTX2 transcoder once a WebGL renderer is available (Basis textures in furniture GLTF). */
+export function initFurnitureKtx2Support(renderer: THREE.WebGLRenderer): void {
+  if (ktx2Loader) {
+    return;
+  }
+  ktx2Loader = new KTX2Loader()
+    .setTranscoderPath("/libs/basis/")
+    .detectSupport(renderer);
+  loader.setKTX2Loader(ktx2Loader);
+}
 const templateCache = new Map<string, THREE.Group>();
 const loadPromises = new Map<string, Promise<THREE.Group>>();
 

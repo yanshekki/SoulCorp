@@ -85,18 +85,30 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/canvas.png"
+      "uri": "textures/canvas.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/wood.png"
+      "uri": "textures/wood.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -260,5 +272,11 @@
       "byteLength": 1680,
       "uri": "wall_canvas.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

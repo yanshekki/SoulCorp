@@ -17,6 +17,9 @@ const phase4Gate = results.find((result) => result.name === "Phase 4 complete ga
 const phase5ArtResults = results.filter((result) => result.name.startsWith("P5 "));
 const phase5ArtSummary = summarizeResults(phase5ArtResults);
 const phase5ArtGate = results.find((result) => result.name === "Art deepening complete gate");
+const phase6StretchResults = results.filter((result) => result.name.startsWith("P6 "));
+const phase6StretchSummary = summarizeResults(phase6StretchResults);
+const phase6StretchGate = results.find((result) => result.name === "Stretch goals complete gate");
 
 for (const result of results) {
   const mark = result.passed ? "✓" : "✗";
@@ -39,6 +42,9 @@ console.log(
 );
 console.log(
   `  Art: ${phase5ArtSummary.passed}/${phase5ArtResults.length} checks — ${phase5ArtGate?.passed ? "COMPLETE" : "INCOMPLETE"}`,
+);
+console.log(
+  `  Stretch: ${phase6StretchSummary.passed}/${phase6StretchResults.length} checks — ${phase6StretchGate?.passed ? "COMPLETE" : "INCOMPLETE"}`,
 );
 
 if (!summary.ok) {

@@ -15,6 +15,8 @@
     "acceptance": "node scripts/acceptance-check.mjs",
     "generate:furniture-thumbs": "node scripts/generate-furniture-thumbnails.mjs",
     "generate:furniture-gltf": "node scripts/generate-furniture-gltf.mjs",
+    "compress:furniture-ktx2": "node scripts/compress-furniture-ktx2.mjs",
+    "import:blender-gltf": "node scripts/import-blender-gltf.mjs",
     "release:bundle": "pnpm build && pnpm tauri build"
   },
   "dependencies": {
@@ -39,6 +41,9 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.4.0",
+    "@gltf-transform/core": "^4.4.0",
+    "@gltf-transform/functions": "^4.4.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

@@ -235,36 +235,66 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     },
     {
-      "source": 2
+      "source": 2,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 2
+        }
+      }
     },
     {
-      "source": 3
+      "source": 3,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 3
+        }
+      }
     },
     {
-      "source": 4
+      "source": 4,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 4
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/fabric.png"
+      "uri": "textures/fabric.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/fabric_dark.png"
+      "uri": "textures/fabric_dark.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/plastic.png"
+      "uri": "textures/plastic.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/metal.png"
+      "uri": "textures/metal.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/accent.png"
+      "uri": "textures/accent.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -884,5 +914,11 @@
       "byteLength": 10080,
       "uri": "chair_office.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

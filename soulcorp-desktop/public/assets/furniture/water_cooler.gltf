@@ -93,18 +93,30 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/plastic.png"
+      "uri": "textures/plastic.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/screen.png"
+      "uri": "textures/screen.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -268,5 +280,11 @@
       "byteLength": 1680,
       "uri": "water_cooler.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

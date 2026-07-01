@@ -5,6 +5,7 @@ import {
   getDepartmentPixelTexture,
   walkFrameIndex,
 } from "./pixelAgentSprite";
+import { applyStylizedAgentAnimation } from "./stylizedAgentAnimation";
 import { createStylizedAgent, type StylizedAgentMesh } from "./stylizedAgent";
 
 const MAX_FAR_AGENTS = 512;
@@ -539,9 +540,7 @@ export class AgentRenderSystem {
         agent.target[0] - agent.position[0],
         agent.target[2] - agent.position[2],
       );
-      if (agent.status === "working") {
-        mesh.body.position.y = 0.65 + Math.sin(this.effectPhase + hashOffset(agent.id)) * 0.02;
-      }
+      applyStylizedAgentAnimation(mesh, agent, this.effectPhase + hashOffset(agent.id), false);
     }
 
     for (const [id, sprite] of this.closeSprites) {

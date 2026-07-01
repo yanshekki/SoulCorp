@@ -125,18 +125,30 @@
   ],
   "textures": [
     {
-      "source": 0
+      "source": 0,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 0
+        }
+      }
     },
     {
-      "source": 1
+      "source": 1,
+      "extensions": {
+        "KHR_texture_basisu": {
+          "source": 1
+        }
+      }
     }
   ],
   "images": [
     {
-      "uri": "textures/wood.png"
+      "uri": "textures/wood.ktx2",
+      "mimeType": "image/ktx2"
     },
     {
-      "uri": "textures/accent.png"
+      "uri": "textures/accent.ktx2",
+      "mimeType": "image/ktx2"
     }
   ],
   "accessors": [
@@ -452,5 +464,11 @@
       "byteLength": 3360,
       "uri": "bookshelf.bin"
     }
+  ],
+  "extensionsUsed": [
+    "KHR_texture_basisu"
+  ],
+  "extensionsRequired": [
+    "KHR_texture_basisu"
   ]
 }

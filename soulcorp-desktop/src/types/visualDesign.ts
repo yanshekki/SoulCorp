@@ -21,6 +21,8 @@ export interface FurnitureCatalogEntry {
   category: FurnitureCategory;
   footprint: [number, number];
   gltfPath: string;
+  /** Optional Blender-authored GLB override (see scripts/import-blender-gltf.mjs). */
+  blenderGltfPath?: string;
   snapToGrid: boolean;
   gridSize: number;
   rotatable: boolean;

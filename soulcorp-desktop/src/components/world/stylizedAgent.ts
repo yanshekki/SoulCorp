@@ -5,6 +5,8 @@ export interface StylizedAgentMesh {
   group: THREE.Group;
   head: THREE.Mesh;
   body: THREE.Mesh;
+  pants: THREE.Mesh;
+  hair: THREE.Mesh;
 }
 
 export function createStylizedAgent(agent: Agent, seated = false): StylizedAgentMesh {
@@ -42,7 +44,7 @@ export function createStylizedAgent(agent: Agent, seated = false): StylizedAgent
   hair.position.y = head.position.y + 0.04 * scale;
 
   group.add(body, pants, head, hair);
-  return { group, head, body };
+  return { group, head, body, pants, hair };
 }
 
 export function createSkillProp(skill: string): THREE.Mesh {

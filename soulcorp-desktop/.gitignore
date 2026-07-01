@@ -51,6 +51,9 @@ src-tauri/gen
 Thumbs.db
 Desktop.ini
 
+# Local asset tooling (KTX-Software vendor unpack)
+scripts/.vendor/
+
 # Legacy project types
 *.suo
 *.ntvs*

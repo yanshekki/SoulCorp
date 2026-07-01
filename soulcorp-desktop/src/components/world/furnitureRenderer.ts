@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { FurnitureCatalogEntry } from "../../data/furnitureCatalog";
 import type { FurnitureInstance } from "../../types/visualDesign";
 import { FURNITURE_DISPLAY_SCALE } from "../../utils/interiorScale";
+import { resolveFurnitureGltfPath } from "../../utils/furnitureAssetPath";
 import { cloneFurnitureTemplate, loadFurnitureTemplate } from "./gltfAssetLoader";
 
 function applyAccentToMesh(mesh: THREE.Mesh, accent: string): void {
@@ -108,7 +109,10 @@ export async function createFurnitureObject(
   let object: THREE.Object3D;
 
   try {
-    const template = await loadFurnitureTemplate(catalogEntry.gltfPath, catalogEntry.footprint);
+    const template = await loadFurnitureTemplate(
+      resolveFurnitureGltfPath(catalogEntry),
+      catalogEntry.footprint,
+    );
     object = cloneFurnitureTemplate(template);
     applyAccentColors(object, accent);
     object.userData.fromGltf = true;

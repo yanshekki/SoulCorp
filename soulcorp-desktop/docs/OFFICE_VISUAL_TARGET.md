@@ -235,3 +235,18 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Art d
 | 5 | Default office art seeding | ✅ `P5 default office seeds art decor` |
 
 Regenerate assets: `node scripts/generate-furniture-gltf.mjs` · thumbnails: `pnpm generate:furniture-thumbs`
+
+---
+
+## Stretch goals — **COMPLETE**
+
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Stretch goals complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Feel review re-scored after walk + art (≥ 8/10) | ✅ `phase1FeelReview.ts` |
+| 2 | Agent procedural animations (walk/work/seated) | ✅ `stylizedAgentAnimation.ts` |
+| 3 | KTX2 texture pipeline + Basis loader | ✅ `compress-furniture-ktx2.mjs` + `initFurnitureKtx2Support` |
+| 4 | Blender GLB import hook | ✅ `import-blender-gltf.mjs` + `blenderGltfPath` |
+
+KTX2: `pnpm compress:furniture-ktx2` (after GLTF gen) · Blender drop: `blender/exports/<id>.glb` → `pnpm import:blender-gltf`
