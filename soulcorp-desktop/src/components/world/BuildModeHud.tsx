@@ -90,17 +90,17 @@ export function BuildModeHud() {
         ))}
       </div>
 
-      <CatalogChipBar
-        items={catalogItems}
-        activeId={buildTool === "place" ? buildCatalogId : null}
-        onSelect={pickCatalog}
-      />
-
       {buildDirty ? (
         <button type="button" className="primary-action build-mode-save" onClick={() => void handleSave()}>
           Save
         </button>
       ) : null}
+
+      <CatalogChipBar
+        items={catalogItems}
+        activeId={buildTool === "place" ? buildCatalogId : null}
+        onSelect={pickCatalog}
+      />
     </CollapsibleDock>
   );
 }

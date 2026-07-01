@@ -14,7 +14,6 @@ import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
-import { TestModeButton } from "./components/UI/TestModeButton";
 import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
@@ -75,7 +74,6 @@ function App() {
     <>
       {content}
       <LoadingOverlay />
-      <TestModeButton />
     </>
   );
 }

@@ -733,6 +733,8 @@ select optgroup {
   font-size: 0.78rem;
   color: var(--text-secondary);
   min-width: 0;
+  z-index: 20;
+  flex-shrink: 0;
 }
 
 .app-statusbar .status-message {
@@ -3512,14 +3514,30 @@ body.workspace-resizing {
 
 /* ── Test mode (dev) ─────────────────────────────────── */
 
-.test-mode-root {
+.test-mode-root--statusbar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.test-mode-root--statusbar .test-mode-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: 30;
+}
+
+.test-mode-root--floating {
   position: fixed;
-  right: var(--space-4);
+  left: var(--space-4);
+  right: auto;
   bottom: calc(var(--statusbar-height) + var(--space-3));
   z-index: 120;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-2);
 }
 

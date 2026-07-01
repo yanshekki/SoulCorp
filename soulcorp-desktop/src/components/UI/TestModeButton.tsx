@@ -5,7 +5,12 @@ import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
-export function TestModeButton() {
+interface TestModeButtonProps {
+  /** Inline in app statusbar (default) — avoids overlapping build Save + footer. */
+  placement?: "statusbar" | "floating";
+}
+
+export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps) {
   if (!import.meta.env.DEV) {
     return null;
   }
@@ -74,7 +79,10 @@ export function TestModeButton() {
   };
 
   return (
-    <div className="test-mode-root" ref={rootRef}>
+    <div
+      className={`test-mode-root${placement === "statusbar" ? " test-mode-root--statusbar" : " test-mode-root--floating"}`}
+      ref={rootRef}
+    >
       {open ? (
         <div className="test-mode-menu" role="menu">
           <button type="button" disabled={busy} onClick={() => void handleClear()}>

@@ -15,6 +15,7 @@ import { RecruitmentPanel } from "./RecruitmentPanel";
 import { AgentsPanel } from "./AgentsPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { TierPanel } from "./TierPanel";
+import { TestModeButton } from "./TestModeButton";
 import { VipExecutivePanel } from "./VipExecutivePanel";
 
 interface ShellLayoutProps {
@@ -243,6 +244,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
 
       <footer className="app-statusbar">
         <OfflineStatusBar />
+        <TestModeButton placement="statusbar" />
         <span className="status-message">{statusMessage}</span>
       </footer>
 
