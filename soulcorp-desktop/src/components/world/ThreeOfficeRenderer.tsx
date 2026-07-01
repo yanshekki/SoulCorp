@@ -19,11 +19,14 @@ import { DEFAULT_OFFICE_VISUAL, type OfficeVisualConfig } from "../../types/visu
 import {
   applyInteriorPan,
   applyOrbitToCamera,
+  applyWalkToPerspectiveCamera,
   clampInteriorZoom,
   createGameInteriorOrbit,
+  createWalkInteriorOrbit,
   interiorFrustumForOrbit,
   interiorSceneFocusZ,
   lerpGameInteriorCamera,
+  lerpWalkInteriorCamera,
   snapIsometricAzimuth,
   type InteriorOrbitState,
 } from "../../utils/interiorCamera";
@@ -151,6 +154,7 @@ export function ThreeOfficeRenderer({
   const interiorOrbitDragRef = useRef<{ dragging: boolean; lastX: number; lastY: number } | null>(
     null,
   );
+  const lastInteriorCameraModeRef = useRef<"iso" | "walk">("iso");
   const interiorPanDragRef = useRef<InteriorPanDragState | null>(null);
   const lastInteriorBuildingRef = useRef<string | null>(null);
   const lastInteriorViewEpochRef = useRef(-1);
@@ -286,11 +290,20 @@ export function ThreeOfficeRenderer({
             state.visualDesign.offices[building.id] ?? DEFAULT_OFFICE_VISUAL,
             building.id,
           );
+          const walkMode = state.interiorCameraMode === "walk" && state.buildMode === "play";
           interiorRef.current.setVisualStyle({
             pixelAgents: state.settings.pixel_filter_enabled,
             cozyEffects: !state.settings.low_power_mode,
             crtFilter: state.settings.crt_filter_enabled,
+            walkMode,
           });
+          if (state.interiorCameraMode !== lastInteriorCameraModeRef.current) {
+            lastInteriorCameraModeRef.current = state.interiorCameraMode;
+            interiorOrbitRef.current =
+              state.interiorCameraMode === "walk"
+                ? createWalkInteriorOrbit(office)
+                : createGameInteriorOrbit(office);
+          }
           const sig = JSON.stringify({
             layout: INTERIOR_LAYOUT_VERSION,
             building: building.id,
@@ -312,19 +325,42 @@ export function ThreeOfficeRenderer({
             lastInteriorViewEpochRef.current = state.interiorViewEpoch;
             lastInteriorBuildingRef.current = building.id;
             interiorSignatureRef.current = "";
-            interiorOrbitRef.current = createGameInteriorOrbit(office);
+            interiorOrbitRef.current =
+              state.interiorCameraMode === "walk"
+                ? createWalkInteriorOrbit(office)
+                : createGameInteriorOrbit(office);
           } else if (lastInteriorBuildingRef.current !== building.id) {
             lastInteriorBuildingRef.current = building.id;
-            interiorOrbitRef.current = createGameInteriorOrbit(office);
+            interiorOrbitRef.current =
+              state.interiorCameraMode === "walk"
+                ? createWalkInteriorOrbit(office)
+                : createGameInteriorOrbit(office);
           }
-          const orbit = interiorOrbitRef.current ?? createGameInteriorOrbit(office);
+          const orbit =
+            interiorOrbitRef.current ??
+            (state.interiorCameraMode === "walk"
+              ? createWalkInteriorOrbit(office)
+              : createGameInteriorOrbit(office));
           if (state.interiorZoomNudge !== 0) {
             orbit.zoom = clampInteriorZoom(orbit.zoom + state.interiorZoomNudge);
             state.clearInteriorZoomNudge();
             state.setCameraTransition(1);
           }
           const interiorCamera = interiorRef.current.camera;
-          if (interiorCamera instanceof THREE.OrthographicCamera) {
+          if (walkMode && interiorCamera instanceof THREE.PerspectiveCamera) {
+            if (state.cameraTransition < 1) {
+              const nextT = lerpWalkInteriorCamera(
+                interiorCamera,
+                office,
+                orbit,
+                state.cameraTransition,
+                delta,
+              );
+              state.setCameraTransition(nextT);
+            } else {
+              applyWalkToPerspectiveCamera(interiorCamera, orbit, office);
+            }
+          } else if (interiorCamera instanceof THREE.OrthographicCamera) {
             updateInteriorCamera(
               interiorCamera,
               office,
@@ -772,8 +808,13 @@ export function ThreeOfficeRenderer({
       }
       const dx = event.clientX - drag.lastX;
       const dy = event.clientY - drag.lastY;
+      const state = useGameStore.getState();
       orbit.azimuth += dx * 0.008;
-      orbit.elevation = Math.max(0.2, Math.min(0.95, orbit.elevation - dy * 0.006));
+      if (state.interiorCameraMode === "walk") {
+        orbit.elevation = Math.max(0.15, Math.min(0.55, orbit.elevation - dy * 0.005));
+      } else {
+        orbit.elevation = Math.max(0.2, Math.min(0.95, orbit.elevation - dy * 0.006));
+      }
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       useGameStore.getState().setCameraTransition(1);
@@ -826,8 +867,11 @@ export function ThreeOfficeRenderer({
         state.visualDesign.offices[buildingId] ?? DEFAULT_OFFICE_VISUAL,
         buildingId,
       );
-      interiorOrbitRef.current = createGameInteriorOrbit(office);
-      state.setCameraTransition(1);
+      interiorOrbitRef.current =
+        state.interiorCameraMode === "walk"
+          ? createWalkInteriorOrbit(office)
+          : createGameInteriorOrbit(office);
+      state.setCameraTransition(state.interiorCameraMode === "walk" ? 0 : 1);
     };
 
     canvas.addEventListener("pointermove", onPointerMove);

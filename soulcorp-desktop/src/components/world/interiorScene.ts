@@ -66,6 +66,8 @@ export interface InteriorVisualStyle {
   clarityMode?: boolean;
   /** Design studio: 42° perspective camera instead of orthographic. */
   perspectiveMode?: boolean;
+  /** Phase 2 play walk — room focus + aggressive wall peel. */
+  walkMode?: boolean;
 }
 
 export interface FloorHit {
@@ -275,6 +277,7 @@ export function createInteriorScene(
     crtFilter: false,
     clarityMode: false,
     perspectiveMode: false,
+    walkMode: false,
   };
   let lastRebuildContext: {
     building: Building;
@@ -871,26 +874,50 @@ export function createInteriorScene(
     setVisualStyle(style) {
       const nextPixel = style.pixelAgents ?? visualStyle.pixelAgents;
       const nextClarity = style.clarityMode ?? visualStyle.clarityMode ?? false;
-      const nextPerspective = style.perspectiveMode ?? visualStyle.perspectiveMode ?? false;
+      const nextWalk = style.walkMode ?? visualStyle.walkMode ?? false;
+      const nextPerspective = nextWalk
+        ? true
+        : (style.perspectiveMode ?? visualStyle.perspectiveMode ?? false);
       const nextCozy = nextClarity ? false : (style.cozyEffects ?? visualStyle.cozyEffects);
       const nextCrt = nextClarity ? false : (style.crtFilter ?? visualStyle.crtFilter);
       const pixelChanged = nextPixel !== visualStyle.pixelAgents;
       const clarityChanged = nextClarity !== visualStyle.clarityMode;
       const perspectiveChanged = nextPerspective !== visualStyle.perspectiveMode;
+      const walkChanged = nextWalk !== visualStyle.walkMode;
       visualStyle = {
         pixelAgents: nextPixel,
         cozyEffects: nextCozy,
         crtFilter: nextCrt,
         clarityMode: nextClarity,
         perspectiveMode: nextPerspective,
+        walkMode: nextWalk,
       };
       perspectiveMode = nextPerspective;
       activeCamera = perspectiveMode ? perspectiveCamera : camera;
+      if (nextWalk) {
+        focusZone = "office";
+        if (shellMeta) {
+          focusPoint.set(0, 0.75, zoneCenterZ("office", shellMeta));
+        }
+      }
       if (clarityChanged || perspectiveChanged) {
         rebuildPostPipeline();
+        if (postPipeline && "setCamera" in postPipeline) {
+          postPipeline.setCamera(activeCamera);
+        }
       } else if (!nextClarity && postPipeline && "setEnabled" in postPipeline) {
         postPipeline.setEnabled(nextCozy);
         postPipeline.setCrtEnabled(nextCrt && nextCozy);
+      }
+      if (walkChanged && !nextWalk && shellMeta) {
+        for (const wall of interiorWalls) {
+          const material = wall.material;
+          if (material instanceof THREE.MeshStandardMaterial) {
+            material.opacity = 0.92;
+            material.transparent = true;
+            material.depthWrite = true;
+          }
+        }
       }
       if (nextClarity) {
         const studioLight = studioClarityLightingPreset();
@@ -909,7 +936,7 @@ export function createInteriorScene(
           }
         }
       }
-      if ((clarityChanged || perspectiveChanged) && lastRebuildContext) {
+      if (clarityChanged && lastRebuildContext) {
         const ctx = lastRebuildContext;
         void rebuild(ctx.building, ctx.office, ctx.agents, ctx.records, ctx.companyName);
       } else if (pixelChanged && lastRebuildContext) {
@@ -943,8 +970,11 @@ export function createInteriorScene(
       if (!visualStyle.clarityMode && shellMeta && interiorWalls.length > 0) {
         const viewDir = new THREE.Vector3();
         activeCamera.getWorldDirection(viewDir);
-        const wallFocus = activeCamera.position.clone().add(viewDir.multiplyScalar(8));
-        updateInteriorWallFade(interiorWalls, activeCamera, wallFocus);
+        const peelDistance = visualStyle.walkMode ? 5.5 : 8;
+        const wallFocus = activeCamera.position.clone().add(viewDir.multiplyScalar(peelDistance));
+        updateInteriorWallFade(interiorWalls, activeCamera, wallFocus, {
+          walkPeel: visualStyle.walkMode,
+        });
       }
 
       furnitureObjects.forEach((object) => {

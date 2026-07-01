@@ -105,7 +105,7 @@ Lighting: natural
 | Mode | Camera | Framing |
 |------|--------|---------|
 | Build | Orthographic isometric | Full office footprint |
-| Walk (Phase 2) | Perspective 42° FOV | Room focus, wall peel |
+| Walk (Phase 2) ✅ | Perspective 42° FOV | Room focus, wall peel — play mode **漫遊** toggle |
 | Render (Phase 3) | Perspective + SSAO | Static screenshot |
 
 ---
@@ -145,3 +145,15 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | A1–A4 | Design studio UX, 3D place/drag, build toolbar, plan silhouettes | ✅ |
 | B2–B4 | Core PBR furniture, room kit, studioClarity SSAO + perspective | ✅ |
 | C1–C2 | 2D/3D parity tests, incremental `interiorScene` furniture diff | ✅ |
+
+---
+
+## Phase 2 — Walk mode (in progress)
+
+| Feature | Implementation |
+|---------|----------------|
+| 42° perspective walk camera | `applyWalkToPerspectiveCamera` + `createWalkInteriorOrbit` |
+| Office zone focus | `officeZoneFocusPan` |
+| Wall peel | `WALL_PEEL_MIN_OPACITY` 0.22 + `walkPeel` in `updateInteriorWallFade` |
+| UI toggle | Interior top bar **等角 / 漫遊** (play mode only) |
+| Build mode | Stays orthographic isometric |

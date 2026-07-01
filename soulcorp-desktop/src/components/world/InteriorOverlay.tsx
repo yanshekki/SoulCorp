@@ -14,6 +14,8 @@ export function InteriorOverlay() {
   const buildDirty = useGameStore((state) => state.buildDirty);
   const toggleBuildMode = useGameStore((state) => state.toggleBuildMode);
   const nudgeInteriorZoom = useGameStore((state) => state.nudgeInteriorZoom);
+  const interiorCameraMode = useGameStore((state) => state.interiorCameraMode);
+  const setInteriorCameraMode = useGameStore((state) => state.setInteriorCameraMode);
   const selectedAgentId = useGameStore((state) => state.selectedAgentId);
   const selectedFurnitureId = useGameStore((state) => state.selectedFurnitureId);
   const hoveredFurnitureId = useGameStore((state) => state.hoveredFurnitureId);
@@ -47,10 +49,36 @@ export function InteriorOverlay() {
             <span className="interior-topbar-hint">{playHint}</span>
           ) : null}
           <span className="interior-topbar-hint muted">
-            Left-drag pan · scroll/+− zoom · right-drag orbit · double-click reset
+            {interiorCameraMode === "walk"
+              ? "漫遊：右鍵旋轉 · 滾輪縮放 · 牆身自動透明"
+              : "等角：拖曳平移 · 滾輪縮放 · 右鍵旋轉 · 雙擊重設"}
           </span>
         </div>
         <div className="interior-topbar-actions">
+          {buildMode === "play" ? (
+            <div className="interior-camera-toggle" role="group" aria-label="Camera mode">
+              <button
+                type="button"
+                className={interiorCameraMode === "iso" ? "active" : ""}
+                onClick={() => {
+                  audioDirector.playSfx("ui_click");
+                  setInteriorCameraMode("iso");
+                }}
+              >
+                等角
+              </button>
+              <button
+                type="button"
+                className={interiorCameraMode === "walk" ? "active" : ""}
+                onClick={() => {
+                  audioDirector.playSfx("ui_click");
+                  setInteriorCameraMode("walk");
+                }}
+              >
+                漫遊
+              </button>
+            </div>
+          ) : null}
           <div className="interior-zoom-controls" aria-label="Zoom controls">
             <button
               type="button"

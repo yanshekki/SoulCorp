@@ -104,6 +104,29 @@ export function createDefaultOrbit(office: OfficeVisualConfig): InteriorOrbitSta
 }
 
 export const STUDIO_PERSPECTIVE_FOV = 42;
+/** Phase 2 walk mode — same FOV as studio perspective (OFFICE_VISUAL_TARGET). */
+export const WALK_PERSPECTIVE_FOV = STUDIO_PERSPECTIVE_FOV;
+
+export function officeZoneFocusPan(office: OfficeVisualConfig): { panX: number; panZ: number } {
+  const officeZ = officeZoneCenterZ(office);
+  return { panX: 0, panZ: officeZ - interiorSceneFocusZ() };
+}
+
+/** Play walk mode — perspective framing on the office zone (Phase 2). */
+export function createWalkInteriorOrbit(office: OfficeVisualConfig): InteriorOrbitState {
+  const focus = officeZoneFocusPan(office);
+  return {
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+    azimuth: ISO_SNAP,
+    elevation: 0.34,
+    frustum: defaultInteriorFrustum(office, "office"),
+    zoom: 1.05,
+    panX: focus.panX,
+    panZ: focus.panZ,
+  };
+}
 
 export function applyOrbitToPerspectiveCamera(
   camera: THREE.PerspectiveCamera,
@@ -118,6 +141,44 @@ export function applyOrbitToPerspectiveCamera(
   const y = 2.8 + orbit.elevation * 5.2;
   camera.position.set(x, y, z);
   camera.lookAt(focusX, 1.05, focusZ);
+}
+
+/** Phase 2 walk camera — lower eye height, closer framing, office zone focus. */
+export function applyWalkToPerspectiveCamera(
+  camera: THREE.PerspectiveCamera,
+  orbit: InteriorOrbitState,
+  _office: OfficeVisualConfig,
+): void {
+  const focusZ = interiorSceneFocusZ() + orbit.panZ;
+  const focusX = orbit.panX;
+  const dist = 5.4 / orbit.zoom;
+  const x = focusX + Math.cos(orbit.azimuth) * dist;
+  const z = focusZ + Math.sin(orbit.azimuth) * dist;
+  const y = 1.62 + orbit.elevation * 2.4;
+  camera.position.set(x, y, z);
+  camera.lookAt(focusX, 1.05, focusZ);
+}
+
+export function lerpWalkInteriorCamera(
+  camera: THREE.PerspectiveCamera,
+  office: OfficeVisualConfig,
+  orbit: InteriorOrbitState,
+  transition: number,
+  delta: number,
+): number {
+  const focus = officeZoneFocusPan(office);
+  const focusZ = interiorSceneFocusZ() + focus.panZ;
+  const start = new THREE.Vector3(5.5, 4.2, 5.5 + focusZ);
+  const dist = 5.4 / orbit.zoom;
+  const end = new THREE.Vector3(
+    orbit.panX + Math.cos(orbit.azimuth) * dist,
+    1.62 + orbit.elevation * 2.4,
+    focusZ + Math.sin(orbit.azimuth) * dist,
+  );
+  const nextT = Math.min(transition + delta * 2.2, 1);
+  camera.position.lerpVectors(start, end, nextT);
+  camera.lookAt(orbit.panX, 1.05, focusZ);
+  return nextT;
 }
 
 export function applyOrbitToCamera(

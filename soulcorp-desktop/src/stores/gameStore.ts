@@ -19,6 +19,7 @@ import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
 import type { Agent, Building, SimulationState } from "../types/world";
 
 export type WorldView = "campus" | "interior";
+export type InteriorCameraMode = "iso" | "walk";
 
 interface GameStore {
   companyName: string;
@@ -51,6 +52,8 @@ interface GameStore {
   cameraTransition: number;
   interiorViewEpoch: number;
   interiorZoomNudge: number;
+  /** Phase 2: iso overview vs walk perspective with wall peel */
+  interiorCameraMode: InteriorCameraMode;
   isPaused: boolean;
   simulation: SimulationState;
   finance: TokenEconomy;
@@ -82,6 +85,7 @@ interface GameStore {
   setCameraTransition: (value: number) => void;
   nudgeInteriorZoom: (delta: number) => void;
   clearInteriorZoomNudge: () => void;
+  setInteriorCameraMode: (mode: InteriorCameraMode) => void;
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
@@ -138,6 +142,7 @@ export const useGameStore = create<GameStore>((set) => ({
   cameraTransition: 1,
   interiorViewEpoch: 0,
   interiorZoomNudge: 0,
+  interiorCameraMode: "iso",
   isPaused: true,
   simulation: {
     tick: 0,
@@ -222,12 +227,14 @@ export const useGameStore = create<GameStore>((set) => ({
       buildSnapshot: null,
       selectedAgentId: null,
       inspectorExpanded: false,
+      interiorCameraMode: "iso",
     })),
   exitInterior: () =>
     set({
       worldView: "campus",
       interiorBuildingId: null,
       cameraTransition: 1,
+      interiorCameraMode: "iso",
       buildMode: "play",
       buildTool: "place",
       buildCatalogId: null,
@@ -242,6 +249,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setBuildMode: (buildMode) =>
     set((state) => ({
       buildMode,
+      interiorCameraMode: buildMode === "build" ? "iso" : state.interiorCameraMode,
       selectedAgentId: buildMode === "build" ? null : state.selectedAgentId,
       buildCatalogId: buildMode === "play" ? null : state.buildCatalogId,
       selectedFurnitureId: buildMode === "play" ? null : state.selectedFurnitureId,
@@ -272,6 +280,7 @@ export const useGameStore = create<GameStore>((set) => ({
           selectedFurnitureId: null,
           hoveredFurnitureId: null,
           buildSnapshot: null,
+          interiorCameraMode: "iso",
         };
       }
       const buildingId = state.interiorBuildingId;
@@ -300,6 +309,8 @@ export const useGameStore = create<GameStore>((set) => ({
   nudgeInteriorZoom: (delta) =>
     set((state) => ({ interiorZoomNudge: state.interiorZoomNudge + delta })),
   clearInteriorZoomNudge: () => set({ interiorZoomNudge: 0 }),
+  setInteriorCameraMode: (interiorCameraMode) =>
+    set({ interiorCameraMode, cameraTransition: 0 }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setIsPaused: (paused) => set({ isPaused: paused }),
   setSimulation: (simulation) =>
