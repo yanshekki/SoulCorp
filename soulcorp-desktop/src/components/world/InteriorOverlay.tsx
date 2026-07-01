@@ -2,10 +2,11 @@ import { audioDirector } from "../../audio/AudioDirector";
 import { useGameStore } from "../../stores/gameStore";
 import { furnitureInteractionHint } from "../../utils/furnitureInteractions";
 import { tryExitInterior } from "../../utils/buildModeExit";
-import type { InteriorZone } from "../../types/visualDesign";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { BuildModeHud } from "./BuildModeHud";
 import { FurnitureDetailPanel } from "./FurnitureDetailPanel";
+import { TPHGameDock } from "./TPHGameDock";
+import { TPHStatsPanel } from "./TPHStatsPanel";
 
 export function InteriorOverlay() {
   const worldView = useGameStore((state) => state.worldView);
@@ -17,13 +18,12 @@ export function InteriorOverlay() {
   const nudgeInteriorZoom = useGameStore((state) => state.nudgeInteriorZoom);
   const interiorCameraMode = useGameStore((state) => state.interiorCameraMode);
   const setInteriorCameraMode = useGameStore((state) => state.setInteriorCameraMode);
-  const interiorWalkZone = useGameStore((state) => state.interiorWalkZone);
-  const requestInteriorWalkZone = useGameStore((state) => state.requestInteriorWalkZone);
   const requestInteriorScreenshot = useGameStore((state) => state.requestInteriorScreenshot);
   const selectedAgentId = useGameStore((state) => state.selectedAgentId);
   const selectedFurnitureId = useGameStore((state) => state.selectedFurnitureId);
   const hoveredFurnitureId = useGameStore((state) => state.hoveredFurnitureId);
   const visualDesign = useGameStore((state) => state.visualDesign);
+  const setInspectorExpanded = useGameStore((state) => state.setInspectorExpanded);
 
   if (worldView !== "interior" || !interiorBuildingId) {
     return null;
@@ -34,12 +34,6 @@ export function InteriorOverlay() {
   const hoveredItem = office?.furniture.find((item) => item.id === hoveredFurnitureId);
   const hoveredCatalogId = hoveredItem?.catalog_id ?? null;
 
-  const walkZones: Array<{ id: InteriorZone; label: string }> = [
-    { id: "lobby", label: "Lobby" },
-    { id: "corridor", label: "Corridor" },
-    { id: "office", label: "Office" },
-  ];
-
   const playHint =
     buildMode === "play"
       ? hoveredCatalogId
@@ -47,39 +41,40 @@ export function InteriorOverlay() {
         : "Click desks, equipment, or agents"
       : null;
 
+  const cameraHint =
+    interiorCameraMode === "walk"
+      ? "WASD · right-drag rotate · scroll zoom"
+      : interiorCameraMode === "render"
+        ? "SSAO · drag pan · PNG screenshot"
+        : "Drag pan · scroll zoom · double-click reset";
+
   return (
-    <>
-      <header className="interior-topbar">
-        <div className="interior-topbar-title">
-          <span className="interior-topbar-eyebrow">{building?.department ?? "Department"}</span>
-          <h2>{building?.name ?? "Interior"}</h2>
+    <div className="tph-game-chrome">
+      <header className="tph-top-ribbon">
+        <div className="tph-ribbon-main">
+          <span className="tph-ribbon-dept">{building?.department ?? "Department"}</span>
+          <h2 className="tph-ribbon-title">{building?.name ?? "Interior"}</h2>
           {buildMode === "build" && buildDirty ? (
-            <span className="interior-topbar-badge">Unsaved</span>
+            <span className="tph-ribbon-badge">Unsaved</span>
           ) : playHint ? (
-            <span className="interior-topbar-hint">{playHint}</span>
+            <span className="tph-ribbon-hint">{playHint}</span>
           ) : null}
-          <span className="interior-topbar-hint muted">
-            {interiorCameraMode === "walk"
-              ? "Walk: WASD move · right-drag rotate · scroll zoom · walls auto-fade"
-              : interiorCameraMode === "render"
-                ? "Render: SSAO clarity · drag pan · right-drag rotate · scroll zoom · PNG screenshot"
-                : "Iso: drag pan · scroll zoom · right-drag rotate · double-click reset"}
-          </span>
         </div>
-        <div className="interior-topbar-actions">
-          {buildMode === "play" && interiorCameraMode === "walk" ? (
-            <div className="interior-walk-zones" role="group" aria-label="Walk zones">
-              {walkZones.map((zone) => (
+
+        <div className="tph-ribbon-tools">
+          {buildMode === "play" ? (
+            <div className="tph-ribbon-toggle" role="group" aria-label="Camera mode">
+              {(["iso", "walk", "render"] as const).map((mode) => (
                 <button
-                  key={zone.id}
+                  key={mode}
                   type="button"
-                  className={interiorWalkZone === zone.id ? "active" : ""}
+                  className={interiorCameraMode === mode ? "active" : ""}
                   onClick={() => {
                     audioDirector.playSfx("ui_click");
-                    requestInteriorWalkZone(zone.id);
+                    setInteriorCameraMode(mode);
                   }}
                 >
-                  {zone.label}
+                  {mode === "iso" ? "Iso" : mode === "walk" ? "Walk" : "Render"}
                 </button>
               ))}
             </div>
@@ -87,7 +82,7 @@ export function InteriorOverlay() {
           {buildMode === "play" && interiorCameraMode === "render" ? (
             <button
               type="button"
-              className="interior-screenshot-btn"
+              className="tph-ribbon-btn"
               onClick={() => {
                 audioDirector.playSfx("ui_click");
                 requestInteriorScreenshot();
@@ -96,74 +91,39 @@ export function InteriorOverlay() {
               Screenshot
             </button>
           ) : null}
-          {buildMode === "play" ? (
-            <div className="interior-camera-toggle" role="group" aria-label="Camera mode">
-              <button
-                type="button"
-                className={interiorCameraMode === "iso" ? "active" : ""}
-                onClick={() => {
-                  audioDirector.playSfx("ui_click");
-                  setInteriorCameraMode("iso");
-                }}
-              >
-                Iso
-              </button>
-              <button
-                type="button"
-                className={interiorCameraMode === "walk" ? "active" : ""}
-                onClick={() => {
-                  audioDirector.playSfx("ui_click");
-                  setInteriorCameraMode("walk");
-                }}
-              >
-                Walk
-              </button>
-              <button
-                type="button"
-                className={interiorCameraMode === "render" ? "active" : ""}
-                onClick={() => {
-                  audioDirector.playSfx("ui_click");
-                  setInteriorCameraMode("render");
-                }}
-              >
-                Render
-              </button>
-            </div>
-          ) : null}
-          <div className="interior-zoom-controls" aria-label="Zoom controls">
+          <div className="tph-zoom-group" aria-label="Zoom">
             <button
               type="button"
-              className="interior-zoom-btn"
+              className="tph-zoom-btn"
               onClick={() => nudgeInteriorZoom(-0.12)}
-              title="Zoom out"
               aria-label="Zoom out"
             >
               −
             </button>
             <button
               type="button"
-              className="interior-zoom-btn"
+              className="tph-zoom-btn"
               onClick={() => nudgeInteriorZoom(0.12)}
-              title="Zoom in"
               aria-label="Zoom in"
             >
               +
             </button>
           </div>
+          {buildMode === "build" ? (
+            <button
+              type="button"
+              className="tph-ribbon-btn tph-ribbon-btn--gold"
+              onClick={() => {
+                audioDirector.playSfx("ui_mode_switch");
+                toggleBuildMode();
+              }}
+            >
+              Exit build
+            </button>
+          ) : null}
           <button
             type="button"
-            className={`build-hammer-btn${buildMode === "build" ? " active" : ""}`}
-            onClick={() => {
-              audioDirector.playSfx("ui_mode_switch");
-              toggleBuildMode();
-            }}
-            title={buildMode === "build" ? "Exit build mode" : "Enter build mode"}
-          >
-            🔨 {buildMode === "build" ? "Build" : "Build"}
-          </button>
-          <button
-            type="button"
-            className="primary-action interior-back-btn"
+            className="tph-ribbon-btn tph-ribbon-btn--campus"
             onClick={() => {
               audioDirector.playSfx("door_close");
               void tryExitInterior();
@@ -172,7 +132,14 @@ export function InteriorOverlay() {
             Campus
           </button>
         </div>
+        <p className="tph-ribbon-subhint">{cameraHint}</p>
       </header>
+
+      {buildMode !== "build" ? (
+        <TPHGameDock onOpenInspector={() => setInspectorExpanded(true)} />
+      ) : null}
+
+      <TPHStatsPanel />
 
       {selectedFurnitureId && office ? (
         <div className="interior-side-panel interior-side-panel--right">
@@ -190,6 +157,6 @@ export function InteriorOverlay() {
       ) : null}
 
       <BuildModeHud />
-    </>
+    </div>
   );
 }
