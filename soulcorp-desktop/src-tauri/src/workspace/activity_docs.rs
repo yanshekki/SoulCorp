@@ -3,7 +3,6 @@ use crate::state::{
 };
 use crate::workspace::models::LinkedEntity;
 use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
-use rayon::prelude::*;
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
@@ -49,50 +48,44 @@ pub fn write_daily_activity_docs(app: &AppHandle, snapshot: &ActivitySnapshot) -
         storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
     }
 
-    let agent_pages: Result<Vec<_>, String> = agents
-        .par_iter()
-        .map(|agent| {
-            let folder_id = format!("folder-{}", agent.id);
-            let journal_title = format!("{} — Daily Journal", agent.name);
-            let heading = format!("Day {day} Activity Log");
-            let lines = activity_lines_for_agent(agent, snapshot);
+    for agent in agents {
+        let folder_id = format!("folder-{}", agent.id);
+        let journal_title = format!("{} — Daily Journal", agent.name);
+        let heading = format!("Day {day} Activity Log");
+        let lines = activity_lines_for_agent(agent, snapshot);
 
-            let page = storage.append_journal_entry(
-                &folder_id,
-                &journal_title,
-                &heading,
-                &lines,
-                &agent.name,
-            )?;
-            storage.link_entity_to_page(
+        let page = storage.append_journal_entry(
+            &folder_id,
+            &journal_title,
+            &heading,
+            &lines,
+            &agent.name,
+        )?;
+        storage.link_entity_to_page(
+            &page.id,
+            LinkedEntity {
+                entity_type: "agent".to_string(),
+                id: agent.id.clone(),
+                title: agent.name.clone(),
+            },
+            &agent.name,
+        )?;
+        if let Some(project) = snapshot
+            .projects
+            .iter()
+            .find(|project| project.owner_department == agent.department)
+        {
+            let _ = storage.link_entity_to_page(
                 &page.id,
                 LinkedEntity {
-                    entity_type: "agent".to_string(),
-                    id: agent.id.clone(),
-                    title: agent.name.clone(),
+                    entity_type: "project".to_string(),
+                    id: project.id.clone(),
+                    title: project.title.clone(),
                 },
                 &agent.name,
-            )?;
-            if let Some(project) = snapshot
-                .projects
-                .iter()
-                .find(|project| project.owner_department == agent.department)
-            {
-                let _ = storage.link_entity_to_page(
-                    &page.id,
-                    LinkedEntity {
-                        entity_type: "project".to_string(),
-                        id: project.id.clone(),
-                        title: project.title.clone(),
-                    },
-                    &agent.name,
-                );
-            }
-            Ok(())
-        })
-        .collect();
-
-    agent_pages?;
+            );
+        }
+    }
     let mut pages_written = agents.len() as u32;
 
     let summary = format!(
@@ -131,21 +124,17 @@ pub fn write_event_activity_doc(
         storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
     }
 
-    snapshot
-        .agents
-        .par_iter()
-        .try_for_each(|agent| {
-            let folder_id = format!("folder-{}", agent.id);
-            let journal_title = format!("{} — Daily Journal", agent.name);
-            let heading = format!("Day {} — Event Response", snapshot.day_number);
-            let lines = vec![
-                format!("Company event: {}", event.title),
-                format!("Personal impact: morale {:+.0}%", event.morale_delta * 100.0),
-                reaction_line_for_agent(agent, event),
-            ];
-            storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
-            Ok::<(), String>(())
-        })?;
+    for agent in &snapshot.agents {
+        let folder_id = format!("folder-{}", agent.id);
+        let journal_title = format!("{} — Daily Journal", agent.name);
+        let heading = format!("Day {} — Event Response", snapshot.day_number);
+        let lines = vec![
+            format!("Company event: {}", event.title),
+            format!("Personal impact: morale {:+.0}%", event.morale_delta * 100.0),
+            reaction_line_for_agent(agent, event),
+        ];
+        storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+    }
 
     Ok(1 + snapshot.agents.len() as u32)
 }

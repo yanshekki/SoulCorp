@@ -381,7 +381,6 @@ pub async fn export_static_site_zip(
     progress.emit_percent("Preparing static site bundle…", 15.0, Some("prepare"));
 
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pages_dir = app_data.join("workspaces/pages");
     let exports_dir = exports_dir(&app)?;
     fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
 
@@ -389,9 +388,15 @@ pub async fn export_static_site_zip(
     let zip_filename = format!("soulcorp-static-site-{timestamp}.zip");
     let zip_path = exports_dir.join(&zip_filename);
 
-    let (bundle, tree) = {
+    let (bundle, tree, pages_dir) = {
         let locked = state.lock().map_err(|e| e.to_string())?;
-        prepare_static_site_bundle(&app, &locked, &zip_filename)?
+        if locked.company_id.is_empty() {
+            return Err("Create a company before exporting a static site.".to_string());
+        }
+        let pages_dir =
+            company_workspace_root(&app_data, &locked.company_id).join("pages");
+        let bundle_tree = prepare_static_site_bundle(&app, &locked, &zip_filename)?;
+        (bundle_tree.0, bundle_tree.1, pages_dir)
     };
 
     let white_label = bundle.white_label;

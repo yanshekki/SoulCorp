@@ -15,8 +15,10 @@ mod tier;
 mod workspace;
 
 use achievements::{default_achievements, default_endings};
+use db::persistence::flush_pending_commit;
+use state::AppState;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -169,6 +171,15 @@ pub fn run() {
             commands::exit_3d_smoke_test,
             db::get_app_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::Exit = event {
+                if let Some(state) = app_handle.try_state::<Mutex<AppState>>() {
+                    if let Ok(locked) = state.lock() {
+                        let _ = flush_pending_commit(app_handle.clone(), &locked);
+                    }
+                }
+            }
+        });
 }

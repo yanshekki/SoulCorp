@@ -110,7 +110,10 @@ fn extract_url_from_output(output: &str) -> Option<String> {
 fn stage_static_site(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
     let staging_dir = deploy_staging_dir(app)?;
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let pages_dir = app_data.join("workspaces/pages");
+    if state.company_id.is_empty() {
+        return Err("Create a company before deploying a static site.".to_string());
+    }
+    let pages_dir = crate::workspace::company_workspace_root(&app_data, &state.company_id).join("pages");
     let archive_name = format!(
         "soulcorp-static-site-{}",
         Utc::now().format("%Y%m%d-%H%M%S")

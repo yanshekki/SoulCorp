@@ -42,26 +42,43 @@ fn open_connection(app: &AppHandle) -> Result<Connection, String> {
 }
 
 struct PendingCommit {
+    company_id: String,
     last_committed_tick: u64,
     last_committed_day: u32,
 }
 
 static PENDING_COMMIT: StdMutex<Option<PendingCommit>> = StdMutex::new(None);
 
+pub fn reset_commit_debounce(company_id: &str) {
+    if let Ok(mut guard) = PENDING_COMMIT.lock() {
+        *guard = Some(PendingCommit {
+            company_id: company_id.to_string(),
+            last_committed_tick: 0,
+            last_committed_day: 0,
+        });
+    }
+}
+
 pub fn commit_debounced(app: AppHandle, state: &AppState) -> Result<(), String> {
     let force = {
         let mut guard = PENDING_COMMIT.lock().map_err(|e| e.to_string())?;
         let entry = guard.get_or_insert(PendingCommit {
+            company_id: state.company_id.clone(),
             last_committed_tick: 0,
             last_committed_day: 0,
         });
 
+        let company_changed = entry.company_id != state.company_id;
         let day_changed = state.day_number != entry.last_committed_day;
-        let tick_delta = state.tick.saturating_sub(entry.last_committed_tick);
-        let should_commit =
-            day_changed || tick_delta >= COMMIT_DEBOUNCE_TICKS || state.tick == 0;
+        let tick_delta = if company_changed {
+            COMMIT_DEBOUNCE_TICKS
+        } else {
+            state.tick.saturating_sub(entry.last_committed_tick)
+        };
+        let should_commit = company_changed || day_changed || tick_delta >= COMMIT_DEBOUNCE_TICKS;
 
         if should_commit {
+            entry.company_id = state.company_id.clone();
             entry.last_committed_tick = state.tick;
             entry.last_committed_day = state.day_number;
             true
@@ -78,12 +95,7 @@ pub fn commit_debounced(app: AppHandle, state: &AppState) -> Result<(), String> 
 }
 
 pub fn flush_pending_commit(app: AppHandle, state: &AppState) -> Result<(), String> {
-    {
-        let mut guard = PENDING_COMMIT.lock().map_err(|e| e.to_string())?;
-        if let Some(entry) = guard.as_mut() {
-            entry.last_committed_tick = 0;
-        }
-    }
+    reset_commit_debounce(&state.company_id);
     commit(app, state)
 }
 
@@ -386,6 +398,36 @@ pub fn delete_company_snapshot(app: &AppHandle, company_id: &str) -> Result<(), 
 mod tests {
     use super::*;
     use crate::state::AppState;
+
+    #[test]
+    fn debounce_forces_commit_after_company_change() {
+        reset_commit_debounce("company-a");
+        let mut guard = PENDING_COMMIT.lock().expect("lock debounce state");
+        let entry = guard.as_mut().expect("debounce initialized");
+        entry.last_committed_tick = 500;
+        entry.last_committed_day = 12;
+        drop(guard);
+
+        let mut state = AppState::default();
+        state.company_id = "company-b".to_string();
+        state.tick = 3;
+        state.day_number = 1;
+
+        let force = {
+            let mut guard = PENDING_COMMIT.lock().expect("lock debounce state");
+            let entry = guard.as_mut().expect("debounce initialized");
+            let company_changed = entry.company_id != state.company_id;
+            let tick_delta = if company_changed {
+                COMMIT_DEBOUNCE_TICKS
+            } else {
+                state.tick.saturating_sub(entry.last_committed_tick)
+            };
+            company_changed || state.day_number != entry.last_committed_day
+                || tick_delta >= COMMIT_DEBOUNCE_TICKS
+        };
+
+        assert!(force, "switching companies must not suppress the next commit");
+    }
 
     #[test]
     fn app_state_round_trips_through_json_snapshot() {

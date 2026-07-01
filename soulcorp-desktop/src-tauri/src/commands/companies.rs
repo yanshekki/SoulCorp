@@ -1,5 +1,6 @@
 use crate::db::persistence::{
-    commit, delete_company_snapshot, load_registry, save_registry, switch_active_company,
+    commit, delete_company_snapshot, flush_pending_commit, load_registry, reset_commit_debounce,
+    save_registry, switch_active_company,
 };
 use crate::state::{
     fresh_company_state, summary_from_state, AppState, CompanySummary, EventMode,
@@ -141,9 +142,11 @@ pub fn switch_company(
                 company: summary_from_state(&current),
             });
         }
+        flush_pending_commit(app.clone(), &current)?;
         switch_active_company(&app, &current, &company_id)?
     };
     let summary = summary_from_state(&next);
+    reset_commit_debounce(&next.company_id);
     *app_state.lock().map_err(|e| e.to_string())? = next;
 
     Ok(SwitchCompanyResponse {
