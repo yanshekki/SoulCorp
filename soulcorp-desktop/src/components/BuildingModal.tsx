@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../stores/gameStore";
+import { totalCompanyTokens } from "../utils/companyState";
 import type { InternalProject } from "../types/game";
 
 export function BuildingModal() {
@@ -83,8 +84,8 @@ export function BuildingModal() {
             <strong>{projectsError ? "—" : activeProjects}</strong>
           </article>
           <article>
-            <span>Company cash</span>
-            <strong>${finance.cash_balance.toFixed(0)}</strong>
+            <span>Company tokens</span>
+            <strong>{totalCompanyTokens(finance).toLocaleString()}</strong>
           </article>
         </section>
 

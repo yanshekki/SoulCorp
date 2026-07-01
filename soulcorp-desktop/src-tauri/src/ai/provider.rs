@@ -17,10 +17,39 @@ pub struct ChatRequest {
     pub conversation_turns: Vec<ChatTurn>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenUsageSource {
+    Api,
+    Estimated,
+    Zero,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+    pub source: TokenUsageSource,
+}
+
+impl Default for TokenUsage {
+    fn default() -> Self {
+        Self {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+            source: TokenUsageSource::Zero,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatResponse {
     pub content: String,
     pub provider: String,
+    #[serde(default)]
+    pub usage: TokenUsage,
 }
 
 pub trait AiProvider: Send + Sync {

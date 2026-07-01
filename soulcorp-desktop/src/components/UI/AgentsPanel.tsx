@@ -10,8 +10,13 @@ import {
 } from "../../data/aiProviders";
 import type { AgentRecord, CompanyDepartmentsSnapshot } from "../../types/game";
 
+function formatTokens(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
 export function AgentsPanel() {
   const settings = useGameStore((state) => state.settings);
+  const finance = useGameStore((state) => state.finance);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
@@ -150,6 +155,7 @@ export function AgentsPanel() {
               const selected = agent.ai_provider ?? AI_PROVIDER_DEFAULT;
               const departmentProvider =
                 departmentProviderMap.get(agent.department) ?? null;
+              const wallet = finance.agents[agent.id];
               return (
                 <article key={agent.id} className="agent-row brain-row">
                   <div>
@@ -164,6 +170,15 @@ export function AgentsPanel() {
                         departmentProvider,
                         settings.ai_provider,
                         settings.pure_local_mode,
+                      )}
+                      {wallet ? (
+                        <>
+                          {" "}
+                          · Tokens: {formatTokens(wallet.balance)} balance /{" "}
+                          {formatTokens(wallet.spent)} spent
+                        </>
+                      ) : (
+                        " · Tokens: no wallet"
                       )}
                     </p>
                   </div>

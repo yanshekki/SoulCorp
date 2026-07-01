@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
+import { totalCompanyTokens } from "../../utils/companyState";
 import type {
   AgentRecord,
   MeetingSnapshot,
@@ -8,6 +9,7 @@ import type {
   RecruitmentAnalytics,
   RecruitmentCandidate,
   RelationshipGraph,
+  TokenEconomy,
 } from "../../types/game";
 import { RelationshipGraphView } from "./RelationshipGraphView";
 
@@ -149,8 +151,11 @@ export function RecruitmentPanel() {
 
   const hireCandidate = async (candidate: RecruitmentCandidate) => {
     const monthlySalary = candidate.hourly_rate_usdt * 160;
-    if (finance.cash_balance < monthlySalary * 0.5) {
-      setStatusMessage("Not enough cash for onboarding package.");
+    const onboardingTokens = Math.round(monthlySalary * 0.5);
+    if (totalCompanyTokens(finance) < onboardingTokens) {
+      setStatusMessage(
+        `Not enough tokens for onboarding package (~${onboardingTokens.toLocaleString()} tokens required).`,
+      );
       return;
     }
 
@@ -166,7 +171,7 @@ export function RecruitmentPanel() {
       });
       const agents = await invoke<AgentRecord[]>("list_agents");
       setAgentRecords(agents);
-      const updatedFinance = await invoke<typeof finance>("get_finance_state");
+      const updatedFinance = await invoke<TokenEconomy>("get_finance_state");
       setFinance(updatedFinance);
       const { refreshWorkspaceTree } = await import("../../services/workspaceClient");
       await refreshWorkspaceTree(true).catch(() => undefined);

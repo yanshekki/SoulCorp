@@ -1,6 +1,7 @@
 use crate::db::persistence::commit;
 use crate::finance::{normalize_allocations, total_monthly_salary};
-use crate::state::{AppState, BudgetAllocations, FinanceState, InternalProject};
+use crate::state::{AppState, InternalProject, TokenEconomy};
+use crate::token_budget::ensure_agent_wallet;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -20,12 +21,6 @@ pub struct SalaryUpdate {
 }
 
 #[tauri::command]
-pub fn get_finance_state(state: State<'_, Mutex<AppState>>) -> Result<FinanceState, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
-    Ok(state.finance.clone())
-}
-
-#[tauri::command]
 pub fn list_internal_projects(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<InternalProject>, String> {
@@ -38,26 +33,26 @@ pub fn update_budget_allocations(
     update: BudgetUpdate,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<FinanceState, String> {
+) -> Result<TokenEconomy, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
 
     if let Some(value) = update.compute_pct {
-        state.finance.allocations.compute_pct = value.max(0.0);
+        state.token_economy.allocations.compute_pct = value.max(0.0);
     }
     if let Some(value) = update.salaries_pct {
-        state.finance.allocations.salaries_pct = value.max(0.0);
+        state.token_economy.allocations.salaries_pct = value.max(0.0);
     }
     if let Some(value) = update.marketing_pct {
-        state.finance.allocations.marketing_pct = value.max(0.0);
+        state.token_economy.allocations.marketing_pct = value.max(0.0);
     }
     if let Some(value) = update.rnd_pct {
-        state.finance.allocations.rnd_pct = value.max(0.0);
+        state.token_economy.allocations.rnd_pct = value.max(0.0);
     }
 
-    normalize_allocations(&mut state.finance.allocations);
-    let finance = state.finance.clone();
+    normalize_allocations(&mut state.token_economy.allocations);
+    let economy = state.token_economy.clone();
     commit(app, &state)?;
-    Ok(finance)
+    Ok(economy)
 }
 
 #[tauri::command]
@@ -65,7 +60,7 @@ pub fn adjust_agent_salary(
     update: SalaryUpdate,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<FinanceState, String> {
+) -> Result<TokenEconomy, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     let agent = state
         .agents
@@ -73,10 +68,14 @@ pub fn adjust_agent_salary(
         .ok_or_else(|| "Agent not found.".to_string())?;
 
     agent.salary = update.salary.max(0.0);
-    state.finance.monthly_burn =
-        total_monthly_salary(&state.agents) + state.agents.len() as f64 * 75.0;
+    let wallet_record = state.agents.get(&update.agent_id).cloned();
+    if let Some(record) = wallet_record {
+        ensure_agent_wallet(&mut state.token_economy, &record);
+    }
+    state.token_economy.monthly_burn_tokens =
+        total_monthly_salary(&state.agents).saturating_add(state.agents.len() as u64 * 75);
 
-    let finance = state.finance.clone();
+    let economy = state.token_economy.clone();
     commit(app, &state)?;
-    Ok(finance)
+    Ok(economy)
 }

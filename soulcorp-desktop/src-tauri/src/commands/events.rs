@@ -145,7 +145,18 @@ pub fn maybe_roll_event(state: &mut AppState) -> Option<GameEvent> {
 
 pub fn apply_event(state: &mut AppState, event: &GameEvent) {
     state.stats.events_triggered += 1;
-    state.finance.cash_balance += event.cash_delta;
+    let delta = event.cash_delta.round() as i64;
+    if delta >= 0 {
+        state.token_economy.company_balance = state
+            .token_economy
+            .company_balance
+            .saturating_add(delta as u64);
+    } else {
+        state.token_economy.company_balance = state
+            .token_economy
+            .company_balance
+            .saturating_sub((-delta) as u64);
+    }
     for agent in state.agents.values_mut() {
         agent.morale = (agent.morale + event.morale_delta).clamp(0.0, 1.0);
     }

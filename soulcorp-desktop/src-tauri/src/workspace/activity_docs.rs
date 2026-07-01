@@ -1,5 +1,5 @@
 use crate::state::{
-    AgentRecord, AppState, FinanceState, GameEvent, GigContract, InternalProject, MeetingState,
+    AgentRecord, AppState, GameEvent, GigContract, InternalProject, MeetingState, TokenEconomy,
 };
 use crate::workspace::models::LinkedEntity;
 use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
@@ -15,7 +15,7 @@ pub struct ActivitySnapshot {
     pub meetings: HashMap<String, MeetingState>,
     pub gig_contracts: Vec<GigContract>,
     pub events: Vec<GameEvent>,
-    pub finance: FinanceState,
+    pub token_economy: TokenEconomy,
 }
 
 impl ActivitySnapshot {
@@ -28,7 +28,7 @@ impl ActivitySnapshot {
             meetings: state.meetings.clone(),
             gig_contracts: state.gig_contracts.clone(),
             events: state.events.clone(),
-            finance: state.finance.clone(),
+            token_economy: state.token_economy.clone(),
         }
     }
 }
@@ -89,10 +89,10 @@ pub fn write_daily_activity_docs(app: &AppHandle, snapshot: &ActivitySnapshot) -
     let mut pages_written = agents.len() as u32;
 
     let summary = format!(
-        "Payroll and operations logged for {} agents. Cash ${:.0}, compute {:.0} tokens.",
+        "Payroll and operations logged for {} agents. Company pool {} tokens (total {}).",
         agents.len(),
-        snapshot.finance.cash_balance,
-        snapshot.finance.compute_tokens
+        snapshot.token_economy.company_balance,
+        crate::token_budget::total_company_tokens(&snapshot.token_economy)
     );
     storage.append_company_feed_entry(day, "Daily Operations", &summary)?;
     pages_written += 1;

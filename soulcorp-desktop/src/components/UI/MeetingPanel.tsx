@@ -3,7 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
 import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
-import type { CompanyDepartmentsSnapshot, MeetingAiStatus, MeetingSnapshot } from "../../types/game";
+import type {
+  CompanyDepartmentsSnapshot,
+  MeetingAiStatus,
+  MeetingSnapshot,
+  MeetingTurnCostEstimate,
+} from "../../types/game";
 
 const MEETING_TYPES = [
   "Daily Standup",
@@ -24,6 +29,7 @@ export function MeetingPanel() {
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [aiStatus, setAiStatus] = useState<MeetingAiStatus | null>(null);
   const [advancing, setAdvancing] = useState(false);
+  const [turnCost, setTurnCost] = useState<MeetingTurnCostEstimate | null>(null);
   const [departmentProviders, setDepartmentProviders] = useState<Map<string, string | null>>(
     () => new Map(),
   );
@@ -105,6 +111,18 @@ export function MeetingPanel() {
         meetingId: activeMeeting.id,
       });
       setActiveMeeting(meeting);
+      if (!meeting.completed) {
+        try {
+          const estimate = await invoke<MeetingTurnCostEstimate>("estimate_meeting_turn_cost", {
+            meetingId: meeting.id,
+          });
+          setTurnCost(estimate);
+        } catch {
+          setTurnCost(null);
+        }
+      } else {
+        setTurnCost(null);
+      }
       if (meeting.completed) {
         const outcome = meeting.outcome_summary ?? "Meeting completed.";
         setStatusMessage(
@@ -122,7 +140,29 @@ export function MeetingPanel() {
   };
 
   useEffect(() => {
+    if (!activeMeeting || activeMeeting.completed) {
+      setTurnCost(null);
+      return;
+    }
+    const loadCost = async () => {
+      try {
+        const estimate = await invoke<MeetingTurnCostEstimate>("estimate_meeting_turn_cost", {
+          meetingId: activeMeeting.id,
+        });
+        setTurnCost(estimate);
+      } catch (error) {
+        setTurnCost(null);
+        setStatusMessage(String(error));
+      }
+    };
+    void loadCost();
+  }, [activeMeeting, setStatusMessage]);
+
+  useEffect(() => {
     if (!autoAdvance || !activeMeeting || activeMeeting.completed || advancing) {
+      return;
+    }
+    if (turnCost && !turnCost.affordable) {
       return;
     }
     const delay = usingLiveLlm ? 3200 : 1400;
@@ -130,7 +170,7 @@ export function MeetingPanel() {
       void advanceMeeting();
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [activeMeeting, autoAdvance, advancing, usingLiveLlm]);
+  }, [activeMeeting, autoAdvance, advancing, usingLiveLlm, turnCost]);
 
   return (
     <section className="panel-card meeting-panel">
@@ -189,6 +229,13 @@ export function MeetingPanel() {
         <span>Auto-advance turns (observable LLM chat)</span>
       </label>
 
+      {turnCost ? (
+        <p className={turnCost.affordable ? "muted" : "hub-warning"} role="status">
+          {turnCost.message}
+          {turnCost.estimated_tokens > 0 ? ` (~${turnCost.estimated_tokens} tokens)` : ""}
+        </p>
+      ) : null}
+
       <div className="panel-actions">
         <button type="button" onClick={() => void startMeeting()}>
           Start Meeting
@@ -197,7 +244,11 @@ export function MeetingPanel() {
           type="button"
           className="primary-action"
           onClick={() => void advanceMeeting()}
-          disabled={!activeMeeting || advancing}
+          disabled={
+            !activeMeeting ||
+            advancing ||
+            (turnCost != null && !turnCost.affordable && !activeMeeting.completed)
+          }
         >
           {advancing ? "Waiting for LLM..." : "Next Turn"}
         </button>

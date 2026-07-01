@@ -1,4 +1,5 @@
-use super::provider::{AiProvider, ChatRequest, ChatResponse};
+use super::provider::{AiProvider, ChatRequest, ChatResponse, TokenUsage, TokenUsageSource};
+use super::token_estimate::estimate_from_texts;
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::time::Duration;
@@ -87,9 +88,38 @@ impl AiProvider for OpenAiCompatibleProvider {
             .and_then(|value| value.as_str())
             .ok_or_else(|| format!("{label} response missing choices[0].message.content", label = self.label))?;
 
+        let usage = if let Some(usage_value) = payload.get("usage") {
+            let prompt_tokens = usage_value
+                .get("prompt_tokens")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as u32;
+            let completion_tokens = usage_value
+                .get("completion_tokens")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as u32;
+            let total_tokens = usage_value
+                .get("total_tokens")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as u32;
+            TokenUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens: total_tokens.max(prompt_tokens.saturating_add(completion_tokens)),
+                source: TokenUsageSource::Api,
+            }
+        } else {
+            let prompt_text = messages
+                .iter()
+                .filter_map(|message| message.get("content").and_then(|value| value.as_str()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            estimate_from_texts(&prompt_text, content)
+        };
+
         Ok(ChatResponse {
             content: content.to_string(),
             provider: self.label.clone(),
+            usage,
         })
     }
 }

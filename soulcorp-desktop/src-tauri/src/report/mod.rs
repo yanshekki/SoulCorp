@@ -1,5 +1,5 @@
 use crate::achievements::Achievement;
-use crate::state::{AgentRecord, AppState, FinanceState, GameEvent, InternalProject};
+use crate::state::{AgentRecord, AppState, GameEvent, InternalProject, TokenEconomy};
 use crate::tier::can_use_feature;
 use crate::workspace::WorkspaceTree;
 
@@ -37,7 +37,7 @@ pub fn build_markdown(
         executive_summary(state),
         String::new(),
         "## Profit & Loss".to_string(),
-        finance_section(&state.finance),
+        finance_section(&state.token_economy),
         String::new(),
         "## Agent Roster".to_string(),
         agent_table(state.agents.values().collect()),
@@ -127,7 +127,7 @@ pub fn build_pdf_lines(
         executive_summary(state),
         String::new(),
         "PROFIT & LOSS".to_string(),
-        finance_section(&state.finance),
+        finance_section(&state.token_economy),
         String::new(),
         "AGENT ROSTER".to_string(),
     ];
@@ -157,34 +157,31 @@ pub fn build_pdf_lines(
 }
 
 fn executive_summary(state: &AppState) -> String {
-    let health = if state.finance.cash_crisis {
-        "Cash crisis — immediate budget intervention recommended."
-    } else if state.finance.compute_starved {
-        "Compute constrained — agent throughput reduced."
+    let health = if state.token_economy.company_starved {
+        "Token balance depleted — allocate tokens to resume operations."
     } else {
         "Operations stable with active project delivery."
     };
+    let total = crate::token_budget::total_company_tokens(&state.token_economy);
 
     format!(
-        "SoulCorp is operating on day {} with ${:.0} cash, {:.0} compute tokens, and ${:.0} monthly revenue against ${:.0} burn. {}",
+        "SoulCorp is operating on day {} with {} total tokens (company pool {}), {} monthly inflow against {} burn. {}",
         state.day_number,
-        state.finance.cash_balance,
-        state.finance.compute_tokens,
-        state.finance.monthly_revenue,
-        state.finance.monthly_burn,
+        total,
+        state.token_economy.company_balance,
+        state.token_economy.monthly_inflow_tokens,
+        state.token_economy.monthly_burn_tokens,
         health
     )
 }
 
-fn finance_section(finance: &FinanceState) -> String {
+fn finance_section(finance: &TokenEconomy) -> String {
     format!(
-        "- Cash balance: ${:.2}\n- Compute tokens: {:.0}\n- Monthly revenue: ${:.2}\n- Monthly burn: ${:.2}\n- Compute starved: {}\n- Cash crisis: {}\n- Budget mix: compute {:.0}% · salaries {:.0}% · marketing {:.0}% · R&D {:.0}%",
-        finance.cash_balance,
-        finance.compute_tokens,
-        finance.monthly_revenue,
-        finance.monthly_burn,
-        finance.compute_starved,
-        finance.cash_crisis,
+        "- Company pool: {} tokens\n- Monthly inflow: {} tokens\n- Monthly burn: {} tokens\n- Company starved: {}\n- Budget mix: compute {:.0}% · salaries {:.0}% · marketing {:.0}% · R&D {:.0}%",
+        finance.company_balance,
+        finance.monthly_inflow_tokens,
+        finance.monthly_burn_tokens,
+        finance.company_starved,
         finance.allocations.compute_pct,
         finance.allocations.salaries_pct,
         finance.allocations.marketing_pct,
@@ -333,6 +330,6 @@ mod tests {
         let state = AppState::default();
         let markdown = build_markdown(&state, None, "SoulCorp Company Report");
         assert!(markdown.contains("Profit & Loss"));
-        assert!(markdown.contains("Cash balance"));
+        assert!(markdown.contains("Company pool"));
     }
 }

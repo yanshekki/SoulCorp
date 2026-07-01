@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { FinanceState, GodModeActionResult, GodModeLogEntry } from "../../types/game";
+import type { GodModeActionResult, GodModeLogEntry, TokenEconomy } from "../../types/game";
 
 const GOD_MODE_ACTIONS = [
   {
@@ -19,9 +19,9 @@ const GOD_MODE_ACTIONS = [
   },
   {
     command: "god_mode_emergency_budget",
-    label: "Emergency Budget (+$2500)",
+    label: "Emergency Budget (+2500 tokens)",
     args: { amount: 2500 },
-    preview: "Inject cash into the company treasury.",
+    preview: "Inject tokens into the company pool.",
     risk: "Reality debt increases; agents expect future bailouts.",
   },
   {
@@ -113,11 +113,8 @@ export function GodModePanel() {
     try {
       const result = await invoke<GodModeActionResult>(command, args ?? {});
       setSimulation({ dayNumber: result.day_number });
-      const finance = await invoke<FinanceState>("get_finance_state");
-      setFinance({
-        ...finance,
-        cash_balance: result.cash_balance,
-      });
+      const finance = await invoke<TokenEconomy>("get_finance_state");
+      setFinance(finance);
       setStatusMessage(result.message);
       await refreshHistory();
     } catch (error) {

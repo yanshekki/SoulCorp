@@ -254,33 +254,127 @@ impl Default for BudgetAllocations {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DepartmentTokenWallet {
+    pub balance: u64,
+    pub allocated: u64,
+    pub spent: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AgentTokenWallet {
+    pub balance: u64,
+    pub allocated: u64,
+    pub spent: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FinanceState {
-    pub cash_balance: f64,
-    pub compute_tokens: f64,
-    pub monthly_burn: f64,
-    pub monthly_revenue: f64,
+pub struct TokenUsageEntry {
+    pub id: String,
+    pub at: String,
+    pub source: String,
+    pub provider: String,
+    pub agent_id: Option<String>,
+    pub department: String,
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+    pub usage_source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TokenEconomy {
+    pub company_balance: u64,
+    pub monthly_burn_tokens: u64,
+    pub monthly_inflow_tokens: u64,
     #[serde(default)]
     pub allocations: BudgetAllocations,
     #[serde(default)]
-    pub compute_starved: bool,
+    pub departments: HashMap<String, DepartmentTokenWallet>,
     #[serde(default)]
-    pub cash_crisis: bool,
+    pub agents: HashMap<String, AgentTokenWallet>,
+    #[serde(default)]
+    pub company_starved: bool,
 }
 
-impl Default for FinanceState {
+impl Default for TokenEconomy {
     fn default() -> Self {
         Self {
-            cash_balance: 10000.0,
-            compute_tokens: 5000.0,
-            monthly_burn: 1200.0,
-            monthly_revenue: 1800.0,
+            company_balance: 15_000,
+            monthly_burn_tokens: 1200,
+            monthly_inflow_tokens: 1800,
             allocations: BudgetAllocations::default(),
-            compute_starved: false,
-            cash_crisis: false,
+            departments: HashMap::new(),
+            agents: HashMap::new(),
+            company_starved: false,
         }
     }
 }
+
+#[derive(Debug, Clone, Deserialize)]
+struct TokenEconomyRaw {
+    company_balance: u64,
+    monthly_burn_tokens: u64,
+    monthly_inflow_tokens: u64,
+    #[serde(default)]
+    allocations: BudgetAllocations,
+    #[serde(default)]
+    departments: HashMap<String, DepartmentTokenWallet>,
+    #[serde(default)]
+    agents: HashMap<String, AgentTokenWallet>,
+    #[serde(default)]
+    company_starved: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LegacyFinanceState {
+    cash_balance: f64,
+    compute_tokens: f64,
+    monthly_burn: f64,
+    monthly_revenue: f64,
+    #[serde(default)]
+    allocations: BudgetAllocations,
+    #[serde(default)]
+    compute_starved: bool,
+    #[serde(default)]
+    cash_crisis: bool,
+}
+
+impl<'de> Deserialize<'de> for TokenEconomy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if value.get("company_balance").is_some() {
+            let raw: TokenEconomyRaw =
+                serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+            return Ok(TokenEconomy {
+                company_balance: raw.company_balance,
+                monthly_burn_tokens: raw.monthly_burn_tokens,
+                monthly_inflow_tokens: raw.monthly_inflow_tokens,
+                allocations: raw.allocations,
+                departments: raw.departments,
+                agents: raw.agents,
+                company_starved: raw.company_starved,
+            });
+        }
+        let legacy: LegacyFinanceState =
+            serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        Ok(TokenEconomy {
+            company_balance: (legacy.cash_balance + legacy.compute_tokens).round().max(0.0) as u64,
+            monthly_burn_tokens: legacy.monthly_burn.round().max(0.0) as u64,
+            monthly_inflow_tokens: legacy.monthly_revenue.round().max(0.0) as u64,
+            allocations: legacy.allocations,
+            departments: HashMap::new(),
+            agents: HashMap::new(),
+            company_starved: legacy.compute_starved || legacy.cash_crisis,
+        })
+    }
+}
+
+/// Legacy alias kept for gradual migration in command signatures.
+pub type FinanceState = TokenEconomy;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InternalProject {
@@ -390,7 +484,10 @@ pub struct AppState {
     #[serde(default = "default_onboarding_completed")]
     pub onboarding_completed: bool,
     pub settings: GameSettings,
-    pub finance: FinanceState,
+    #[serde(rename = "token_economy", alias = "finance")]
+    pub token_economy: TokenEconomy,
+    #[serde(default)]
+    pub token_ledger: Vec<TokenUsageEntry>,
     pub agents: HashMap<String, AgentRecord>,
     pub events: Vec<GameEvent>,
     #[serde(default)]
@@ -442,7 +539,8 @@ impl Default for AppState {
             company_created_at: None,
             onboarding_completed: false,
             settings: GameSettings::default(),
-            finance: FinanceState::default(),
+            token_economy: TokenEconomy::default(),
+            token_ledger: Vec::new(),
             agents: HashMap::new(),
             events: Vec::new(),
             god_mode_history: Vec::new(),
@@ -521,12 +619,15 @@ impl AppState {
 
         self.seed_projects();
         crate::relationships::seed_default_relationships(self);
-        self.finance.monthly_burn = self
+        self.token_economy.monthly_burn_tokens = self
             .agents
             .values()
-            .map(|agent| agent.salary as f64)
-            .sum::<f64>()
-            + self.agents.len() as f64 * 75.0;
+            .map(|agent| agent.salary as u64)
+            .sum::<u64>()
+            .saturating_add(self.agents.len() as u64 * 75);
+        if self.token_economy.departments.is_empty() {
+            crate::token_budget::initialize_wallets_from_agents(self);
+        }
     }
 
     pub fn seed_projects(&mut self) {

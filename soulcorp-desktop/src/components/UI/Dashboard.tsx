@@ -1,4 +1,5 @@
 import { useGameStore } from "../../stores/gameStore";
+import { totalCompanyTokens } from "../../utils/companyState";
 import { agentInnovationScore, agentSkillLevel } from "../../utils/agentStats";
 import { EventFeed } from "./EventFeed";
 
@@ -28,8 +29,8 @@ export function Dashboard() {
           <strong>{simulation.tick}</strong>
         </article>
         <article>
-          <span>Cash</span>
-          <strong>${finance.cash_balance.toFixed(0)}</strong>
+          <span>Tokens</span>
+          <strong>{totalCompanyTokens(finance).toLocaleString()}</strong>
         </article>
         <article>
           <span>Agents</span>

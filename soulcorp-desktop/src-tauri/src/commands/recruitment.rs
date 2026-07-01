@@ -1,6 +1,8 @@
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::finance::total_monthly_salary;
+use crate::token_budget::{charge_tokens, ensure_agent_wallet, ChargeContext};
+use crate::ai::provider::TokenUsageSource;
 use crate::hub::HubClient;
 use crate::relationships::{
     build_relationship_graph, connect_new_agent, ensure_relationship_backfill, RelationshipGraph,
@@ -592,10 +594,13 @@ pub async fn hire_candidate(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
+    let onboarding_tokens = ((request.offered_salary as f64) * 0.5).round() as u32;
     let (client, offered_salary) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
-        if state.finance.cash_balance < request.offered_salary as f64 * 0.5 {
-            return Err("Insufficient cash for onboarding package.".to_string());
+        if onboarding_tokens > 0
+            && crate::token_budget::total_company_tokens(&state.token_economy) < onboarding_tokens as u64
+        {
+            return Err("Insufficient tokens for onboarding package.".to_string());
         }
         (
             HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone()),
@@ -651,12 +656,27 @@ pub async fn hire_candidate(
         ai_provider: None,
     };
 
-    state.finance.cash_balance -= offered_salary as f64 * 0.5;
     state.agents.insert(agent_id.clone(), record.clone());
+    ensure_agent_wallet(&mut state.token_economy, &record);
+    if onboarding_tokens > 0 {
+        charge_tokens(
+            &mut state,
+            ChargeContext {
+                source: "hire_onboarding".into(),
+                agent_id: agent_id.clone(),
+                department: department.clone(),
+                provider: "simulation".into(),
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: onboarding_tokens,
+                usage_source: TokenUsageSource::Estimated,
+            },
+        )?;
+    }
     connect_new_agent(&mut state, &agent_id, &department);
     state.stats.agents_hired += 1;
-    state.finance.monthly_burn =
-        total_monthly_salary(&state.agents) + state.agents.len() as f64 * 75.0;
+    state.token_economy.monthly_burn_tokens = total_monthly_salary(&state.agents)
+        .saturating_add(state.agents.len() as u64 * 75);
     spawn_onboarding_meeting(&mut state, &agent_id);
 
     commit(app, &state)?;

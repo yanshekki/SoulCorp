@@ -32,12 +32,11 @@ fn build_fake_company_state() -> AppState {
     state.onboarding_completed = true;
     state.day_number = 87;
     state.tick = 2400;
-    state.finance.cash_balance = 48_200.0;
-    state.finance.compute_tokens = 12_800.0;
-    state.finance.monthly_burn = 4_200.0;
-    state.finance.monthly_revenue = 6_100.0;
-    state.finance.compute_starved = false;
-    state.finance.cash_crisis = false;
+    state.token_economy.company_balance = 48_200;
+    state.token_economy.monthly_burn_tokens = 4_200;
+    state.token_economy.monthly_inflow_tokens = 6_100;
+    state.token_economy.company_starved = false;
+    crate::token_budget::initialize_wallets_from_agents(&mut state);
     state.stats.meetings_completed = 12;
     state.stats.events_triggered = 8;
     state.stats.pages_created = 6;

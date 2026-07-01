@@ -1,17 +1,15 @@
 use crate::state::{AgentRecord, AppState, BudgetAllocations};
-
-const COMPUTE_STARVE_THRESHOLD: f64 = 250.0;
-const CASH_CRISIS_THRESHOLD: f64 = 500.0;
+use crate::token_budget::{apply_enforcement, charge_tokens, total_company_tokens, ChargeContext};
+use crate::ai::provider::TokenUsageSource;
 
 pub struct FinanceTickResult {
-    pub compute_starved: bool,
-    pub cash_crisis: bool,
-    pub daily_salary_paid: f64,
-    pub compute_spent: f64,
+    pub company_starved: bool,
+    pub daily_salary_paid: u64,
+    pub inflow_tokens: u64,
 }
 
-pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentRecord>) -> f64 {
-    agents.values().map(|agent| agent.salary as f64).sum()
+pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentRecord>) -> u64 {
+    agents.values().map(|agent| agent.salary as u64).sum()
 }
 
 pub fn count_active_agents(state: &AppState, include_throttled: bool) -> u32 {
@@ -45,77 +43,85 @@ pub fn normalize_allocations(allocations: &mut BudgetAllocations) {
 }
 
 pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
-    let agent_count = state.agents.len().max(1) as f64;
-    let compute_weight = state.finance.allocations.compute_pct as f64 / 100.0;
-    let salary_weight = state.finance.allocations.salaries_pct as f64 / 100.0;
-    let marketing_weight = state.finance.allocations.marketing_pct as f64 / 100.0;
-    let rnd_weight = state.finance.allocations.rnd_pct as f64 / 100.0;
+    let agent_count = state.agents.len().max(1) as u64;
+    let salary_weight = state.token_economy.allocations.salaries_pct as f64 / 100.0;
+    let marketing_weight = state.token_economy.allocations.marketing_pct as f64 / 100.0;
+    let rnd_weight = state.token_economy.allocations.rnd_pct as f64 / 100.0;
 
-    let base_compute_cost = agent_count * 2.5 * compute_weight.max(0.2);
-    let compute_spent = if state.finance.compute_starved {
-        base_compute_cost * 0.35
-    } else {
-        base_compute_cost
-    };
+    let mut daily_salary_paid = 0u64;
+    let mut inflow_tokens = 0u64;
 
-    state.finance.compute_tokens = (state.finance.compute_tokens - compute_spent).max(0.0);
-    state.finance.cash_balance -= compute_spent * 0.15;
-
-    let mut daily_salary_paid = 0.0;
     if state.tick % 30 == 0 {
         state.day_number += 1;
         daily_salary_paid =
-            total_monthly_salary(&state.agents) / 30.0 * salary_weight.max(0.25);
-        let rnd_spend = agent_count * 75.0 * rnd_weight / 30.0;
-        state.finance.cash_balance -= daily_salary_paid + rnd_spend;
-        state.finance.cash_balance += state.finance.monthly_revenue / 30.0;
-        state.finance.cash_balance += state.finance.monthly_revenue * marketing_weight * 0.05;
-        state.finance.monthly_burn =
-            total_monthly_salary(&state.agents) * salary_weight.max(0.25) + agent_count * 75.0 * rnd_weight;
+            (total_monthly_salary(&state.agents) as f64 / 30.0 * salary_weight.max(0.25)) as u64;
+        let rnd_spend = (agent_count as f64 * 75.0 * rnd_weight / 30.0) as u64;
+        let payroll_total = daily_salary_paid.saturating_add(rnd_spend);
+
+        if payroll_total > 0 && total_company_tokens(&state.token_economy) >= payroll_total {
+            let agent_charges: Vec<(String, String)> = state
+                .agents
+                .values()
+                .map(|agent| (agent.id.clone(), agent.department.clone()))
+                .collect();
+            let share = payroll_total / agent_charges.len().max(1) as u64;
+            for (agent_id, department) in agent_charges {
+                if share == 0 {
+                    continue;
+                }
+                let _ = charge_tokens(
+                    state,
+                    ChargeContext {
+                        source: "payroll".into(),
+                        agent_id,
+                        department,
+                        provider: "simulation".into(),
+                        prompt_tokens: 0,
+                        completion_tokens: 0,
+                        total_tokens: share as u32,
+                        usage_source: TokenUsageSource::Estimated,
+                    },
+                );
+            }
+        }
+
+        inflow_tokens = (state.token_economy.monthly_inflow_tokens as f64 / 30.0) as u64;
+        let marketing_bonus =
+            (state.token_economy.monthly_inflow_tokens as f64 * marketing_weight * 0.05) as u64;
+        state.token_economy.company_balance = state
+            .token_economy
+            .company_balance
+            .saturating_add(inflow_tokens)
+            .saturating_add(marketing_bonus);
+
+        state.token_economy.monthly_burn_tokens = (total_monthly_salary(&state.agents) as f64
+            * salary_weight.max(0.25)
+            + agent_count as f64 * 75.0 * rnd_weight) as u64;
     }
 
-    let compute_starved = state.finance.compute_tokens < COMPUTE_STARVE_THRESHOLD;
-    let cash_crisis = state.finance.cash_balance < CASH_CRISIS_THRESHOLD;
-    state.finance.compute_starved = compute_starved;
-    state.finance.cash_crisis = cash_crisis;
+    apply_enforcement(state);
 
     for agent in state.agents.values_mut() {
-        if agent.status == "meeting" {
+        if agent.status == "meeting" || agent.status == "throttled" {
             continue;
         }
-
-        if compute_starved {
-            agent.status = "throttled".to_string();
-            agent.energy = (agent.energy - 0.02).max(0.15);
-            agent.morale = (agent.morale - 0.015).max(0.0);
-        } else if agent.status == "throttled" || agent.status == "idle" {
-            agent.status = "working".to_string();
-        }
-
-        if cash_crisis {
-            agent.morale = (agent.morale - 0.01).max(0.0);
-        }
-
-        if agent.status != "meeting" && agent.status != "throttled" {
-            agent.energy = (agent.energy - 0.01).max(0.2);
-            if agent.energy < 0.35 {
-                agent.morale = (agent.morale - 0.02).max(0.0);
-            }
+        agent.energy = (agent.energy - 0.01).max(0.2);
+        if agent.energy < 0.35 {
+            agent.morale = (agent.morale - 0.02).max(0.0);
         }
     }
 
     FinanceTickResult {
-        compute_starved,
-        cash_crisis,
+        company_starved: state.token_economy.company_starved,
         daily_salary_paid,
-        compute_spent,
+        inflow_tokens,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{AgentRecord, AppState, BudgetAllocations, FinanceState};
+    use crate::state::{AgentRecord, AppState, BudgetAllocations};
     use std::collections::HashMap;
 
     fn sample_state() -> AppState {
@@ -136,33 +142,35 @@ mod tests {
                 ai_provider: None,
             },
         );
-        AppState {
+        let mut state = AppState {
             agents,
-            finance: FinanceState {
+            token_economy: crate::state::TokenEconomy {
                 allocations: BudgetAllocations {
                     compute_pct: 25.0,
                     salaries_pct: 50.0,
                     marketing_pct: 15.0,
                     rnd_pct: 10.0,
                 },
-                ..FinanceState::default()
+                ..crate::state::TokenEconomy::default()
             },
             tick: 29,
             day_number: 0,
             ..AppState::default()
-        }
+        };
+        crate::token_budget::initialize_wallets_from_agents(&mut state);
+        state
     }
 
     #[test]
     fn payroll_runs_on_day_boundary() {
         let mut state = sample_state();
         let before = apply_tick_finance(&mut state);
-        assert_eq!(before.daily_salary_paid, 0.0);
+        assert_eq!(before.daily_salary_paid, 0);
         assert_eq!(state.day_number, 0);
 
         state.tick = 30;
         let after = apply_tick_finance(&mut state);
-        assert!(after.daily_salary_paid > 0.0);
+        assert!(after.daily_salary_paid > 0 || after.inflow_tokens > 0);
         assert_eq!(state.day_number, 1);
     }
 
@@ -174,4 +182,3 @@ mod tests {
         assert_eq!(count_active_agents(&state, true), 1);
     }
 }
-

@@ -39,7 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Business",
     panels: [
-      { id: "finance", label: "Finance" },
+      { id: "finance", label: "Tokens" },
       { id: "marketplace", label: "Marketplace" },
       { id: "recruitment", label: "Recruitment" },
       { id: "agents", label: "Agent Brains" },

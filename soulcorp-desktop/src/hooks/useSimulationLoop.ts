@@ -5,7 +5,7 @@ import { useProgressStore } from "../stores/progressStore";
 import type {
   AchievementSnapshot,
   AgentRecord,
-  FinanceState,
+  TokenEconomy,
   GameEvent,
   SidebarPanel,
   SimulationTickResult,
@@ -101,13 +101,11 @@ export function useSimulationLoop() {
               agentsActive: result.agents_active,
               dayNumber: result.day_number,
             });
-            const finance = await invoke<FinanceState>("get_finance_state");
+            const finance = await invoke<TokenEconomy>("get_finance_state");
             setFinance({
               ...finance,
-              cash_balance: result.cash_balance,
-              compute_tokens: result.compute_tokens,
-              compute_starved: result.compute_starved,
-              cash_crisis: result.cash_crisis,
+              company_balance: result.token_balance,
+              company_starved: result.company_starved,
             });
             const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
             setAgentRecords(refreshedAgents);

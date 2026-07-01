@@ -238,6 +238,66 @@ export interface BudgetAllocations {
   rnd_pct: number;
 }
 
+export interface DepartmentTokenWallet {
+  balance: number;
+  allocated: number;
+  spent: number;
+}
+
+export interface AgentTokenWallet {
+  balance: number;
+  allocated: number;
+  spent: number;
+}
+
+export interface TokenEconomy {
+  company_balance: number;
+  monthly_burn_tokens: number;
+  monthly_inflow_tokens: number;
+  allocations: BudgetAllocations;
+  departments: Record<string, DepartmentTokenWallet>;
+  agents: Record<string, AgentTokenWallet>;
+  company_starved: boolean;
+}
+
+/** @deprecated Use TokenEconomy — kept for store key compatibility */
+export type FinanceState = TokenEconomy;
+
+export interface TokenUsageEntry {
+  id: string;
+  at: string;
+  source: string;
+  provider: string;
+  agent_id?: string | null;
+  department: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  usage_source: string;
+}
+
+export interface TokenEconomySnapshot {
+  economy: TokenEconomy;
+  total_tokens: number;
+  ledger: TokenUsageEntry[];
+}
+
+export interface DepartmentAllocationRequest {
+  department: string;
+  amount: number;
+}
+
+export interface AgentAllocationRequest {
+  agent_id: string;
+  amount: number;
+}
+
+export interface MeetingTurnCostEstimate {
+  estimated_tokens: number;
+  affordable: boolean;
+  message: string;
+}
+
 export interface InternalProject {
   id: string;
   title: string;
@@ -265,16 +325,6 @@ export interface AgentRecord {
   status: string;
   soul?: SoulProfile | null;
   ai_provider?: string | null;
-}
-
-export interface FinanceState {
-  cash_balance: number;
-  compute_tokens: number;
-  monthly_burn: number;
-  monthly_revenue: number;
-  allocations: BudgetAllocations;
-  compute_starved: boolean;
-  cash_crisis: boolean;
 }
 
 export interface CompanySummary {
@@ -446,10 +496,9 @@ export interface SimulationTickResult {
   tick: number;
   agents_active: number;
   day_number: number;
-  cash_balance: number;
-  compute_tokens: number;
-  compute_starved: boolean;
-  cash_crisis: boolean;
+  token_balance: number;
+  total_tokens: number;
+  company_starved: boolean;
   message: string;
   event?: GameEvent | null;
 }
@@ -458,7 +507,7 @@ export interface GodModeActionResult {
   action: string;
   message: string;
   day_number: number;
-  cash_balance: number;
+  token_balance: number;
   average_morale: number;
 }
 

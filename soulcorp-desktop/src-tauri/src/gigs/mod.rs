@@ -138,8 +138,15 @@ pub fn finalize_contract_at_index(state: &mut AppState, index: usize) {
     contract.progress = 1.0;
     contract.completed_at = Some(chrono::Utc::now().to_rfc3339());
 
-    state.finance.cash_balance += payout;
-    state.finance.monthly_revenue += payout;
+    let payout_tokens = payout.round().max(0.0) as u64;
+    state.token_economy.company_balance = state
+        .token_economy
+        .company_balance
+        .saturating_add(payout_tokens);
+    state.token_economy.monthly_inflow_tokens = state
+        .token_economy
+        .monthly_inflow_tokens
+        .saturating_add(payout_tokens);
     state.stats.gigs_completed += 1;
 }
 
@@ -159,8 +166,15 @@ pub fn finalize_contract_payout(state: &mut AppState, contract: &mut GigContract
     contract.progress = 1.0;
     contract.completed_at = Some(chrono::Utc::now().to_rfc3339());
 
-    state.finance.cash_balance += payout;
-    state.finance.monthly_revenue += payout;
+    let payout_tokens = payout.round().max(0.0) as u64;
+    state.token_economy.company_balance = state
+        .token_economy
+        .company_balance
+        .saturating_add(payout_tokens);
+    state.token_economy.monthly_inflow_tokens = state
+        .token_economy
+        .monthly_inflow_tokens
+        .saturating_add(payout_tokens);
     state.stats.gigs_completed += 1;
 }
 
@@ -204,6 +218,6 @@ mod tests {
         finalize_contract_payout(&mut state, &mut contract);
         assert_eq!(contract.status, "completed");
         assert_eq!(state.stats.gigs_completed, 1);
-        assert!(state.finance.cash_balance > 0.0);
+        assert!(state.token_economy.company_balance > 0);
     }
 }

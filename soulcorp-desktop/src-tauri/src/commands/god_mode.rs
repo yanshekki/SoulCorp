@@ -1,6 +1,7 @@
 use crate::commands::events::apply_event;
 use crate::db::persistence::commit;
 use crate::state::{AppState, GameEvent, GodModeLogEntry};
+use crate::token_budget::{top_up_company_tokens, total_company_tokens};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -12,7 +13,7 @@ pub struct GodModeActionResult {
     pub action: String,
     pub message: String,
     pub day_number: u32,
-    pub cash_balance: f64,
+    pub token_balance: u64,
     pub average_morale: f32,
 }
 
@@ -85,11 +86,12 @@ pub fn god_mode_time_warp(
 
     let days = days.max(1);
     state.day_number += days;
-    state.finance.monthly_burn *= 1.02;
-    state.finance.monthly_revenue *= 1.03;
-    state.finance.cash_balance += state.finance.monthly_revenue * (days as f64 / 30.0);
-    state.finance.compute_tokens =
-        (state.finance.compute_tokens - state.finance.monthly_burn * 0.05).max(0.0);
+    state.token_economy.monthly_burn_tokens =
+        ((state.token_economy.monthly_burn_tokens as f64) * 1.02) as u64;
+    state.token_economy.monthly_inflow_tokens =
+        ((state.token_economy.monthly_inflow_tokens as f64) * 1.03) as u64;
+    let inflow = (state.token_economy.monthly_inflow_tokens as f64 * days as f64 / 30.0) as u64;
+    top_up_company_tokens(&mut state, inflow);
 
     let result = record_use(
         &mut state,
@@ -133,14 +135,13 @@ pub fn god_mode_emergency_budget(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ensure_enabled(&state)?;
 
-    let amount = amount.max(0.0);
-    state.finance.cash_balance += amount;
-    state.finance.compute_tokens += amount * 0.4;
+    let amount = amount.max(0.0).round() as u64;
+    top_up_company_tokens(&mut state, amount);
 
     let result = record_use(
         &mut state,
         "emergency_budget",
-        format!("Injected ${amount:.0} into the company budget."),
+        format!("Injected {amount} tokens into the company pool."),
         0.06,
     );
     commit(app, &state)?;
@@ -289,7 +290,8 @@ pub fn god_mode_reality_edit(
         project.progress = (project.progress + 0.18).min(1.0);
         project.title.clone()
     };
-    state.finance.monthly_revenue *= 1.04;
+    state.token_economy.monthly_inflow_tokens =
+        ((state.token_economy.monthly_inflow_tokens as f64) * 1.04) as u64;
 
     let result = record_use(
         &mut state,
@@ -476,7 +478,7 @@ fn build_result(state: &AppState, action: &str, message: String) -> GodModeActio
         action: action.to_string(),
         message,
         day_number: state.day_number,
-        cash_balance: state.finance.cash_balance,
+        token_balance: total_company_tokens(&state.token_economy),
         average_morale,
     }
 }

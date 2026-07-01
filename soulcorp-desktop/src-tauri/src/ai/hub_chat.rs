@@ -1,4 +1,5 @@
 use super::provider::{AiProvider, ChatRequest, ChatResponse};
+use super::token_estimate::estimate_from_texts;
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::time::Duration;
@@ -120,6 +121,7 @@ impl AiProvider for HubChatProvider {
         Ok(ChatResponse {
             content: content.to_string(),
             provider: self.name().to_string(),
+            usage: estimate_from_texts(&content, content.trim()),
         })
     }
 }

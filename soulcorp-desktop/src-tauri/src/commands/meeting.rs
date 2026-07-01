@@ -1,4 +1,4 @@
-use crate::ai::{self, provider::ChatRequest, provider::ChatTurn, MeetingAiStatus};
+use crate::ai::{self, provider::ChatRequest, provider::ChatTurn, BilledChatRequest, MeetingAiStatus};
 use crate::db::persistence::commit;
 use crate::progress::ProgressReporter;
 use crate::relationships::{relationship_label, upsert_relationship};
@@ -7,7 +7,7 @@ use crate::state::{AgentRecord, AppState, InternalProject, MeetingMessage, Meeti
 use crate::workspace::write_meeting_notes_from_state;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,29 +156,33 @@ pub async fn advance_meeting(
     }
 
     let turn_plan = turn_plan.expect("turn plan exists");
-    let settings = turn_plan.settings.clone();
-    let hub = turn_plan.hub.clone();
     let chat_request = turn_plan.chat_request;
-
     let department_providers = turn_plan.department_ai_providers.clone();
     let speaker_department = turn_plan.speaker_department.clone();
     let speaker_ai_provider = turn_plan.speaker_ai_provider.clone();
+    let speaker_id_for_call = turn_plan.speaker_id.clone();
     let speaker_name = turn_plan.speaker_name.clone();
     let provider_label = speaker_ai_provider
         .clone()
-        .unwrap_or_else(|| settings.ai_provider.clone());
+        .unwrap_or_else(|| turn_plan.settings.ai_provider.clone());
     let progress = ProgressReporter::new(app.clone(), "meeting_advance");
     progress.emit_indeterminate(
         format!("Waiting for {speaker_name} · {provider_label}"),
         Some("llm"),
     );
+    let app_for_blocking = app.clone();
     let response = tokio::task::spawn_blocking(move || {
-        ai::chat_with_fallback(
-            &settings,
-            &hub,
-            chat_request,
+        let state_mutex = app_for_blocking.state::<Mutex<AppState>>();
+        let mut guard = state_mutex.lock().map_err(|e| e.to_string())?;
+        ai::chat_with_fallback_billed(
+            &mut guard,
+            BilledChatRequest {
+                request: chat_request,
+                agent_id: speaker_id_for_call,
+                department: speaker_department,
+                source: "meeting_advance".into(),
+            },
             &department_providers,
-            &speaker_department,
             speaker_ai_provider.as_deref(),
         )
     })
@@ -567,8 +571,13 @@ fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str) {
         project.progress = (project.progress + progress_delta).min(1.0);
     }
 
-    state.finance.monthly_revenue = (state.finance.monthly_revenue + revenue_delta).max(0.0);
-    state.finance.cash_balance += revenue_delta * 0.25;
+    let revenue_tokens = revenue_delta.round().max(0.0) as u64;
+    state.token_economy.monthly_inflow_tokens = state
+        .token_economy
+        .monthly_inflow_tokens
+        .saturating_add(revenue_tokens);
+    let bonus = (revenue_delta * 0.25).round().max(0.0) as u64;
+    crate::token_budget::top_up_company_tokens(state, bonus);
 
     if spawn_project && state.projects.len() < 6 {
         state.projects.push(InternalProject {

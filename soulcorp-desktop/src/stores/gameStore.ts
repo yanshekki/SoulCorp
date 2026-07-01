@@ -5,7 +5,7 @@ import type {
   AgentRecord,
   CompanySummary,
   Ending,
-  FinanceState,
+  TokenEconomy,
   GameEvent,
   GameSettings,
   HubStatus,
@@ -34,7 +34,7 @@ interface GameStore {
   selectedBuilding: Building | null;
   isPaused: boolean;
   simulation: SimulationState;
-  finance: FinanceState;
+  finance: TokenEconomy;
   settings: GameSettings;
   events: GameEvent[];
   activeMeeting: MeetingSnapshot | null;
@@ -50,7 +50,7 @@ interface GameStore {
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
-  setFinance: (finance: FinanceState) => void;
+  setFinance: (finance: TokenEconomy) => void;
   setSettings: (settings: GameSettings) => void;
   setEvents: (events: GameEvent[]) => void;
   prependEvent: (event: GameEvent) => void;

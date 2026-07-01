@@ -5,6 +5,7 @@ use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::vip::apply_co_ceo_autonomy_tick;
 use crate::db::persistence::commit_debounced;
 use crate::finance::{apply_tick_finance, count_active_agents};
+use crate::token_budget::total_company_tokens;
 use crate::gigs::apply_gig_contract_ticks;
 use crate::progress::ProgressReporter;
 use crate::relationships::apply_relationship_tick;
@@ -21,10 +22,9 @@ pub struct SimulationTickResult {
     pub tick: u64,
     pub agents_active: u32,
     pub day_number: u32,
-    pub cash_balance: f64,
-    pub compute_tokens: f64,
-    pub compute_starved: bool,
-    pub cash_crisis: bool,
+    pub token_balance: u64,
+    pub total_tokens: u64,
+    pub company_starved: bool,
     pub message: String,
     pub event: Option<GameEvent>,
 }
@@ -67,7 +67,7 @@ pub async fn run_simulation_tick(
             None
         };
 
-        let write_daily = finance_result.daily_salary_paid > 0.0;
+        let write_daily = finance_result.daily_salary_paid > 0;
         let activity_snapshot = ActivitySnapshot::from_state(&state);
         let event_for_workspace = event.clone();
         let agents_active = count_active_agents(&state, true);
@@ -85,14 +85,9 @@ pub async fn run_simulation_tick(
 
         let _achievement_snapshot = evaluate(&mut state);
 
-        let message = if finance_result.compute_starved {
+        let message = if finance_result.company_starved {
             format!(
-                "Day {}: compute tokens low — agents throttled.",
-                state.day_number
-            )
-        } else if finance_result.cash_crisis {
-            format!(
-                "Day {}: cash crisis — salaries and morale under pressure.",
+                "Day {}: token balance depleted — agents throttled.",
                 state.day_number
             )
         } else if let Some(event) = &event {
@@ -109,9 +104,9 @@ pub async fn run_simulation_tick(
                 "Day {}: gig deliverable submitted for QC review.",
                 state.day_number
             )
-        } else if finance_result.daily_salary_paid > 0.0 {
+        } else if finance_result.daily_salary_paid > 0 {
             format!(
-                "Day {} payroll processed (${:.0} salaries).",
+                "Day {} payroll processed ({} tokens).",
                 state.day_number, finance_result.daily_salary_paid
             )
         } else {
@@ -127,10 +122,9 @@ pub async fn run_simulation_tick(
             tick: state.tick,
             agents_active,
             day_number: state.day_number,
-            cash_balance: state.finance.cash_balance,
-            compute_tokens: state.finance.compute_tokens,
-            compute_starved: finance_result.compute_starved,
-            cash_crisis: finance_result.cash_crisis,
+            token_balance: state.token_economy.company_balance,
+            total_tokens: total_company_tokens(&state.token_economy),
+            company_starved: finance_result.company_starved,
             message,
             event,
         };
@@ -220,8 +214,8 @@ pub struct SimulationSnapshot {
     pub tick: u64,
     pub day_number: u32,
     pub agents_active: u32,
-    pub cash_balance: f64,
-    pub compute_tokens: f64,
+    pub token_balance: u64,
+    pub total_tokens: u64,
 }
 
 #[tauri::command]
@@ -235,7 +229,7 @@ pub fn get_simulation_snapshot(
         tick: state.tick,
         day_number: state.day_number,
         agents_active,
-        cash_balance: state.finance.cash_balance,
-        compute_tokens: state.finance.compute_tokens,
+        token_balance: state.token_economy.company_balance,
+        total_tokens: total_company_tokens(&state.token_economy),
     })
 }

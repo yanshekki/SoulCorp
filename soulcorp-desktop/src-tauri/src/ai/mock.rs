@@ -1,4 +1,4 @@
-use super::provider::{AiProvider, ChatRequest, ChatResponse};
+use super::provider::{AiProvider, ChatRequest, ChatResponse, TokenUsage, TokenUsageSource};
 
 pub struct MockProvider;
 
@@ -25,6 +25,12 @@ impl AiProvider for MockProvider {
         Ok(ChatResponse {
             content,
             provider: self.name().to_string(),
+            usage: TokenUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+                source: TokenUsageSource::Zero,
+            },
         })
     }
 }

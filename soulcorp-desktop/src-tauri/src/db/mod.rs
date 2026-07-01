@@ -8,7 +8,7 @@ const SCHEMA_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS game_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     company_name TEXT NOT NULL DEFAULT 'SoulCorp',
-    cash_balance REAL NOT NULL DEFAULT 10000.0,
+    company_balance REAL NOT NULL DEFAULT 10000.0,
     day_number INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

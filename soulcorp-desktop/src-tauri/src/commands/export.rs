@@ -40,7 +40,8 @@ pub struct CompanyBackup {
     pub day_number: u32,
     #[serde(default)]
     pub tick: u64,
-    pub finance: crate::state::FinanceState,
+    #[serde(rename = "token_economy", alias = "finance")]
+    pub token_economy: crate::state::TokenEconomy,
     pub settings: crate::state::GameSettings,
     pub agents: Vec<crate::state::AgentRecord>,
     pub stats: crate::state::GameStats,
@@ -59,7 +60,7 @@ pub fn build_company_backup(state: &AppState) -> CompanyBackup {
         onboarding_completed: state.onboarding_completed,
         day_number: state.day_number,
         tick: state.tick,
-        finance: state.finance.clone(),
+        token_economy: state.token_economy.clone(),
         settings: state.settings.clone(),
         agents: state.agents.values().cloned().collect(),
         stats: state.stats.clone(),
@@ -631,7 +632,7 @@ pub fn import_company_backup(
     state.onboarding_completed = backup.onboarding_completed;
     state.day_number = backup.day_number;
     state.tick = backup.tick;
-    state.finance = backup.finance;
+    state.token_economy = backup.token_economy;
     state.settings = backup.settings;
     state.stats = backup.stats;
     state.achievements = backup.achievements;

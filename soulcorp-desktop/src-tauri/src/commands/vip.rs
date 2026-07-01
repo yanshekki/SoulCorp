@@ -1,4 +1,4 @@
-use crate::ai::{self, normalize_ai_provider_override, provider::ChatRequest};
+use crate::ai::{self, normalize_ai_provider_override, provider::ChatRequest, BilledChatRequest};
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
 use crate::soul::parse_soul_content;
@@ -7,7 +7,7 @@ use crate::tier::can_use_feature;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -368,13 +368,22 @@ pub async fn run_co_ceo_briefing(
     let provider_override = co_ceo_provider.clone();
     let progress = crate::progress::ProgressReporter::new(app.clone(), "co_ceo_briefing");
     progress.emit_indeterminate("Generating Co-CEO executive briefing…", Some("llm"));
+    let app_for_blocking = app.clone();
+    let co_ceo_id_for_call = co_ceo_id.clone();
+    let co_ceo_department_for_call = co_ceo_department.clone();
+    let department_providers_for_call = department_providers.clone();
     let response = tokio::task::spawn_blocking(move || {
-        ai::chat_with_fallback(
-            &settings,
-            &hub,
-            chat_request,
-            &department_providers,
-            &co_ceo_department,
+        let state_mutex = app_for_blocking.state::<std::sync::Mutex<crate::state::AppState>>();
+        let mut guard = state_mutex.lock().map_err(|e| e.to_string())?;
+        ai::chat_with_fallback_billed(
+            &mut guard,
+            BilledChatRequest {
+                request: chat_request,
+                agent_id: co_ceo_id_for_call,
+                department: co_ceo_department_for_call,
+                source: "co_ceo_briefing".into(),
+            },
+            &department_providers_for_call,
             provider_override.as_deref(),
         )
     })

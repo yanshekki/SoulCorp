@@ -4,6 +4,7 @@ mod commands;
 mod db;
 mod progress;
 mod finance;
+mod token_budget;
 mod gigs;
 mod hub;
 mod relationships;
@@ -100,6 +101,12 @@ pub fn run() {
             commands::clear_all_test_data,
             commands::seed_fake_test_data,
             commands::get_finance_state,
+            commands::get_token_economy,
+            commands::get_token_usage_ledger,
+            commands::allocate_department_tokens_cmd,
+            commands::allocate_agent_tokens_cmd,
+            commands::rebalance_token_wallets_cmd,
+            commands::estimate_meeting_turn_cost,
             commands::list_internal_projects,
             commands::update_budget_allocations,
             commands::adjust_agent_salary,

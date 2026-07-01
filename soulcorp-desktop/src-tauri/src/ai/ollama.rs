@@ -1,4 +1,5 @@
-use super::provider::{AiProvider, ChatRequest, ChatResponse};
+use super::provider::{AiProvider, ChatRequest, ChatResponse, TokenUsage, TokenUsageSource};
+use super::token_estimate::estimate_from_texts;
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::time::Duration;
@@ -88,9 +89,34 @@ impl AiProvider for OllamaProvider {
             .and_then(|value| value.as_str())
             .ok_or_else(|| "Ollama response missing message.content.".to_string())?;
 
+        let usage = if payload.get("prompt_eval_count").is_some() || payload.get("eval_count").is_some() {
+            let prompt_tokens = payload
+                .get("prompt_eval_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as u32;
+            let completion_tokens = payload
+                .get("eval_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as u32;
+            TokenUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens: prompt_tokens.saturating_add(completion_tokens).max(1),
+                source: TokenUsageSource::Api,
+            }
+        } else {
+            let prompt_text = messages
+                .iter()
+                .filter_map(|message| message.get("content").and_then(|value| value.as_str()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            estimate_from_texts(&prompt_text, content)
+        };
+
         Ok(ChatResponse {
             content: content.to_string(),
             provider: self.name().to_string(),
+            usage,
         })
     }
 }

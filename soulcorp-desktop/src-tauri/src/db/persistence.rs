@@ -272,6 +272,9 @@ pub fn bootstrap_companies(app: &AppHandle) -> Result<(CompanyRegistry, AppState
 
         let mut state = load_company_state(app, &active_id)?
             .ok_or_else(|| format!("Missing snapshot for company {active_id}"))?;
+        if !state.agents.is_empty() && state.token_economy.departments.is_empty() {
+            crate::token_budget::initialize_wallets_from_agents(&mut state);
+        }
         state.company_id = active_id.clone();
         registry.active_company_id = Some(active_id);
         save_registry(app, &registry)?;

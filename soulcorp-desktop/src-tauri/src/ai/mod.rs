@@ -5,6 +5,7 @@ pub mod ollama;
 pub mod openai_compatible;
 pub mod provider;
 pub mod selection;
+pub mod token_estimate;
 
 pub use health::{probe_agent_ai, probe_meeting_ai, MeetingAiStatus};
 pub use selection::{normalize_agent_ai_provider, normalize_ai_provider_override};
@@ -13,11 +14,20 @@ use hub_chat::HubChatProvider;
 use mock::MockProvider;
 use ollama::OllamaProvider;
 use openai_compatible::OpenAiCompatibleProvider;
-use provider::{AiProvider, ChatRequest, ChatResponse};
+use provider::{AiProvider, ChatRequest, ChatResponse, TokenUsageSource};
 use std::sync::Arc;
 
-use crate::state::{GameSettings, HubState};
+use crate::state::{AppState, GameSettings, HubState};
+use crate::token_budget::{can_afford, charge_tokens, ChargeContext};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone)]
+pub struct BilledChatRequest {
+    pub request: ChatRequest,
+    pub agent_id: String,
+    pub department: String,
+    pub source: String,
+}
 
 pub fn provider_for(settings: &GameSettings, hub: &HubState) -> Arc<dyn AiProvider> {
     match settings.ai_provider.as_str() {
@@ -51,6 +61,64 @@ pub fn provider_for(settings: &GameSettings, hub: &HubState) -> Arc<dyn AiProvid
     }
 }
 
+pub fn chat_with_fallback_billed(
+    state: &mut AppState,
+    billed: BilledChatRequest,
+    department_providers: &HashMap<String, String>,
+    agent_override: Option<&str>,
+) -> Result<ChatResponse, String> {
+    let settings = state.settings.clone();
+    let hub = state.hub.clone();
+    let skip_billing = settings.pure_local_mode;
+
+    let status = probe_agent_ai(
+        &settings,
+        &hub,
+        department_providers,
+        &billed.department,
+        agent_override,
+    );
+
+    if !skip_billing && status.active_provider != "mock" {
+        let estimate = token_estimate::estimate_request(&billed.request);
+        can_afford(state, &billed.agent_id, estimate)?;
+    }
+
+    let provider = provider_for_active(&status, &settings, &hub);
+    let response = match provider.chat(billed.request.clone()) {
+        Ok(response) => response,
+        Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
+            eprintln!(
+                "LLM provider '{}' failed, using mock fallback: {error}",
+                status.active_provider
+            );
+            let fallback = MockProvider;
+            let mut response = fallback.chat(billed.request)?;
+            response.provider = format!("mock-fallback ({})", status.active_provider);
+            response
+        }
+        Err(error) => return Err(error),
+    };
+
+    if !skip_billing && response.usage.source != TokenUsageSource::Zero {
+        charge_tokens(
+            state,
+            ChargeContext {
+                source: billed.source,
+                agent_id: billed.agent_id,
+                department: billed.department,
+                provider: response.provider.clone(),
+                prompt_tokens: response.usage.prompt_tokens,
+                completion_tokens: response.usage.completion_tokens,
+                total_tokens: response.usage.total_tokens,
+                usage_source: response.usage.source,
+            },
+        )?;
+    }
+
+    Ok(response)
+}
+
 pub fn chat_with_fallback(
     settings: &GameSettings,
     hub: &HubState,
@@ -70,7 +138,10 @@ pub fn chat_with_fallback(
     match provider.chat(request.clone()) {
         Ok(response) => Ok(response),
         Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
-            eprintln!("LLM provider '{}' failed, using mock fallback: {error}", status.active_provider);
+            eprintln!(
+                "LLM provider '{}' failed, using mock fallback: {error}",
+                status.active_provider
+            );
             let fallback = MockProvider;
             let mut response = fallback.chat(request)?;
             response.provider = format!("mock-fallback ({})", status.active_provider);

@@ -22,7 +22,8 @@ import type {
   AgentRecord,
   CompanyDepartmentsSnapshot,
   CustomDepartmentBuilding,
-  FinanceState,
+  TokenEconomy,
+  TokenEconomySnapshot,
   GameEvent,
   GameSettings,
   HubStatus,
@@ -86,7 +87,9 @@ export async function reloadGameState(
 
   const [agents, finance, settings, onboarding, hubStatus] = await Promise.all([
     invoke<AgentRecord[]>("list_agents"),
-    invoke<FinanceState>("get_finance_state"),
+    invoke<TokenEconomySnapshot>("get_token_economy")
+      .then((snapshot) => snapshot.economy)
+      .catch(() => invoke<TokenEconomy>("get_finance_state")),
     invoke<GameSettings>("get_game_settings"),
     getOnboardingState(),
     getHubStatus().catch(

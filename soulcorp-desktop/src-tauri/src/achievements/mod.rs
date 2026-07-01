@@ -194,7 +194,7 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
         ("event_survivor", state.stats.events_triggered >= 5),
         (
             "profitable_month",
-            state.finance.monthly_revenue > state.finance.monthly_burn,
+            state.token_economy.monthly_inflow_tokens > state.token_economy.monthly_burn_tokens,
         ),
         ("workspace_builder", state.stats.pages_created >= 5),
         ("first_export", state.stats.exports_created >= 1),
@@ -209,7 +209,7 @@ pub fn evaluate(state: &mut AppState) -> AchievementSnapshot {
         }
     }
 
-    if state.finance.cash_balance >= 50_000.0 {
+    if state.token_economy.company_balance >= 50_000 {
         unlock_ending(state, "profitable_exit", &now, &mut newly_unlocked);
     }
     if state.day_number >= 100 {

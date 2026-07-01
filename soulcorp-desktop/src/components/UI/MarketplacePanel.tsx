@@ -12,7 +12,7 @@ import {
   syncWithHub,
 } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
-import type { FinanceState, GigContract, HubGig } from "../../types/game";
+import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
 import { invoke } from "@tauri-apps/api/core";
 
 type MarketplaceTab = "browse" | "contracts" | "history";
@@ -62,7 +62,7 @@ export function MarketplacePanel() {
   const [skills, setSkills] = useState("react, tailwind");
 
   const refreshFinance = useCallback(async () => {
-    const finance = await invoke<FinanceState>("get_finance_state");
+    const finance = await invoke<TokenEconomy>("get_finance_state");
     setFinance(finance);
   }, [setFinance]);
 
