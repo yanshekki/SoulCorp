@@ -1,0 +1,412 @@
+/**
+ * StartupWarm UI polish — Sims × TPH cozy HUD on top of Midnight Executive shell.
+ * Scoped to office interior + design studio; does not change global app chrome elsewhere.
+ */
+
+:root {
+  --sw-cream: #faf6ef;
+  --sw-cream-muted: rgba(250, 246, 239, 0.72);
+  --sw-wood: #c9a882;
+  --sw-honey: #e8a838;
+  --sw-honey-soft: rgba(232, 168, 56, 0.22);
+  --sw-honey-glow: rgba(255, 209, 102, 0.35);
+  --sw-plaster: #f5f0e8;
+  --sw-glass: rgba(28, 24, 20, 0.78);
+  --sw-glass-border: rgba(232, 168, 56, 0.22);
+  --sw-glass-highlight: rgba(255, 255, 255, 0.06);
+  --sw-shadow-warm: 0 12px 40px rgba(12, 8, 4, 0.45);
+  --sw-radius-hud: 14px;
+  --sw-radius-pill: 999px;
+  --sw-font-display: "Nunito", "DM Sans", system-ui, sans-serif;
+}
+
+/* ── Immersive office: slim top chrome, more canvas ───────── */
+
+.app-shell--immersive-office {
+  grid-template-rows: 52px minmax(0, 1fr) var(--statusbar-height);
+}
+
+.app-shell--immersive-office .app-topbar-row-nav {
+  display: none;
+}
+
+.app-shell--immersive-office .app-topbar-row-primary {
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  background: linear-gradient(180deg, #16130f 0%, #12151c 100%);
+  border-bottom-color: var(--sw-glass-border);
+}
+
+.app-shell--immersive-office .app-brand h1 {
+  font-family: var(--sw-font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app-shell--immersive-office .app-tagline {
+  display: none;
+}
+
+/* ── Interior HUD (play / build inside building) ─────────── */
+
+.game-scene--interior .interior-topbar {
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--sw-radius-hud);
+  border: 1px solid var(--sw-glass-border);
+  background: linear-gradient(
+    135deg,
+    rgba(32, 26, 20, 0.88) 0%,
+    rgba(18, 22, 30, 0.82) 100%
+  );
+  box-shadow: var(--sw-shadow-warm);
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.game-scene--interior .interior-topbar h2 {
+  font-family: var(--sw-font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--sw-cream);
+  letter-spacing: -0.01em;
+}
+
+.game-scene--interior .interior-topbar-eyebrow {
+  color: var(--sw-honey);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.game-scene--interior .interior-topbar-hint {
+  color: var(--sw-cream-muted);
+  font-size: 0.7rem;
+}
+
+.game-scene--interior .interior-topbar-hint.muted {
+  flex-basis: 100%;
+  max-width: 100%;
+  padding-top: 2px;
+  border-top: 1px solid var(--sw-glass-highlight);
+  margin-top: 2px;
+}
+
+.game-scene--interior .interior-topbar-badge {
+  background: var(--sw-honey-soft);
+  border-color: rgba(232, 168, 56, 0.5);
+  color: #ffe8b8;
+  font-weight: 700;
+}
+
+.game-scene--interior .interior-camera-toggle,
+.game-scene--interior .interior-walk-zones {
+  border-radius: var(--sw-radius-pill);
+  border: 1px solid var(--sw-glass-border);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px;
+  gap: 2px;
+}
+
+.game-scene--interior .interior-camera-toggle {
+  overflow: visible;
+}
+
+.game-scene--interior .interior-camera-toggle button,
+.game-scene--interior .interior-walk-zones button {
+  border: none !important;
+  border-radius: var(--sw-radius-pill) !important;
+  background: transparent;
+  color: var(--sw-cream-muted);
+  padding: 0.32rem 0.72rem;
+  font-family: var(--sw-font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.game-scene--interior .interior-camera-toggle button:hover,
+.game-scene--interior .interior-walk-zones button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sw-cream);
+}
+
+.game-scene--interior .interior-camera-toggle button.active,
+.game-scene--interior .interior-walk-zones button.active {
+  background: linear-gradient(180deg, var(--sw-honey-glow) 0%, var(--sw-honey-soft) 100%);
+  color: #fff8e8;
+  box-shadow: 0 2px 8px rgba(232, 168, 56, 0.25);
+}
+
+.game-scene--interior .interior-screenshot-btn {
+  border-radius: var(--sw-radius-pill);
+  border-color: rgba(94, 200, 255, 0.4);
+  background: rgba(94, 200, 255, 0.15);
+  font-family: var(--sw-font-display);
+  font-weight: 700;
+}
+
+.game-scene--interior .interior-zoom-btn,
+.game-scene--interior .build-hammer-btn {
+  border-radius: 10px;
+  border-color: var(--sw-glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sw-cream);
+}
+
+.game-scene--interior .build-hammer-btn.active {
+  border-color: rgba(232, 168, 56, 0.65);
+  background: var(--sw-honey-soft);
+  color: #ffe8b8;
+  box-shadow: 0 0 0 1px rgba(232, 168, 56, 0.2);
+}
+
+.game-scene--interior .interior-back-btn.primary-action {
+  border-radius: var(--sw-radius-pill);
+  background: linear-gradient(180deg, #e8b856 0%, #d9a441 100%);
+  border: 1px solid rgba(255, 220, 140, 0.35);
+  color: #1a1408;
+  font-family: var(--sw-font-display);
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(217, 164, 65, 0.35);
+}
+
+.game-scene--interior .interior-back-btn.primary-action:hover {
+  filter: brightness(1.06);
+}
+
+/* Build dock */
+
+.game-scene--interior .collapsible-dock.build-mode-dock {
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+}
+
+.game-scene--interior .collapsible-dock-bar {
+  border-radius: var(--sw-radius-hud);
+  border: 1px solid var(--sw-glass-border);
+  background: linear-gradient(180deg, rgba(28, 24, 20, 0.92) 0%, rgba(14, 18, 26, 0.9) 100%);
+  box-shadow: var(--sw-shadow-warm);
+  backdrop-filter: blur(14px);
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+}
+
+.game-scene--interior .build-mode-tool {
+  border-radius: 10px;
+  border-color: var(--sw-glass-border);
+  font-family: var(--sw-font-display);
+  font-weight: 700;
+}
+
+.game-scene--interior .build-mode-tool.active {
+  border-color: rgba(232, 168, 56, 0.55);
+  background: var(--sw-honey-soft);
+  color: #ffe8b8;
+}
+
+.game-scene--interior .catalog-chip {
+  border-radius: var(--sw-radius-pill);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.game-scene--interior .catalog-chip.active {
+  border-color: rgba(109, 159, 120, 0.55);
+  background: rgba(109, 159, 120, 0.2);
+  color: #d8f0dc;
+}
+
+.game-scene--interior .build-mode-save.primary-action {
+  border-radius: var(--sw-radius-pill);
+  background: linear-gradient(180deg, #6daf78 0%, #5a9a66 100%);
+  border: 1px solid rgba(160, 220, 170, 0.35);
+  color: #0a1810;
+  font-family: var(--sw-font-display);
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(90, 154, 102, 0.3);
+}
+
+.game-scene--interior .collapsible-dock-hint {
+  border-radius: 10px;
+  border-color: rgba(94, 200, 255, 0.25);
+  background: rgba(12, 22, 34, 0.88);
+  color: var(--sw-cream-muted);
+}
+
+/* Inspector drawer (left menu) */
+
+.app-shell--immersive-office .app-inspector--immersive-drawer {
+  border-right: 1px solid var(--sw-glass-border);
+  background: linear-gradient(180deg, #16130f 0%, #12151c 55%, #0e1016 100%);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+.app-shell--immersive-office .app-inspector-expand-tab {
+  border-color: var(--sw-glass-border);
+  background: linear-gradient(90deg, #1c1814 0%, #16130f 100%);
+  color: var(--sw-honey);
+  font-weight: 800;
+  width: 1.85rem;
+  box-shadow: var(--sw-shadow-warm);
+}
+
+.app-shell--immersive-office .app-inspector-expand-tab:hover {
+  background: #252018;
+  color: #ffe8b8;
+}
+
+/* ── 3D Design Studio (office build) ─────────────────────── */
+
+.design-studio-page--offices {
+  --bg-surface: #14120f;
+  --bg-elevated: #1c1814;
+  --bg-control: #252018;
+  --accent: var(--sw-honey);
+  --accent-hover: #f0bc50;
+  --accent-muted: var(--sw-honey-soft);
+  --accent-border: var(--sw-glass-border);
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(232, 168, 56, 0.08) 0%, transparent 55%),
+    var(--bg-inset);
+}
+
+.design-studio-page--offices .design-studio-header {
+  background: linear-gradient(180deg, #1a1612 0%, #14120f 100%);
+  border-bottom-color: var(--sw-glass-border);
+}
+
+.design-studio-page--offices .design-studio-header h2 {
+  font-family: var(--sw-font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.design-studio-page--offices .design-office-build-toolbar {
+  background: linear-gradient(180deg, #1a1612 0%, #14120f 100%);
+  border-bottom-color: var(--sw-glass-border);
+  padding: var(--space-3);
+}
+
+.design-studio-page--offices .design-office-step {
+  border-radius: 12px;
+  border-color: var(--sw-glass-border);
+  font-family: var(--sw-font-display);
+}
+
+.design-studio-page--offices .design-office-step.active {
+  border-color: rgba(232, 168, 56, 0.5);
+  background: linear-gradient(180deg, var(--sw-honey-glow) 0%, var(--sw-honey-soft) 100%);
+  color: #fff4dc;
+  box-shadow: 0 4px 16px rgba(232, 168, 56, 0.15);
+}
+
+.design-studio-page--offices .design-office-view-toggle {
+  border-radius: var(--sw-radius-pill);
+  border-color: var(--sw-glass-border);
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.design-studio-page--offices .design-office-view-toggle button {
+  border: none !important;
+  border-radius: var(--sw-radius-pill) !important;
+  font-family: var(--sw-font-display);
+  font-weight: 700;
+}
+
+.design-studio-page--offices .design-office-view-toggle button.active {
+  background: var(--sw-honey-soft);
+  color: #ffe8b8;
+}
+
+.design-studio-page--offices .design-floor-plan-editor {
+  background: #0e0c0a;
+  border-color: var(--sw-glass-border);
+}
+
+.design-studio-page--offices .design-floor-plan-svg {
+  background: linear-gradient(180deg, #1a1510 0%, #12100e 100%);
+  border-radius: var(--radius-md);
+}
+
+.design-studio-page--offices .design-floor-plan-status {
+  background: rgba(20, 18, 15, 0.95);
+  border-top-color: var(--sw-glass-border);
+  color: var(--sw-cream-muted);
+  font-size: 0.74rem;
+}
+
+.design-studio-page--offices .office-inspector-card {
+  border-radius: 12px;
+  border-color: var(--sw-glass-border);
+  background: linear-gradient(145deg, #221e18 0%, #18140f 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.design-studio-page--offices .design-catalog-item {
+  border-radius: 12px;
+  border-color: var(--sw-glass-border);
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.design-studio-page--offices .design-catalog-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(232, 168, 56, 0.35);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.design-studio-page--offices .design-catalog-item.active {
+  border-color: rgba(232, 168, 56, 0.55);
+  background: var(--sw-honey-soft);
+  box-shadow: 0 0 0 1px rgba(232, 168, 56, 0.2);
+}
+
+.design-studio-page--offices .design-drawer-tab.active {
+  color: var(--sw-honey);
+  border-bottom-color: var(--sw-honey);
+}
+
+.design-studio-page--offices .design-interior-viewport-header {
+  background: linear-gradient(180deg, #1a1612 0%, transparent 100%);
+  border-bottom-color: var(--sw-glass-border);
+}
+
+.design-studio-page--offices .design-interior-viewport-header h2 {
+  font-family: var(--sw-font-display);
+  font-weight: 800;
+}
+
+.design-studio-page--offices .design-interior-camera-toggle {
+  border-radius: var(--sw-radius-pill);
+  padding: 2px;
+  border-color: var(--sw-glass-border);
+}
+
+.design-studio-page--offices .design-interior-camera-toggle button {
+  border: none !important;
+  border-radius: var(--sw-radius-pill) !important;
+  font-family: var(--sw-font-display);
+  font-weight: 700;
+}
+
+.design-studio-page--offices .design-interior-camera-toggle button.active {
+  background: var(--sw-honey-soft);
+  color: #ffe8b8;
+}
+
+.design-studio-page--offices .design-style-card.active {
+  border-color: rgba(232, 168, 56, 0.55);
+  background: var(--sw-honey-soft);
+}
+
+/* Campus scene hint */
+
+.game-scene--campus .scene-hint {
+  border-color: var(--sw-glass-border);
+  background: var(--sw-glass);
+  color: var(--sw-cream-muted);
+  border-radius: var(--sw-radius-hud);
+  backdrop-filter: blur(10px);
+}

@@ -17,6 +17,7 @@ import { useGameStore } from "./stores/gameStore";
 import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
+import "./styles/startup-warm-ui.css";
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);

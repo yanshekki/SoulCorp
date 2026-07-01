@@ -159,7 +159,9 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const hideShellInspector = immersiveDesignStudio || (immersiveInterior && !inspectorExpanded);
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${immersiveInterior || immersiveDesignStudio ? " app-shell--immersive-office" : ""}`}
+    >
       <header className="app-topbar">
         <div className="app-topbar-row app-topbar-row-primary">
           <div className="app-brand">

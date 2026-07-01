@@ -95,7 +95,9 @@ export function GameScene() {
   return (
     <section
       ref={containerRef}
-      className={`game-scene ${pixelFilter ? "pixel-filter" : ""}`}
+      className={`game-scene ${pixelFilter ? "pixel-filter" : ""}${
+        worldView === "interior" ? " game-scene--interior" : " game-scene--campus"
+      }`}
       aria-label="Isometric office world"
     >
       <div className="game-scene-sky" style={{ background: skyBackground }} aria-hidden />
