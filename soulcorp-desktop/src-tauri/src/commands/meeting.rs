@@ -32,6 +32,21 @@ pub struct MeetingSnapshot {
 }
 
 #[tauri::command]
+pub fn get_active_meeting(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Option<MeetingSnapshot>, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    let ai_status = ai::probe_meeting_ai(&state.settings, &state.hub);
+    let meeting = state
+        .meetings
+        .values()
+        .find(|meeting| !meeting.completed);
+    Ok(meeting.map(|meeting| {
+        snapshot_from_meeting(meeting, &ai_status, state.settings.meeting_turns_per_agent)
+    }))
+}
+
+#[tauri::command]
 pub fn get_meeting_ai_status(state: State<'_, Mutex<AppState>>) -> Result<MeetingAiStatus, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
     Ok(ai::probe_meeting_ai(&state.settings, &state.hub))
@@ -70,6 +85,14 @@ pub fn start_meeting(
         revenue_delta: 0.0,
         notes_generated: false,
     };
+
+    for agent_id in &participant_ids {
+        if let Some(agent) = state.agents.get(agent_id) {
+            if agent.status == "meeting" {
+                return Err(format!("{} is already in a meeting.", agent.name));
+            }
+        }
+    }
 
     for agent_id in &participant_ids {
         if let Some(agent) = state.agents.get_mut(agent_id) {

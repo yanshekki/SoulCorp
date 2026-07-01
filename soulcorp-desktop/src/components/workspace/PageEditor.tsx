@@ -42,6 +42,7 @@ export function PageEditor() {
       if (!selectedPage || saving) {
         return;
       }
+      const savingPageId = selectedPage.id;
       setSaving(true);
       setSaveError(null);
       if (!auto) {
@@ -51,13 +52,16 @@ export function PageEditor() {
         const blocks = blocksFromRichDoc(richDoc);
         const page = await invoke<WorkspacePage>("update_workspace_page", {
           request: {
-            page_id: selectedPage.id,
+            page_id: savingPageId,
             title,
             blocks,
             rich_doc: richDoc,
             last_edited_by: "player",
           },
         });
+        if (useWorkspaceStore.getState().selectedPage?.id !== savingPageId) {
+          return;
+        }
         setSelectedPage(page);
         upsertPageSummary({
           id: page.id,

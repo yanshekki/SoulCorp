@@ -15,6 +15,13 @@ use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecruitmentListResult {
+    pub candidates: Vec<RecruitmentCandidate>,
+    pub from_cache: bool,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecruitmentCandidate {
     pub id: String,
     pub soul_id: Option<u64>,
@@ -350,7 +357,8 @@ pub async fn get_recruitment_analytics(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<RecruitmentAnalytics, String> {
-    let candidates = load_recruitment_candidates(&app_state, &app, query).await?;
+    let candidate_result = load_recruitment_candidates(&app_state, &app, query).await?;
+    let candidates = candidate_result.candidates;
     let state = app_state.lock().map_err(|e| e.to_string())?;
 
     let morale_values: Vec<f32> = state.agents.values().map(|agent| agent.morale).collect();
@@ -485,7 +493,7 @@ async fn load_recruitment_candidates(
     app_state: &Mutex<AppState>,
     app: &AppHandle,
     query: Option<String>,
-) -> Result<Vec<RecruitmentCandidate>, String> {
+) -> Result<RecruitmentListResult, String> {
     let (pure_local, cached_listings) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         (
@@ -496,10 +504,16 @@ async fn load_recruitment_candidates(
 
     if pure_local {
         let state = app_state.lock().map_err(|e| e.to_string())?;
-        return Ok(enrich_candidates(
-            &state,
-            merge_bonus_candidates(Vec::new(), &state),
-        ));
+        return Ok(RecruitmentListResult {
+            candidates: enrich_candidates(
+                &state,
+                merge_bonus_candidates(Vec::new(), &state),
+            ),
+            from_cache: true,
+            message: Some(
+                "Pure Local Mode — showing locally generated candidates only.".to_string(),
+            ),
+        });
     }
 
     let client = {
@@ -516,18 +530,49 @@ async fn load_recruitment_candidates(
             }
             let candidates = listings_to_candidates(&listings);
             let state = app_state.lock().map_err(|e| e.to_string())?;
-            Ok(enrich_candidates(
-                &state,
-                merge_bonus_candidates(candidates, &state),
-            ))
+            Ok(RecruitmentListResult {
+                candidates: enrich_candidates(
+                    &state,
+                    merge_bonus_candidates(candidates, &state),
+                ),
+                from_cache: false,
+                message: None,
+            })
         }
-        Ok(_) | Err(_) => {
+        Ok(_) => {
             let candidates = listings_to_candidates(&cached_listings);
             let state = app_state.lock().map_err(|e| e.to_string())?;
-            Ok(enrich_candidates(
-                &state,
-                merge_bonus_candidates(candidates, &state),
-            ))
+            Ok(RecruitmentListResult {
+                candidates: enrich_candidates(
+                    &state,
+                    merge_bonus_candidates(candidates, &state),
+                ),
+                from_cache: !cached_listings.is_empty(),
+                message: if cached_listings.is_empty() {
+                    Some("Hub returned no candidates. Sync with the hub when online.".to_string())
+                } else {
+                    Some("Hub returned no new candidates — showing cached listings.".to_string())
+                },
+            })
+        }
+        Err(error) => {
+            if cached_listings.is_empty() {
+                return Err(format!(
+                    "Failed to load recruitment candidates: {error}. Sync with the hub when online."
+                ));
+            }
+            let candidates = listings_to_candidates(&cached_listings);
+            let state = app_state.lock().map_err(|e| e.to_string())?;
+            Ok(RecruitmentListResult {
+                candidates: enrich_candidates(
+                    &state,
+                    merge_bonus_candidates(candidates, &state),
+                ),
+                from_cache: true,
+                message: Some(format!(
+                    "Hub offline — showing cached candidates. Last error: {error}"
+                )),
+            })
         }
     }
 }
@@ -537,7 +582,7 @@ pub async fn list_recruitment_candidates(
     query: Option<String>,
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<Vec<RecruitmentCandidate>, String> {
+) -> Result<RecruitmentListResult, String> {
     load_recruitment_candidates(&app_state, &app, query).await
 }
 
@@ -565,7 +610,10 @@ pub async fn hire_candidate(
         .strip_prefix("hub-soul-")
         .and_then(|id| id.parse::<u64>().ok())
     {
-        client.fetch_soul_content(soul_id).await.unwrap_or_default()
+        client
+            .fetch_soul_content(soul_id)
+            .await
+            .map_err(|error| format!("Failed to fetch SOUL.md for candidate: {error}"))?
     } else {
         String::new()
     };

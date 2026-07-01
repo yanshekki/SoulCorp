@@ -40,7 +40,11 @@ export function resolveEffectiveAiProviderLabel(
   agentProvider: string | null | undefined,
   departmentProvider: string | null | undefined,
   companyDefault: string,
+  pureLocalMode = false,
 ): string {
+  if (pureLocalMode) {
+    return "Mock (offline)";
+  }
   if (agentProvider && agentProvider !== AI_PROVIDER_DEFAULT) {
     return providerOptionLabel(agentProvider);
   }

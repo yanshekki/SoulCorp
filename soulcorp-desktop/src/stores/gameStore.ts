@@ -97,7 +97,7 @@ export const useGameStore = create<GameStore>((set) => ({
   settings: {
     random_events_enabled: true,
     event_mode: "fun",
-    god_mode_enabled: true,
+    god_mode_enabled: false,
     ai_provider: "mock",
     ollama_base_url: "http://127.0.0.1:11434",
     ollama_model: "llama3.2",

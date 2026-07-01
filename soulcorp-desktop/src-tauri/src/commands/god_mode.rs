@@ -24,6 +24,18 @@ fn ensure_enabled(state: &AppState) -> Result<(), String> {
     }
 }
 
+fn resolve_target_agent_id(state: &AppState, agent_id: Option<String>) -> Result<String, String> {
+    if let Some(id) = agent_id {
+        return Ok(id);
+    }
+    let ids: Vec<String> = state.agents.keys().cloned().collect();
+    if ids.is_empty() {
+        return Err("No agents available for this God Mode action.".to_string());
+    }
+    let mut rng = rand::rng();
+    Ok(ids[rng.random_range(0..ids.len())].clone())
+}
+
 fn record_use(state: &mut AppState, action: &str, message: String, reality_cost: f32) -> GodModeActionResult {
     state.stats.god_mode_uses += 1;
     state.god_mode_reality_debt = (state.god_mode_reality_debt + reality_cost).min(1.0);
@@ -224,11 +236,7 @@ pub fn god_mode_agent_mutation(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ensure_enabled(&state)?;
 
-    let target_id = agent_id.unwrap_or_else(|| {
-        let mut rng = rand::rng();
-        let ids: Vec<String> = state.agents.keys().cloned().collect();
-        ids[rng.random_range(0..ids.len())].clone()
-    });
+    let target_id = resolve_target_agent_id(&state, agent_id)?;
 
     let mut rng = rand::rng();
     let mutations = ["Visionary", "Perfectionist", "Chaos Agent", "Stoic", "Hyperfocus"];
@@ -362,11 +370,7 @@ pub fn god_mode_reset_agent_memory(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ensure_enabled(&state)?;
 
-    let target_id = agent_id.unwrap_or_else(|| {
-        let mut rng = rand::rng();
-        let ids: Vec<String> = state.agents.keys().cloned().collect();
-        ids[rng.random_range(0..ids.len())].clone()
-    });
+    let target_id = resolve_target_agent_id(&state, agent_id)?;
 
     let agent_name = {
         let agent = state

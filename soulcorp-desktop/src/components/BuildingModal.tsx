@@ -9,13 +9,24 @@ export function BuildingModal() {
   const agents = useGameStore((state) => state.agents);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const finance = useGameStore((state) => state.finance);
+  const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [projects, setProjects] = useState<InternalProject[]>([]);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   useEffect(() => {
-    void invoke<InternalProject[]>("list_internal_projects").then(setProjects).catch(() => {
-      setProjects([]);
-    });
-  }, [selectedBuilding?.id]);
+    setProjectsError(null);
+    void invoke<InternalProject[]>("list_internal_projects")
+      .then((result) => {
+        setProjects(result);
+        setProjectsError(null);
+      })
+      .catch((error) => {
+        setProjects([]);
+        const message = String(error);
+        setProjectsError(message);
+        setStatusMessage(message);
+      });
+  }, [selectedBuilding?.id, setStatusMessage]);
 
   if (!selectedBuilding) {
     return null;
@@ -69,13 +80,19 @@ export function BuildingModal() {
           </article>
           <article>
             <span>Active projects</span>
-            <strong>{activeProjects}</strong>
+            <strong>{projectsError ? "—" : activeProjects}</strong>
           </article>
           <article>
             <span>Company cash</span>
             <strong>${finance.cash_balance.toFixed(0)}</strong>
           </article>
         </section>
+
+        {projectsError ? (
+          <p className="hub-warning" role="status">
+            Could not load projects: {projectsError}
+          </p>
+        ) : null}
 
         <section>
           <h3>Agents in this area</h3>

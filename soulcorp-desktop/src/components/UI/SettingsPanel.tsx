@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { reloadGameState } from "../../hooks/useReloadGameState";
 import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
 import { useGameStore } from "../../stores/gameStore";
 import type {
@@ -70,23 +71,39 @@ export function SettingsPanel() {
   };
 
   const exportBackup = async () => {
-    const result = await invoke<ExportResult>("export_company_backup");
-    setStatusMessage(`${result.message} ${result.path}`);
+    try {
+      const result = await invoke<ExportResult>("export_company_backup");
+      setStatusMessage(`${result.message} ${result.path}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const exportWorkspace = async () => {
-    const result = await invoke<ExportResult>("export_workspace_markdown_zip");
-    setStatusMessage(`${result.message} ${result.path}`);
+    try {
+      const result = await invoke<ExportResult>("export_workspace_markdown_zip");
+      setStatusMessage(`${result.message} ${result.path}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const exportStaticSite = async () => {
-    const result = await invoke<ExportResult>("export_static_site_zip");
-    setStatusMessage(`${result.message} ${result.path}`);
+    try {
+      const result = await invoke<ExportResult>("export_static_site_zip");
+      setStatusMessage(`${result.message} ${result.path}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const exportQcDeliverables = async () => {
-    const result = await invoke<ExportResult>("export_qc_rated_deliverables_zip");
-    setStatusMessage(`${result.message} ${result.path}`);
+    try {
+      const result = await invoke<ExportResult>("export_qc_rated_deliverables_zip");
+      setStatusMessage(`${result.message} ${result.path}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const refreshDeployStatus = async () => {
@@ -151,13 +168,21 @@ export function SettingsPanel() {
   };
 
   const exportReport = async (command: string) => {
-    const result = await invoke<ExportResult>(command);
-    setStatusMessage(`${result.message} ${result.path}`);
+    try {
+      const result = await invoke<ExportResult>(command);
+      setStatusMessage(`${result.message} ${result.path}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const openExportsFolder = async () => {
-    const result = await invoke<ExportResult>("open_exports_folder");
-    setStatusMessage(result.message);
+    try {
+      const result = await invoke<ExportResult>("open_exports_folder");
+      setStatusMessage(result.message);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
   };
 
   const importBackup = async () => {
@@ -169,6 +194,7 @@ export function SettingsPanel() {
       const result = await invoke<ExportResult>("import_company_backup", {
         path: restorePath.trim(),
       });
+      await reloadGameState("import_backup");
       setStatusMessage(result.message);
     } catch (error) {
       setStatusMessage(String(error));

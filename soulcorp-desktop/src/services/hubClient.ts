@@ -21,8 +21,14 @@ export async function updateHubConfig(update: HubConfigUpdate): Promise<HubStatu
   return invoke<HubStatus>("update_hub_config", { update });
 }
 
-export async function listHubGigs(): Promise<HubGig[]> {
-  return invoke<HubGig[]>("list_hub_gigs");
+export interface HubGigListResult {
+  gigs: HubGig[];
+  from_cache: boolean;
+  message?: string | null;
+}
+
+export async function listHubGigs(): Promise<HubGigListResult> {
+  return invoke<HubGigListResult>("list_hub_gigs");
 }
 
 export async function createHubGig(request: CreateHubGigRequest): Promise<Record<string, unknown>> {

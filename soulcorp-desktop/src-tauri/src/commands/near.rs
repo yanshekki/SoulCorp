@@ -129,11 +129,9 @@ pub async fn claim_near_tier_upgrade(
 }
 
 #[tauri::command]
-pub fn sign_near_transaction(tx_payload: NearTxPayload) -> Result<String, String> {
-    Ok(format!(
-        "NEAR ft_transfer_call prepared for {} amount {} msg {}",
-        tx_payload.receiver_id,
-        tx_payload.amount,
-        tx_payload.memo.unwrap_or_else(|| "upgrade:vip".to_string())
-    ))
+pub fn sign_near_transaction(_tx_payload: NearTxPayload) -> Result<String, String> {
+    Err(
+        "NEAR transactions must be signed through the in-app wallet selector on the Tier panel."
+            .to_string(),
+    )
 }

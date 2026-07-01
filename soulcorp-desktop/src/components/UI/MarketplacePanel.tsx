@@ -54,6 +54,8 @@ export function MarketplacePanel() {
   const [gigs, setGigs] = useState<HubGig[]>([]);
   const [contracts, setContracts] = useState<GigContract[]>([]);
   const [loading, setLoading] = useState(false);
+  const [gigsFromCache, setGigsFromCache] = useState(false);
+  const [gigsCacheMessage, setGigsCacheMessage] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(250);
@@ -73,8 +75,10 @@ export function MarketplacePanel() {
   const refreshGigs = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextGigs, nextContracts] = await Promise.all([listHubGigs(), listGigContracts()]);
-      setGigs(nextGigs);
+      const [gigResult, nextContracts] = await Promise.all([listHubGigs(), listGigContracts()]);
+      setGigs(gigResult.gigs);
+      setGigsFromCache(gigResult.from_cache);
+      setGigsCacheMessage(gigResult.message ?? null);
       setContracts(nextContracts);
     } catch (error) {
       setStatusMessage(String(error));
@@ -128,6 +132,8 @@ export function MarketplacePanel() {
     try {
       const pull = await syncWithHub();
       setGigs(pull.open_gigs);
+      setGigsFromCache(false);
+      setGigsCacheMessage(null);
       setHubStatus({
         ...hubStatus,
         connected: true,
@@ -159,7 +165,13 @@ export function MarketplacePanel() {
           .map((skill) => skill.trim())
           .filter(Boolean),
       });
-      setStatusMessage(`Gig queued: ${JSON.stringify(result)}`);
+      const message =
+        typeof result.message === "string"
+          ? result.message
+          : result.queued
+            ? "Gig queued locally for next hub sync."
+            : "Gig submitted to hub.";
+      setStatusMessage(message);
       setTitle("");
       setDescription("");
       await refreshGigs();
@@ -282,6 +294,11 @@ export function MarketplacePanel() {
       {settings.pure_local_mode ? (
         <p className="hub-warning">
           Pure Local Mode is on. Browse cached hub gigs from your last sync, or manage local contracts.
+        </p>
+      ) : null}
+      {gigsFromCache && gigsCacheMessage ? (
+        <p className="hub-warning" role="status">
+          {gigsCacheMessage}
         </p>
       ) : null}
 

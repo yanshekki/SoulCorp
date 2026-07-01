@@ -15,6 +15,13 @@ pub struct HubConfigUpdate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubGigListResult {
+    pub gigs: Vec<HubGig>,
+    pub from_cache: bool,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateHubGigRequest {
     pub title: String,
     pub description: String,
@@ -86,7 +93,7 @@ pub fn update_hub_config(
 pub async fn list_hub_gigs(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<Vec<HubGig>, String> {
+) -> Result<HubGigListResult, String> {
     let (client, tier, pure_local, cached_gigs) = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         let tier = state.hub.user_tier.clone();
@@ -100,15 +107,19 @@ pub async fn list_hub_gigs(
         (client, tier, pure_local, cached_gigs)
     };
 
-    let gigs = if pure_local {
-        cached_gigs
+    let (gigs, from_cache, message) = if pure_local {
+        (
+            cached_gigs,
+            true,
+            Some("Showing cached gigs (Pure Local Mode).".to_string()),
+        )
     } else if let Some(client) = client {
         match client.list_open_gigs().await {
             Ok(gigs) => {
                 let mut state = app_state.lock().map_err(|e| e.to_string())?;
                 state.hub.cached_open_gigs = gigs.clone();
                 commit(app, &state)?;
-                gigs
+                (gigs, false, None)
             }
             Err(error) => {
                 if cached_gigs.is_empty() {
@@ -116,14 +127,24 @@ pub async fn list_hub_gigs(
                         "Failed to load marketplace gigs: {error}. Sync with the hub when online."
                     ));
                 }
-                cached_gigs
+                (
+                    cached_gigs,
+                    true,
+                    Some(format!(
+                        "Hub offline — showing cached gigs. Last error: {error}"
+                    )),
+                )
             }
         }
     } else {
-        Vec::new()
+        (Vec::new(), false, None)
     };
 
-    Ok(filter_gigs_for_tier(gigs, &tier))
+    Ok(HubGigListResult {
+        gigs: filter_gigs_for_tier(gigs, &tier),
+        from_cache,
+        message,
+    })
 }
 
 #[tauri::command]
@@ -152,10 +173,16 @@ pub async fn create_hub_gig(
         (client_from_state(&state), payload)
     };
 
-    client
-        .create_gig(payload)
-        .await
-        .or_else(|_| Ok(json!({"gig_id": 9999, "status": "queued_locally"})))
+    match client.create_gig(payload).await {
+        Ok(response) => Ok(response),
+        Err(error) => Ok(json!({
+            "status": "queued_locally",
+            "queued": true,
+            "message": format!(
+                "Hub unreachable. Gig saved locally and will sync on next hub connection: {error}"
+            )
+        })),
+    }
 }
 
 #[tauri::command]

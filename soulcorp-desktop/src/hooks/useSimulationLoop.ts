@@ -31,9 +31,14 @@ export function useSimulationLoop() {
   const lastAgentSyncRef = useRef<number>(0);
   const tickAccumulatorRef = useRef(0);
   const tickInFlightRef = useRef(false);
+  const tickGenerationRef = useRef(0);
   const tickInterval = lowPowerMode
     ? LOW_POWER_TICK_INTERVAL_SECONDS
     : TICK_INTERVAL_SECONDS;
+
+  useEffect(() => {
+    tickGenerationRef.current += 1;
+  }, [activeCompanyId]);
 
   useEffect(() => {
     if (isPaused || !companyReady) {
@@ -84,9 +89,13 @@ export function useSimulationLoop() {
       if (tickAccumulatorRef.current >= tickInterval && !tickInFlightRef.current) {
         tickAccumulatorRef.current = 0;
         tickInFlightRef.current = true;
+        const tickGeneration = tickGenerationRef.current;
         useProgressStore.getState().setTickInFlight(true);
         invoke<SimulationTickResult>("run_simulation_tick")
           .then(async (result) => {
+            if (tickGeneration !== tickGenerationRef.current) {
+              return;
+            }
             setSimulation({
               tick: result.tick,
               agentsActive: result.agents_active,

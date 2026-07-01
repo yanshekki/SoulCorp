@@ -120,8 +120,8 @@ export function OnboardingWizard() {
         await reloadGameState();
       }
       setActivePanel("office");
-      if (isPaused) {
-        togglePause();
+      if (useGameStore.getState().isPaused) {
+        useGameStore.getState().togglePause();
       }
       setStatusMessage(`Welcome to ${result.company_name}. Your office simulation is live.`);
     } catch (error) {

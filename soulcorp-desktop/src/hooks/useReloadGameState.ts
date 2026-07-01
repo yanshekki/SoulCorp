@@ -18,12 +18,15 @@ import {
   reportLocalProgress,
 } from "../stores/progressStore";
 import type {
+  AchievementSnapshot,
   AgentRecord,
   CompanyDepartmentsSnapshot,
   CustomDepartmentBuilding,
   FinanceState,
+  GameEvent,
   GameSettings,
   HubStatus,
+  MeetingSnapshot,
   TierBenefits,
 } from "../types/game";
 import type { Building } from "../types/world";
@@ -66,7 +69,15 @@ export async function reloadGameState(
     setActiveCompanyId,
     setStatusMessage,
     setVisualDesign,
+    selectBuilding,
+    setEvents,
+    setActiveMeeting,
+    setAchievements,
+    setEndings,
   } = store;
+
+  selectBuilding(null);
+  setActiveMeeting(null);
 
   reportLocalProgress(operationId, "Loading company list…", 10, "companies");
 
@@ -173,16 +184,40 @@ export async function reloadGameState(
     );
     setAgents(mergedAgents);
     syncAgentRuntime(mergedAgents);
-    setSimulation({ dayNumber: 1 });
     useGameStore.getState().setIsPaused(false);
     setStatusMessage("Company loaded. Office simulation ready.");
 
     reportLocalProgress(operationId, "Loading workspace…", 90, "workspace");
     try {
+      const [simSnapshot, events, achievements, activeMeeting] = await Promise.all([
+        invoke<{
+          tick: number;
+          day_number: number;
+          agents_active: number;
+        }>("get_simulation_snapshot"),
+        invoke<GameEvent[]>("get_recent_events"),
+        invoke<AchievementSnapshot>("get_achievements"),
+        invoke<MeetingSnapshot | null>("get_active_meeting"),
+      ]);
+      setSimulation({
+        tick: simSnapshot.tick,
+        dayNumber: simSnapshot.day_number,
+        agentsActive: simSnapshot.agents_active,
+      });
+      setEvents(events);
+      setAchievements(achievements.achievements);
+      setEndings(achievements.endings);
+      setActiveMeeting(activeMeeting);
+    } catch (error) {
+      setStatusMessage(`Could not load simulation state: ${String(error)}`);
+    }
+
+    try {
       const tree = await invoke<WorkspaceTree>("list_workspace_tree");
       await useWorkspaceStore.getState().reloadForCompany(tree);
-    } catch {
+    } catch (error) {
       useWorkspaceStore.getState().reset();
+      setStatusMessage(`Workspace load failed: ${String(error)}`);
     }
     reportLocalProgress(operationId, "Ready", 100, "done");
     clearLocalProgress(operationId);

@@ -113,6 +113,7 @@ export function AgentsPanel() {
                         null,
                         entry.ai_provider,
                         settings.ai_provider,
+                        settings.pure_local_mode,
                       )}
                     </p>
                   </div>
@@ -162,6 +163,7 @@ export function AgentsPanel() {
                         agent.ai_provider,
                         departmentProvider,
                         settings.ai_provider,
+                        settings.pure_local_mode,
                       )}
                     </p>
                   </div>

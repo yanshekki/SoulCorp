@@ -67,8 +67,16 @@ export function DesignStudioPage() {
 
   const handlePreset = async (presetId: string) => {
     if (presetId === "default") {
-      setDraft(useGameStore.getState().visualDesign);
-      setDirty(true);
+      setSaving(true);
+      try {
+        const saved = await applyDesignPreset("default");
+        setDraft(saved);
+        setDirty(true);
+      } catch (error) {
+        setStatusMessage(String(error));
+      } finally {
+        setSaving(false);
+      }
       return;
     }
     setSaving(true);

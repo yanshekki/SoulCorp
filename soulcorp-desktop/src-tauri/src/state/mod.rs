@@ -110,7 +110,7 @@ impl Default for GameSettings {
         Self {
             random_events_enabled: true,
             event_mode: EventMode::Fun,
-            god_mode_enabled: true,
+            god_mode_enabled: false,
             ai_provider: "mock".to_string(),
             ollama_base_url: default_ollama_base_url(),
             ollama_model: default_ollama_model(),

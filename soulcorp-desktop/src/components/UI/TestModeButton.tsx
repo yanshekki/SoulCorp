@@ -6,6 +6,10 @@ import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 export function TestModeButton() {
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);

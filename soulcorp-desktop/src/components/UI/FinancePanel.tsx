@@ -1,12 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { BudgetAllocations, InternalProject } from "../../types/game";
+import type { AgentRecord, BudgetAllocations, InternalProject } from "../../types/game";
 
 export function FinancePanel() {
   const finance = useGameStore((state) => state.finance);
   const agentRecords = useGameStore((state) => state.agentRecords);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const setFinance = useGameStore((state) => state.setFinance);
+  const setAgentRecords = useGameStore((state) => state.setAgentRecords);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [projects, setProjects] = useState<InternalProject[]>([]);
   const [salaryDrafts, setSalaryDrafts] = useState<Record<string, number>>({});
@@ -30,7 +32,7 @@ export function FinancePanel() {
 
   useEffect(() => {
     void loadProjects();
-  }, []);
+  }, [activeCompanyId]);
 
   const updateAllocation = async (key: keyof BudgetAllocations, value: number) => {
     try {
@@ -57,7 +59,9 @@ export function FinancePanel() {
       const updated = await invoke<typeof finance>("adjust_agent_salary", {
         update: { agent_id: agentId, salary },
       });
+      const refreshedAgents = await invoke<AgentRecord[]>("list_agents");
       setFinance(updated);
+      setAgentRecords(refreshedAgents);
       setStatusMessage("Salary updated.");
     } catch (error) {
       setStatusMessage(String(error));

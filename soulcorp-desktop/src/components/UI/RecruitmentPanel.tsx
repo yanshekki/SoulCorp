@@ -43,6 +43,8 @@ export function RecruitmentPanel() {
   const [analytics, setAnalytics] = useState<RecruitmentAnalytics | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<RecruitmentCandidate[]>([]);
+  const [candidatesFromCache, setCandidatesFromCache] = useState(false);
+  const [candidatesCacheMessage, setCandidatesCacheMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -50,7 +52,11 @@ export function RecruitmentPanel() {
       setLoading(true);
       try {
         const [result, morale, graph, recruitmentAnalytics] = await Promise.all([
-          invoke<RecruitmentCandidate[]>("list_recruitment_candidates", {
+          invoke<{
+            candidates: RecruitmentCandidate[];
+            from_cache: boolean;
+            message?: string | null;
+          }>("list_recruitment_candidates", {
             query: skillFilter.trim() || null,
           }),
           invoke<MoraleHeatmapEntry[]>("get_morale_heatmap"),
@@ -59,7 +65,9 @@ export function RecruitmentPanel() {
             query: skillFilter.trim() || null,
           }),
         ]);
-        setCandidates(result);
+        setCandidates(result.candidates);
+        setCandidatesFromCache(result.from_cache);
+        setCandidatesCacheMessage(result.message ?? null);
         setHeatmap(morale);
         setRelationshipGraph(graph);
         setAnalytics(recruitmentAnalytics);
@@ -115,7 +123,6 @@ export function RecruitmentPanel() {
       .filter(Boolean)
       .join(", ");
     try {
-      await invoke<number>("record_recruitment_interview");
       const panelAgents = agentRecords.slice(0, 3).map((agent) => agent.id);
       if (panelAgents.length === 0) {
         setStatusMessage("Hire or onboard agents before running interviews.");
@@ -127,6 +134,7 @@ export function RecruitmentPanel() {
           meeting_type: `Interview: ${names}`,
         },
       });
+      await invoke<number>("record_recruitment_interview");
       setActiveMeeting(meeting);
       setActivePanel("meeting");
       setStatusMessage(`Interview started for ${names}. HR and COO are leading the panel.`);
@@ -160,6 +168,8 @@ export function RecruitmentPanel() {
       setAgentRecords(agents);
       const updatedFinance = await invoke<typeof finance>("get_finance_state");
       setFinance(updatedFinance);
+      const { refreshWorkspaceTree } = await import("../../services/workspaceClient");
+      await refreshWorkspaceTree(true).catch(() => undefined);
       setStatusMessage(`${hired.name} joined the company as ${hired.role}.`);
     } catch (error) {
       setStatusMessage(String(error));
@@ -186,6 +196,11 @@ export function RecruitmentPanel() {
       {settings.pure_local_mode ? (
         <p className="hub-warning">
           Pure Local Mode: hub candidates are unavailable. Connect to soulmd-hub or use God Mode bonus recruits.
+        </p>
+      ) : null}
+      {candidatesFromCache && candidatesCacheMessage ? (
+        <p className="hub-warning" role="status">
+          {candidatesCacheMessage}
         </p>
       ) : null}
 

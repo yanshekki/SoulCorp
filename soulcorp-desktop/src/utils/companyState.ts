@@ -37,6 +37,10 @@ export function clearEmptyGameState(): void {
     setCompanyIndustry,
     setCompanyTagline,
     setActiveCompanyId,
+    selectBuilding,
+    setActiveMeeting,
+    setAchievements,
+    setEndings,
   } = useGameStore.getState();
 
   setAgents([]);
@@ -49,4 +53,8 @@ export function clearEmptyGameState(): void {
   setCompanyIndustry("");
   setCompanyTagline("");
   setActiveCompanyId(null);
+  selectBuilding(null);
+  setActiveMeeting(null);
+  setAchievements([]);
+  setEndings([]);
 }
