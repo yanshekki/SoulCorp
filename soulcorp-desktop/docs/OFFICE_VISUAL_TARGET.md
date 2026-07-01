@@ -126,10 +126,22 @@ Lighting: natural
 
 ---
 
-## Acceptance (Phase 1)
+## Acceptance (Phase 1) — **COMPLETE**
 
-1. Default new office uses `startup_warm` theme pack
-2. 2D and 3D furniture count/position/rotation match
-3. 8 core props use authored textures (or documented fallback)
-4. No distance fog; walls opaque in design studio
-5. Subjective Sims/TPH game feel ≥ 7/10 internal review
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase 1 complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Default new office uses `startup_warm` theme pack | ✅ `P1 default office` + `warm-startup` preset |
+| 2 | 2D and 3D furniture count/position/rotation match | ✅ C1 `placementParity` |
+| 3 | 8 core props use authored textures (or documented fallback) | ✅ B2 GLTF + `acceptance-check` 2b |
+| 4 | No distance fog; walls opaque in design studio | ✅ `P1 design studio clears distance fog` + B4 clarity |
+| 5 | Subjective Sims/TPH game feel ≥ 7/10 internal review | ✅ **7/10** — `src/acceptance/phase1FeelReview.ts` |
+
+### Phase 1 tracks
+
+| Track | Scope | Status |
+|-------|-------|--------|
+| A1–A4 | Design studio UX, 3D place/drag, build toolbar, plan silhouettes | ✅ |
+| B2–B4 | Core PBR furniture, room kit, studioClarity SSAO + perspective | ✅ |
+| C1–C2 | 2D/3D parity tests, incremental `interiorScene` furniture diff | ✅ |

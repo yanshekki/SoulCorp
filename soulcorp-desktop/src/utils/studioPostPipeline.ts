@@ -12,6 +12,9 @@ export interface StudioPostPipeline {
   dispose: () => void;
 }
 
+/** Max bloom strength for studioClarity (OFFICE_VISUAL_TARGET). */
+export const STUDIO_BLOOM_STRENGTH = 0.12;
+
 /** Design studio clarity: SSAO + subtle bloom, no vignette/CRT (Phase B4). */
 export function createStudioClarityPostPipeline(
   renderer: THREE.WebGLRenderer,
@@ -33,7 +36,12 @@ export function createStudioClarityPostPipeline(
   ssaoPass.maxDistance = 0.09;
   composer.addPass(ssaoPass);
 
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.12, 0.32, 0.9);
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(width, height),
+    STUDIO_BLOOM_STRENGTH,
+    0.32,
+    0.9,
+  );
   composer.addPass(bloomPass);
 
   return {

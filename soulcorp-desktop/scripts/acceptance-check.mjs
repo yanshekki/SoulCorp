@@ -28,9 +28,25 @@ const requiredFiles = [
   "src/data/furnitureCatalog.ts",
   "src/utils/furnitureInteractions.ts",
   "src/components/world/FurnitureDetailPanel.tsx",
+  // Phase 1 office visual tracks (A1–C2)
+  "src/components/design/DesignStudioPage.tsx",
+  "src/utils/placementEngine.ts",
+  "src/components/design/InteriorDesignViewport.tsx",
+  "src/components/design/OfficeBuildToolbar.tsx",
+  "src/components/design/OfficeInspectorPanel.tsx",
+  "src/components/design/FurniturePlanSilhouette.tsx",
+  "src/utils/furniturePlanSilhouette.ts",
+  "scripts/lib/gltfBuilder.mjs",
+  "src/utils/roomKitTextures.ts",
+  "src/utils/studioPostPipeline.ts",
+  "src/acceptance/placementParity.ts",
+  "src/utils/furnitureSceneDiff.ts",
+  "src/acceptance/phase1Acceptance.ts",
+  "src/acceptance/phase1FeelReview.ts",
+  "docs/OFFICE_VISUAL_TARGET.md",
 ];
 
-console.log("=== SoulCorp Phase 6 Acceptance ===\n");
+console.log("=== SoulCorp Phase 6 + Phase 1 Office Visual Acceptance ===\n");
 
 let failed = 0;
 
@@ -48,7 +64,7 @@ if (failed === 0) {
   console.log("");
 }
 
-console.log("2/4 TypeScript unit tests");
+console.log("2/4 TypeScript unit tests (incl. Phase 1 gate)");
 const testStatus = run("pnpm", ["exec", "tsx", "scripts/run-acceptance-tests.ts"]);
 if (testStatus !== 0) {
   failed += 1;

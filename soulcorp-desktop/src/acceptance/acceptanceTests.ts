@@ -1,3 +1,4 @@
+import { runPhase1AcceptanceTests } from "./phase1Acceptance";
 import { runPlacementParityTests } from "./placementParity";
 import {
   bindAgentToDesk,
@@ -54,6 +55,7 @@ export function runAcceptanceTests(): AcceptanceResult[] {
   );
 
   results.push(...runPlacementParityTests());
+  results.push(...runPhase1AcceptanceTests());
 
   const automated = GAME_DESIGN_CHECKLIST.filter((item) => item.automated).length;
   results.push(
