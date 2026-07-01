@@ -119,6 +119,7 @@ pub fn create_company(
     save_registry(&app, &registry)?;
     commit(app.clone(), &state)?;
 
+    reset_commit_debounce(&company_id);
     let mut locked = app_state.lock().map_err(|e| e.to_string())?;
     *locked = state;
 
