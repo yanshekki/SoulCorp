@@ -219,3 +219,19 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | Multi-floor | `floor_count` 1–3, stacked meshes in `buildFreeformArchitectureGroup` |
 | Design studio UI | `OfficeArchitecturePanel` in room inspector (Cantonese) |
 | Shell rebuild | `architecture` in `officeShellFingerprint` |
+
+---
+
+## Art deepening — **COMPLETE**
+
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Art deepening complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Full catalog 25 authored GLTF (procedural PBR) | ✅ `P5 catalog has 25` + `P5 all catalog GLTF on disk` |
+| 2 | Wall decor (poster + canvas) | ✅ `wall_poster`, `wall_canvas` + `P5 wall and carpet decor` |
+| 3 | Carpet decals (runner + round) | ✅ `rug_runner`, `rug_round` |
+| 4 | Decor texture kit | ✅ `poster` / `canvas` / `carpet` PNG slots |
+| 5 | Default office art seeding | ✅ `P5 default office seeds art decor` |
+
+Regenerate assets: `node scripts/generate-furniture-gltf.mjs` · thumbnails: `pnpm generate:furniture-thumbs`

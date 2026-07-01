@@ -106,13 +106,16 @@ const texOk =
   ["wood.png", "fabric.png", "metal.png", "screen.png", "accent.png"].every((name) =>
     existsSync(join(texDir, name)),
   );
-if (gltfFiles.length < 21 || !coreOk || !texOk) {
+const decorTexOk =
+  existsSync(texDir) &&
+  ["poster.png", "canvas.png", "carpet.png"].every((name) => existsSync(join(texDir, name)));
+if (gltfFiles.length < 25 || !coreOk || !texOk || !decorTexOk) {
   console.error(
-    `  MISSING B2 assets (gltf=${gltfFiles.length}, coreOk=${coreOk}, texOk=${texOk})`,
+    `  MISSING B2/art assets (gltf=${gltfFiles.length}, coreOk=${coreOk}, texOk=${texOk}, decorTexOk=${decorTexOk})`,
   );
   failed += 1;
 } else {
-  console.log(`  OK — ${gltfFiles.length} GLTF + 8 core B2 textured assets\n`);
+  console.log(`  OK — ${gltfFiles.length} GLTF + decor textures + 8 core B2 assets\n`);
 }
 
 console.log("3/4 pnpm typecheck");

@@ -15,6 +15,9 @@ const MAT_PROPS = {
   pot: { texture: "pot", roughness: 0.78, metalness: 0 },
   accent: { texture: "accent", roughness: 0.45, metalness: 0.12 },
   laminate: { texture: "laminate", roughness: 0.48, metalness: 0.06 },
+  poster: { texture: "poster", roughness: 0.62, metalness: 0 },
+  canvas: { texture: "canvas", roughness: 0.78, metalness: 0 },
+  carpet: { texture: "carpet", roughness: 0.95, metalness: 0 },
 };
 
 export class GltfBuilder {
@@ -426,6 +429,27 @@ export function secondaryAssetDefinitions() {
       b
         .box({ w: 0.35, h: 0.88, d: 0.35, y: 0.44, material: "plastic", name: "plastic_body" })
         .box({ w: 0.28, h: 0.32, d: 0.28, y: 1.02, material: "screen", name: "emissive_tank" }),
+
+    wall_poster: (b) =>
+      b
+        .box({ w: 0.85, h: 0.55, d: 0.03, y: 0.28, material: "poster", name: "poster_art" })
+        .box({ w: 0.9, h: 0.6, d: 0.02, y: 0.28, z: 0.02, material: "plastic", name: "plastic_frame" })
+        .box({ w: 0.22, h: 0.08, d: 0.01, y: 0.08, z: 0.03, material: "accent", name: "accent_caption" }),
+
+    wall_canvas: (b) =>
+      b
+        .box({ w: 1.1, h: 0.72, d: 0.04, y: 0.36, material: "canvas", name: "canvas_art" })
+        .box({ w: 1.14, h: 0.76, d: 0.025, y: 0.36, z: 0.02, material: "wood", name: "wood_frame" }),
+
+    rug_runner: (b) =>
+      b
+        .box({ w: 2.1, h: 0.025, d: 0.65, y: 0.012, material: "carpet", name: "carpet_runner" })
+        .box({ w: 1.9, h: 0.01, d: 0.55, y: 0.028, material: "accent", name: "accent_border" }),
+
+    rug_round: (b) =>
+      b
+        .cylinder({ radius: 0.68, height: 0.025, y: 0.012, segments: 20, material: "carpet", name: "carpet_round" })
+        .cylinder({ radius: 0.58, height: 0.01, y: 0.028, segments: 18, material: "fabric", name: "fabric_center" }),
   };
 }
 

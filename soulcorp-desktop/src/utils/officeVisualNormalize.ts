@@ -155,7 +155,89 @@ function legacyFurniture(
     rotation_y: 0,
   });
 
+  const lobbyDepth = rooms.lobby_room.depth;
+  const lobbyHalfW = rooms.lobby_room.width / 2;
+  items.push({
+    id: `wall-poster-${buildingId}`,
+    catalog_id: "wall_poster",
+    zone: "lobby",
+    position: [lobbyHalfW * 0.55, 1.35, -lobbyDepth / 2 + 0.1],
+    rotation_y: 0,
+  });
+  items.push({
+    id: `rug-round-${buildingId}`,
+    catalog_id: "rug_round",
+    zone: "lobby",
+    position: [0, 0, lobbyDepth * 0.12],
+    rotation_y: 0,
+  });
+
+  items.push({
+    id: `wall-canvas-${buildingId}`,
+    catalog_id: "wall_canvas",
+    zone: "office",
+    position: [office.room.width * 0.28, 1.4, -officeDepth / 2 + 0.1],
+    rotation_y: 0,
+  });
+  items.push({
+    id: `rug-runner-${buildingId}`,
+    catalog_id: "rug_runner",
+    zone: "office",
+    position: [0, 0, 0.35],
+    rotation_y: 0,
+  });
+
   return items;
+}
+
+function ensureDefaultArtDecor(
+  furniture: FurnitureInstance[],
+  buildingId: string,
+  office: OfficeVisualConfig,
+): FurnitureInstance[] {
+  const has = (catalogId: string) => furniture.some((item) => item.catalog_id === catalogId);
+  const extras: FurnitureInstance[] = [];
+  const lobbyDepth = office.lobby_room.depth;
+  const officeDepth = office.room.depth;
+
+  if (!has("wall_poster")) {
+    extras.push({
+      id: `wall-poster-${buildingId}`,
+      catalog_id: "wall_poster",
+      zone: "lobby",
+      position: [office.lobby_room.width * 0.22, 1.35, -lobbyDepth / 2 + 0.1],
+      rotation_y: 0,
+    });
+  }
+  if (!has("rug_round")) {
+    extras.push({
+      id: `rug-round-${buildingId}`,
+      catalog_id: "rug_round",
+      zone: "lobby",
+      position: [0, 0, lobbyDepth * 0.1],
+      rotation_y: 0,
+    });
+  }
+  if (!has("wall_canvas")) {
+    extras.push({
+      id: `wall-canvas-${buildingId}`,
+      catalog_id: "wall_canvas",
+      zone: "office",
+      position: [office.room.width * 0.25, 1.4, -officeDepth / 2 + 0.1],
+      rotation_y: 0,
+    });
+  }
+  if (!has("rug_runner")) {
+    extras.push({
+      id: `rug-runner-${buildingId}`,
+      catalog_id: "rug_runner",
+      zone: "office",
+      position: [0, 0, 0.25],
+      rotation_y: 0,
+    });
+  }
+
+  return extras.length > 0 ? [...furniture, ...extras] : furniture;
 }
 
 /** Ensures room dimensions and furniture[] exist; migrates legacy flags/positions. */
@@ -178,6 +260,7 @@ export function normalizeOfficeVisual(
     base.furniture = legacyFurniture(base, buildingId);
   } else {
     base.furniture = scaleFurnitureForGameRooms(base.furniture, buildingId, base);
+    base.furniture = ensureDefaultArtDecor(base.furniture, buildingId, base);
   }
 
   base.architecture = normalizeOfficeArchitecture(raw?.architecture ?? base.architecture);

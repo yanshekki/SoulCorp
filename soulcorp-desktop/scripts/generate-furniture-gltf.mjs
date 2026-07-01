@@ -14,6 +14,8 @@ import {
   CORE_FURNITURE_IDS,
 } from "./lib/gltfBuilder.mjs";
 
+const DECOR_ASSET_IDS = ["wall_poster", "wall_canvas", "rug_runner", "rug_round"];
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, "../public/assets/furniture");
 const TEX_DIR = join(OUT_DIR, "textures");
@@ -38,6 +40,7 @@ for (const [id, buildFn] of Object.entries(allDefs)) {
   console.log(`  ${id}.gltf + .bin (${builder.parts.length} parts)`);
 }
 
+const decorCount = DECOR_ASSET_IDS.filter((id) => id in allDefs).length;
 console.log(
-  `\nGenerated ${Object.keys(allDefs).length} furniture GLTF assets (${coreCount} core B2).`,
+  `\nGenerated ${Object.keys(allDefs).length} furniture GLTF assets (${coreCount} core B2, ${decorCount} decor).`,
 );

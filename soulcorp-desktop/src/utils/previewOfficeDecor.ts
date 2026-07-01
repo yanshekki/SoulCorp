@@ -75,6 +75,25 @@ export function withPreviewDecor(office: OfficeVisualConfig, buildingId: string)
         rotation_y: 0,
       });
     }
+    if (zone === "lobby" && !furniture.some((item) => item.catalog_id === "wall_poster")) {
+      const room = office.lobby_room;
+      extras.push({
+        id: `preview-poster-${buildingId}`,
+        catalog_id: "wall_poster",
+        zone: "lobby",
+        position: [room.width * 0.22, 1.35, -room.depth / 2 + 0.1],
+        rotation_y: 0,
+      });
+    }
+    if (zone === "office" && !furniture.some((item) => item.catalog_id === "rug_runner")) {
+      extras.push({
+        id: `preview-rug-${buildingId}`,
+        catalog_id: "rug_runner",
+        zone: "office",
+        position: [0, 0, 0.2],
+        rotation_y: 0,
+      });
+    }
     if (!zoneHasCategory(furniture, zone, "lighting")) {
       extras.push({
         id: `preview-light-${buildingId}-${zone}`,

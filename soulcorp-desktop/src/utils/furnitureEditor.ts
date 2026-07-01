@@ -152,14 +152,25 @@ export function furnitureObbOverlaps(
   return obbOverlap(aCorners, bCorners);
 }
 
+function isPassThroughDecor(catalogId: string): boolean {
+  const entry = getCatalogEntry(catalogId);
+  return entry?.defaultProps?.wallMount === true || entry?.defaultProps?.floorDecal === true;
+}
+
 export function collidesInZone(
   candidate: FurnitureInstance,
   others: FurnitureInstance[],
   footprint: [number, number],
   clearance = FURNITURE_CLEARANCE,
 ): boolean {
+  if (isPassThroughDecor(candidate.catalog_id)) {
+    return false;
+  }
   return others.some((other) => {
     if (other.id === candidate.id || other.zone !== candidate.zone) {
+      return false;
+    }
+    if (isPassThroughDecor(other.catalog_id)) {
       return false;
     }
     const entry = getCatalogEntry(other.catalog_id);

@@ -120,7 +120,10 @@ export async function createFurnitureObject(
     object.userData.fromGltf = false;
   }
 
-  object.position.set(item.position[0], item.position[1], item.position[2]);
+  const wallMount = catalogEntry.defaultProps?.wallMount === true;
+  const floorDecal = catalogEntry.defaultProps?.floorDecal === true;
+  const posY = floorDecal ? 0.015 : wallMount && item.position[1] < 0.5 ? 1.32 : item.position[1];
+  object.position.set(item.position[0], posY, item.position[2]);
   object.rotation.y = item.rotation_y;
   object.scale.multiplyScalar(FURNITURE_DISPLAY_SCALE);
   if (item.scale) {
@@ -130,6 +133,8 @@ export async function createFurnitureObject(
   object.userData.catalogId = item.catalog_id;
   object.userData.isDesk = catalogEntry.category === "desk" && catalogEntry.id !== "reception_desk";
   object.userData.isTech = catalogEntry.category === "tech";
+  object.userData.isWallDecor = wallMount;
+  object.userData.isFloorDecal = floorDecal;
 
   return object;
 }

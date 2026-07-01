@@ -28,6 +28,10 @@ const ENTRIES = [
   ["filing_cabinet", "Filing cabinet", "📦"],
   ["water_cooler", "Water cooler", "🛋"],
   ["floor_lamp", "Floor lamp", "💡"],
+  ["wall_poster", "Startup poster", "🖼"],
+  ["wall_canvas", "Abstract canvas", "🎨"],
+  ["rug_runner", "Runner rug", "🧶"],
+  ["rug_round", "Round rug", "⭕"],
 ];
 
 function svgFor(id, label, icon) {

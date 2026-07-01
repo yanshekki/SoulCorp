@@ -91,6 +91,40 @@ function accentHoney(x, y, w) {
   return [Math.floor(v * 255), Math.floor(v * 168), Math.floor(v * 56)];
 }
 
+function posterArt(x, y, w, h) {
+  const u = x / w;
+  const v = y / h;
+  const band = Math.sin(u * 8 + v * 3) * 0.12;
+  const sky = 0.42 + band + hash(x, y) * 0.05;
+  const r = Math.floor(lerp(40, 120, sky) * 2.1);
+  const g = Math.floor(lerp(90, 180, sky + v * 0.08) * 2.1);
+  const b = Math.floor(lerp(160, 230, 1 - sky) * 2.1);
+  return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
+}
+
+function canvasAbstract(x, y, w, h) {
+  const u = x / w;
+  const v = y / h;
+  const swirl = Math.sin(u * 14 + v * 11) * 0.18 + Math.cos(u * 9 - v * 13) * 0.12;
+  const base = 0.55 + swirl + hash(x * 2, y * 2) * 0.08;
+  const r = Math.floor(lerp(180, 240, base) * 2.2);
+  const g = Math.floor(lerp(120, 200, 1 - base) * 2.0);
+  const b = Math.floor(lerp(90, 160, base + u * 0.2) * 2.0);
+  return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
+}
+
+function carpetWeave(x, y, w, h) {
+  const u = x / w;
+  const v = y / h;
+  const weave = (Math.sin(u * 48) + Math.sin(v * 48)) * 0.06;
+  const n = hash(x, y) * 0.05;
+  const shade = 0.62 + weave + n;
+  const r = Math.floor(shade * 195);
+  const g = Math.floor(shade * 165);
+  const b = Math.floor(shade * 130);
+  return [r, g, b];
+}
+
 const TEXTURE_DEFS = [
   { id: "wood", size: 512, paint: (x, y, w, h) => woodGrain(x, y, w, h) },
   { id: "fabric", size: 512, paint: (x, y, w, h) => fabricWeave(x, y, w, h) },
@@ -108,6 +142,9 @@ const TEXTURE_DEFS = [
     const c = Math.floor(v * 140);
     return [c, c + 12, c + 22];
   }},
+  { id: "poster", size: 256, paint: (x, y, w, h) => posterArt(x, y, w, h) },
+  { id: "canvas", size: 256, paint: (x, y, w, h) => canvasAbstract(x, y, w, h) },
+  { id: "carpet", size: 512, paint: (x, y, w, h) => carpetWeave(x, y, w, h) },
 ];
 
 export function generateFurnitureTextures(outDir) {
