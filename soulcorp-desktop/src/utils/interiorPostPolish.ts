@@ -12,6 +12,18 @@ export interface InteriorLightingPreset {
   hemisphereGround: number;
 }
 
+/** B4 studioClarity — design studio viewport (SSAO + crisp walls). */
+export function studioClarityLightingPreset(): InteriorLightingPreset {
+  return {
+    ambientIntensity: 0.78,
+    keyIntensity: 1.2,
+    keyColor: 0xfff0d8,
+    zoneLightIntensity: 1.1,
+    hemisphereSky: 0xfff4e8,
+    hemisphereGround: 0xd4b896,
+  };
+}
+
 export function interiorLightingPreset(lighting: OfficeLighting): InteriorLightingPreset {
   switch (lighting) {
     case "warm":

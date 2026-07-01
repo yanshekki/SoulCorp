@@ -8,6 +8,7 @@ import type { Building } from "../../types/world";
 import {
   applyInteriorPan,
   applyOrbitToCamera,
+  applyOrbitToPerspectiveCamera,
   clampInteriorZoom,
   createGameInteriorOrbit,
   interiorFrustumForOrbit,
@@ -149,6 +150,10 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
   const setActiveZone = useDesignStudioStore((state) => state.setActiveZone);
   const setPlaceCatalogId = useDesignStudioStore((state) => state.setPlaceCatalogId);
   const updateFurniture = useDesignStudioStore((state) => state.updateFurniture);
+  const studioPerspectiveCamera = useDesignStudioStore((state) => state.studioPerspectiveCamera);
+  const setStudioPerspectiveCamera = useDesignStudioStore((state) => state.setStudioPerspectiveCamera);
+  const studioPerspectiveRef = useRef(studioPerspectiveCamera);
+  studioPerspectiveRef.current = studioPerspectiveCamera;
 
   const buildingId = selectedBuildingId ?? buildings[0]?.id ?? "hq";
   const buildingName =
@@ -200,7 +205,11 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
         const delta = Math.min((now - lastFrameRef.current) / 1000, 0.05);
         lastFrameRef.current = now;
         handles.tick(delta, previewAgents);
-        applyOrbitToCamera(handles.camera, orbit, officeZ);
+        if (studioPerspectiveRef.current && handles.camera instanceof THREE.PerspectiveCamera) {
+          applyOrbitToPerspectiveCamera(handles.camera, orbit, officeZ);
+        } else if (handles.camera instanceof THREE.OrthographicCamera) {
+          applyOrbitToCamera(handles.camera, orbit, officeZ);
+        }
         handles.syncCamera(
           previewOffice,
           viewWidth,
@@ -246,6 +255,7 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
       pixelAgents: pixelFilter,
       cozyEffects: false,
       clarityMode: true,
+      perspectiveMode: studioPerspectiveCamera,
     });
     const building = fallbackBuilding(buildingId, buildings);
     setSceneLoading(true);
@@ -262,7 +272,16 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
     previewAgents,
     previewOffice,
     signature,
+    studioPerspectiveCamera,
   ]);
+
+  useEffect(() => {
+    sceneRef.current?.setVisualStyle({
+      clarityMode: true,
+      cozyEffects: false,
+      perspectiveMode: studioPerspectiveCamera,
+    });
+  }, [studioPerspectiveCamera]);
 
   useEffect(() => {
     const handles = sceneRef.current;
@@ -501,16 +520,36 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
       className={`design-interior-viewport${compact ? " design-interior-viewport--compact" : ""}`}
       ref={containerRef}
     >
-      {compact ? null : (
-        <header className="design-interior-viewport-header">
+      <header
+        className={`design-interior-viewport-header${compact ? " design-interior-viewport-header--compact" : ""}`}
+      >
+        {compact ? (
+          <span className="design-interior-viewport-label">3D · SSAO</span>
+        ) : (
           <div>
             <h2>{buildingName} — 3D 預覽</h2>
             <p className="muted">
-              跟平面圖即時同步 · 3D 可拖放傢俬 · 拖曳平移 · 滾輪縮放 · 右鍵旋轉
+              studioClarity · 3D 可拖放傢俬 · 拖曳平移 · 滾輪縮放 · 右鍵旋轉
             </p>
           </div>
-        </header>
-      )}
+        )}
+        <div className="design-interior-camera-toggle" role="group" aria-label="Camera mode">
+          <button
+            type="button"
+            className={!studioPerspectiveCamera ? "active" : ""}
+            onClick={() => setStudioPerspectiveCamera(false)}
+          >
+            等角
+          </button>
+          <button
+            type="button"
+            className={studioPerspectiveCamera ? "active" : ""}
+            onClick={() => setStudioPerspectiveCamera(true)}
+          >
+            透視
+          </button>
+        </div>
+      </header>
       <div
         className={`design-interior-canvas-wrap${pixelFilter ? " design-interior-canvas-wrap--pixel" : ""}`}
       >

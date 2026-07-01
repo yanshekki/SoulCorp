@@ -10,9 +10,11 @@ import {
 } from "../../types/visualDesign";
 import {
   applyOrbitToCamera,
+  applyOrbitToPerspectiveCamera,
   createGameInteriorOrbit,
   defaultInteriorFrustum,
   interiorSceneFocusZ,
+  STUDIO_PERSPECTIVE_FOV,
 } from "../../utils/interiorCamera";
 import { snapPosition } from "../../utils/furnitureEditor";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
@@ -22,8 +24,13 @@ import {
   applyInteriorScenePolish,
   configureInteriorRenderer,
   interiorLightingPreset,
+  studioClarityLightingPreset,
 } from "../../utils/interiorPostPolish";
-import { createInteriorPostPipeline, type InteriorPostPipeline } from "../../utils/interiorPostPipeline";
+import {
+  createInteriorPostPipeline,
+  createStudioInteriorPostPipeline,
+  type InteriorPostPipeline,
+} from "../../utils/interiorPostPipeline";
 import { collectInteriorWalls, updateInteriorWallFade } from "../../utils/interiorWallFade";
 import {
   createInteriorPixelAgent,
@@ -49,8 +56,10 @@ export interface InteriorVisualStyle {
   pixelAgents: boolean;
   cozyEffects: boolean;
   crtFilter: boolean;
-  /** Design studio: crisp walls, no bloom/vignette haze. */
+  /** Design studio: crisp walls, SSAO + studioClarity lighting. */
   clarityMode?: boolean;
+  /** Design studio: 42° perspective camera instead of orthographic. */
+  perspectiveMode?: boolean;
 }
 
 export interface FloorHit {
@@ -75,7 +84,7 @@ interface ShellMeta {
 
 export interface InteriorSceneHandles {
   scene: THREE.Scene;
-  camera: THREE.OrthographicCamera;
+  camera: THREE.Camera;
   renderer: THREE.WebGLRenderer;
   root: THREE.Group;
   agentMeshes: Map<string, InteriorAgentVisual>;
@@ -215,6 +224,13 @@ export function createInteriorScene(
   camera.position.set(5.5, 7, 5.5);
   camera.lookAt(0, 0.75, 0);
 
+  const perspectiveCamera = new THREE.PerspectiveCamera(STUDIO_PERSPECTIVE_FOV, aspect, 0.1, 200);
+  perspectiveCamera.position.set(5.5, 4.2, 5.5);
+  perspectiveCamera.lookAt(0, 1.05, 0);
+
+  let perspectiveMode = false;
+  let activeCamera: THREE.Camera = camera;
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -242,6 +258,7 @@ export function createInteriorScene(
     cozyEffects: true,
     crtFilter: false,
     clarityMode: false,
+    perspectiveMode: false,
   };
   let lastRebuildContext: {
     building: Building;
@@ -250,14 +267,21 @@ export function createInteriorScene(
     records: AgentRecord[];
     companyName: string;
   } | null = null;
-  let postPipeline: InteriorPostPipeline | null = createInteriorPostPipeline(
-    renderer,
-    scene,
-    camera,
-    width,
-    height,
-  );
-  postPipeline.setCrtEnabled(visualStyle.crtFilter && visualStyle.cozyEffects);
+  let postPipeline: InteriorPostPipeline | null = null;
+
+  const rebuildPostPipeline = () => {
+    postPipeline?.dispose();
+    if (visualStyle.clarityMode) {
+      postPipeline = createStudioInteriorPostPipeline(renderer, scene, activeCamera, width, height);
+      return;
+    }
+    const cozy = createInteriorPostPipeline(renderer, scene, activeCamera, width, height);
+    cozy.setEnabled(visualStyle.cozyEffects);
+    cozy.setCrtEnabled(visualStyle.crtFilter && visualStyle.cozyEffects);
+    postPipeline = cozy;
+  };
+
+  rebuildPostPipeline();
   const furnitureObjects: THREE.Object3D[] = [];
   const zoneLights: THREE.PointLight[] = [];
   let interiorWalls: THREE.Mesh[] = [];
@@ -325,7 +349,11 @@ export function createInteriorScene(
     const orbit = createGameInteriorOrbit(office);
     cameraFrustum = orbit.frustum / orbit.zoom;
     applyCameraFrustum(width / Math.max(height, 1));
-    applyOrbitToCamera(camera, orbit, interiorSceneFocusZ());
+    if (perspectiveMode) {
+      applyOrbitToPerspectiveCamera(perspectiveCamera, orbit, interiorSceneFocusZ());
+    } else {
+      applyOrbitToCamera(camera, orbit, interiorSceneFocusZ());
+    }
   };
 
   const rebuild = async (
@@ -339,7 +367,9 @@ export function createInteriorScene(
     const generation = rebuildGeneration;
     const office = normalizeOfficeVisual(rawOffice, building.id);
     applyInteriorScenePolish(scene, office);
-    const lighting = interiorLightingPreset(office.lighting);
+    const lighting = visualStyle.clarityMode
+      ? studioClarityLightingPreset()
+      : interiorLightingPreset(office.lighting);
     ambient.intensity = lighting.ambientIntensity;
     ambient.color.setHex(lighting.hemisphereSky);
     key.intensity = lighting.keyIntensity;
@@ -486,20 +516,25 @@ export function createInteriorScene(
 
   return {
     scene,
-    camera,
+    get camera() {
+      return activeCamera;
+    },
     renderer,
     root,
     agentMeshes,
     furnitureObjects,
     exitDoor,
     resize(nextWidth, nextHeight) {
-      applyCameraFrustum(nextWidth / Math.max(nextHeight, 1));
+      const nextAspect = nextWidth / Math.max(nextHeight, 1);
+      applyCameraFrustum(nextAspect);
+      perspectiveCamera.aspect = nextAspect;
+      perspectiveCamera.updateProjectionMatrix();
       renderer.setSize(nextWidth, nextHeight, false);
       postPipeline?.resize(nextWidth, nextHeight);
     },
     rebuild,
     raycastAgent(nx, ny) {
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
       const groups = Array.from(agentMeshes.values()).map((entry) => entry.group);
       const hits = raycaster.intersectObjects(groups, true);
       for (const hit of hits) {
@@ -514,7 +549,7 @@ export function createInteriorScene(
       return null;
     },
     raycastDesk(nx, ny) {
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
       const desks = furnitureObjects.filter((object) => object.userData.isDesk === true);
       const hits = raycaster.intersectObjects(desks, true);
       if (hits.length === 0) {
@@ -533,7 +568,7 @@ export function createInteriorScene(
       if (!shellMeta) {
         return null;
       }
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
       const hits = raycaster.intersectObjects(furnitureObjects, true);
       if (hits.length === 0) {
         return null;
@@ -557,7 +592,7 @@ export function createInteriorScene(
       if (!shellMeta) {
         return null;
       }
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
       const hit = new THREE.Vector3();
       if (!raycaster.ray.intersectPlane(floorPlane, hit)) {
         return null;
@@ -576,7 +611,7 @@ export function createInteriorScene(
       if (!exitDoor) {
         return false;
       }
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
       const hits = raycaster.intersectObject(exitDoor, false);
       return hits.length > 0;
     },
@@ -663,18 +698,35 @@ export function createInteriorScene(
     setVisualStyle(style) {
       const nextPixel = style.pixelAgents ?? visualStyle.pixelAgents;
       const nextClarity = style.clarityMode ?? visualStyle.clarityMode ?? false;
+      const nextPerspective = style.perspectiveMode ?? visualStyle.perspectiveMode ?? false;
       const nextCozy = nextClarity ? false : (style.cozyEffects ?? visualStyle.cozyEffects);
       const nextCrt = nextClarity ? false : (style.crtFilter ?? visualStyle.crtFilter);
       const pixelChanged = nextPixel !== visualStyle.pixelAgents;
+      const clarityChanged = nextClarity !== visualStyle.clarityMode;
+      const perspectiveChanged = nextPerspective !== visualStyle.perspectiveMode;
       visualStyle = {
         pixelAgents: nextPixel,
         cozyEffects: nextCozy,
         crtFilter: nextCrt,
         clarityMode: nextClarity,
+        perspectiveMode: nextPerspective,
       };
-      postPipeline?.setEnabled(nextCozy);
-      postPipeline?.setCrtEnabled(nextCrt && nextCozy);
+      perspectiveMode = nextPerspective;
+      activeCamera = perspectiveMode ? perspectiveCamera : camera;
+      if (clarityChanged || perspectiveChanged) {
+        rebuildPostPipeline();
+      } else if (!nextClarity && postPipeline && "setEnabled" in postPipeline) {
+        postPipeline.setEnabled(nextCozy);
+        postPipeline.setCrtEnabled(nextCrt && nextCozy);
+      }
       if (nextClarity) {
+        const studioLight = studioClarityLightingPreset();
+        ambient.intensity = studioLight.ambientIntensity;
+        key.intensity = studioLight.keyIntensity;
+        key.color.setHex(studioLight.keyColor);
+        zoneLights.forEach((light) => {
+          light.intensity = studioLight.zoneLightIntensity;
+        });
         for (const wall of interiorWalls) {
           const material = wall.material;
           if (material instanceof THREE.MeshStandardMaterial) {
@@ -684,7 +736,10 @@ export function createInteriorScene(
           }
         }
       }
-      if (pixelChanged && lastRebuildContext) {
+      if ((clarityChanged || perspectiveChanged) && lastRebuildContext) {
+        const ctx = lastRebuildContext;
+        void rebuild(ctx.building, ctx.office, ctx.agents, ctx.records, ctx.companyName);
+      } else if (pixelChanged && lastRebuildContext) {
         const ctx = lastRebuildContext;
         void rebuild(ctx.building, ctx.office, ctx.agents, ctx.records, ctx.companyName);
       }
@@ -693,13 +748,19 @@ export function createInteriorScene(
       postPipeline?.render();
     },
     syncCamera(office, viewWidth, viewHeight, frustum) {
+      const aspect = viewWidth / Math.max(viewHeight, 1);
+      if (perspectiveMode) {
+        perspectiveCamera.aspect = aspect;
+        perspectiveCamera.updateProjectionMatrix();
+        return;
+      }
       if (frustum !== undefined) {
         cameraFrustum = frustum;
       } else {
         const orbit = createGameInteriorOrbit(office);
         cameraFrustum = orbit.frustum / orbit.zoom;
       }
-      applyCameraFrustum(viewWidth / Math.max(viewHeight, 1));
+      applyCameraFrustum(aspect);
     },
     tick(_delta, agents) {
       const phase = performance.now() * 0.004;
@@ -708,9 +769,9 @@ export function createInteriorScene(
 
       if (!visualStyle.clarityMode && shellMeta && interiorWalls.length > 0) {
         const viewDir = new THREE.Vector3();
-        camera.getWorldDirection(viewDir);
-        const wallFocus = camera.position.clone().add(viewDir.multiplyScalar(8));
-        updateInteriorWallFade(interiorWalls, camera, wallFocus);
+        activeCamera.getWorldDirection(viewDir);
+        const wallFocus = activeCamera.position.clone().add(viewDir.multiplyScalar(8));
+        updateInteriorWallFade(interiorWalls, activeCamera, wallFocus);
       }
 
       furnitureObjects.forEach((object) => {

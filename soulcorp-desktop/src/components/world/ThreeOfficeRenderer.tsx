@@ -323,13 +323,16 @@ export function ThreeOfficeRenderer({
             state.clearInteriorZoomNudge();
             state.setCameraTransition(1);
           }
-          updateInteriorCamera(
-            interiorRef.current.camera,
-            office,
-            orbit,
-            state.cameraTransition,
-            delta,
-          );
+          const interiorCamera = interiorRef.current.camera;
+          if (interiorCamera instanceof THREE.OrthographicCamera) {
+            updateInteriorCamera(
+              interiorCamera,
+              office,
+              orbit,
+              state.cameraTransition,
+              delta,
+            );
+          }
           interiorRef.current.syncCamera(
             office,
             viewWidth,

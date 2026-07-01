@@ -103,6 +103,23 @@ export function createDefaultOrbit(office: OfficeVisualConfig): InteriorOrbitSta
   };
 }
 
+export const STUDIO_PERSPECTIVE_FOV = 42;
+
+export function applyOrbitToPerspectiveCamera(
+  camera: THREE.PerspectiveCamera,
+  orbit: InteriorOrbitState,
+  lookAtZ: number = interiorSceneFocusZ(),
+): void {
+  const dist = 9.2 / orbit.zoom;
+  const focusX = orbit.panX;
+  const focusZ = lookAtZ + orbit.panZ;
+  const x = focusX + Math.cos(orbit.azimuth) * dist;
+  const z = focusZ + Math.sin(orbit.azimuth) * dist;
+  const y = 2.8 + orbit.elevation * 5.2;
+  camera.position.set(x, y, z);
+  camera.lookAt(focusX, 1.05, focusZ);
+}
+
 export function applyOrbitToCamera(
   camera: THREE.OrthographicCamera,
   orbit: InteriorOrbitState,

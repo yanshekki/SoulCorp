@@ -15,6 +15,8 @@ import { CORE_FURNITURE_ASSET_IDS } from "../data/coreFurnitureAssets";
 import { catalogEntryIcon, getCatalogEntry } from "../data/furnitureCatalog";
 import { normalizeOfficeVisual } from "../utils/officeVisualNormalize";
 import { withPreviewDecor } from "../utils/previewOfficeDecor";
+import { studioClarityLightingPreset } from "../utils/interiorPostPolish";
+import { STUDIO_PERSPECTIVE_FOV } from "../utils/interiorCamera";
 import { floorKitLabel } from "../utils/roomKitTextures";
 import { floorTextureRepeat } from "../utils/interiorScale";
 import { formatFootprintDimensions } from "../utils/furniturePlanSilhouette";
@@ -159,6 +161,13 @@ export function runAcceptanceTests(): AcceptanceResult[] {
       floorKitLabel("startup_warm") === "oak plank",
     ),
   );
+  results.push(
+    assert(
+      "B4 studioClarity ambient intensity",
+      studioClarityLightingPreset().ambientIntensity === 0.78,
+    ),
+  );
+  results.push(assert("B4 perspective FOV 42°", STUDIO_PERSPECTIVE_FOV === 42));
   results.push(
     assert(
       "catalog icons resolve",

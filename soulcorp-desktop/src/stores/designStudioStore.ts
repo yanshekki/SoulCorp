@@ -18,6 +18,8 @@ interface DesignStudioStore {
   selectedFurnitureId: string | null;
   activeZone: InteriorZone;
   placeCatalogId: string | null;
+  /** B4: perspective camera in design studio 3D viewport */
+  studioPerspectiveCamera: boolean;
   dirty: boolean;
   saving: boolean;
   undoStack: CompanyVisualDesign[];
@@ -33,6 +35,7 @@ interface DesignStudioStore {
   setSelectedFurnitureId: (furnitureId: string | null) => void;
   setActiveZone: (zone: InteriorZone) => void;
   setPlaceCatalogId: (catalogId: string | null) => void;
+  setStudioPerspectiveCamera: (enabled: boolean) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
   resetDraft: () => void;
@@ -51,6 +54,7 @@ export const useDesignStudioStore = create<DesignStudioStore>((set, get) => ({
   selectedFurnitureId: null,
   activeZone: "office",
   placeCatalogId: null,
+  studioPerspectiveCamera: false,
   dirty: false,
   saving: false,
   undoStack: [],
@@ -110,6 +114,7 @@ export const useDesignStudioStore = create<DesignStudioStore>((set, get) => ({
   setActiveZone: (activeZone) => set({ activeZone }),
   setPlaceCatalogId: (placeCatalogId) =>
     set({ placeCatalogId, selectedFurnitureId: placeCatalogId ? null : get().selectedFurnitureId }),
+  setStudioPerspectiveCamera: (studioPerspectiveCamera) => set({ studioPerspectiveCamera }),
   setDirty: (dirty) => set({ dirty }),
   setSaving: (saving) => set({ saving }),
   resetDraft: () =>

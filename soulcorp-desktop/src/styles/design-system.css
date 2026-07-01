@@ -3001,6 +3001,53 @@ body.workspace-resizing {
   padding: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.design-interior-viewport-header--compact {
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+}
+
+.design-interior-viewport-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.design-interior-camera-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.design-interior-camera-toggle button {
+  appearance: none;
+  border: none;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-control);
+  color: var(--text-secondary);
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.design-interior-camera-toggle button:last-child {
+  border-right: none;
+}
+
+.design-interior-camera-toggle button:hover {
+  background: var(--bg-control-hover);
+  color: var(--text-primary);
+}
+
+.design-interior-camera-toggle button.active {
+  background: var(--accent-muted);
+  color: var(--accent-hover);
 }
 
 .design-floor-plan-header h2,
