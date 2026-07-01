@@ -14,10 +14,25 @@ import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useGameStore } from "./stores/gameStore";
+import type { SidebarPanel } from "./types/game";
 import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
 import "./styles/startup-warm-ui.css";
+
+/** Only Office needs the live WebGL campus — avoids GPU churn when opening Settings etc. */
+const GAME_SCENE_PANELS = new Set<SidebarPanel>(["office"]);
+
+function InspectorStagePlaceholder() {
+  return (
+    <div className="app-stage-placeholder">
+      <p className="muted">
+        Settings and business panels use the left sidebar. Open <strong>Office</strong> for the 3D
+        campus view.
+      </p>
+    </div>
+  );
+}
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);
@@ -61,8 +76,10 @@ function App() {
             <WorkspaceShell />
           ) : activePanel === "design_studio" ? (
             <DesignStudioPage />
-          ) : (
+          ) : GAME_SCENE_PANELS.has(activePanel) ? (
             <GameScene />
+          ) : (
+            <InspectorStagePlaceholder />
           )}
         </ShellLayout>
         <BuildingModal />

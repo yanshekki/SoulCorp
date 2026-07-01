@@ -1639,6 +1639,19 @@ body.workspace-resizing {
   min-height: 0;
 }
 
+.app-stage-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 12rem;
+  padding: var(--space-6);
+  text-align: center;
+  background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-subtle);
+}
+
 .scene-hint {
   position: absolute;
   bottom: var(--space-4);

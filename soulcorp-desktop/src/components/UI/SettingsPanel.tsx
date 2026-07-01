@@ -245,7 +245,7 @@ export function SettingsPanel() {
           <li>Pure Local Mode disables hub sync and marketplace calls.</li>
           <li>
             Auto-backup writes to the local exports folder every{" "}
-            {settings.backup_interval_minutes || "—"} minutes.
+            {settings.backup_interval_minutes ?? "—"} minutes.
           </li>
           <li>Low power mode uses map view and slower simulation ticks.</li>
         </ul>
@@ -392,7 +392,7 @@ export function SettingsPanel() {
           type="number"
           min={0}
           max={1440}
-          value={settings.backup_interval_minutes}
+          value={settings.backup_interval_minutes ?? 30}
           onChange={(event) =>
             void updateSettings({
               backup_interval_minutes: Number(event.target.value),
@@ -577,7 +577,7 @@ export function SettingsPanel() {
           type="number"
           min={1}
           max={6}
-          value={settings.meeting_turns_per_agent}
+          value={settings.meeting_turns_per_agent ?? 3}
           onChange={(event) =>
             void updateSettings({ meeting_turns_per_agent: Number(event.target.value) })
           }
