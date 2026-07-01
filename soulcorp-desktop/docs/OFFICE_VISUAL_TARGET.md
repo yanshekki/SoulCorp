@@ -148,12 +148,26 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 
 ---
 
-## Phase 2 — Walk mode (in progress)
+## Acceptance (Phase 2) — **COMPLETE**
+
+Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase 2 complete gate`).
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | 42° perspective walk camera with office zone focus | ✅ `P2 walk FOV` + `P2 walk orbit focuses office zone` |
+| 2 | WASD / 方向鍵移動 + pan bounds | ✅ `P2 WASD walk keyboard moves pan` |
+| 3 | Zone auto-detect + jump (大堂/走廊/辦公區) | ✅ `P2 walk zone at pan` + `P2 zone jump pan for lobby` |
+| 4 | Wall peel min opacity 0.22 in walk mode | ✅ `P2 wall peel min opacity` |
+| 5 | playCozy lighting (studioClarity base) | ✅ `P2 playCozy matches studioClarity key` |
+
+### Phase 2 features
 
 | Feature | Implementation |
 |---------|----------------|
 | 42° perspective walk camera | `applyWalkToPerspectiveCamera` + `createWalkInteriorOrbit` |
-| Office zone focus | `officeZoneFocusPan` |
-| Wall peel | `WALL_PEEL_MIN_OPACITY` 0.22 + `walkPeel` in `updateInteriorWallFade` |
+| WASD / 方向鍵移動 | `interiorWalkControls` + keyboard in `ThreeOfficeRenderer` |
+| Zone focus + jump | `walkZoneAtPan` + 大堂/走廊/辦公區 buttons |
+| Wall peel | `WALL_PEEL_MIN_OPACITY` 0.22 + `walkPeel` |
+| playCozy lighting | `playCozyLightingPreset` (studioClarity base) |
 | UI toggle | Interior top bar **等角 / 漫遊** (play mode only) |
 | Build mode | Stays orthographic isometric |

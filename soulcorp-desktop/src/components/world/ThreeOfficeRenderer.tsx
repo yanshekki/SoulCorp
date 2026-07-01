@@ -30,6 +30,14 @@ import {
   snapIsometricAzimuth,
   type InteriorOrbitState,
 } from "../../utils/interiorCamera";
+import {
+  applyWalkKeyboardMove,
+  clampWalkPan,
+  emptyWalkKeys,
+  interiorZoneCenterPan,
+  walkZoneAtPan,
+  type WalkKeyState,
+} from "../../utils/interiorWalkControls";
 import { FURNITURE_CATALOG } from "../../data/furnitureCatalog";
 import { invalidateCampusNavGrid } from "../../utils/campusNavGrid";
 import { createCampusScene, type CampusSceneHandles } from "./campusScene";
@@ -155,6 +163,8 @@ export function ThreeOfficeRenderer({
     null,
   );
   const lastInteriorCameraModeRef = useRef<"iso" | "walk">("iso");
+  const walkKeysRef = useRef<WalkKeyState>(emptyWalkKeys());
+  const lastWalkZoneRef = useRef<import("../../types/visualDesign").InteriorZone>("office");
   const interiorPanDragRef = useRef<InteriorPanDragState | null>(null);
   const lastInteriorBuildingRef = useRef<string | null>(null);
   const lastInteriorViewEpochRef = useRef(-1);
@@ -303,6 +313,12 @@ export function ThreeOfficeRenderer({
               state.interiorCameraMode === "walk"
                 ? createWalkInteriorOrbit(office)
                 : createGameInteriorOrbit(office);
+            if (state.interiorCameraMode === "walk") {
+              lastWalkZoneRef.current = "office";
+              interiorRef.current.setFocusZone("office");
+              state.setInteriorWalkZone("office");
+              walkKeysRef.current = emptyWalkKeys();
+            }
           }
           const sig = JSON.stringify({
             layout: INTERIOR_LAYOUT_VERSION,
@@ -345,6 +361,27 @@ export function ThreeOfficeRenderer({
             orbit.zoom = clampInteriorZoom(orbit.zoom + state.interiorZoomNudge);
             state.clearInteriorZoomNudge();
             state.setCameraTransition(1);
+          }
+          if (walkMode && state.interiorWalkFocusZone) {
+            const pan = interiorZoneCenterPan(office, state.interiorWalkFocusZone);
+            orbit.panX = pan.panX;
+            orbit.panZ = pan.panZ;
+            interiorRef.current.setFocusZone(state.interiorWalkFocusZone);
+            lastWalkZoneRef.current = state.interiorWalkFocusZone;
+            state.setInteriorWalkZone(state.interiorWalkFocusZone);
+            state.clearInteriorWalkFocusZone();
+          }
+          if (walkMode) {
+            if (applyWalkKeyboardMove(orbit, walkKeysRef.current, delta)) {
+              clampWalkPan(orbit, office);
+              state.setCameraTransition(1);
+            }
+            const walkZone = walkZoneAtPan(office, orbit.panX, orbit.panZ);
+            if (walkZone !== lastWalkZoneRef.current) {
+              lastWalkZoneRef.current = walkZone;
+              interiorRef.current.setFocusZone(walkZone);
+              state.setInteriorWalkZone(walkZone);
+            }
           }
           const interiorCamera = interiorRef.current.camera;
           if (walkMode && interiorCamera instanceof THREE.PerspectiveCamera) {
@@ -887,6 +924,53 @@ export function ThreeOfficeRenderer({
     window.addEventListener("wheel", onWindowWheel, { passive: false, capture: true });
     canvas.addEventListener("dblclick", onDoubleClick);
     canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+    const setWalkKey = (key: string, pressed: boolean) => {
+      const state = useGameStore.getState();
+      if (state.worldView !== "interior" || state.interiorCameraMode !== "walk") {
+        return;
+      }
+      const keys = walkKeysRef.current;
+      switch (key) {
+        case "w":
+        case "arrowup":
+          keys.forward = pressed;
+          break;
+        case "s":
+        case "arrowdown":
+          keys.back = pressed;
+          break;
+        case "a":
+        case "arrowleft":
+          keys.left = pressed;
+          break;
+        case "d":
+        case "arrowright":
+          keys.right = pressed;
+          break;
+        default:
+          break;
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      setWalkKey(event.key.toLowerCase(), true);
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      setWalkKey(event.key.toLowerCase(), false);
+    };
+
+    const onWindowBlur = () => {
+      walkKeysRef.current = emptyWalkKeys();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onWindowBlur);
     canvas.addEventListener("pointerleave", () => {
       useGameStore.getState().setHoveredDoorBuildingId(null);
       canvas.style.cursor = "default";
@@ -909,6 +993,10 @@ export function ThreeOfficeRenderer({
       canvas.removeEventListener("wheel", onWheel);
       window.removeEventListener("wheel", onWindowWheel, { capture: true });
       canvas.removeEventListener("dblclick", onDoubleClick);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onWindowBlur);
+      walkKeysRef.current = emptyWalkKeys();
       clearParticleBursts();
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);

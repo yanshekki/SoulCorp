@@ -14,7 +14,7 @@ import type {
   TierBenefits,
 } from "../types/game";
 import type { BuildMode, BuildTool } from "../types/buildMode";
-import type { CompanyVisualDesign, OfficeVisualConfig } from "../types/visualDesign";
+import type { CompanyVisualDesign, InteriorZone, OfficeVisualConfig } from "../types/visualDesign";
 import { EMPTY_VISUAL_DESIGN } from "../types/visualDesign";
 import type { Agent, Building, SimulationState } from "../types/world";
 
@@ -54,6 +54,8 @@ interface GameStore {
   interiorZoomNudge: number;
   /** Phase 2: iso overview vs walk perspective with wall peel */
   interiorCameraMode: InteriorCameraMode;
+  interiorWalkFocusZone: InteriorZone | null;
+  interiorWalkZone: InteriorZone;
   isPaused: boolean;
   simulation: SimulationState;
   finance: TokenEconomy;
@@ -86,6 +88,9 @@ interface GameStore {
   nudgeInteriorZoom: (delta: number) => void;
   clearInteriorZoomNudge: () => void;
   setInteriorCameraMode: (mode: InteriorCameraMode) => void;
+  requestInteriorWalkZone: (zone: InteriorZone) => void;
+  clearInteriorWalkFocusZone: () => void;
+  setInteriorWalkZone: (zone: InteriorZone) => void;
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   setSimulation: (simulation: Partial<SimulationState>) => void;
@@ -143,6 +148,8 @@ export const useGameStore = create<GameStore>((set) => ({
   interiorViewEpoch: 0,
   interiorZoomNudge: 0,
   interiorCameraMode: "iso",
+  interiorWalkFocusZone: null,
+  interiorWalkZone: "office",
   isPaused: true,
   simulation: {
     tick: 0,
@@ -228,6 +235,7 @@ export const useGameStore = create<GameStore>((set) => ({
       selectedAgentId: null,
       inspectorExpanded: false,
       interiorCameraMode: "iso",
+      interiorWalkFocusZone: null,
     })),
   exitInterior: () =>
     set({
@@ -235,6 +243,7 @@ export const useGameStore = create<GameStore>((set) => ({
       interiorBuildingId: null,
       cameraTransition: 1,
       interiorCameraMode: "iso",
+      interiorWalkFocusZone: null,
       buildMode: "play",
       buildTool: "place",
       buildCatalogId: null,
@@ -310,7 +319,11 @@ export const useGameStore = create<GameStore>((set) => ({
     set((state) => ({ interiorZoomNudge: state.interiorZoomNudge + delta })),
   clearInteriorZoomNudge: () => set({ interiorZoomNudge: 0 }),
   setInteriorCameraMode: (interiorCameraMode) =>
-    set({ interiorCameraMode, cameraTransition: 0 }),
+    set({ interiorCameraMode, cameraTransition: 0, interiorWalkFocusZone: null }),
+  requestInteriorWalkZone: (interiorWalkFocusZone) =>
+    set({ interiorWalkFocusZone, cameraTransition: 0 }),
+  clearInteriorWalkFocusZone: () => set({ interiorWalkFocusZone: null }),
+  setInteriorWalkZone: (interiorWalkZone) => set({ interiorWalkZone }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setIsPaused: (paused) => set({ isPaused: paused }),
   setSimulation: (simulation) =>

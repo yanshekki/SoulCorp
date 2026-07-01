@@ -24,6 +24,20 @@ export function studioClarityLightingPreset(): InteriorLightingPreset {
   };
 }
 
+/** Phase 2 playCozy — studioClarity base + theme tint (in-game walk). */
+export function playCozyLightingPreset(lighting: OfficeLighting): InteriorLightingPreset {
+  const studio = studioClarityLightingPreset();
+  const themed = interiorLightingPreset(lighting);
+  return {
+    ambientIntensity: Math.max(studio.ambientIntensity * 0.96, themed.ambientIntensity),
+    keyIntensity: studio.keyIntensity,
+    keyColor: themed.keyColor,
+    zoneLightIntensity: studio.zoneLightIntensity,
+    hemisphereSky: themed.hemisphereSky,
+    hemisphereGround: themed.hemisphereGround,
+  };
+}
+
 export function interiorLightingPreset(lighting: OfficeLighting): InteriorLightingPreset {
   switch (lighting) {
     case "warm":

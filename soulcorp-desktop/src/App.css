@@ -1256,6 +1256,36 @@
   flex-shrink: 0;
 }
 
+.interior-walk-zones {
+  display: inline-flex;
+  gap: 0.2rem;
+  pointer-events: auto;
+}
+
+.interior-walk-zones button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(246, 241, 232, 0.78);
+  padding: 0.24rem 0.48rem;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.interior-walk-zones button:hover {
+  background: rgba(94, 200, 255, 0.16);
+  color: #f6f1e8;
+}
+
+.interior-walk-zones button.active {
+  background: rgba(94, 200, 255, 0.28);
+  border-color: rgba(94, 200, 255, 0.45);
+  color: #e8f7ff;
+}
+
 .interior-camera-toggle {
   display: inline-flex;
   border: 1px solid rgba(255, 255, 255, 0.22);

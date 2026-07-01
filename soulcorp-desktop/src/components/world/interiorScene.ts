@@ -30,6 +30,7 @@ import {
   applyInteriorScenePolish,
   configureInteriorRenderer,
   interiorLightingPreset,
+  playCozyLightingPreset,
   studioClarityLightingPreset,
 } from "../../utils/interiorPostPolish";
 import {
@@ -894,11 +895,26 @@ export function createInteriorScene(
       };
       perspectiveMode = nextPerspective;
       activeCamera = perspectiveMode ? perspectiveCamera : camera;
-      if (nextWalk) {
-        focusZone = "office";
-        if (shellMeta) {
+      if (nextWalk && shellMeta) {
+        const cozy = playCozyLightingPreset(shellMeta.office.lighting);
+        ambient.intensity = cozy.ambientIntensity;
+        key.intensity = cozy.keyIntensity;
+        key.color.setHex(cozy.keyColor);
+        zoneLights.forEach((light) => {
+          light.intensity = cozy.zoneLightIntensity;
+        });
+        if (walkChanged) {
+          focusZone = "office";
           focusPoint.set(0, 0.75, zoneCenterZ("office", shellMeta));
         }
+      } else if (walkChanged && !nextWalk && shellMeta) {
+        const themed = interiorLightingPreset(shellMeta.office.lighting);
+        ambient.intensity = themed.ambientIntensity;
+        key.intensity = themed.keyIntensity;
+        key.color.setHex(themed.keyColor);
+        zoneLights.forEach((light) => {
+          light.intensity = themed.zoneLightIntensity;
+        });
       }
       if (clarityChanged || perspectiveChanged) {
         rebuildPostPipeline();

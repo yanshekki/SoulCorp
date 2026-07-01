@@ -2,6 +2,7 @@ import { audioDirector } from "../../audio/AudioDirector";
 import { useGameStore } from "../../stores/gameStore";
 import { furnitureInteractionHint } from "../../utils/furnitureInteractions";
 import { tryExitInterior } from "../../utils/buildModeExit";
+import type { InteriorZone } from "../../types/visualDesign";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { BuildModeHud } from "./BuildModeHud";
 import { FurnitureDetailPanel } from "./FurnitureDetailPanel";
@@ -16,6 +17,8 @@ export function InteriorOverlay() {
   const nudgeInteriorZoom = useGameStore((state) => state.nudgeInteriorZoom);
   const interiorCameraMode = useGameStore((state) => state.interiorCameraMode);
   const setInteriorCameraMode = useGameStore((state) => state.setInteriorCameraMode);
+  const interiorWalkZone = useGameStore((state) => state.interiorWalkZone);
+  const requestInteriorWalkZone = useGameStore((state) => state.requestInteriorWalkZone);
   const selectedAgentId = useGameStore((state) => state.selectedAgentId);
   const selectedFurnitureId = useGameStore((state) => state.selectedFurnitureId);
   const hoveredFurnitureId = useGameStore((state) => state.hoveredFurnitureId);
@@ -29,6 +32,12 @@ export function InteriorOverlay() {
   const office = visualDesign.offices[interiorBuildingId];
   const hoveredItem = office?.furniture.find((item) => item.id === hoveredFurnitureId);
   const hoveredCatalogId = hoveredItem?.catalog_id ?? null;
+
+  const walkZones: Array<{ id: InteriorZone; label: string }> = [
+    { id: "lobby", label: "大堂" },
+    { id: "corridor", label: "走廊" },
+    { id: "office", label: "辦公區" },
+  ];
 
   const playHint =
     buildMode === "play"
@@ -50,11 +59,28 @@ export function InteriorOverlay() {
           ) : null}
           <span className="interior-topbar-hint muted">
             {interiorCameraMode === "walk"
-              ? "漫遊：右鍵旋轉 · 滾輪縮放 · 牆身自動透明"
+              ? "漫遊：WASD 移動 · 右鍵旋轉 · 滾輪縮放 · 牆身自動透明"
               : "等角：拖曳平移 · 滾輪縮放 · 右鍵旋轉 · 雙擊重設"}
           </span>
         </div>
         <div className="interior-topbar-actions">
+          {buildMode === "play" && interiorCameraMode === "walk" ? (
+            <div className="interior-walk-zones" role="group" aria-label="Walk zones">
+              {walkZones.map((zone) => (
+                <button
+                  key={zone.id}
+                  type="button"
+                  className={interiorWalkZone === zone.id ? "active" : ""}
+                  onClick={() => {
+                    audioDirector.playSfx("ui_click");
+                    requestInteriorWalkZone(zone.id);
+                  }}
+                >
+                  {zone.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {buildMode === "play" ? (
             <div className="interior-camera-toggle" role="group" aria-label="Camera mode">
               <button
