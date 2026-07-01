@@ -31,7 +31,7 @@ export function FurnitureCatalogPanel({ variant = "grid" }: FurnitureCatalogPane
     <section className="design-panel design-catalog-panel">
       <header>
         <h2>傢俬目錄</h2>
-        <p className="muted">預覽圖同 3D 用同一套模型。揀一件，再喺平面圖撳一下放置。</p>
+        <p className="muted">預覽圖同 3D 用同一套模型。揀一件，喺平面圖或 3D 撳一下放置。</p>
       </header>
 
       {variant === "chips"
@@ -103,7 +103,7 @@ export function FurnitureCatalogPanel({ variant = "grid" }: FurnitureCatalogPane
         <p className="design-catalog-place-hint muted">
           放置{" "}
           <strong>{FURNITURE_CATALOG.find((e) => e.id === placeCatalogId)?.label}</strong>{" "}
-          — 喺平面圖撳一下
+          — 平面或 3D 撳一下
         </p>
       ) : null}
     </section>

@@ -14,17 +14,15 @@ import { CampusDesignPanel } from "./CampusDesignPanel";
 import { DesignCategoryNav } from "./DesignCategoryNav";
 import { DesignPresetPicker } from "./DesignPresetPicker";
 import { DesignPreviewViewport } from "./DesignPreviewViewport";
-import { FurnitureCatalogPanel } from "./FurnitureCatalogPanel";
 import { InteriorDesignViewport } from "./InteriorDesignViewport";
-import { OfficeDesignPanel } from "./OfficeDesignPanel";
 import { OfficeFloorPlanEditor } from "./OfficeFloorPlanEditor";
 import {
-  OfficeStudioToolbar,
+  OfficeBuildToolbar,
   type OfficeDesignStep,
   type OfficeDrawerTab,
   type OfficeWorkspaceView,
-} from "./OfficeStudioToolbar";
-import { RoomDimensionsPanel } from "./RoomDimensionsPanel";
+} from "./OfficeBuildToolbar";
+import { OfficeInspectorPanel } from "./OfficeInspectorPanel";
 
 export function DesignStudioPage() {
   const category = useDesignStudioStore((state) => state.category);
@@ -144,31 +142,11 @@ export function DesignStudioPage() {
     }
     if (category === "offices") {
       return (
-        <>
-          <div className="design-drawer-tabs" role="tablist" aria-label="Office design panels">
-            {(
-              [
-                { id: "room", label: "房間大小" },
-                { id: "catalog", label: "傢俬" },
-                { id: "theme", label: "配色" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={officeDrawerTab === tab.id}
-                className={`design-drawer-tab${officeDrawerTab === tab.id ? " active" : ""}`}
-                onClick={() => setOfficeDrawerTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {officeDrawerTab === "catalog" ? <FurnitureCatalogPanel variant="grid" /> : null}
-          {officeDrawerTab === "room" ? <RoomDimensionsPanel /> : null}
-          {officeDrawerTab === "theme" ? <OfficeDesignPanel /> : null}
-        </>
+        <OfficeInspectorPanel
+          activeStep={officeActiveStep}
+          drawerTab={officeDrawerTab}
+          onDrawerTabChange={setOfficeDrawerTab}
+        />
       );
     }
     return null;
@@ -188,9 +166,11 @@ export function DesignStudioPage() {
       <header className="design-studio-header">
         <div>
           <p className="modal-eyebrow">3D Design Studio</p>
-          <h2>Design your company world</h2>
+          <h2>{category === "offices" ? "辦公室建造模式" : "Design your company world"}</h2>
           <p className="muted">
-            Customize campus theme, department buildings, office interiors, and agent appearances.
+            {category === "offices"
+              ? "分屏平面 + 3D · 揀傢俬、調房間、套用 StartupWarm 主題"
+              : "Customize campus theme, department buildings, office interiors, and agent appearances."}
           </p>
         </div>
         <div className="design-studio-header-actions">
@@ -212,11 +192,9 @@ export function DesignStudioPage() {
         <main className="design-studio-main">
           {category === "offices" ? (
             <div className="design-office-stage">
-              <OfficeStudioToolbar
+              <OfficeBuildToolbar
                 workspaceView={officeWorkspaceView}
                 activeStep={officeActiveStep}
-                drawerTab={officeDrawerTab}
-                drawerOpen={drawerOpen}
                 onWorkspaceViewChange={setOfficeWorkspaceView}
                 onActiveStepChange={setOfficeActiveStep}
                 onDrawerTabChange={setOfficeDrawerTab}

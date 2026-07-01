@@ -2806,11 +2806,110 @@ body.workspace-resizing {
 }
 
 .design-office-workspace--split {
-  grid-template-columns: minmax(260px, 0.44fr) minmax(0, 0.56fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .design-studio-page--offices .design-studio-drawer {
-  width: min(320px, 44vw);
+  width: min(340px, 38vw);
+}
+
+.design-office-build-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.office-inspector-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.office-inspector-card {
+  flex-shrink: 0;
+  margin: var(--space-2) var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.office-inspector-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.office-inspector-card-header h3 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.office-inspector-zone {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent-hover);
+}
+
+.office-inspector-title {
+  margin: 0 0 var(--space-2);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.office-inspector-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: 0.76rem;
+}
+
+.office-inspector-meta dt {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.office-inspector-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.office-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.office-inspector-card--place strong {
+  color: var(--accent-hover);
+}
+
+.office-inspector-card--hint {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.office-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.office-inspector-body .design-panel {
+  border-top: none;
 }
 
 .design-room-dim-row {

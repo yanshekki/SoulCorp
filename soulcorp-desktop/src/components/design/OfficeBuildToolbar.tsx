@@ -1,3 +1,4 @@
+import { useOfficeBuildActions } from "../../hooks/useOfficeBuildActions";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
 
@@ -5,11 +6,9 @@ export type OfficeDrawerTab = "catalog" | "room" | "theme";
 export type OfficeWorkspaceView = "3d" | "split" | "plan";
 export type OfficeDesignStep = "size" | "layout" | "preview";
 
-interface OfficeStudioToolbarProps {
+interface OfficeBuildToolbarProps {
   workspaceView: OfficeWorkspaceView;
   activeStep: OfficeDesignStep;
-  drawerTab: OfficeDrawerTab;
-  drawerOpen: boolean;
   onWorkspaceViewChange: (view: OfficeWorkspaceView) => void;
   onActiveStepChange: (step: OfficeDesignStep) => void;
   onDrawerTabChange: (tab: OfficeDrawerTab) => void;
@@ -32,30 +31,28 @@ const STEPS: Array<{
   },
   {
     id: "layout",
-    title: "2 · 平面佈置",
-    hint: "揀傢俬，喺平面圖撳一下放置",
-    view: "plan",
+    title: "2 · 佈置傢俬",
+    hint: "揀傢俬 · 平面或 3D 可放置同拖曳 · 分屏一齊改",
+    view: "split",
     drawerTab: "catalog",
   },
   {
     id: "preview",
-    title: "3 · 3D 預覽",
-    hint: "即時睇室內效果",
+    title: "3 · 預覽配色",
+    hint: "分屏同步 · 即時睇 StartupWarm 室內效果",
     view: "split",
     drawerTab: "theme",
   },
 ];
 
-export function OfficeStudioToolbar({
+export function OfficeBuildToolbar({
   workspaceView,
   activeStep,
-  drawerTab: _drawerTab,
-  drawerOpen: _drawerOpen,
   onWorkspaceViewChange,
   onActiveStepChange,
   onDrawerTabChange,
   onDrawerOpenChange,
-}: OfficeStudioToolbarProps) {
+}: OfficeBuildToolbarProps) {
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const setSelectedBuildingId = useDesignStudioStore((state) => state.setSelectedBuildingId);
@@ -64,6 +61,15 @@ export function OfficeStudioToolbar({
   const buildingId = selectedBuildingId ?? buildings[0]?.id ?? "hq";
   const building = buildings.find((entry) => entry.id === buildingId);
   const currentStep = STEPS.find((step) => step.id === activeStep) ?? STEPS[0];
+  const {
+    undo,
+    redo,
+    rotateSelected,
+    deleteSelected,
+    canUndo,
+    canRedo,
+    canEditSelection,
+  } = useOfficeBuildActions(buildingId, { keyboard: true });
 
   const activateStep = (step: (typeof STEPS)[number]) => {
     onActiveStepChange(step.id);
@@ -73,21 +79,50 @@ export function OfficeStudioToolbar({
   };
 
   return (
-    <div className="design-office-toolbar">
+    <header className="design-office-build-toolbar" aria-label="Office build toolbar">
       <div className="design-office-toolbar-top">
-        <label className="design-office-building-select">
-          <span className="design-office-toolbar-label">編輯邊間辦公室</span>
-          <select
-            value={buildingId}
-            onChange={(event) => setSelectedBuildingId(event.target.value)}
-          >
-            {buildings.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="design-office-toolbar-primary">
+          <label className="design-office-building-select">
+            <span className="design-office-toolbar-label">編輯邊間辦公室</span>
+            <select
+              value={buildingId}
+              onChange={(event) => setSelectedBuildingId(event.target.value)}
+            >
+              {buildings.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="design-office-toolbar-actions" aria-label="Build tools">
+            <button type="button" className="design-office-tool-btn" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+              ↶ 還原
+            </button>
+            <button type="button" className="design-office-tool-btn" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+              ↷ 重做
+            </button>
+            <span className="design-office-toolbar-divider" aria-hidden />
+            <button
+              type="button"
+              className="design-office-tool-btn"
+              onClick={rotateSelected}
+              disabled={!canEditSelection}
+              title="Rotate (R)"
+            >
+              ⟳ 旋轉
+            </button>
+            <button
+              type="button"
+              className="design-office-tool-btn"
+              onClick={deleteSelected}
+              disabled={!canEditSelection}
+              title="Delete"
+            >
+              ✕ 刪除
+            </button>
+          </div>
+        </div>
         <p className="design-office-step-hint">{currentStep.hint}</p>
       </div>
 
@@ -139,6 +174,6 @@ export function OfficeStudioToolbar({
           </button>
         </div>
       </div>
-    </div>
+    </header>
   );
 }

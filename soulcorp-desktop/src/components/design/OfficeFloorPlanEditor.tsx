@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { getCatalogEntry } from "../../data/furnitureCatalog";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
@@ -12,7 +12,6 @@ import {
   placeFromPlanPoint,
   planCoordsToItemPosition,
   pointInFurniturePlan,
-  rotateInstance,
   zoneAtPlanPoint,
   zoneDimensions,
   type FloorPlanZone,
@@ -60,10 +59,6 @@ export function OfficeFloorPlanEditor() {
   const setSelectedFurnitureId = useDesignStudioStore((state) => state.setSelectedFurnitureId);
   const setPlaceCatalogId = useDesignStudioStore((state) => state.setPlaceCatalogId);
   const updateFurniture = useDesignStudioStore((state) => state.updateFurniture);
-  const undo = useDesignStudioStore((state) => state.undo);
-  const redo = useDesignStudioStore((state) => state.redo);
-  const undoStack = useDesignStudioStore((state) => state.undoStack);
-  const redoStack = useDesignStudioStore((state) => state.redoStack);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
@@ -134,58 +129,6 @@ export function OfficeFloorPlanEditor() {
     },
     [buildingId, config, layout, setPlaceCatalogId, setSelectedFurnitureId, updateFurniture],
   );
-
-  const deleteSelected = useCallback(() => {
-    if (!selectedFurnitureId) {
-      return;
-    }
-    updateFurniture(buildingId, (items) => items.filter((item) => item.id !== selectedFurnitureId));
-    setSelectedFurnitureId(null);
-  }, [buildingId, selectedFurnitureId, setSelectedFurnitureId, updateFurniture]);
-
-  const rotateSelected = useCallback(() => {
-    if (!selectedFurnitureId) {
-      return;
-    }
-    const target = config.furniture.find((item) => item.id === selectedFurnitureId);
-    if (!target) {
-      return;
-    }
-    const result = rotateInstance(target, config);
-    if (!result.ok || !result.item) {
-      setPlacementHint(placementBlockedHint);
-      return;
-    }
-    updateFurniture(buildingId, (items) =>
-      items.map((item) => (item.id === result.item!.id ? result.item! : item)),
-    );
-    setPlacementHint(null);
-  }, [buildingId, config.furniture, selectedFurnitureId, updateFurniture]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (event.key === "Delete" || event.key === "Backspace") {
-        event.preventDefault();
-        deleteSelected();
-      }
-      if (event.key === "r" || event.key === "R") {
-        rotateSelected();
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key === "z") {
-        event.preventDefault();
-        if (event.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteSelected, redo, rotateSelected, undo]);
 
   const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     const point = clientToPlan(event.clientX, event.clientY);
@@ -299,20 +242,6 @@ export function OfficeFloorPlanEditor() {
           </button>
         ))}
         </div>
-        <div className="design-floor-plan-toolbar" aria-label="Floor plan tools">
-          <button type="button" onClick={undo} disabled={undoStack.length === 0} title="Undo">
-            ↶
-          </button>
-          <button type="button" onClick={redo} disabled={redoStack.length === 0} title="Redo">
-            ↷
-          </button>
-          <button type="button" onClick={rotateSelected} disabled={!selectedFurnitureId} title="Rotate (R)">
-            ⟳
-          </button>
-          <button type="button" onClick={deleteSelected} disabled={!selectedFurnitureId} title="Delete">
-            ✕
-          </button>
-        </div>
       </div>
 
       <svg
@@ -413,7 +342,7 @@ export function OfficeFloorPlanEditor() {
           <span className="design-floor-plan-status-warn">{placementHint}</span>
         ) : placeCatalogId ? (
           <span>
-            放置 <strong>{getCatalogEntry(placeCatalogId)?.label}</strong> — 喺平面圖撳一下
+            放置 <strong>{getCatalogEntry(placeCatalogId)?.label}</strong> — 平面或 3D 撳一下
           </span>
         ) : selectedLabel ? (
           <span>
@@ -427,7 +356,7 @@ export function OfficeFloorPlanEditor() {
             · 拖曳移動 · R 旋轉 · Delete 刪除
           </span>
         ) : (
-          <span>拖曳傢俬 · 喺右邊 panel 揀傢俬後撳平面圖放置</span>
+          <span>拖曳傢俬 · 頂部工具列還原/旋轉 · 右邊 panel 揀傢俬</span>
         )}
       </footer>
     </section>
