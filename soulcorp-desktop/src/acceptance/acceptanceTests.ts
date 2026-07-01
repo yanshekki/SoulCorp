@@ -15,6 +15,8 @@ import { CORE_FURNITURE_ASSET_IDS } from "../data/coreFurnitureAssets";
 import { catalogEntryIcon, getCatalogEntry } from "../data/furnitureCatalog";
 import { normalizeOfficeVisual } from "../utils/officeVisualNormalize";
 import { withPreviewDecor } from "../utils/previewOfficeDecor";
+import { floorKitLabel } from "../utils/roomKitTextures";
+import { floorTextureRepeat } from "../utils/interiorScale";
 import { formatFootprintDimensions } from "../utils/furniturePlanSilhouette";
 import { furnitureThumbnailPath } from "../utils/furnitureThumbnail";
 import { DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
@@ -143,6 +145,18 @@ export function runAcceptanceTests(): AcceptanceResult[] {
     assert(
       "A4 footprint dimension label format",
       formatFootprintDimensions([1.2, 0.75]) === "1.20 × 0.75 m",
+    ),
+  );
+  results.push(
+    assert(
+      "B3 floor texture 1m repeat",
+      floorTextureRepeat(3.6, 2.9).join(",") === "3.6,2.9",
+    ),
+  );
+  results.push(
+    assert(
+      "B3 StartupWarm oak plank kit",
+      floorKitLabel("startup_warm") === "oak plank",
     ),
   );
   results.push(

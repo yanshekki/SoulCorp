@@ -102,6 +102,7 @@ export function scaleFurnitureForGameRooms(
   });
 }
 
+/** 1 m world units per texture repeat (Phase B3 room kit). */
 export function floorTextureRepeat(width: number, depth: number): [number, number] {
-  return [Math.max(2, width / 1.2), Math.max(2, depth / 1.2)];
+  return [Math.max(1, width), Math.max(1, depth)];
 }

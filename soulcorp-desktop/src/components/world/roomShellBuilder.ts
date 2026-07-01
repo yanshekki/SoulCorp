@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import { getOfficeThemePack } from "../../data/officeThemePacks";
 import type { InteriorZone, OfficeVisualConfig, RoomDimensions } from "../../types/visualDesign";
-import { floorTextureRepeat } from "../../utils/interiorScale";
+import {
+  createBaseboardMaterial,
+  createRoomFloorTexture,
+  createWallPlasterMaterial,
+} from "../../utils/roomKitTextures";
 import { tagInteriorWall } from "../../utils/interiorWallFade";
 
 export interface RoomShellResult {
@@ -10,56 +14,6 @@ export interface RoomShellResult {
   lobbyGroup: THREE.Group;
   corridorGroup: THREE.Group;
   officeGroup: THREE.Group;
-}
-
-function wallMaterial(color: string): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.88, metalness: 0.02 });
-}
-
-function floorTexture(
-  zone: "lobby" | "corridor" | "office",
-  baseColor: string,
-  width: number,
-  depth: number,
-): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const tile = zone === "office" ? 8 : zone === "lobby" ? 16 : 12;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.fillStyle = baseColor;
-    ctx.fillRect(0, 0, 64, 64);
-    for (let y = 0; y < 64; y += tile) {
-      for (let x = 0; x < 64; x += tile) {
-        const alt = (x + y) % (tile * 2) === 0;
-        if (zone === "lobby") {
-          ctx.fillStyle = alt ? "#c4a574" : baseColor;
-        } else if (zone === "office") {
-          ctx.fillStyle = alt ? adjustHex(baseColor, -12) : baseColor;
-        } else {
-          ctx.fillStyle = alt ? adjustHex(baseColor, 8) : baseColor;
-        }
-        ctx.globalAlpha = zone === "corridor" ? 0.7 : 0.9;
-        ctx.fillRect(x, y, tile, tile);
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  const [repeatX, repeatZ] = floorTextureRepeat(width, depth);
-  texture.repeat.set(repeatX, repeatZ);
-  return texture;
-}
-
-function adjustHex(hex: string, amount: number): string {
-  const color = new THREE.Color(hex);
-  const hsl = { h: 0, s: 0, l: 0 };
-  color.getHSL(hsl);
-  color.setHSL(hsl.h, hsl.s, THREE.MathUtils.clamp(hsl.l + amount / 100, 0, 1));
-  return `#${color.getHexString()}`;
 }
 
 function lightingTint(office: OfficeVisualConfig): { window: string; intensity: number; opacity: number } {
@@ -74,56 +28,103 @@ function lightingTint(office: OfficeVisualConfig): { window: string; intensity: 
   }
 }
 
+const BASEBOARD_HEIGHT = 0.08;
+const BASEBOARD_DEPTH = 0.035;
+
+function addPerimeterBaseboards(
+  group: THREE.Group,
+  width: number,
+  depth: number,
+  accentColor: string,
+  options: { doorFront?: boolean; doorWidth?: number },
+): void {
+  const mat = createBaseboardMaterial(accentColor);
+  const halfW = width / 2;
+  const halfD = depth / 2;
+  const y = BASEBOARD_HEIGHT / 2;
+  const inset = BASEBOARD_DEPTH / 2 + 0.01;
+
+  const back = new THREE.Mesh(new THREE.BoxGeometry(width, BASEBOARD_HEIGHT, BASEBOARD_DEPTH), mat);
+  back.position.set(0, y, -halfD + inset);
+  back.userData.roomKit = "baseboard";
+  group.add(back);
+
+  const left = new THREE.Mesh(new THREE.BoxGeometry(BASEBOARD_DEPTH, BASEBOARD_HEIGHT, depth), mat);
+  left.position.set(-halfW + inset, y, 0);
+  left.userData.roomKit = "baseboard";
+  group.add(left);
+
+  const right = new THREE.Mesh(new THREE.BoxGeometry(BASEBOARD_DEPTH, BASEBOARD_HEIGHT, depth), mat);
+  right.position.set(halfW - inset, y, 0);
+  right.userData.roomKit = "baseboard";
+  group.add(right);
+
+  const doorWidth = options.doorWidth ?? 1.15;
+  if (options.doorFront) {
+    const sideWidth = (width - doorWidth) / 2;
+    if (sideWidth > 0.2) {
+      for (const sign of [-1, 1] as const) {
+        const segment = new THREE.Mesh(
+          new THREE.BoxGeometry(sideWidth, BASEBOARD_HEIGHT, BASEBOARD_DEPTH),
+          mat,
+        );
+        segment.position.set(sign * (doorWidth / 2 + sideWidth / 2), y, halfD - inset);
+        segment.userData.roomKit = "baseboard";
+        group.add(segment);
+      }
+    }
+  } else {
+    const front = new THREE.Mesh(new THREE.BoxGeometry(width, BASEBOARD_HEIGHT, BASEBOARD_DEPTH), mat);
+    front.position.set(0, y, halfD - inset);
+    front.userData.roomKit = "baseboard";
+    group.add(front);
+  }
+
+}
+
 function buildZoneBox(
   dims: RoomDimensions,
-  floorColor: string,
-  wallColor: string,
-  accentColor: string,
+  office: OfficeVisualConfig,
   zone: InteriorZone,
+  windowTint: ReturnType<typeof lightingTint>,
   options: { doorFront?: boolean; cutaway?: boolean; label?: string },
 ): THREE.Group {
   const group = new THREE.Group();
   const { width, depth, height } = dims;
   const halfW = width / 2;
   const halfD = depth / 2;
+  const wallColor = office.wall_color;
+  const accentColor = office.accent_color;
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({
-      map: floorTexture(zone, floorColor, width, depth),
-      roughness: zone === "lobby" ? 0.75 : 0.86,
-      metalness: 0.03,
+      map: createRoomFloorTexture(office, zone, width, depth),
+      roughness: zone === "lobby" ? 0.72 : 0.84,
+      metalness: 0.02,
     }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
+  floor.userData.roomKit = "floor";
   group.add(floor);
 
+  const wallMat = createWallPlasterMaterial(wallColor);
   const wallThickness = 0.12;
-  const wallMat = wallMaterial(wallColor);
 
-  const backWall = new THREE.Mesh(
-    new THREE.BoxGeometry(width, height, wallThickness),
-    wallMat,
-  );
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(width, height, wallThickness), wallMat);
   backWall.position.set(0, height / 2, -halfD);
   backWall.castShadow = true;
   backWall.receiveShadow = true;
   tagInteriorWall(backWall, zone, "back");
   group.add(backWall);
 
-  const leftWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height, depth),
-    wallMat,
-  );
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, height, depth), wallMat);
   leftWall.position.set(-halfW, height / 2, 0);
   tagInteriorWall(leftWall, zone, "left");
   group.add(leftWall);
 
-  const rightWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height, depth),
-    wallMat,
-  );
+  const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, height, depth), wallMat);
   rightWall.position.set(halfW, height / 2, 0);
   tagInteriorWall(rightWall, zone, "right");
   group.add(rightWall);
@@ -166,29 +167,34 @@ function buildZoneBox(
     const window = new THREE.Mesh(
       new THREE.PlaneGeometry(width * 0.72, height * 0.38),
       new THREE.MeshStandardMaterial({
-        color: "#d8ecff",
+        color: windowTint.window,
         emissive: new THREE.Color(accentColor),
-        emissiveIntensity: 0.12,
+        emissiveIntensity: 0.1,
         transparent: true,
-        opacity: 0.72,
+        opacity: windowTint.opacity,
         side: THREE.DoubleSide,
       }),
     );
     window.position.set(0, height * 0.72, halfD + wallThickness * 0.4);
+    window.userData.roomKit = "window";
     group.add(window);
   }
 
-  const baseboard = new THREE.Mesh(
-    new THREE.BoxGeometry(width - 0.1, 0.08, depth - 0.1),
-    new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.7 }),
-  );
-  baseboard.position.set(0, 0.04, 0);
-  group.add(baseboard);
+  addPerimeterBaseboards(group, width, depth, accentColor, {
+    doorFront: options.doorFront,
+    doorWidth,
+  });
+
+  const trimMat = createBaseboardMaterial(accentColor);
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(width - 0.16, 0.04, 0.02), trimMat);
+  crown.position.set(0, height - 0.06, -halfD + 0.08);
+  crown.userData.roomKit = "accent_trim";
+  group.add(crown);
 
   if (!cutaway) {
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(width, depth),
-      new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95, side: THREE.DoubleSide }),
+      createWallPlasterMaterial(wallColor),
     );
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = height;
@@ -221,7 +227,7 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
   const corridorZ = lobbyZ - lobby.depth / 2 - corridor.depth / 2;
   const officeZ = corridorZ - corridor.depth / 2 - room.depth / 2;
 
-  const lobbyGroup = buildZoneBox(lobby, office.floor_color, office.wall_color, office.accent_color, "lobby", {
+  const lobbyGroup = buildZoneBox(lobby, office, "lobby", windowTint, {
     label: "lobby",
     doorFront: true,
     cutaway: true,
@@ -229,18 +235,14 @@ export function buildRoomShell(office: OfficeVisualConfig): RoomShellResult {
   lobbyGroup.position.set(0, 0, lobbyZ);
   group.add(lobbyGroup);
 
-  const corridorGroup = buildZoneBox(
-    corridor,
-    office.floor_color,
-    office.wall_color,
-    office.accent_color,
-    "corridor",
-    { label: "corridor", cutaway: true },
-  );
+  const corridorGroup = buildZoneBox(corridor, office, "corridor", windowTint, {
+    label: "corridor",
+    cutaway: true,
+  });
   corridorGroup.position.set(0, 0, corridorZ);
   group.add(corridorGroup);
 
-  const officeGroup = buildZoneBox(room, office.floor_color, office.wall_color, office.accent_color, "office", {
+  const officeGroup = buildZoneBox(room, office, "office", windowTint, {
     label: "office",
     cutaway: true,
   });
