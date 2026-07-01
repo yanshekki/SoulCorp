@@ -166,10 +166,10 @@ export function DesignStudioPage() {
       <header className="design-studio-header">
         <div>
           <p className="modal-eyebrow">3D Design Studio</p>
-          <h2>{category === "offices" ? "辦公室建造模式" : "Design your company world"}</h2>
+          <h2>{category === "offices" ? "Office build mode" : "Design your company world"}</h2>
           <p className="muted">
             {category === "offices"
-              ? "分屏平面 + 3D · 揀傢俬、調房間、套用 StartupWarm 主題"
+              ? "Split plan + 3D · place furniture, resize rooms, apply StartupWarm theme"
               : "Customize campus theme, department buildings, office interiors, and agent appearances."}
           </p>
         </div>

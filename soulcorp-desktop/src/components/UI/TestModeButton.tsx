@@ -38,7 +38,7 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
 
   const handleClear = async () => {
     const confirmed = window.confirm(
-      "清空所有本機公司、存檔、workspace 同設計資料？此操作無法復原。",
+      "Clear all local companies, saves, workspace, and design data? This cannot be undone.",
     );
     if (!confirmed) {
       return;
@@ -86,10 +86,10 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
       {open ? (
         <div className="test-mode-menu" role="menu">
           <button type="button" disabled={busy} onClick={() => void handleClear()}>
-            清空數據
+            Clear all data
           </button>
           <button type="button" disabled={busy} onClick={() => void handleSeed()}>
-            快速創立假數據
+            Seed fake data
           </button>
         </div>
       ) : null}
@@ -101,7 +101,7 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
         disabled={busy}
         onClick={() => setOpen((value) => !value)}
       >
-        {busy ? "處理中…" : "測試模式"}
+        {busy ? "Working…" : "Test mode"}
       </button>
     </div>
   );

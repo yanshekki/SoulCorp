@@ -8,7 +8,6 @@ import type {
 export interface OfficeThemePack {
   id: OfficeThemePackId;
   label: string;
-  labelZh: string;
   description: string;
   floor_color: string;
   wall_color: string;
@@ -28,8 +27,7 @@ export const OFFICE_THEME_PACKS: Record<OfficeThemePackId, OfficeThemePack> = {
   startup_warm: {
     id: "startup_warm",
     label: "Startup Warm",
-    labelZh: "暖色初創",
-    description: "Sims 式木紋地板、奶油牆、蜜糖 accent — 預設主題",
+    description: "Sims-style oak floors, cream walls, honey accent — default theme",
     floor_color: "#c9a882",
     wall_color: "#f5f0e8",
     accent_color: "#e8a838",
@@ -44,8 +42,7 @@ export const OFFICE_THEME_PACKS: Record<OfficeThemePackId, OfficeThemePack> = {
   corporate_cool: {
     id: "corporate_cool",
     label: "Corporate Cool",
-    labelZh: "冷色企業",
-    description: "灰藍地面、白牆、科技藍 accent",
+    description: "Cool grey floors, white walls, tech-blue accent",
     floor_color: "#9aa3ad",
     wall_color: "#e8ecf0",
     accent_color: "#5ec8ff",
@@ -60,8 +57,7 @@ export const OFFICE_THEME_PACKS: Record<OfficeThemePackId, OfficeThemePack> = {
   clinical_playful: {
     id: "clinical_playful",
     label: "Clinical Playful",
-    labelZh: "玩味診所",
-    description: "Two Point 感薄荷綠 + 珊瑚 accent",
+    description: "Two Point Hospital vibe — mint green + coral accent",
     floor_color: "#b8d4c8",
     wall_color: "#f0f8f5",
     accent_color: "#ff8a7a",

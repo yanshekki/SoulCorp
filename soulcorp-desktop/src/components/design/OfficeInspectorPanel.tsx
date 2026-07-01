@@ -10,15 +10,15 @@ import type { OfficeDesignStep, OfficeDrawerTab } from "./OfficeBuildToolbar";
 import { RoomDimensionsPanel } from "./RoomDimensionsPanel";
 
 const ZONE_LABELS: Record<InteriorZone, string> = {
-  lobby: "大堂",
-  corridor: "走廊",
-  office: "辦公區",
+  lobby: "Lobby",
+  corridor: "Corridor",
+  office: "Office",
 };
 
 const DRAWER_TABS: Array<{ id: OfficeDrawerTab; label: string }> = [
-  { id: "room", label: "房間大小" },
-  { id: "catalog", label: "傢俬" },
-  { id: "theme", label: "配色" },
+  { id: "room", label: "Room size" },
+  { id: "catalog", label: "Furniture" },
+  { id: "theme", label: "Theme" },
 ];
 
 interface OfficeInspectorPanelProps {
@@ -51,45 +51,45 @@ export function OfficeInspectorPanel({
       {selectedItem && selectedEntry ? (
         <section className="office-inspector-card" aria-label="Selected furniture">
           <header className="office-inspector-card-header">
-            <h3>已選傢俬</h3>
+            <h3>Selected item</h3>
             <span className="office-inspector-zone">{ZONE_LABELS[selectedItem.zone]}</span>
           </header>
           <p className="office-inspector-title">{selectedEntry.label}</p>
           <dl className="office-inspector-meta">
             <div>
-              <dt>尺寸</dt>
+              <dt>Size</dt>
               <dd>{formatFootprintDimensions(selectedEntry.footprint)}</dd>
             </div>
             <div>
-              <dt>區域</dt>
+              <dt>Zone</dt>
               <dd>{ZONE_LABELS[selectedItem.zone]}</dd>
             </div>
           </dl>
           <div className="office-inspector-actions">
             <button type="button" className="design-office-tool-btn" onClick={rotateSelected}>
-              ⟳ 旋轉
+              ⟳ Rotate
             </button>
             <button type="button" className="design-office-tool-btn" onClick={deleteSelected}>
-              ✕ 刪除
+              ✕ Delete
             </button>
           </div>
         </section>
       ) : placingEntry && activeStep === "layout" ? (
         <section className="office-inspector-card office-inspector-card--place" aria-live="polite">
-          <h3>放置模式</h3>
+          <h3>Placement mode</h3>
           <p>
-            放置 <strong>{placingEntry.label}</strong>（{formatFootprintDimensions(placingEntry.footprint)}）
+            Place <strong>{placingEntry.label}</strong> ({formatFootprintDimensions(placingEntry.footprint)})
           </p>
-          <p className="muted">喺平面圖或 3D 撳一下 · 拖曳可移動傢俬</p>
+          <p className="muted">Click on the floor plan or 3D view · drag to move furniture</p>
         </section>
       ) : (
         <section className="office-inspector-card office-inspector-card--hint">
           <p className="muted">
             {activeStep === "size"
-              ? `而家編輯緊${ZONE_LABELS[activeZone]}尺寸`
+              ? `Editing ${ZONE_LABELS[activeZone]} dimensions`
               : activeStep === "layout"
-                ? "揀右邊傢俬目錄 · 或撳平面/3D 現有傢俬"
-                : "調整配色主題 · 分屏即時同步"}
+                ? "Pick furniture from the catalog · or click existing items in plan/3D"
+                : "Adjust color theme · split view updates live"}
           </p>
         </section>
       )}

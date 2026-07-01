@@ -36,8 +36,8 @@ export function OfficeDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>配色主題</h2>
-        <p className="muted">Sims 式主題包 — 地板、牆身、accent 一鍵套用（預設：暖色初創）。</p>
+        <h2>Color themes</h2>
+        <p className="muted">Sims-style theme packs — apply floor, wall, and accent in one click (default: Startup Warm).</p>
       </header>
 
       <div className="design-style-grid">
@@ -50,7 +50,7 @@ export function OfficeDesignPanel() {
             }`}
             onClick={() => updateConfig(applyOfficeThemePack(config, pack.id))}
           >
-            <strong>{pack.labelZh}</strong>
+            <strong>{pack.label}</strong>
             <span>{pack.description}</span>
           </button>
         ))}

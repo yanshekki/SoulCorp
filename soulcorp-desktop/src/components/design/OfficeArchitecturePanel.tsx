@@ -32,8 +32,8 @@ export function OfficeArchitecturePanel() {
   return (
     <section className="design-architecture-panel">
       <header>
-        <h3>自由架構</h3>
-        <p className="muted">可選 RoomSketcher 級畫牆 · 最多 {OFFICE_ARCHITECTURE_FLOOR_MAX} 層</p>
+        <h3>Freeform architecture</h3>
+        <p className="muted">Optional RoomSketcher-style walls · up to {OFFICE_ARCHITECTURE_FLOOR_MAX} floors</p>
       </header>
 
       <label className="design-architecture-toggle">
@@ -48,13 +48,13 @@ export function OfficeArchitecturePanel() {
             }
           }}
         />
-        <span>啟用自由畫牆</span>
+        <span>Enable freeform walls</span>
       </label>
 
       {architecture.freeform_enabled ? (
         <>
           <div className="design-architecture-floors">
-            <span className="design-architecture-label">樓層</span>
+            <span className="design-architecture-label">Floors</span>
             <input
               type="range"
               min={OFFICE_ARCHITECTURE_FLOOR_MIN}
@@ -69,12 +69,12 @@ export function OfficeArchitecturePanel() {
                   setActiveArchitectureFloor(floorCount - 1);
                 }
               }}
-              aria-label="樓層數量"
+              aria-label="Floor count"
             />
-            <strong>{architecture.floor_count} 層</strong>
+            <strong>{architecture.floor_count} floors</strong>
           </div>
 
-          <div className="design-architecture-floor-tabs" role="group" aria-label="編輯樓層">
+          <div className="design-architecture-floor-tabs" role="group" aria-label="Edit floor">
             {Array.from({ length: architecture.floor_count }, (_, floor) => (
               <button
                 key={floor}
@@ -87,31 +87,33 @@ export function OfficeArchitecturePanel() {
             ))}
           </div>
 
-          <div className="design-architecture-tools" role="group" aria-label="平面圖工具">
+          <div className="design-architecture-tools" role="group" aria-label="Floor plan tools">
             <button
               type="button"
               className={planTool === "furniture" ? "active" : ""}
               onClick={() => setPlanTool("furniture")}
             >
-              傢俬
+              Furniture
             </button>
             <button
               type="button"
               className={planTool === "wall" ? "active" : ""}
               onClick={() => setPlanTool("wall")}
             >
-              畫牆
+              Draw wall
             </button>
           </div>
 
           <p className="muted design-architecture-hint">
             {planTool === "wall"
-              ? `喺平面圖連續撳兩點畫牆（${activeArchitectureFloor + 1}F · 已畫 ${wallsThisFloor.length} 段）`
-              : "切換「畫牆」後喺平面圖加牆身分段"}
+              ? `Click two points on the floor plan to draw walls (${activeArchitectureFloor + 1}F · ${wallsThisFloor.length} segments)`
+              : "Switch to Draw wall to add wall segments on the floor plan"}
           </p>
         </>
       ) : (
-        <p className="muted">預設仍用大堂／走廊／辦公區模組；開啟後可疊加自訂牆身。</p>
+        <p className="muted">
+          Default lobby / corridor / office zones still apply; enable to layer custom walls on top.
+        </p>
       )}
     </section>
   );

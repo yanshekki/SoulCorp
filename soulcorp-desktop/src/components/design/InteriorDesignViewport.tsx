@@ -527,9 +527,9 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
           <span className="design-interior-viewport-label">3D · SSAO</span>
         ) : (
           <div>
-            <h2>{buildingName} — 3D 預覽</h2>
+            <h2>{buildingName} — 3D preview</h2>
             <p className="muted">
-              studioClarity · 3D 可拖放傢俬 · 拖曳平移 · 滾輪縮放 · 右鍵旋轉
+              studioClarity · drag-drop furniture in 3D · drag to pan · scroll zoom · right-drag rotate
             </p>
           </div>
         )}
@@ -539,14 +539,14 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
             className={!studioPerspectiveCamera ? "active" : ""}
             onClick={() => setStudioPerspectiveCamera(false)}
           >
-            等角
+            Iso
           </button>
           <button
             type="button"
             className={studioPerspectiveCamera ? "active" : ""}
             onClick={() => setStudioPerspectiveCamera(true)}
           >
-            透視
+            Perspective
           </button>
         </div>
       </header>

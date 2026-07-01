@@ -431,7 +431,7 @@ export function ThreeOfficeRenderer({
             const dataUrl = canvasToPngDataUrl(canvas);
             downloadPngDataUrl(dataUrl, interiorScreenshotFilename(building.id));
             audioDirector.playSfx("ui_click");
-            state.setStatusMessage("已儲存辦公室截圖");
+            state.setStatusMessage("Office screenshot saved");
           }
         }
       }

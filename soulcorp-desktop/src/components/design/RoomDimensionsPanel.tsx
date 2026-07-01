@@ -13,9 +13,9 @@ function zoneArea(room: RoomDimensions): number {
 }
 
 const DIM_LABELS: Record<keyof RoomDimensions, string> = {
-  width: "闊度",
-  depth: "深度",
-  height: "樓底",
+  width: "Width",
+  depth: "Depth",
+  height: "Height",
 };
 
 export function RoomDimensionsPanel() {
@@ -53,9 +53,9 @@ export function RoomDimensionsPanel() {
   return (
     <section className="design-panel design-room-panel">
       <header>
-        <h2>房間大小</h2>
+        <h2>Room size</h2>
         <p className="muted">
-          拖動滑桿或直接輸入米數，平面圖同 3D 會一齊更新。總面積{" "}
+          Drag sliders or type meters — floor plan and 3D update together. Total area{" "}
           <strong>{totalArea.toFixed(1)} m²</strong>
         </p>
       </header>
@@ -64,9 +64,9 @@ export function RoomDimensionsPanel() {
 
       {(
         [
-          ["大堂", "lobby_room"],
-          ["走廊", "corridor_room"],
-          ["辦公區", "room"],
+          ["Lobby", "lobby_room"],
+          ["Corridor", "corridor_room"],
+          ["Office", "room"],
         ] as const
       ).map(([label, key]) => {
         const room = config[key];
@@ -99,7 +99,7 @@ export function RoomDimensionsPanel() {
                     step={0.1}
                     value={room[dim]}
                     onChange={(event) => updateDimension(key, dim, Number(event.target.value))}
-                    aria-label={`${label} ${DIM_LABELS[dim]}（米）`}
+                    aria-label={`${label} ${DIM_LABELS[dim]} (meters)`}
                   />
                   <span className="design-room-dim-unit">m</span>
                 </div>

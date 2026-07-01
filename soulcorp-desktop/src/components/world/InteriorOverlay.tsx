@@ -35,9 +35,9 @@ export function InteriorOverlay() {
   const hoveredCatalogId = hoveredItem?.catalog_id ?? null;
 
   const walkZones: Array<{ id: InteriorZone; label: string }> = [
-    { id: "lobby", label: "大堂" },
-    { id: "corridor", label: "走廊" },
-    { id: "office", label: "辦公區" },
+    { id: "lobby", label: "Lobby" },
+    { id: "corridor", label: "Corridor" },
+    { id: "office", label: "Office" },
   ];
 
   const playHint =
@@ -60,10 +60,10 @@ export function InteriorOverlay() {
           ) : null}
           <span className="interior-topbar-hint muted">
             {interiorCameraMode === "walk"
-              ? "漫遊：WASD 移動 · 右鍵旋轉 · 滾輪縮放 · 牆身自動透明"
+              ? "Walk: WASD move · right-drag rotate · scroll zoom · walls auto-fade"
               : interiorCameraMode === "render"
-                ? "渲染：SSAO 清晰視角 · 拖曳平移 · 右鍵旋轉 · 滾輪縮放 · 截圖匯出 PNG"
-                : "等角：拖曳平移 · 滾輪縮放 · 右鍵旋轉 · 雙擊重設"}
+                ? "Render: SSAO clarity · drag pan · right-drag rotate · scroll zoom · PNG screenshot"
+                : "Iso: drag pan · scroll zoom · right-drag rotate · double-click reset"}
           </span>
         </div>
         <div className="interior-topbar-actions">
@@ -93,7 +93,7 @@ export function InteriorOverlay() {
                 requestInteriorScreenshot();
               }}
             >
-              截圖
+              Screenshot
             </button>
           ) : null}
           {buildMode === "play" ? (
@@ -106,7 +106,7 @@ export function InteriorOverlay() {
                   setInteriorCameraMode("iso");
                 }}
               >
-                等角
+                Iso
               </button>
               <button
                 type="button"
@@ -116,7 +116,7 @@ export function InteriorOverlay() {
                   setInteriorCameraMode("walk");
                 }}
               >
-                漫遊
+                Walk
               </button>
               <button
                 type="button"
@@ -126,7 +126,7 @@ export function InteriorOverlay() {
                   setInteriorCameraMode("render");
                 }}
               >
-                渲染
+                Render
               </button>
             </div>
           ) : null}

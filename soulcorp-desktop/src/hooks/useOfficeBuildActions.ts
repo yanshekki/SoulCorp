@@ -6,7 +6,7 @@ import { DEFAULT_OFFICE_VISUAL } from "../types/visualDesign";
 import { normalizeOfficeVisual } from "../utils/officeVisualNormalize";
 import { rotateInstance } from "../utils/placementEngine";
 
-const PLACEMENT_BLOCKED = "呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住";
+const PLACEMENT_BLOCKED = "No space here — each item needs its own footprint; overlaps are not allowed";
 
 interface OfficeBuildActionsOptions {
   keyboard?: boolean;

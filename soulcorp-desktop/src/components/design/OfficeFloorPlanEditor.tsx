@@ -120,7 +120,7 @@ export function OfficeFloorPlanEditor() {
     [],
   );
 
-  const placementBlockedHint = "呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住";
+  const placementBlockedHint = "No space here — each item needs its own footprint; overlaps are not allowed";
 
   const removeWall = useCallback(
     (wallId: string) => {
@@ -316,7 +316,7 @@ export function OfficeFloorPlanEditor() {
       if (item && preview && dragPreview?.valid !== false) {
         commitItem({ ...item, position: preview });
       } else if (item && dragPreview?.valid === false) {
-        setPlacementHint("呢度冇位 — 每件傢俬都要有自己嘅面積，唔可以疊住");
+        setPlacementHint("No space here — each item needs its own footprint; overlaps are not allowed");
       }
       dragRef.current = null;
       setDragPreview(null);
@@ -483,26 +483,26 @@ export function OfficeFloorPlanEditor() {
           <span className="design-floor-plan-status-warn">{placementHint}</span>
         ) : placeCatalogId ? (
           <span>
-            放置 <strong>{getCatalogEntry(placeCatalogId)?.label}</strong> — 平面或 3D 撳一下
+            Place <strong>{getCatalogEntry(placeCatalogId)?.label}</strong> — click in plan or 3D
           </span>
         ) : selectedLabel ? (
           <span>
-            已選 <strong>{selectedLabel}</strong>
+            Selected <strong>{selectedLabel}</strong>
             {selectedDims ? (
               <>
                 {" "}
                 · <strong>{selectedDims}</strong>
               </>
             ) : null}{" "}
-            · 拖曳移動 · R 旋轉 · Delete 刪除
+            · drag to move · R rotate · Delete remove
           </span>
         ) : architecture.freeform_enabled && planTool === "wall" ? (
           <span>
-            畫牆模式（{activeArchitectureFloor + 1}F）· 連續撳兩點 · 撳牆選取 · Delete 刪除
-            {selectedWallId ? " · 已選牆段" : ""}
+            Wall draw mode ({activeArchitectureFloor + 1}F) · click two points · click wall to select · Delete remove
+            {selectedWallId ? " · wall selected" : ""}
           </span>
         ) : (
-          <span>拖曳傢俬 · 頂部工具列還原/旋轉 · 右邊 panel 揀傢俬</span>
+          <span>Drag furniture · undo/rotate in toolbar · pick items in right panel</span>
         )}
       </footer>
     </section>

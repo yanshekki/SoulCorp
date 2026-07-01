@@ -14,5 +14,5 @@ export const PHASE1_FEEL_REVIEW = {
     mood: 8,
   },
   notes:
-    "StartupWarm 木紋/奶油牆 + 牆畫/地毯裝飾有 Sims build 層次；walk 漫遊同 render SSAO 推高 TPH 清晰感；studioClarity 分屏佈置維持可讀。",
+    "StartupWarm wood/cream surfaces plus wall art and rugs add Sims build depth; walk and render SSAO raise TPH clarity; studioClarity split placement stays readable.",
 } as const;

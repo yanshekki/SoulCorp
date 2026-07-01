@@ -9,10 +9,10 @@ const CATEGORY_SECTIONS: Array<{
   label: string;
   categories: FurnitureCategory[];
 }> = [
-  { id: "desk", label: "枱檯", categories: ["desk"] },
-  { id: "seating", label: "座椅", categories: ["chair"] },
-  { id: "decor", label: "裝飾", categories: ["decor", "plant", "lighting"] },
-  { id: "tech", label: "設備", categories: ["tech", "storage", "structure"] },
+  { id: "desk", label: "Desks", categories: ["desk"] },
+  { id: "seating", label: "Seating", categories: ["chair"] },
+  { id: "decor", label: "Decor", categories: ["decor", "plant", "lighting"] },
+  { id: "tech", label: "Equipment", categories: ["tech", "storage", "structure"] },
 ];
 
 interface FurnitureCatalogPanelProps {
@@ -30,8 +30,8 @@ export function FurnitureCatalogPanel({ variant = "grid" }: FurnitureCatalogPane
   return (
     <section className="design-panel design-catalog-panel">
       <header>
-        <h2>傢俬目錄</h2>
-        <p className="muted">預覽圖同 3D 用同一套模型。揀一件，喺平面圖或 3D 撳一下放置。</p>
+        <h2>Furniture catalog</h2>
+        <p className="muted">Thumbnails and 3D share the same models. Pick an item, then click in plan or 3D to place.</p>
       </header>
 
       {variant === "chips"
@@ -101,9 +101,9 @@ export function FurnitureCatalogPanel({ variant = "grid" }: FurnitureCatalogPane
 
       {placeCatalogId ? (
         <p className="design-catalog-place-hint muted">
-          放置{" "}
+          Place{" "}
           <strong>{FURNITURE_CATALOG.find((e) => e.id === placeCatalogId)?.label}</strong>{" "}
-          — 平面或 3D 撳一下
+          — click in plan or 3D
         </p>
       ) : null}
     </section>

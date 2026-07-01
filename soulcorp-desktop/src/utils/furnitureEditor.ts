@@ -239,7 +239,7 @@ export function floorPlanLayout(office: OfficeVisualConfig): FloorPlanLayout {
   const zones: FloorPlanZone[] = [
     {
       id: "lobby",
-      label: "大堂",
+      label: "Lobby",
       x: (maxWidth - lobby.width) / 2,
       y,
       width: lobby.width,
@@ -247,7 +247,7 @@ export function floorPlanLayout(office: OfficeVisualConfig): FloorPlanLayout {
     },
     {
       id: "corridor",
-      label: "走廊",
+      label: "Corridor",
       x: (maxWidth - corridor.width) / 2,
       y: (y += lobby.depth),
       width: corridor.width,
@@ -255,7 +255,7 @@ export function floorPlanLayout(office: OfficeVisualConfig): FloorPlanLayout {
     },
     {
       id: "office",
-      label: "辦公區",
+      label: "Office",
       x: (maxWidth - room.width) / 2,
       y: (y += corridor.depth),
       width: room.width,

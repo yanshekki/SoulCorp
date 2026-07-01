@@ -105,8 +105,8 @@ Lighting: natural
 | Mode | Camera | Framing |
 |------|--------|---------|
 | Build | Orthographic isometric | Full office footprint |
-| Walk (Phase 2) ✅ | Perspective 42° FOV | Room focus, wall peel — play mode **漫遊** toggle |
-| Render (Phase 3) ✅ | Perspective + SSAO | Static screenshot — play mode **渲染** + **截圖** |
+| Walk (Phase 2) ✅ | Perspective 42° FOV | Room focus, wall peel — play mode **Walk** toggle |
+| Render (Phase 3) ✅ | Perspective + SSAO | Static screenshot — play mode **Render** + **Screenshot** |
 
 ---
 
@@ -155,8 +155,8 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | # | Criterion | Status |
 |---|-----------|--------|
 | 1 | 42° perspective walk camera with office zone focus | ✅ `P2 walk FOV` + `P2 walk orbit focuses office zone` |
-| 2 | WASD / 方向鍵移動 + pan bounds | ✅ `P2 WASD walk keyboard moves pan` |
-| 3 | Zone auto-detect + jump (大堂/走廊/辦公區) | ✅ `P2 walk zone at pan` + `P2 zone jump pan for lobby` |
+| 2 | WASD / arrow keys + pan bounds | ✅ `P2 WASD walk keyboard moves pan` |
+| 3 | Zone auto-detect + jump (lobby/corridor/office) | ✅ `P2 walk zone at pan` + `P2 zone jump pan for lobby` |
 | 4 | Wall peel min opacity 0.22 in walk mode | ✅ `P2 wall peel min opacity` |
 | 5 | playCozy lighting (studioClarity base) | ✅ `P2 playCozy matches studioClarity key` |
 
@@ -165,11 +165,11 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | Feature | Implementation |
 |---------|----------------|
 | 42° perspective walk camera | `applyWalkToPerspectiveCamera` + `createWalkInteriorOrbit` |
-| WASD / 方向鍵移動 | `interiorWalkControls` + keyboard in `ThreeOfficeRenderer` |
-| Zone focus + jump | `walkZoneAtPan` + 大堂/走廊/辦公區 buttons |
+| WASD / arrow keys | `interiorWalkControls` + keyboard in `ThreeOfficeRenderer` |
+| Zone focus + jump | `walkZoneAtPan` + lobby/corridor/office buttons |
 | Wall peel | `WALL_PEEL_MIN_OPACITY` 0.22 + `walkPeel` |
 | playCozy lighting | `playCozyLightingPreset` (studioClarity base) |
-| UI toggle | Interior top bar **等角 / 漫遊** (play mode only) |
+| UI toggle | Interior top bar **Iso / Walk** (play mode only) |
 | Build mode | Stays orthographic isometric |
 
 ---
@@ -182,8 +182,8 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 |---|-----------|--------|
 | 1 | 42° perspective render camera on office zone | ✅ `P3 render orbit focuses office zone` |
 | 2 | studioClarity SSAO + bloom post pipeline | ✅ `P3 studioClarity bloom cap` + `renderMode` → clarity |
-| 3 | PNG screenshot export from interior canvas | ✅ `P3 screenshot filename png` + **截圖** button |
-| 4 | UI toggle in play mode | ✅ Interior top bar **等角 / 漫遊 / 渲染** |
+| 3 | PNG screenshot export from interior canvas | ✅ `P3 screenshot filename png` + **Screenshot** button |
+| 4 | UI toggle in play mode | ✅ Interior top bar **Iso / Walk / Render** |
 | 5 | Build mode stays isometric | ✅ `setBuildMode` forces iso |
 
 ### Phase 3 features
@@ -194,7 +194,7 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | SSAO post pipeline | `renderMode` → `clarityMode` + `createStudioInteriorPostPipeline` |
 | studioClarity lighting | Opaque walls, no wall peel |
 | Screenshot export | `interiorScreenshot.ts` + `requestInteriorScreenshot` |
-| UI | **渲染** toggle + **截圖** button (Cantonese) |
+| UI | **Render** toggle + **Screenshot** button |
 
 ---
 
@@ -204,8 +204,8 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | Optional freeform wall draw (RoomSketcher-style) | ✅ `P4 wall segment` + design studio **畫牆** tool |
-| 2 | Multi-floor stacking (1–3 floors) | ✅ `P4 multi-floor walls` + **樓層** slider |
+| 1 | Optional freeform wall draw (RoomSketcher-style) | ✅ `P4 wall segment` + design studio **Draw wall** tool |
+| 2 | Multi-floor stacking (1–3 floors) | ✅ `P4 multi-floor walls` + **Floors** slider |
 | 3 | 2D plan + 3D shell parity | ✅ walls render in `buildRoomShell` + floor plan SVG |
 | 4 | Preset 3-zone layout remains default | ✅ `P4 architecture default off` |
 | 5 | Grid-snapped wall endpoints (0.5m) | ✅ `P4 snap wall point` |
@@ -215,9 +215,9 @@ Automated gate: `pnpm exec tsx scripts/run-acceptance-tests.ts` (look for `Phase
 | Feature | Implementation |
 |---------|----------------|
 | Architecture data model | `OfficeArchitecture` + `OfficeWallSegment` on `OfficeVisualConfig` |
-| Freeform walls | `officeArchitecture.ts` + **畫牆** in `OfficeFloorPlanEditor` |
+| Freeform walls | `officeArchitecture.ts` + **Draw wall** in `OfficeFloorPlanEditor` |
 | Multi-floor | `floor_count` 1–3, stacked meshes in `buildFreeformArchitectureGroup` |
-| Design studio UI | `OfficeArchitecturePanel` in room inspector (Cantonese) |
+| Design studio UI | `OfficeArchitecturePanel` in room inspector |
 | Shell rebuild | `architecture` in `officeShellFingerprint` |
 
 ---

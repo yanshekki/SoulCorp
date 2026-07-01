@@ -24,22 +24,22 @@ const STEPS: Array<{
 }> = [
   {
     id: "size",
-    title: "1 · 房間大小",
-    hint: "調整大堂、走廊、辦公區面積",
+    title: "1 · Room size",
+    hint: "Adjust lobby, corridor, and office zone areas",
     view: "plan",
     drawerTab: "room",
   },
   {
     id: "layout",
-    title: "2 · 佈置傢俬",
-    hint: "揀傢俬 · 平面或 3D 可放置同拖曳 · 分屏一齊改",
+    title: "2 · Place furniture",
+    hint: "Pick furniture · place and drag in plan or 3D · split view stays in sync",
     view: "split",
     drawerTab: "catalog",
   },
   {
     id: "preview",
-    title: "3 · 預覽配色",
-    hint: "分屏同步 · 即時睇 StartupWarm 室內效果",
+    title: "3 · Preview theme",
+    hint: "Split view sync · live StartupWarm interior preview",
     view: "split",
     drawerTab: "theme",
   },
@@ -83,7 +83,7 @@ export function OfficeBuildToolbar({
       <div className="design-office-toolbar-top">
         <div className="design-office-toolbar-primary">
           <label className="design-office-building-select">
-            <span className="design-office-toolbar-label">編輯邊間辦公室</span>
+            <span className="design-office-toolbar-label">Edit office</span>
             <select
               value={buildingId}
               onChange={(event) => setSelectedBuildingId(event.target.value)}
@@ -97,10 +97,10 @@ export function OfficeBuildToolbar({
           </label>
           <div className="design-office-toolbar-actions" aria-label="Build tools">
             <button type="button" className="design-office-tool-btn" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-              ↶ 還原
+              ↶ Undo
             </button>
             <button type="button" className="design-office-tool-btn" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
-              ↷ 重做
+              ↷ Redo
             </button>
             <span className="design-office-toolbar-divider" aria-hidden />
             <button
@@ -110,7 +110,7 @@ export function OfficeBuildToolbar({
               disabled={!canEditSelection}
               title="Rotate (R)"
             >
-              ⟳ 旋轉
+              ⟳ Rotate
             </button>
             <button
               type="button"
@@ -119,7 +119,7 @@ export function OfficeBuildToolbar({
               disabled={!canEditSelection}
               title="Delete"
             >
-              ✕ 刪除
+              ✕ Delete
             </button>
           </div>
         </div>
@@ -146,7 +146,7 @@ export function OfficeBuildToolbar({
           <span className="design-office-building-note">
             {building.name}
             {placeCatalogId && activeStep === "layout" ? (
-              <span className="design-office-placing-badge"> · 放置模式</span>
+              <span className="design-office-placing-badge"> · Placement mode</span>
             ) : null}
           </span>
         ) : null}
@@ -156,14 +156,14 @@ export function OfficeBuildToolbar({
             className={workspaceView === "plan" ? "active" : ""}
             onClick={() => onWorkspaceViewChange("plan")}
           >
-            平面
+            Plan
           </button>
           <button
             type="button"
             className={workspaceView === "split" ? "active" : ""}
             onClick={() => onWorkspaceViewChange("split")}
           >
-            分屏
+            Split
           </button>
           <button
             type="button"
