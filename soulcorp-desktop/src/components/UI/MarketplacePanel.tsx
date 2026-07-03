@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   acceptHubGig,
   completeHubGig,
@@ -11,11 +11,18 @@ import {
   submitGigForQc,
   syncWithHub,
 } from "../../services/hubClient";
+import { simulationAutoRun } from "../../config/features";
 import { useGameStore } from "../../stores/gameStore";
 import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
 import { invoke } from "@tauri-apps/api/core";
 
-type MarketplaceTab = "browse" | "contracts" | "history";
+export const MARKETPLACE_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "browse", label: "Browse gigs" },
+  { id: "contracts", label: "My contracts" },
+  { id: "history", label: "History" },
+  { id: "publish", label: "Post a gig" },
+] as const;
 
 function qcBandLabel(score: number): string {
   if (score >= 0.9) return "Platinum";
@@ -41,15 +48,20 @@ function statusLabel(status: string): string {
   }
 }
 
-export function MarketplacePanel() {
+interface MarketplacePanelProps {
+  onSectionFocus?: (sectionId: string) => void;
+  onNavigateSection?: (sectionId: string) => void;
+}
+
+export function MarketplacePanel({ onSectionFocus, onNavigateSection }: MarketplacePanelProps) {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setFinance = useGameStore((state) => state.setFinance);
 
-  const [activeTab, setActiveTab] = useState<MarketplaceTab>("browse");
   const [executiveLoungeOnly, setExecutiveLoungeOnly] = useState(false);
   const [gigs, setGigs] = useState<HubGig[]>([]);
   const [contracts, setContracts] = useState<GigContract[]>([]);
@@ -60,6 +72,7 @@ export function MarketplacePanel() {
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState(250);
   const [skills, setSkills] = useState("react, tailwind");
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   const refreshFinance = useCallback(async () => {
     const finance = await invoke<TokenEconomy>("get_finance_state");
@@ -89,7 +102,34 @@ export function MarketplacePanel() {
 
   useEffect(() => {
     void refreshGigs();
-  }, [refreshGigs]);
+  }, [activeCompanyId, refreshGigs]);
+
+  useEffect(() => {
+    if (!onSectionFocus) {
+      return;
+    }
+    const root = scrollRootRef.current?.closest(".marketplace-page-scroll");
+    const sections = scrollRootRef.current?.querySelectorAll("[data-marketplace-section]");
+    if (!root || !sections?.length) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const sectionId = visible?.target.getAttribute("data-marketplace-section");
+        if (sectionId) {
+          onSectionFocus(sectionId);
+        }
+      },
+      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [onSectionFocus, gigs.length, contracts.length]);
 
   const activeContractGigIds = useMemo(
     () =>
@@ -185,7 +225,7 @@ export function MarketplacePanel() {
       const contract = await acceptHubGig(gigId);
       setStatusMessage(`Accepted gig: ${contract.title}`);
       await refreshGigs();
-      setActiveTab("contracts");
+      onNavigateSection?.("contracts");
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -194,7 +234,11 @@ export function MarketplacePanel() {
   const handleStart = async (contractId: string) => {
     try {
       const contract = await startGigWork(contractId);
-      setStatusMessage(`Started work on ${contract.title}. Progress advances each simulation tick.`);
+      setStatusMessage(
+        simulationAutoRun
+          ? `Started work on ${contract.title}. Progress advances during simulation ticks.`
+          : `Started work on ${contract.title}. Progress advances when task deliverables complete.`,
+      );
       await refreshContracts();
     } catch (error) {
       setStatusMessage(String(error));
@@ -221,7 +265,7 @@ export function MarketplacePanel() {
         `QC approved — ${contract.title}. Net payout $${contract.payout_usdt.toFixed(2)} USDT (fee $${contract.platform_fee_usdt.toFixed(2)}).`,
       );
       await refreshContracts();
-      setActiveTab("history");
+      onNavigateSection?.("history");
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -254,94 +298,131 @@ export function MarketplacePanel() {
   };
 
   return (
-    <section className="panel-card marketplace-panel">
-      <h2>Marketplace</h2>
-      <p className="muted">
-        Post gigs, accept work, and collect payouts after delivery.
-        Platform fee: {tierBenefits.platform_fee_percent.toFixed(0)}%.
-      </p>
-      {tierBenefits.executive_lounge ? (
-        <p className="tier-highlight">Executive Lounge gigs are visible on your tier.</p>
-      ) : null}
+    <div className="marketplace-panel marketplace-panel--page" ref={scrollRootRef}>
+      <section
+        id="overview"
+        className="marketplace-card marketplace-card--wide"
+        data-marketplace-section="overview"
+      >
+        <header className="marketplace-card-header marketplace-card-header--stacked">
+          <h3>Marketplace overview</h3>
+          <p className="muted">
+            Hub connection, platform fee, and your gig pipeline at a glance. Platform fee:{" "}
+            {tierBenefits.platform_fee_percent.toFixed(0)}%.
+          </p>
+        </header>
 
-      <div className="hub-status-row hub-sync-status">
-        <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>
-          {hubStatus.connected ? "Connected" : "Offline"}
-        </span>
-        <span className="hub-pill tier">{hubStatus.user_tier}</span>
-        <span className="hub-pill balance">${hubStatus.soul_balance.toFixed(2)} SOUL</span>
-        {hubStatus.pending_queue_items > 0 ? (
-          <span className="hub-pill queue">{hubStatus.pending_queue_items} queued</span>
+        {tierBenefits.executive_lounge ? (
+          <p className="tier-highlight">Executive Lounge gigs are visible on your tier.</p>
         ) : null}
-        {hubStatus.last_sync_at ? (
-          <span className="hub-pill muted">
-            Synced {new Date(hubStatus.last_sync_at).toLocaleString()}
+
+        <div className="hub-status-row hub-sync-status">
+          <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>
+            {hubStatus.connected ? "Connected" : "Offline"}
           </span>
+          <span className="hub-pill tier">{hubStatus.user_tier}</span>
+          <span className="hub-pill balance">${hubStatus.soul_balance.toFixed(2)} SOUL</span>
+          {hubStatus.pending_queue_items > 0 ? (
+            <span className="hub-pill queue">{hubStatus.pending_queue_items} queued</span>
+          ) : null}
+          {hubStatus.last_sync_at ? (
+            <span className="hub-pill muted">
+              Synced {new Date(hubStatus.last_sync_at).toLocaleString()}
+            </span>
+          ) : null}
+        </div>
+
+        {settings.pure_local_mode ? (
+          <p className="hub-warning">
+            Pure Local Mode is on. Browse cached hub gigs from your last sync, or manage local
+            contracts.
+          </p>
         ) : null}
-      </div>
+        {gigsFromCache && gigsCacheMessage ? (
+          <p className="hub-warning" role="status">
+            {gigsCacheMessage}
+          </p>
+        ) : null}
 
-      {tierBenefits.executive_lounge ? (
-        <label className="checkbox-row executive-lounge-filter">
-          <input
-            type="checkbox"
-            checked={executiveLoungeOnly}
-            onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
-          />
-          <span>Executive Lounge gigs only</span>
-        </label>
-      ) : null}
+        <div className="analytics-grid marketplace-stats-grid">
+          <article>
+            <strong>{browseGigs.length}</strong>
+            <span>Open gigs</span>
+          </article>
+          <article>
+            <strong>{activeContracts.length}</strong>
+            <span>Active contracts</span>
+          </article>
+          <article>
+            <strong>{historyContracts.length}</strong>
+            <span>Completed</span>
+          </article>
+          <article>
+            <strong>{tierBenefits.platform_fee_percent.toFixed(0)}%</strong>
+            <span>Platform fee</span>
+          </article>
+        </div>
 
-      {settings.pure_local_mode ? (
-        <p className="hub-warning">
-          Pure Local Mode is on. Browse cached hub gigs from your last sync, or manage local contracts.
-        </p>
-      ) : null}
-      {gigsFromCache && gigsCacheMessage ? (
-        <p className="hub-warning" role="status">
-          {gigsCacheMessage}
-        </p>
-      ) : null}
+        <div className="marketplace-card-actions">
+          <button type="button" className="secondary-action" onClick={() => void refreshGigs()} disabled={loading}>
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() => void handleSync()}
+            disabled={settings.pure_local_mode}
+          >
+            Sync with hub
+          </button>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => onNavigateSection?.("publish")}
+            disabled={settings.pure_local_mode}
+          >
+            Post a gig
+          </button>
+        </div>
+      </section>
 
-      <div className="panel-actions">
-        <button type="button" onClick={() => void refreshGigs()} disabled={loading}>
-          {loading ? "Loading..." : "Refresh"}
-        </button>
-        <button type="button" onClick={() => void handleSync()} disabled={settings.pure_local_mode}>
-          Sync with hub
-        </button>
-      </div>
+      <section
+        id="browse"
+        className="marketplace-card marketplace-card--wide"
+        data-marketplace-section="browse"
+      >
+        <header className="marketplace-card-header">
+          <div>
+            <h3>Browse gigs</h3>
+            <p className="muted marketplace-card-subtitle">
+              Accept open contracts from soulmd-hub.
+              {simulationAutoRun
+                ? " Progress advances during simulation ticks."
+                : " Progress advances when backlog deliverables complete."}
+            </p>
+          </div>
+          <span className="marketplace-count-pill">{browseGigs.length} available</span>
+        </header>
 
-      <div className="marketplace-tabs">
-        <button
-          type="button"
-          className={activeTab === "browse" ? "active" : ""}
-          onClick={() => setActiveTab("browse")}
-        >
-          Browse ({browseGigs.length})
-        </button>
-        <button
-          type="button"
-          className={activeTab === "contracts" ? "active" : ""}
-          onClick={() => setActiveTab("contracts")}
-        >
-          My contracts ({activeContracts.length})
-        </button>
-        <button
-          type="button"
-          className={activeTab === "history" ? "active" : ""}
-          onClick={() => setActiveTab("history")}
-        >
-          History ({historyContracts.length})
-        </button>
-      </div>
+        {tierBenefits.executive_lounge ? (
+          <label className="checkbox-row executive-lounge-filter">
+            <input
+              type="checkbox"
+              checked={executiveLoungeOnly}
+              onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
+            />
+            <span>Executive Lounge gigs only</span>
+          </label>
+        ) : null}
 
-      {activeTab === "browse" ? (
-        <div className="gig-list">
-          {browseGigs.length === 0 ? (
-            <p className="muted">No open gigs available.</p>
-          ) : (
-            browseGigs.map((gig) => (
-              <article key={gig.gig_id} className="gig-card">
+        {browseGigs.length === 0 ? (
+          <p className="muted">
+            {loading ? "Loading gigs from hub…" : "No open gigs available. Sync with hub or post your own."}
+          </p>
+        ) : (
+          <div className="gig-list marketplace-gig-grid">
+            {browseGigs.map((gig) => (
+              <article key={gig.gig_id} className="gig-card marketplace-gig-card">
                 <header>
                   <strong>{gig.title}</strong>
                   <span>${gig.budget_usdt.toFixed(0)} USDT</span>
@@ -353,26 +434,44 @@ export function MarketplacePanel() {
                   ))}
                 </div>
                 <footer className="gig-card-footer">
-                  <span className={`gig-status-badge status-open`}>
+                  <span className="gig-status-badge status-open">
                     {gig.executive_lounge ? "Executive Lounge" : "Open"}
                   </span>
-                  <button type="button" className="primary-action" onClick={() => void handleAccept(gig.gig_id)}>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => void handleAccept(gig.gig_id)}
+                  >
                     Accept gig
                   </button>
                 </footer>
               </article>
-            ))
-          )}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        )}
+      </section>
 
-      {activeTab === "contracts" ? (
-        <div className="gig-list">
-          {activeContracts.length === 0 ? (
-            <p className="muted">No active contracts. Accept a gig from Browse.</p>
-          ) : (
-            activeContracts.map((contract) => (
-              <article key={contract.contract_id} className="gig-card">
+      <section
+        id="contracts"
+        className="marketplace-card marketplace-card--wide"
+        data-marketplace-section="contracts"
+      >
+        <header className="marketplace-card-header">
+          <div>
+            <h3>My contracts</h3>
+            <p className="muted marketplace-card-subtitle">
+              Active work — start delivery, submit for QC, approve payouts, or open disputes.
+            </p>
+          </div>
+          <span className="marketplace-count-pill">{activeContracts.length} active</span>
+        </header>
+
+        {activeContracts.length === 0 ? (
+          <p className="muted">No active contracts. Accept a gig from Browse.</p>
+        ) : (
+          <div className="gig-list marketplace-gig-grid">
+            {activeContracts.map((contract) => (
+              <article key={contract.contract_id} className="gig-card marketplace-gig-card">
                 <header>
                   <strong>{contract.title}</strong>
                   <span>${contract.budget_usdt.toFixed(0)} USDT</span>
@@ -386,7 +485,9 @@ export function MarketplacePanel() {
                 </div>
                 {contract.qc_score != null ? (
                   <p className="gig-qc-score">
-                    <span className={`qc-band-badge band-${qcBandLabel(contract.qc_score).toLowerCase()}`}>
+                    <span
+                      className={`qc-band-badge band-${qcBandLabel(contract.qc_score).toLowerCase()}`}
+                    >
                       {qcBandLabel(contract.qc_score)}
                     </span>{" "}
                     QC score: {(contract.qc_score * 100).toFixed(0)}%
@@ -442,18 +543,32 @@ export function MarketplacePanel() {
                   ) : null}
                 </footer>
               </article>
-            ))
-          )}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        )}
+      </section>
 
-      {activeTab === "history" ? (
-        <div className="gig-list">
-          {historyContracts.length === 0 ? (
-            <p className="muted">Completed gigs will appear here with payout details.</p>
-          ) : (
-            historyContracts.map((contract) => (
-              <article key={contract.contract_id} className="gig-card gig-card-history">
+      <section
+        id="history"
+        className="marketplace-card marketplace-card--wide"
+        data-marketplace-section="history"
+      >
+        <header className="marketplace-card-header">
+          <div>
+            <h3>Completed gigs</h3>
+            <p className="muted marketplace-card-subtitle">
+              Payout history after QC approval — budget, platform fee, and net USDT received.
+            </p>
+          </div>
+          <span className="marketplace-count-pill">{historyContracts.length} completed</span>
+        </header>
+
+        {historyContracts.length === 0 ? (
+          <p className="muted">Completed gigs will appear here with payout details.</p>
+        ) : (
+          <div className="gig-list marketplace-gig-grid marketplace-history-grid">
+            {historyContracts.map((contract) => (
+              <article key={contract.contract_id} className="gig-card gig-card-history marketplace-gig-card">
                 <header>
                   <strong>{contract.title}</strong>
                   <span>+${contract.payout_usdt.toFixed(2)}</span>
@@ -466,59 +581,75 @@ export function MarketplacePanel() {
                 </p>
                 <span className="gig-status-badge status-completed">Completed</span>
               </article>
-            ))
-          )}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        )}
+      </section>
 
-      <div className="gig-form">
-        <h3>Post a gig</h3>
-        <label className="field-label">
-          Title
-          <input
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
+      <section
+        id="publish"
+        className="marketplace-card marketplace-card--wide"
+        data-marketplace-section="publish"
+      >
+        <header className="marketplace-card-header marketplace-card-header--stacked">
+          <h3>Post a gig</h3>
+          <p className="muted">
+            Publish work to soulmd-hub. Gigs queue locally when offline and sync on next hub pull.
+          </p>
+        </header>
+
+        <div className="gig-form marketplace-publish-form">
+          <label className="field-label">
+            Title
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              disabled={settings.pure_local_mode}
+              placeholder="Landing page redesign"
+            />
+          </label>
+          <label className="field-label">
+            Description
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={4}
+              disabled={settings.pure_local_mode}
+              placeholder="Scope, deliverables, and acceptance criteria…"
+            />
+          </label>
+          <div className="marketplace-publish-fields">
+            <label className="field-label">
+              Budget (USDT)
+              <input
+                type="number"
+                min={50}
+                value={budget}
+                onChange={(event) => setBudget(Number(event.target.value))}
+                disabled={settings.pure_local_mode}
+              />
+            </label>
+            <label className="field-label">
+              Required skills (comma-separated)
+              <input
+                type="text"
+                value={skills}
+                onChange={(event) => setSkills(event.target.value)}
+                disabled={settings.pure_local_mode}
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => void handleCreateGig()}
             disabled={settings.pure_local_mode}
-          />
-        </label>
-        <label className="field-label">
-          Description
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={3}
-            disabled={settings.pure_local_mode}
-          />
-        </label>
-        <label className="field-label">
-          Budget (USDT)
-          <input
-            type="number"
-            min={50}
-            value={budget}
-            onChange={(event) => setBudget(Number(event.target.value))}
-            disabled={settings.pure_local_mode}
-          />
-        </label>
-        <label className="field-label">
-          Required skills (comma-separated)
-          <input
-            type="text"
-            value={skills}
-            onChange={(event) => setSkills(event.target.value)}
-            disabled={settings.pure_local_mode}
-          />
-        </label>
-        <button
-          type="button"
-          className="primary-action"
-          onClick={() => void handleCreateGig()}
-          disabled={settings.pure_local_mode}
-        >
-          Publish gig
-        </button>
-      </div>
-    </section>
+          >
+            Publish gig
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

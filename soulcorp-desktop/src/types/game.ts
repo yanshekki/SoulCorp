@@ -3,6 +3,7 @@ export type SidebarPanel =
   | "office"
   | "workspace"
   | "meeting"
+  | "projects"
   | "design_studio"
   | "finance"
   | "marketplace"
@@ -178,11 +179,14 @@ export interface RecruitmentCandidate {
   soul_id?: number | null;
   name: string;
   headline: string;
+  /** Job title from soulmd-hub listing (stored on AgentRecord.role when hired). */
+  job_role: string;
   skills: string[];
   vibe: string;
   verified: boolean;
   hourly_rate_usdt: number;
   soul_md_content?: string | null;
+  file_type?: "single_md" | "full_soul_folder" | string | null;
   compatibility_score?: number | null;
   skill_overlap?: string[] | null;
   department_fit?: string | null;
@@ -238,16 +242,42 @@ export interface BudgetAllocations {
   rnd_pct: number;
 }
 
+export type TokenBudgetPeriodType =
+  | "none"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly"
+  | "custom";
+
+export interface TokenBudgetPolicy {
+  period_limit: number;
+  period_type: TokenBudgetPeriodType;
+  period_days?: number;
+}
+
 export interface DepartmentTokenWallet {
   balance: number;
   allocated: number;
+  /** Lifetime usage — never resets. */
   spent: number;
+  period_limit?: number;
+  period_type?: TokenBudgetPeriodType;
+  period_days?: number;
+  period_spent?: number;
+  period_started_at?: string | null;
 }
 
 export interface AgentTokenWallet {
   balance: number;
   allocated: number;
+  /** Lifetime usage — never resets. */
   spent: number;
+  period_limit?: number;
+  period_type?: TokenBudgetPeriodType;
+  period_days?: number;
+  period_spent?: number;
+  period_started_at?: string | null;
 }
 
 export interface TokenEconomy {
@@ -292,6 +322,22 @@ export interface AgentAllocationRequest {
   amount: number;
 }
 
+export interface TokenBudgetPolicyRequest {
+  period_limit: number;
+  period_type: TokenBudgetPeriodType;
+  period_days?: number;
+}
+
+export interface DepartmentTokenBudgetRequest {
+  department: string;
+  policy: TokenBudgetPolicyRequest;
+}
+
+export interface AgentTokenBudgetRequest {
+  agent_id: string;
+  policy: TokenBudgetPolicyRequest;
+}
+
 export interface MeetingTurnCostEstimate {
   estimated_tokens: number;
   affordable: boolean;
@@ -304,14 +350,196 @@ export interface InternalProject {
   progress: number;
   priority: number;
   owner_department: string;
+  description?: string;
+  pm_agent_id?: string | null;
+  active_sprint_id?: string | null;
+  default_cycle_days?: number;
 }
 
+export type WorkNodeKind = "program" | "epic" | "story" | "task";
+export type WorkNodeStatus =
+  | "backlog"
+  | "ready"
+  | "in_sprint"
+  | "in_progress"
+  | "in_review"
+  | "done"
+  | "blocked";
+export type SprintStatus = "planning" | "active" | "review" | "closed";
+export type DirectiveTarget = "department" | "agent" | "project";
+export type DirectiveStatus = "open" | "routed" | "executing" | "done" | "cancelled";
+export type DirectiveSource = "ceo" | "meeting" | "co_ceo" | "marketplace";
+export type ExecutionStatus = "queued" | "running" | "succeeded" | "failed" | "throttled";
+
+export interface WorkNode {
+  id: string;
+  parent_id?: string | null;
+  project_id: string;
+  kind: WorkNodeKind;
+  title: string;
+  description: string;
+  status: WorkNodeStatus;
+  priority: number;
+  story_points: number;
+  backlog_rank: number;
+  assignee_agent_id?: string | null;
+  owner_pm_agent_id?: string | null;
+  department: string;
+  sprint_id?: string | null;
+  depends_on: string[];
+  acceptance_criteria: string[];
+  linked_workspace_page_id?: string | null;
+  linked_gig_contract_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
+export interface Sprint {
+  id: string;
+  project_id: string;
+  name: string;
+  goal: string;
+  cycle_length_days: number;
+  start_day: number;
+  end_day: number;
+  status: SprintStatus;
+  committed_story_ids: string[];
+  velocity_target: number;
+}
+
+export interface CommandCenterAlert {
+  severity: string;
+  message: string;
+  action_ref?: string | null;
+}
+
+export interface CommandCenterOverview {
+  day_number: number;
+  token_pool: number;
+  monthly_burn: number;
+  avg_morale: number;
+  avg_energy: number;
+  open_directives: number;
+  blocked_tasks: number;
+  failed_runs: number;
+  throttled_runs: number;
+  unassigned_sprint_tasks: number;
+  active_sprint_name?: string | null;
+  burndown_remaining: number;
+  burndown_total: number;
+  execution_paused: boolean;
+  alerts: CommandCenterAlert[];
+}
+
+export interface DirectivePreviewNode {
+  kind: WorkNodeKind;
+  title: string;
+  description: string;
+  story_points: number;
+  department: string;
+  children: DirectivePreviewNode[];
+}
+
+export interface BatchExecutionResult {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  messages: string[];
+}
+
+export interface Directive {
+  id: string;
+  title: string;
+  description: string;
+  source: DirectiveSource | string;
+  target: DirectiveTarget;
+  target_ref: string;
+  status: DirectiveStatus;
+  spawned_node_ids: string[];
+  created_at: string;
+}
+
+export interface ExecutionRun {
+  id: string;
+  work_node_id: string;
+  agent_id: string;
+  status: ExecutionStatus;
+  provider: string;
+  estimated_tokens: number;
+  actual_tokens: number;
+  deliverable_page_id?: string | null;
+  summary: string;
+  error?: string | null;
+  started_at: string;
+  finished_at?: string | null;
+}
+
+export interface WorkTreeNode {
+  node: WorkNode;
+  children: WorkTreeNode[];
+}
+
+export interface WorkTreeSnapshot {
+  project_id: string;
+  nodes: WorkTreeNode[];
+  flat: WorkNode[];
+}
+
+export interface ScrumBoardSnapshot {
+  project_id: string;
+  active_sprint?: Sprint | null;
+  backlog: WorkNode[];
+  sprint_items: WorkNode[];
+  in_progress: WorkNode[];
+  in_review: WorkNode[];
+  done: WorkNode[];
+  burndown_remaining: number;
+  burndown_total: number;
+}
+
+export interface AgentInboxEntry {
+  agent_id: string;
+  agent_name: string;
+  agent_role: string;
+  department: string;
+  assigned_points: number;
+  tasks: WorkNode[];
+}
+
+export interface ScrumSnapshot {
+  projects: InternalProject[];
+  tree?: WorkTreeSnapshot | null;
+  board?: ScrumBoardSnapshot | null;
+  directives: Directive[];
+  inboxes: AgentInboxEntry[];
+  execution_runs: ExecutionRun[];
+  default_pm_agent_id?: string | null;
+}
+
+export interface WorkExecutionCostEstimate {
+  estimated_tokens: number;
+  affordable: boolean;
+  message: string;
+}
+
+/** Editor-visible soul.md plus optional hub-compiled AI prompt (not shown in UI). */
 export interface SoulProfile {
   name: string;
   personality: string;
   values: string;
   communication_style: string;
   raw_content: string;
+  system_prompt_source?: string | null;
+  hub_file_type?: string | null;
+}
+
+export interface HubSoulImportResult {
+  display_md: string;
+  system_prompt: string;
+  file_type: string;
+  description: string;
+  name: string;
 }
 
 export interface AgentRecord {
@@ -327,6 +555,8 @@ export interface AgentRecord {
   soul?: SoulProfile | null;
   ai_provider?: string | null;
   agent_kind?: string | null;
+  reports_to?: string | null;
+  manages_department?: string | null;
 }
 
 export interface CompanySummary {
@@ -345,6 +575,20 @@ export interface CompanyListResponse {
   companies: CompanySummary[];
 }
 
+export type AgentSlotMode = "preset" | "recruit";
+
+export interface AgentSlotSetup {
+  preset_id: string;
+  mode: AgentSlotMode;
+  soul_md_content?: string | null;
+  candidate_id?: string | null;
+  role?: string | null;
+  department?: string | null;
+  offered_salary?: number | null;
+  system_prompt_source?: string | null;
+  soul_md_edited?: boolean;
+}
+
 export interface CreateCompanyRequest {
   company_name: string;
   industry: string;
@@ -353,6 +597,7 @@ export interface CreateCompanyRequest {
   pure_local_mode: boolean;
   random_events_enabled: boolean;
   random_event_chance: number;
+  agent_roster: AgentSlotSetup[];
 }
 
 export interface SwitchCompanyResponse {
@@ -375,6 +620,7 @@ export interface CompleteOnboardingRequest {
   pure_local_mode: boolean;
   random_events_enabled: boolean;
   random_event_chance: number;
+  agent_roster: AgentSlotSetup[];
 }
 
 export interface GameSettings {
@@ -405,6 +651,19 @@ export interface GameSettings {
   music_volume: number;
   sfx_enabled: boolean;
   sfx_volume: number;
+  scrum_auto_schedule?: boolean;
+  scrum_auto_execute?: boolean;
+  scrum_execution_paused?: boolean;
+  scrum_min_tokens_guard?: number;
+  scrum_max_executions_per_tick?: number;
+  scrum_worker_enabled?: boolean;
+  scrum_worker_interval_secs?: number;
+  scrum_auto_route?: boolean;
+  scrum_auto_approve?: boolean;
+  scrum_parallel_agents?: boolean;
+  scrum_auto_retry_blocked?: boolean;
+  scrum_max_blocked_retries?: number;
+  scrum_use_agent_tools?: boolean;
 }
 
 export interface Achievement {

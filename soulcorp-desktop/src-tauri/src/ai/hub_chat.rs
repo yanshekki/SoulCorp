@@ -55,6 +55,11 @@ impl AiProvider for HubChatProvider {
                 "soulmd-hub provider requires an API key. Configure it in Hub settings.".to_string()
             })?;
 
+        let soul_id = request.soul_id.ok_or_else(|| {
+            "soulmd-hub requires a hub-linked agent. Use a local LLM for preset or edited personas."
+                .to_string()
+        })?;
+
         let url = format!("{}/api/chat", self.base_url.trim_end_matches('/'));
         let session_token = format!("soulcorp-{}", Uuid::new_v4());
         let transcript = request
@@ -63,15 +68,23 @@ impl AiProvider for HubChatProvider {
             .map(|turn| format!("{}: {}", turn.role, turn.content))
             .collect::<Vec<_>>()
             .join("\n");
+
+        // Hub loads persona from soul_id; only forward explicit task/meeting context.
+        let context_block = request
+            .context
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Respond in character.");
+
         let content = if transcript.is_empty() {
-            format!("{}\n\nUser request:\n{}", request.system_prompt, request.user_prompt)
+            format!("{context_block}\n\nUser request:\n{}", request.user_prompt)
         } else {
             format!(
-                "{}\n\nMeeting transcript so far:\n{}\n\nNow respond as the active speaker:\n{}",
-                request.system_prompt, transcript, request.user_prompt
+                "{context_block}\n\nMeeting transcript so far:\n{transcript}\n\nNow respond as the active speaker:\n{}",
+                request.user_prompt
             )
         };
-        let soul_id = request.soul_id.unwrap_or(1);
 
         let body = json!({
             "action": "chat",
@@ -123,5 +136,26 @@ impl AiProvider for HubChatProvider {
             provider: self.name().to_string(),
             usage: estimate_from_texts(&content, content.trim()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ai::provider::ChatRequest;
+
+    #[test]
+    fn requires_hub_linked_soul_id() {
+        let provider = HubChatProvider::new("http://localhost".to_string(), Some("test-key".to_string()));
+        let request = ChatRequest {
+            system_prompt: "persona".into(),
+            user_prompt: "hello".into(),
+            temperature: 0.7,
+            soul_id: None,
+            context: None,
+            conversation_turns: Vec::new(),
+        };
+        let err = provider.chat(request).expect_err("missing soul_id should fail");
+        assert!(err.contains("hub-linked agent"));
     }
 }

@@ -8,6 +8,8 @@ import { syncAgentsFromRecords } from "../utils/agentBehavior";
 import { syncAgentRuntime } from "../utils/agentRuntime";
 import { INITIAL_BUILDINGS } from "../data/initialWorld";
 import { getVisualDesign } from "../services/visualDesignClient";
+import { IS_V2, simulationAutoRun } from "../config/features";
+import { normalizePanelForEdition } from "../config/navigation";
 import { clearEmptyGameState, hasActiveCompany } from "../utils/companyState";
 import {
   applyAgentsVisualDesign,
@@ -143,18 +145,28 @@ export async function reloadGameState(
     setStatusMessage(
       companyList.companies.length > 0
         ? "Select a company from the header to continue."
-        : "Create a company to start your simulation.",
+        : "Create a company to start your workspace.",
     );
     useWorkspaceStore.getState().reset();
     clearLocalProgress(operationId);
+    useGameStore.getState().bumpCompanyRevision();
     return;
   }
 
   reportLocalProgress(operationId, "Syncing hub status…", 60, "hub");
 
-  setCompanyName(onboarding.company_name);
-  setCompanyIndustry(onboarding.company_industry);
-  setCompanyTagline(onboarding.company_tagline);
+  const activeCompany = companyList.companies.find(
+    (company) => company.id === companyList.active_company_id,
+  );
+  if (activeCompany) {
+    setCompanyName(activeCompany.name);
+    setCompanyIndustry(activeCompany.industry);
+    setCompanyTagline(activeCompany.tagline);
+  } else {
+    setCompanyName(onboarding.company_name);
+    setCompanyIndustry(onboarding.company_industry);
+    setCompanyTagline(onboarding.company_tagline);
+  }
 
   reportLocalProgress(operationId, "Loading visual design…", 75, "visual");
   const visualDesignRaw = await getVisualDesign().catch(() => store.visualDesign);
@@ -206,8 +218,12 @@ export async function reloadGameState(
     );
     setAgents(mergedAgents);
     syncAgentRuntime(mergedAgents);
-    useGameStore.getState().setIsPaused(false);
-    setStatusMessage("Company loaded. Office simulation ready.");
+    useGameStore.getState().setIsPaused(!simulationAutoRun);
+    setStatusMessage(
+      simulationAutoRun
+        ? "Company loaded. Office simulation ready."
+        : "Company loaded. Projects and workspace ready.",
+    );
 
     reportLocalProgress(operationId, "Loading workspace…", 90, "workspace");
     try {
@@ -241,10 +257,21 @@ export async function reloadGameState(
       useWorkspaceStore.getState().reset();
       setStatusMessage(`Workspace load failed: ${String(error)}`);
     }
+    const normalizedPanel = normalizePanelForEdition(useGameStore.getState().activePanel);
+    if (normalizedPanel !== useGameStore.getState().activePanel) {
+      useGameStore.setState({ activePanel: normalizedPanel });
+    }
+
     reportLocalProgress(operationId, "Ready", 100, "done");
     clearLocalProgress(operationId);
+    useGameStore.getState().bumpCompanyRevision();
   } else {
-    setStatusMessage("Complete company setup to start your simulation.");
+    setStatusMessage(
+      IS_V2
+        ? "Complete company setup to start your simulation."
+        : "Complete company setup to start your workspace.",
+    );
     clearLocalProgress(operationId);
+    useGameStore.getState().bumpCompanyRevision();
   }
 }

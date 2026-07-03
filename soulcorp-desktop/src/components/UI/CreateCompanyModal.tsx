@@ -5,7 +5,20 @@ import { applyDesignPreset } from "../../services/visualDesignClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
+import {
+  defaultActivePanel,
+  showDesignStudio,
+  showPlayModeSettings,
+  simulationAutoRun,
+} from "../../config/features";
 import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
+import {
+  AgentRosterStep,
+  defaultAgentRosterState,
+  isAgentRosterValid,
+} from "./AgentRosterStep";
+import { toAgentRosterPayload } from "../../data/presetAgents";
+import type { AgentRosterSlotState } from "../../data/presetAgents";
 
 export function CreateCompanyModal() {
   const showCreateCompany = useGameStore((state) => state.showCreateCompany);
@@ -24,6 +37,7 @@ export function CreateCompanyModal() {
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [openDesignStudioAfter, setOpenDesignStudioAfter] = useState(false);
+  const [agentRoster, setAgentRoster] = useState<AgentRosterSlotState[]>(defaultAgentRosterState());
   const [submitting, setSubmitting] = useState(false);
 
   if (!showCreateCompany) {
@@ -41,6 +55,10 @@ export function CreateCompanyModal() {
       setStatusMessage("Enter a company name with at least 2 characters.");
       return;
     }
+    if (!isAgentRosterValid(agentRoster, pureLocalMode)) {
+      setStatusMessage("Complete all three agent slots with valid soul.md content.");
+      return;
+    }
     setSubmitting(true);
     try {
       await createCompany({
@@ -52,13 +70,16 @@ export function CreateCompanyModal() {
         random_events_enabled:
           playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
         random_event_chance: playModeConfig.randomEventChance,
+        agent_roster: toAgentRosterPayload(agentRoster),
       });
       if (designPresetId && designPresetId !== "default") {
         await applyDesignPreset(designPresetId);
       }
       await reloadGameState();
-      setActivePanel(openDesignStudioAfter ? "design_studio" : "office");
-      useGameStore.setState({ isPaused: false });
+      setActivePanel(
+        showDesignStudio && openDesignStudioAfter ? "design_studio" : defaultActivePanel,
+      );
+      useGameStore.setState({ isPaused: !simulationAutoRun });
       setShowCreateCompany(false);
       setCompanyName("");
       setIndustry("");
@@ -69,7 +90,14 @@ export function CreateCompanyModal() {
         randomEventChance: DEFAULT_EVENT_CHANCE,
       });
       setPureLocalMode(false);
-      setStatusMessage(`Created ${companyName.trim()}. Your new office is live.`);
+      setDesignPresetId(null);
+      setOpenDesignStudioAfter(false);
+      setAgentRoster(defaultAgentRosterState());
+      setStatusMessage(
+        showDesignStudio
+          ? `Created ${companyName.trim()}. Your new office is live.`
+          : `Created ${companyName.trim()}. Your company is ready.`,
+      );
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -118,8 +146,12 @@ export function CreateCompanyModal() {
             />
           </label>
 
-          <h3>Play style</h3>
-          <PlayModePicker compact value={playModeConfig} onChange={setPlayModeConfig} />
+          {showPlayModeSettings ? (
+            <>
+              <h3>Play style</h3>
+              <PlayModePicker compact value={playModeConfig} onChange={setPlayModeConfig} />
+            </>
+          ) : null}
 
           <label className="checkbox-row">
             <input
@@ -130,22 +162,32 @@ export function CreateCompanyModal() {
             Pure Local Mode (offline-only for this company)
           </label>
 
-          <h3>3D campus look</h3>
-          <p className="muted">Optional preset for buildings and campus theme.</p>
-          <DesignPresetPicker
-            compact
-            selectedId={designPresetId}
-            onSelect={(presetId) => setDesignPresetId(presetId)}
-          />
+          {showDesignStudio ? (
+            <>
+              <h3>3D campus look</h3>
+              <p className="muted">Optional preset for buildings and campus theme.</p>
+              <DesignPresetPicker
+                compact
+                selectedId={designPresetId}
+                onSelect={(presetId) => setDesignPresetId(presetId)}
+              />
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={openDesignStudioAfter}
-              onChange={(event) => setOpenDesignStudioAfter(event.target.checked)}
-            />
-            Open 3D Design Studio after creating this company
-          </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={openDesignStudioAfter}
+                  onChange={(event) => setOpenDesignStudioAfter(event.target.checked)}
+                />
+                Open 3D Design Studio after creating this company
+              </label>
+            </>
+          ) : null}
+
+          <AgentRosterStep
+            pureLocalMode={pureLocalMode}
+            value={agentRoster}
+            onChange={setAgentRoster}
+          />
         </section>
 
         <footer className="onboarding-actions">

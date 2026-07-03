@@ -1,6 +1,7 @@
 import { AGENT_PRESET_LOOKS } from "../../data/designPresets";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
+import { formatAgentOptionLabel } from "../../utils/agentLabel";
 import {
   DEFAULT_AGENT_VISUAL,
   type AgentVisualConfig,
@@ -19,8 +20,18 @@ export function AgentDesignPanel() {
   const patchDraft = useDesignStudioStore((state) => state.patchDraft);
 
   const roster = agentRecords.length > 0
-    ? agentRecords.map((record) => ({ id: record.id, name: record.name, department: record.department }))
-    : agents.map((agent) => ({ id: agent.id, name: agent.name, department: agent.department }));
+    ? agentRecords.map((record) => ({
+        id: record.id,
+        name: record.name,
+        role: record.role,
+        department: record.department,
+      }))
+    : agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        department: agent.department,
+      }));
 
   const agentId = selectedAgentId ?? roster[0]?.id ?? null;
   const agent = roster.find((item) => item.id === agentId);
@@ -71,7 +82,7 @@ export function AgentDesignPanel() {
         <select value={agentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
           {roster.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name} · {item.department}
+              {formatAgentOptionLabel(item)}
             </option>
           ))}
         </select>

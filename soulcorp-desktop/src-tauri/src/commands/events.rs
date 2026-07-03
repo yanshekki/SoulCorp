@@ -1,3 +1,4 @@
+use crate::config;
 use crate::fate::{eligible_for_random_events, event_roll_threshold};
 use crate::state::{AppState, GameEvent, PlayMode};
 use crate::tier::benefits_for_tier;
@@ -26,6 +27,9 @@ pub fn get_recent_events(state: State<'_, Mutex<AppState>>) -> Result<Vec<GameEv
 
 #[tauri::command]
 pub fn get_event_foresight(state: State<'_, Mutex<AppState>>) -> Result<Vec<ForesightEvent>, String> {
+    if config::is_v1() {
+        return Ok(Vec::new());
+    }
     let state = state.lock().map_err(|e| e.to_string())?;
     if state.settings.play_mode == PlayMode::Work || !state.settings.random_events_enabled {
         return Ok(Vec::new());

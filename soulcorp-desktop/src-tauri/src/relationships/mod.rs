@@ -254,7 +254,11 @@ mod tests {
         state.seed_defaults();
         seed_default_relationships(&mut state);
         let graph = build_relationship_graph(&state);
-        assert_eq!(graph.nodes.len(), 4);
-        assert_eq!(graph.edges.len(), 2);
+        assert_eq!(graph.nodes.len(), state.agents.len());
+        if crate::config::is_v1() {
+            assert_eq!(graph.edges.len(), 2);
+        } else {
+            assert_eq!(graph.edges.len(), 2);
+        }
     }
 }

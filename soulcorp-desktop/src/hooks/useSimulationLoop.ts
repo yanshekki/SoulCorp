@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
+import { showAchievements, showPauseMenu, simulationAutoRun } from "../config/features";
 import { useGameStore } from "../stores/gameStore";
 import { useProgressStore } from "../stores/progressStore";
 import type {
@@ -41,7 +42,8 @@ export function useSimulationLoop() {
   }, [activeCompanyId]);
 
   useEffect(() => {
-    if (isPaused || !companyReady) {
+    const paused = !simulationAutoRun || (showPauseMenu ? isPaused : false);
+    if (paused || !companyReady) {
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
@@ -114,12 +116,14 @@ export function useSimulationLoop() {
               const { refreshWorkspaceTree } = await import("../services/workspaceClient");
               await refreshWorkspaceTree(true).catch(() => undefined);
             }
-            if (result.event) {
+            if (showAchievements && result.event) {
               prependEvent(result.event as GameEvent);
             }
-            const achievements = await invoke<AchievementSnapshot>("get_achievements");
-            setAchievements(achievements.achievements);
-            setEndings(achievements.endings);
+            if (showAchievements) {
+              const achievements = await invoke<AchievementSnapshot>("get_achievements");
+              setAchievements(achievements.achievements);
+              setEndings(achievements.endings);
+            }
           })
           .catch((error) => setStatusMessage(String(error)))
           .finally(() => {
@@ -140,5 +144,5 @@ export function useSimulationLoop() {
       }
       tickInFlightRef.current = false;
     };
-  }, [companyReady, isPaused, tickInterval]);
+  }, [companyReady, isPaused, tickInterval, showPauseMenu]);
 }

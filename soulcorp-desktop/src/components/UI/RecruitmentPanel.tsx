@@ -1,7 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IS_V2, showAgentMorale } from "../../config/features";
 import { useGameStore } from "../../stores/gameStore";
 import { totalCompanyTokens } from "../../utils/companyState";
+import { resolveCandidateSoul } from "../../utils/candidateSoul";
+import { recruitOnboardingTokensForCandidate } from "../../utils/recruitmentTokens";
 import type {
   AgentRecord,
   MeetingSnapshot,
@@ -14,6 +17,13 @@ import type {
 import { RelationshipGraphView } from "./RelationshipGraphView";
 
 const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
+
+export const RECRUITMENT_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "candidates", label: "Candidates" },
+  { id: "team", label: "Team morale" },
+  { id: "relationships", label: "Relationships" },
+] as const;
 
 function compatibilityLabel(score: number | null | undefined): string {
   if (score == null) {
@@ -28,7 +38,11 @@ function compatibilityLabel(score: number | null | undefined): string {
   return "Stretch hire";
 }
 
-export function RecruitmentPanel() {
+interface RecruitmentPanelProps {
+  onSectionFocus?: (sectionId: string) => void;
+}
+
+export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const finance = useGameStore((state) => state.finance);
@@ -37,6 +51,7 @@ export function RecruitmentPanel() {
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
   const setFinance = useGameStore((state) => state.setFinance);
   const setActiveMeeting = useGameStore((state) => state.setActiveMeeting);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
 
   const [skillFilter, setSkillFilter] = useState("");
@@ -48,6 +63,7 @@ export function RecruitmentPanel() {
   const [candidatesFromCache, setCandidatesFromCache] = useState(false);
   const [candidatesCacheMessage, setCandidatesCacheMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -80,7 +96,34 @@ export function RecruitmentPanel() {
       }
     };
     void load();
-  }, [skillFilter, setStatusMessage, agentRecords.length]);
+  }, [activeCompanyId, skillFilter, setStatusMessage]);
+
+  useEffect(() => {
+    if (!onSectionFocus) {
+      return;
+    }
+    const root = scrollRootRef.current?.closest(".recruitment-page-scroll");
+    const sections = scrollRootRef.current?.querySelectorAll("[data-recruitment-section]");
+    if (!root || !sections?.length) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const sectionId = visible?.target.getAttribute("data-recruitment-section");
+        if (sectionId) {
+          onSectionFocus(sectionId);
+        }
+      },
+      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [onSectionFocus, candidates.length, analytics, heatmap.length, relationshipGraph]);
 
   const analyticsByCandidate = useMemo(() => {
     const map = new Map(
@@ -150,23 +193,25 @@ export function RecruitmentPanel() {
   };
 
   const hireCandidate = async (candidate: RecruitmentCandidate) => {
-    const monthlySalary = candidate.hourly_rate_usdt * 160;
-    const onboardingTokens = Math.round(monthlySalary * 0.5);
+    const onboardingTokens = recruitOnboardingTokensForCandidate(candidate);
+    const monthlySalary = onboardingTokens > 0 ? Math.round(onboardingTokens / 0.5) : 3500;
     if (totalCompanyTokens(finance) < onboardingTokens) {
       setStatusMessage(
-        `Not enough tokens for onboarding package (~${onboardingTokens.toLocaleString()} tokens required).`,
+        "Not enough company tokens to complete this hire. Top up finance or set per-agent limits in Agent Brains.",
       );
       return;
     }
 
     try {
+      const resolvedSoul = await resolveCandidateSoul(candidate);
       const hired = await invoke<AgentRecord>("hire_candidate", {
         request: {
           candidate_id: candidate.id,
-          role: candidate.vibe,
+          role: candidate.job_role || candidate.vibe,
           department: candidate.department_fit ?? DEPARTMENTS[0],
           offered_salary: monthlySalary,
-          soul_md_content: candidate.soul_md_content,
+          soul_md_content: resolvedSoul.displayMd,
+          system_prompt_source: resolvedSoul.systemPromptSource,
         },
       });
       const agents = await invoke<AgentRecord[]>("list_agents");
@@ -181,102 +226,253 @@ export function RecruitmentPanel() {
     }
   };
 
+  const scrollToCandidates = useCallback(() => {
+    document.getElementById("candidates")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   return (
-    <section className="panel-card recruitment-panel">
-      <h2>Recruitment</h2>
-      <p className="muted">
-        Browse SOUL.md personas from soulmd-hub, review team fit analytics, and map agent relationships.
-      </p>
+    <div className="recruitment-panel recruitment-panel--page" ref={scrollRootRef}>
+      <section
+        id="overview"
+        className="recruitment-card recruitment-card--wide"
+        data-recruitment-section="overview"
+      >
+        <header className="recruitment-card-header recruitment-card-header--stacked">
+          <h3>Recruitment overview</h3>
+          <p className="muted">
+            Hub queue status, hiring funnel metrics, and compatibility scoring for the current
+            candidate pool.
+          </p>
+        </header>
 
-      <div className="hub-status-row">
-        <span className="hub-pill tier">{hubStatus.user_tier}</span>
-        {loading ? <span className="hub-pill offline">Loading souls...</span> : null}
-        {hubStatus.user_tier === "pro" || hubStatus.user_tier === "vip" ? (
-          <span className="hub-pill online">Priority matching</span>
-        ) : (
-          <span className="hub-pill offline">Standard queue</span>
-        )}
-      </div>
-
-      {settings.pure_local_mode ? (
-        <p className="hub-warning">
-          Pure Local Mode: hub candidates are unavailable. Connect to soulmd-hub or use God Mode bonus recruits.
-        </p>
-      ) : null}
-      {candidatesFromCache && candidatesCacheMessage ? (
-        <p className="hub-warning" role="status">
-          {candidatesCacheMessage}
-        </p>
-      ) : null}
-
-      {analytics ? (
-        <div className="recruitment-analytics">
-          <h3>Recruitment analytics</h3>
-          <div className="analytics-grid">
-            <article>
-              <strong>{analytics.team_size}</strong>
-              <span>Team size</span>
-            </article>
-            <article>
-              <strong>{(analytics.average_morale * 100).toFixed(0)}%</strong>
-              <span>Avg morale</span>
-            </article>
-            <article>
-              <strong>{analytics.agents_hired}</strong>
-              <span>Hires</span>
-            </article>
-            <article>
-              <strong>{analytics.interviews_started}</strong>
-              <span>Interviews</span>
-            </article>
-          </div>
-          {analytics.skill_gaps.length > 0 ? (
-            <div className="skill-tags analytics-gaps">
-              <span className="analytics-gaps-label">Skill gaps:</span>
-              {analytics.skill_gaps.map((skill) => (
-                <span key={skill}>{skill}</span>
-              ))}
-            </div>
+        <div className="hub-status-row">
+          <span className="hub-pill tier">{hubStatus.user_tier}</span>
+          {loading ? <span className="hub-pill offline">Loading souls…</span> : null}
+          {hubStatus.user_tier === "pro" || hubStatus.user_tier === "vip" ? (
+            <span className="hub-pill online">Priority matching</span>
           ) : (
-            <p className="muted">Current roster covers the visible candidate skill set.</p>
+            <span className="hub-pill offline">Standard queue</span>
           )}
-          {analytics.priority_matching ? (
-            <p className="tier-highlight">Pro/VIP priority matching boosts compatibility scoring.</p>
-          ) : null}
-          {analytics.candidate_scores.length > 0 ? (
-            <table className="candidate-scores-table">
-              <thead>
-                <tr>
-                  <th>Candidate</th>
-                  <th>Compatibility</th>
-                  <th>Risk</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analytics.candidate_scores.map((entry) => (
-                  <tr key={entry.candidate_id}>
-                    <td>{entry.name}</td>
-                    <td>{(entry.compatibility_score * 100).toFixed(0)}%</td>
-                    <td>{entry.risk_band}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
         </div>
-      ) : null}
 
-      <div className="relationship-graph-panel">
-        <h3>Agent relationship graph</h3>
-        {relationshipGraph ? <RelationshipGraphView graph={relationshipGraph} /> : null}
-      </div>
+        {settings.pure_local_mode ? (
+          <p className="hub-warning">
+            Pure Local Mode: hub candidates are unavailable. Connect to soulmd-hub or use God Mode
+            bonus recruits.
+          </p>
+        ) : null}
+        {candidatesFromCache && candidatesCacheMessage ? (
+          <p className="hub-warning" role="status">
+            {candidatesCacheMessage}
+          </p>
+        ) : null}
 
-      <div className="morale-heatmap">
-        <h3>Team morale heatmap</h3>
-        {heatmap.length === 0 ? (
-          <p className="muted">No agents to analyze yet.</p>
+        {analytics ? (
+          <>
+            <div className="recruitment-analytics">
+              <div className="analytics-grid recruitment-stats-grid">
+                <article>
+                  <strong>{analytics.team_size}</strong>
+                  <span>Team size</span>
+                </article>
+                {showAgentMorale ? (
+                  <article>
+                    <strong>{(analytics.average_morale * 100).toFixed(0)}%</strong>
+                    <span>Avg morale</span>
+                  </article>
+                ) : null}
+                <article>
+                  <strong>{analytics.agents_hired}</strong>
+                  <span>Hires</span>
+                </article>
+                <article>
+                  <strong>{analytics.interviews_started}</strong>
+                  <span>Interviews</span>
+                </article>
+              </div>
+
+              {analytics.skill_gaps.length > 0 ? (
+                <div className="skill-tags analytics-gaps">
+                  <span className="analytics-gaps-label">Skill gaps:</span>
+                  {analytics.skill_gaps.map((skill) => (
+                    <span key={skill}>{skill}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">Current roster covers the visible candidate skill set.</p>
+              )}
+
+              {analytics.priority_matching ? (
+                <p className="tier-highlight">Pro/VIP priority matching boosts compatibility scoring.</p>
+              ) : null}
+            </div>
+
+            {analytics.candidate_scores.length > 0 ? (
+              <div className="recruitment-scores-wrap">
+                <h4>Compatibility leaderboard</h4>
+                <table className="candidate-scores-table recruitment-scores-table">
+                  <thead>
+                    <tr>
+                      <th>Candidate</th>
+                      <th>Compatibility</th>
+                      <th>Risk</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.candidate_scores.map((entry) => {
+                      const interviewed = selectedIds.includes(entry.candidate_id);
+                      return (
+                        <tr key={entry.candidate_id}>
+                          <td>{entry.name}</td>
+                          <td>{(entry.compatibility_score * 100).toFixed(0)}%</td>
+                          <td>
+                            <span className={`fit-badge band-${entry.risk_band}`}>
+                              {entry.risk_band.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td>{interviewed ? "Selected" : "Available"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </>
         ) : (
-          <div className="heatmap-grid">
+          <p className="muted">Loading recruitment analytics…</p>
+        )}
+
+        <div className="recruitment-card-actions">
+          <button type="button" className="secondary-action" onClick={scrollToCandidates}>
+            Browse candidates ({filteredCandidates.length})
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="candidates"
+        className="recruitment-card recruitment-card--wide"
+        data-recruitment-section="candidates"
+      >
+        <header className="recruitment-card-header">
+          <div>
+            <h3>Candidate pool</h3>
+            <p className="muted recruitment-card-subtitle">
+              Select up to 3 for a panel interview, or hire directly.
+            </p>
+          </div>
+          <span className="recruitment-count-pill">
+            {filteredCandidates.length} shown · {selectedIds.length}/3 selected
+          </span>
+        </header>
+
+        <div className="recruitment-toolbar">
+          <label className="field-label recruitment-filter">
+            Filter by skill or name
+            <input
+              type="text"
+              value={skillFilter}
+              onChange={(event) => setSkillFilter(event.target.value)}
+              placeholder="react, design, marketing…"
+            />
+          </label>
+          <button
+            type="button"
+            className="primary-action"
+            disabled={selectedIds.length === 0}
+            onClick={() => void startInterview()}
+          >
+            Start interview ({selectedIds.length}/3)
+          </button>
+        </div>
+
+        {filteredCandidates.length === 0 ? (
+          <p className="muted">
+            {loading ? "Loading candidates from soulmd-hub…" : "No candidates match this filter."}
+          </p>
+        ) : (
+          <div className="candidate-list recruitment-candidate-grid">
+            {filteredCandidates.map((candidate) => {
+              const selected = selectedIds.includes(candidate.id);
+              const scoreEntry = analyticsByCandidate.get(candidate.id);
+              const compatibility = candidate.compatibility_score ?? scoreEntry?.compatibility_score;
+              return (
+                <article
+                  key={candidate.id}
+                  className={`candidate-card recruitment-candidate-card ${selected ? "selected" : ""}`}
+                >
+                  <header>
+                    <div>
+                      <strong>{candidate.name}</strong>
+                      <p className="muted">
+                        {candidate.job_role || candidate.vibe}
+                        {candidate.headline ? ` · ${candidate.headline}` : ""}
+                      </p>
+                    </div>
+                    <div className="candidate-actions">
+                      <button type="button" onClick={() => toggleCandidate(candidate.id)}>
+                        {selected ? "Selected" : "Select"}
+                      </button>
+                      <button type="button" onClick={() => void hireCandidate(candidate)}>
+                        Hire
+                      </button>
+                    </div>
+                  </header>
+                  <div className="candidate-fit-row">
+                    <span className={`fit-badge band-${scoreEntry?.risk_band ?? "balanced"}`}>
+                      {compatibilityLabel(compatibility)} ·{" "}
+                      {compatibility != null ? `${(compatibility * 100).toFixed(0)}%` : "—"}
+                    </span>
+                    {candidate.department_fit ? (
+                      <span className="muted">Best fit: {candidate.department_fit}</span>
+                    ) : null}
+                    {showAgentMorale && candidate.projected_morale_delta != null ? (
+                      <span className="muted">
+                        Morale impact +{(candidate.projected_morale_delta * 100).toFixed(1)}%
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="skill-tags">
+                    {candidate.skills.map((skill) => (
+                      <span key={skill}>{skill}</span>
+                    ))}
+                  </div>
+                  {candidate.skill_overlap && candidate.skill_overlap.length > 0 ? (
+                    <p className="candidate-overlap muted">
+                      Overlap: {candidate.skill_overlap.join(", ")}
+                    </p>
+                  ) : null}
+                  <footer>
+                    <span>{candidate.vibe} vibe</span>
+                    <span>{candidate.department_fit ?? "Flexible department"}</span>
+                    <span>{candidate.verified ? "Verified" : "Unverified"}</span>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {showAgentMorale ? (
+      <section
+        id="team"
+        className="recruitment-card recruitment-card--wide"
+        data-recruitment-section="team"
+      >
+        <header className="recruitment-card-header recruitment-card-header--stacked">
+          <h3>Team morale heatmap</h3>
+          <p className="muted">
+            Morale and energy bands for current employees — use when judging cultural fit of new hires.
+          </p>
+        </header>
+
+        {heatmap.length === 0 ? (
+          <p className="muted">No agents to analyze yet. Hire your first teammate to unlock morale insights.</p>
+        ) : (
+          <div className="heatmap-grid recruitment-heatmap-grid">
             {heatmap.map((entry) => (
               <article key={entry.agent_id} className={`heatmap-cell band-${entry.risk_band}`}>
                 <strong>{entry.name}</strong>
@@ -288,81 +484,31 @@ export function RecruitmentPanel() {
             ))}
           </div>
         )}
-      </div>
+      </section>
+      ) : null}
 
-      <label className="field-label">
-        Filter by skill or name
-        <input
-          type="text"
-          value={skillFilter}
-          onChange={(event) => setSkillFilter(event.target.value)}
-          placeholder="react, design, marketing..."
-        />
-      </label>
+      {IS_V2 ? (
+      <section
+        id="relationships"
+        className="recruitment-card recruitment-card--wide"
+        data-recruitment-section="relationships"
+      >
+        <header className="recruitment-card-header recruitment-card-header--stacked">
+          <h3>Agent relationship graph</h3>
+          <p className="muted">
+            Collaboration strength between current agents — spot isolation risks before expanding the team.
+          </p>
+        </header>
 
-      <div className="candidate-list">
-        {filteredCandidates.map((candidate) => {
-          const selected = selectedIds.includes(candidate.id);
-          const scoreEntry = analyticsByCandidate.get(candidate.id);
-          const compatibility = candidate.compatibility_score ?? scoreEntry?.compatibility_score;
-          return (
-            <article
-              key={candidate.id}
-              className={`candidate-card ${selected ? "selected" : ""}`}
-            >
-              <header>
-                <div>
-                  <strong>{candidate.name}</strong>
-                  <p className="muted">{candidate.headline}</p>
-                </div>
-                <div className="candidate-actions">
-                  <button type="button" onClick={() => toggleCandidate(candidate.id)}>
-                    {selected ? "Selected" : "Select"}
-                  </button>
-                  <button type="button" onClick={() => void hireCandidate(candidate)}>
-                    Hire
-                  </button>
-                </div>
-              </header>
-              <div className="candidate-fit-row">
-                <span className={`fit-badge band-${scoreEntry?.risk_band ?? "balanced"}`}>
-                  {compatibilityLabel(compatibility)} ·{" "}
-                  {compatibility != null ? `${(compatibility * 100).toFixed(0)}%` : "—"}
-                </span>
-                {candidate.department_fit ? (
-                  <span className="muted">Best fit: {candidate.department_fit}</span>
-                ) : null}
-                {candidate.projected_morale_delta != null ? (
-                  <span className="muted">
-                    Morale impact +{(candidate.projected_morale_delta * 100).toFixed(1)}%
-                  </span>
-                ) : null}
-              </div>
-              <div className="skill-tags">
-                {candidate.skills.map((skill) => (
-                  <span key={skill}>{skill}</span>
-                ))}
-              </div>
-              {candidate.skill_overlap && candidate.skill_overlap.length > 0 ? (
-                <p className="candidate-overlap muted">
-                  Overlap: {candidate.skill_overlap.join(", ")}
-                </p>
-              ) : null}
-              <footer>
-                <span>{candidate.vibe} vibe</span>
-                <span>${candidate.hourly_rate_usdt}/hr</span>
-                <span>{candidate.verified ? "Verified" : "Unverified"}</span>
-              </footer>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="panel-actions">
-        <button type="button" className="primary-action" onClick={() => void startInterview()}>
-          Start interview ({selectedIds.length}/3)
-        </button>
-      </div>
-    </section>
+        {relationshipGraph ? (
+          <div className="relationship-graph-panel recruitment-relationship-panel">
+            <RelationshipGraphView graph={relationshipGraph} />
+          </div>
+        ) : (
+          <p className="muted">Relationship data appears once you have multiple agents on the roster.</p>
+        )}
+      </section>
+      ) : null}
+    </div>
   );
 }

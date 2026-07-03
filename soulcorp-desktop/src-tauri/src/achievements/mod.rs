@@ -310,6 +310,8 @@ mod tests {
                     ai_provider: None,
                     agent_kind: None,
                     skills: crate::state::skills_for_role("Engineer"),
+                    reports_to: None,
+                    manages_department: None,
                 },
             );
         }

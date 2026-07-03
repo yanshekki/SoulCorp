@@ -1,5 +1,10 @@
+mod agent_roster;
 mod companies;
 pub mod visual_design;
+
+pub use agent_roster::{
+    default_agent_roster, validate_agent_roster, AgentSlotMode, AgentSlotSetup,
+};
 
 use crate::achievements::{Achievement, Ending};
 use crate::soul::SoulProfile;
@@ -75,6 +80,44 @@ pub struct GameSettings {
     pub sfx_enabled: bool,
     #[serde(default = "default_sfx_volume")]
     pub sfx_volume: f32,
+    #[serde(default = "default_true")]
+    pub scrum_auto_schedule: bool,
+    #[serde(default = "default_true")]
+    pub scrum_auto_execute: bool,
+    #[serde(default)]
+    pub scrum_execution_paused: bool,
+    #[serde(default)]
+    pub scrum_min_tokens_guard: u64,
+    #[serde(default = "default_max_executions_per_tick")]
+    pub scrum_max_executions_per_tick: u32,
+    #[serde(default = "default_true")]
+    pub scrum_worker_enabled: bool,
+    #[serde(default = "default_worker_interval")]
+    pub scrum_worker_interval_secs: u32,
+    #[serde(default = "default_true")]
+    pub scrum_auto_route: bool,
+    #[serde(default = "default_true")]
+    pub scrum_auto_approve: bool,
+    #[serde(default)]
+    pub scrum_parallel_agents: bool,
+    #[serde(default = "default_true")]
+    pub scrum_auto_retry_blocked: bool,
+    #[serde(default = "default_max_blocked_retries")]
+    pub scrum_max_blocked_retries: u8,
+    #[serde(default)]
+    pub scrum_use_agent_tools: bool,
+}
+
+fn default_worker_interval() -> u32 {
+    30
+}
+
+fn default_max_blocked_retries() -> u8 {
+    2
+}
+
+fn default_max_executions_per_tick() -> u32 {
+    1
 }
 
 fn default_music_enabled() -> bool {
@@ -216,6 +259,32 @@ impl<'de> Deserialize<'de> for GameSettings {
             sfx_enabled: bool,
             #[serde(default = "default_sfx_volume")]
             sfx_volume: f32,
+            #[serde(default = "default_true")]
+            scrum_auto_schedule: bool,
+            #[serde(default = "default_true")]
+            scrum_auto_execute: bool,
+            #[serde(default)]
+            scrum_execution_paused: bool,
+            #[serde(default)]
+            scrum_min_tokens_guard: u64,
+            #[serde(default = "default_max_executions_per_tick")]
+            scrum_max_executions_per_tick: u32,
+            #[serde(default = "default_true")]
+            scrum_worker_enabled: bool,
+            #[serde(default = "default_worker_interval")]
+            scrum_worker_interval_secs: u32,
+            #[serde(default = "default_true")]
+            scrum_auto_route: bool,
+            #[serde(default = "default_true")]
+            scrum_auto_approve: bool,
+            #[serde(default)]
+            scrum_parallel_agents: bool,
+            #[serde(default = "default_true")]
+            scrum_auto_retry_blocked: bool,
+            #[serde(default = "default_max_blocked_retries")]
+            scrum_max_blocked_retries: u8,
+            #[serde(default)]
+            scrum_use_agent_tools: bool,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -254,6 +323,19 @@ impl<'de> Deserialize<'de> for GameSettings {
             music_volume: helper.music_volume.clamp(0.0, 1.0),
             sfx_enabled: helper.sfx_enabled,
             sfx_volume: helper.sfx_volume.clamp(0.0, 1.0),
+            scrum_auto_schedule: helper.scrum_auto_schedule,
+            scrum_auto_execute: helper.scrum_auto_execute,
+            scrum_execution_paused: helper.scrum_execution_paused,
+            scrum_min_tokens_guard: helper.scrum_min_tokens_guard,
+            scrum_max_executions_per_tick: helper.scrum_max_executions_per_tick.max(1),
+            scrum_worker_enabled: helper.scrum_worker_enabled,
+            scrum_worker_interval_secs: helper.scrum_worker_interval_secs.max(5),
+            scrum_auto_route: helper.scrum_auto_route,
+            scrum_auto_approve: helper.scrum_auto_approve,
+            scrum_parallel_agents: helper.scrum_parallel_agents,
+            scrum_auto_retry_blocked: helper.scrum_auto_retry_blocked,
+            scrum_max_blocked_retries: helper.scrum_max_blocked_retries.max(1),
+            scrum_use_agent_tools: helper.scrum_use_agent_tools,
         })
     }
 }
@@ -269,8 +351,12 @@ fn default_backup_interval() -> u32 {
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
-            play_mode: PlayMode::Game,
-            random_events_enabled: true,
+            play_mode: if crate::config::is_v1() {
+                PlayMode::Work
+            } else {
+                PlayMode::Game
+            },
+            random_events_enabled: !crate::config::is_v1(),
             random_event_chance: default_random_event_chance(),
             god_mode_enabled: false,
             ai_provider: "mock".to_string(),
@@ -296,6 +382,19 @@ impl Default for GameSettings {
             music_volume: default_music_volume(),
             sfx_enabled: true,
             sfx_volume: default_sfx_volume(),
+            scrum_auto_schedule: true,
+            scrum_auto_execute: true,
+            scrum_execution_paused: false,
+            scrum_min_tokens_guard: 0,
+            scrum_max_executions_per_tick: 1,
+            scrum_worker_enabled: true,
+            scrum_worker_interval_secs: 30,
+            scrum_auto_route: true,
+            scrum_auto_approve: true,
+            scrum_parallel_agents: false,
+            scrum_auto_retry_blocked: true,
+            scrum_max_blocked_retries: 2,
+            scrum_use_agent_tools: false,
         }
     }
 }
@@ -404,6 +503,10 @@ pub struct AgentRecord {
     pub agent_kind: Option<String>,
     #[serde(default)]
     pub skills: Vec<String>,
+    #[serde(default)]
+    pub reports_to: Option<String>,
+    #[serde(default)]
+    pub manages_department: Option<String>,
 }
 
 pub fn skills_for_role(role: &str) -> Vec<String> {
@@ -449,14 +552,49 @@ impl Default for BudgetAllocations {
 pub struct DepartmentTokenWallet {
     pub balance: u64,
     pub allocated: u64,
+    /// Lifetime tokens consumed (never resets).
     pub spent: u64,
+    /// Max tokens allowed per budget period (0 = unlimited).
+    #[serde(default)]
+    pub period_limit: u64,
+    /// weekly | monthly | quarterly | yearly | custom | none
+    #[serde(default = "default_token_budget_period_type")]
+    pub period_type: String,
+    /// Custom period length in days when period_type is "custom".
+    #[serde(default = "default_token_budget_period_days")]
+    pub period_days: u32,
+    /// Tokens consumed in the current budget period.
+    #[serde(default)]
+    pub period_spent: u64,
+    /// ISO timestamp when the current budget period started.
+    #[serde(default)]
+    pub period_started_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentTokenWallet {
     pub balance: u64,
     pub allocated: u64,
+    /// Lifetime tokens consumed (never resets).
     pub spent: u64,
+    #[serde(default)]
+    pub period_limit: u64,
+    #[serde(default = "default_token_budget_period_type")]
+    pub period_type: String,
+    #[serde(default = "default_token_budget_period_days")]
+    pub period_days: u32,
+    #[serde(default)]
+    pub period_spent: u64,
+    #[serde(default)]
+    pub period_started_at: Option<String>,
+}
+
+fn default_token_budget_period_type() -> String {
+    "none".to_string()
+}
+
+fn default_token_budget_period_days() -> u32 {
+    30
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -567,6 +705,10 @@ impl<'de> Deserialize<'de> for TokenEconomy {
 /// Legacy alias kept for gradual migration in command signatures.
 pub type FinanceState = TokenEconomy;
 
+fn default_cycle_days() -> u32 {
+    14
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InternalProject {
     pub id: String,
@@ -575,6 +717,14 @@ pub struct InternalProject {
     pub priority: u8,
     #[serde(default)]
     pub owner_department: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub pm_agent_id: Option<String>,
+    #[serde(default)]
+    pub active_sprint_id: Option<String>,
+    #[serde(default = "default_cycle_days")]
+    pub default_cycle_days: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -711,6 +861,16 @@ pub struct AppState {
     pub co_ceo: CoCeoState,
     #[serde(default)]
     pub projects: Vec<InternalProject>,
+    #[serde(default)]
+    pub work_nodes: Vec<crate::scrum::WorkNode>,
+    #[serde(default)]
+    pub sprints: Vec<crate::scrum::Sprint>,
+    #[serde(default)]
+    pub directives: Vec<crate::scrum::Directive>,
+    #[serde(default)]
+    pub execution_runs: Vec<crate::scrum::ExecutionRun>,
+    #[serde(default)]
+    pub default_pm_agent_id: Option<String>,
     pub day_number: u32,
     pub tick: u64,
     pub last_backup_tick: u64,
@@ -754,6 +914,11 @@ impl Default for AppState {
             department_ai_providers: HashMap::new(),
             co_ceo: CoCeoState::default(),
             projects: Vec::new(),
+            work_nodes: Vec::new(),
+            sprints: Vec::new(),
+            directives: Vec::new(),
+            execution_runs: Vec::new(),
+            default_pm_agent_id: None,
             day_number: 1,
             tick: 0,
             last_backup_tick: 0,
@@ -770,66 +935,7 @@ impl AppState {
         if !self.agents.is_empty() {
             return;
         }
-
-        let defaults = [
-            (
-                "agent-1",
-                "Mira",
-                "Senior Dev",
-                "Engineering",
-                0.82,
-                0.9,
-                4200.0,
-            ),
-            (
-                "agent-2",
-                "Kai",
-                "HR Lead",
-                "Human Resources",
-                0.76,
-                0.85,
-                3900.0,
-            ),
-            ("agent-3", "Ren", "COO", "Executive", 0.88, 0.8, 5100.0),
-        ];
-
-        for (id, name, role, department, morale, energy, salary) in defaults {
-            let role_string = role.to_string();
-            self.agents.insert(
-                id.to_string(),
-                AgentRecord {
-                    id: id.to_string(),
-                    name: name.to_string(),
-                    role: role_string.clone(),
-                    department: department.to_string(),
-                    morale,
-                    energy,
-                    salary,
-                    status: "idle".to_string(),
-                    soul: None,
-                    soul_id: None,
-                    ai_provider: None,
-                    agent_kind: None,
-                    skills: skills_for_role(&role_string),
-                },
-            );
-        }
-
-        if self.settings.play_mode == PlayMode::Game {
-            crate::fate::ensure_fate_agent(self);
-        }
-
-        self.seed_projects();
-        crate::relationships::seed_default_relationships(self);
-        self.token_economy.monthly_burn_tokens = self
-            .agents
-            .values()
-            .map(|agent| agent.salary as u64)
-            .sum::<u64>()
-            .saturating_add(self.agents.len() as u64 * 75);
-        if self.token_economy.departments.is_empty() {
-            crate::token_budget::initialize_wallets_from_agents(self);
-        }
+        let _ = self.apply_agent_roster(&default_agent_roster());
     }
 
     pub fn seed_projects(&mut self) {
@@ -843,6 +949,10 @@ impl AppState {
                 progress: 0.35,
                 priority: 1,
                 owner_department: "Engineering".into(),
+                description: "Core AI company platform features.".into(),
+                pm_agent_id: None,
+                active_sprint_id: None,
+                default_cycle_days: 14,
             },
             InternalProject {
                 id: "proj-hr".into(),
@@ -850,8 +960,80 @@ impl AppState {
                 progress: 0.2,
                 priority: 2,
                 owner_department: "Human Resources".into(),
+                description: "Morale, rituals, and team health.".into(),
+                pm_agent_id: None,
+                active_sprint_id: None,
+                default_cycle_days: 14,
             },
         ];
+        self.seed_scrum_demo();
+    }
+
+    pub fn seed_scrum_demo(&mut self) {
+        if !self.work_nodes.is_empty() {
+            return;
+        }
+        let now = crate::scrum::now_iso();
+        let story_id = crate::scrum::new_node_id();
+        self.work_nodes.push(crate::scrum::WorkNode {
+            id: story_id.clone(),
+            parent_id: None,
+            project_id: "proj-core".into(),
+            kind: crate::scrum::WorkNodeKind::Story,
+            title: "Ship Projects command center".into(),
+            description: "Backlog, sprint board, and agent inbox.".into(),
+            status: crate::scrum::WorkNodeStatus::Ready,
+            priority: 4,
+            story_points: 5,
+            backlog_rank: 1,
+            assignee_agent_id: None,
+            assigned_by_manager_id: None,
+            owner_pm_agent_id: self.default_pm_agent_id.clone(),
+            retry_count: 0,
+            department: "Engineering".into(),
+            sprint_id: None,
+            depends_on: Vec::new(),
+            acceptance_criteria: vec!["Projects panel live in navigation.".into()],
+            linked_workspace_page_id: None,
+            linked_gig_contract_id: None,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            completed_at: None,
+        });
+        for (index, (title, points)) in [
+            ("API & data model", 2u8),
+            ("Projects UI shell", 2u8),
+            ("Agent inbox wiring", 1u8),
+        ]
+        .iter()
+        .enumerate()
+        {
+            self.work_nodes.push(crate::scrum::WorkNode {
+                id: crate::scrum::new_node_id(),
+                parent_id: Some(story_id.clone()),
+                project_id: "proj-core".into(),
+                kind: crate::scrum::WorkNodeKind::Task,
+                title: title.to_string(),
+                description: String::new(),
+                status: crate::scrum::WorkNodeStatus::Backlog,
+                priority: 4,
+                story_points: *points,
+                backlog_rank: index as u32,
+                assignee_agent_id: None,
+                assigned_by_manager_id: None,
+                owner_pm_agent_id: self.default_pm_agent_id.clone(),
+                retry_count: 0,
+                department: "Engineering".into(),
+                sprint_id: None,
+                depends_on: Vec::new(),
+                acceptance_criteria: vec!["Deliverable in Workspace.".into()],
+                linked_workspace_page_id: None,
+                linked_gig_contract_id: None,
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                completed_at: None,
+            });
+        }
     }
 }
 

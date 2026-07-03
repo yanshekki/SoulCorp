@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "hk.ysk.soulcorp.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm dev:web",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
@@ -14,9 +14,13 @@
       {
         "label": "main",
         "title": "SoulCorp",
-        "width": 1280,
-        "height": 720,
-        "maximized": true,
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 680,
+        "center": true,
+        "fullscreen": false,
+        "maximized": false,
         "resizable": true,
         "devtools": false
       }

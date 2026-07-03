@@ -316,6 +316,8 @@ pub fn spawn_co_ceo(
         ai_provider: None,
         agent_kind: None,
         skills: crate::state::skills_for_role("AI Co-CEO"),
+        reports_to: None,
+        manages_department: Some("Executive".to_string()),
     };
 
     state.agents.insert(agent_id.clone(), record);
@@ -364,6 +366,7 @@ pub async fn run_co_ceo_briefing(
         user_prompt: context.prompt,
         temperature: 0.65,
         soul_id: None,
+        context: None,
         conversation_turns: Vec::new(),
     };
 
@@ -436,12 +439,17 @@ pub fn apply_co_ceo_directive(
         project.progress =
             (project.progress + request.project_progress_delta.clamp(0.01, 0.12)).min(1.0);
     } else {
+        let pm_agent_id = state.default_pm_agent_id.clone();
         state.projects.push(InternalProject {
             id: format!("proj-{}", Uuid::new_v4()),
             title: request.title.clone(),
             progress: 0.08,
             priority: 2,
             owner_department: request.target_department.clone(),
+            description: request.description.clone(),
+            pm_agent_id,
+            active_sprint_id: None,
+            default_cycle_days: 14,
         });
     }
 

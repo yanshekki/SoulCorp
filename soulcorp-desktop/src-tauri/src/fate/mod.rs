@@ -64,6 +64,8 @@ pub fn ensure_fate_agent(state: &mut AppState) {
             ai_provider: None,
             agent_kind: Some("fate".to_string()),
             skills: crate::state::skills_for_role("Director of Chance"),
+            reports_to: None,
+            manages_department: None,
         },
     );
 }

@@ -415,6 +415,490 @@
   background: rgba(109, 159, 120, 0.18);
 }
 
+.onboarding-progress-labeled {
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.onboarding-progress-item {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  min-width: 3.5rem;
+  opacity: 0.55;
+}
+
+.onboarding-progress-item.active {
+  opacity: 1;
+}
+
+.onboarding-progress-item .onboarding-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.onboarding-progress-item.active .onboarding-dot {
+  background: #e8c66d;
+}
+
+.onboarding-progress-label {
+  font-size: 0.68rem;
+  color: #d9c8b4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.onboarding-step-inline-choice {
+  margin-bottom: 0.35rem;
+}
+
+.agent-roster-step {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.agent-roster-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.agent-roster-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.agent-roster-card-header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.agent-roster-card-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.agent-roster-summary {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #d9c8b4;
+}
+
+.agent-roster-mode-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-roster-recruit-panel {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.agent-roster-recruit-fields {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-roster-candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.agent-roster-candidate {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f6f1e8;
+  cursor: pointer;
+}
+
+.agent-roster-candidate.selected {
+  border-color: rgba(109, 159, 120, 0.65);
+  background: rgba(109, 159, 120, 0.16);
+}
+
+.agent-roster-candidate strong {
+  font-size: 0.88rem;
+}
+
+.agent-roster-candidate span {
+  font-size: 0.78rem;
+}
+
+.agent-roster-hint.valid-copy {
+  color: #9fd0a8;
+  margin: 0;
+}
+
+.recruitment-candidate-picker {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.recruitment-candidate-picker-search input {
+  width: 100%;
+}
+
+.recruitment-candidate-picker-tags {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.recruitment-candidate-picker-tags-label {
+  font-size: 0.78rem;
+}
+
+.recruitment-quick-tags {
+  gap: 0.4rem;
+}
+
+.recruitment-quick-tag {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f6f1e8;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.recruitment-quick-tag.active {
+  border-color: rgba(109, 159, 120, 0.65);
+  background: rgba(109, 159, 120, 0.2);
+}
+
+.recruitment-candidate-picker-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.recruitment-candidate-picker-meta p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.recruitment-candidate-picker-count {
+  font-size: 0.75rem;
+  color: #d9c8b4;
+  white-space: nowrap;
+}
+
+.recruitment-candidate-picker-list {
+  max-height: none;
+}
+
+.recruitment-candidate-inline-tags {
+  margin-top: 0.2rem;
+}
+
+.recruitment-candidate-inline-tags span {
+  font-size: 0.68rem;
+}
+
+.recruitment-candidate-picker-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.recruitment-candidate-picker-pagination button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f6f1e8;
+  cursor: pointer;
+}
+
+.recruitment-candidate-picker-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.recruitment-candidate-picker-empty {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.recruitment-candidate-picker-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.recruitment-candidate-picker-toolbar .recruitment-candidate-picker-search {
+  flex: 1;
+}
+
+.recruitment-candidate-picker-status {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.recruit-hub-card-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.recruit-hub-card {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f6f1e8;
+  cursor: pointer;
+}
+
+.recruit-hub-card.selected {
+  border-color: rgba(109, 159, 120, 0.7);
+  background: rgba(109, 159, 120, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(109, 159, 120, 0.25);
+}
+
+.recruit-hub-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.recruit-hub-card-header strong {
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.recruit-hub-card-role {
+  font-size: 0.72rem;
+  color: #d9c8b4;
+  white-space: nowrap;
+}
+
+.recruit-hub-card-description {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #e8dfd2;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recruit-hub-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: #c8b6a3;
+}
+
+.recruit-hub-verified {
+  color: #9fd0a8;
+}
+
+.recruit-hub-card-tags span {
+  font-size: 0.68rem;
+}
+
+.agent-roster-recruit-layout {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.recruit-agent-detail {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.recruit-agent-detail-empty {
+  min-height: 4.5rem;
+  place-content: center;
+}
+
+.recruit-agent-detail-header {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.recruit-agent-detail-eyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d9c8b4;
+}
+
+.recruit-agent-detail-header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.recruit-agent-detail-role {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: #d9c8b4;
+}
+
+.recruit-agent-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.recruit-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.7rem;
+  color: #f6f1e8;
+}
+
+.recruit-badge.verified {
+  background: rgba(109, 159, 120, 0.22);
+  color: #bfe8c6;
+}
+
+.recruit-agent-description h5,
+.recruit-agent-soul-heading h5 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d9c8b4;
+}
+
+.recruit-agent-description p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: #f0e8dc;
+  white-space: pre-wrap;
+}
+
+.recruit-agent-soul-section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.recruit-agent-soul-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recruit-agent-soul-status {
+  font-size: 0.72rem;
+}
+
+.recruit-agent-soul-status.loading {
+  color: #e8c66d;
+}
+
+.recruit-agent-soul-status.ready {
+  color: #9fd0a8;
+}
+
+.recruit-agent-soul-skeleton {
+  min-height: 220px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.02)
+  );
+  animation: recruit-soul-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes recruit-soul-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.soul-md-editor {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.soul-md-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.soul-md-editor-filename {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #d9c8b4;
+}
+
+.soul-md-editor-status {
+  font-size: 0.75rem;
+}
+
+.soul-md-editor-status.valid {
+  color: #9fd0a8;
+}
+
+.soul-md-editor-status.invalid {
+  color: #e8a0a0;
+}
+
+.soul-md-editor-textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: #f6f1e8;
+}
+
+.soul-md-editor-textarea:focus {
+  outline: none;
+  border-color: rgba(109, 159, 120, 0.65);
+}
+
 .style-mode-picker {
   display: grid;
   gap: 0.75rem;

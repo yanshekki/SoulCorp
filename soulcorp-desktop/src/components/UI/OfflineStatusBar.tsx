@@ -1,3 +1,4 @@
+import { showFateUI, showSimulationChrome } from "../../config/features";
 import { useGameStore } from "../../stores/gameStore";
 import { useProgressStore } from "../../stores/progressStore";
 
@@ -24,7 +25,7 @@ export function OfflineStatusBar() {
       <span className={`offline-pill ${cloudEnabled && hubStatus.connected ? "online" : "offline"}`}>
         {cloudEnabled ? (hubStatus.connected ? "Hub connected" : "Hub offline") : "Cloud disabled"}
       </span>
-      <span className="offline-pill muted">{eventsLabel}</span>
+      {showFateUI ? <span className="offline-pill muted">{eventsLabel}</span> : null}
       {settings.low_power_mode ? (
         <span className="offline-pill performance">Low power</span>
       ) : null}
@@ -33,7 +34,7 @@ export function OfflineStatusBar() {
           Auto-backup {settings.backup_interval_minutes}m
         </span>
       ) : null}
-      {tickInFlight && simTickLabel ? (
+      {showSimulationChrome && tickInFlight && simTickLabel ? (
         <span className="sim-tick-pill" aria-live="polite">
           {simTickLabel}
           {simTickPercent !== null ? ` ${Math.round(simTickPercent)}%` : ""}

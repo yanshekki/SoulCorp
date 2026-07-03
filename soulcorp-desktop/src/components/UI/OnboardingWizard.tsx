@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { presetDesignFor } from "../../data/presetDesigns";
 import { INITIAL_BUILDINGS } from "../../data/initialWorld";
@@ -8,9 +8,36 @@ import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import { applyBuildingsVisualDesign } from "../../utils/applyVisualDesign";
 import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
+import { defaultActivePanel, showOffice3D, showPauseMenu } from "../../config/features";
 import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
+import {
+  AgentRosterStep,
+  defaultAgentRosterState,
+  isAgentRosterValid,
+} from "./AgentRosterStep";
+import { toAgentRosterPayload } from "../../data/presetAgents";
+import type { AgentRosterSlotState } from "../../data/presetAgents";
 
-const STEPS = ["welcome", "style", "connectivity", "design", "tour"] as const;
+const V1_STEPS = ["welcome", "agents", "connectivity"] as const;
+const V2_STEPS = ["welcome", "style", "agents", "connectivity", "design", "tour"] as const;
+
+const STEP_LABELS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], string> = {
+  welcome: "Company",
+  style: "Mode",
+  agents: "Agents",
+  connectivity: "Connect",
+  design: "Design",
+  tour: "Tour",
+};
+
+const STEP_HINTS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], string> = {
+  welcome: "Enter your company profile to continue.",
+  style: "Choose how you want to run this company.",
+  agents: "Pick preset agents or recruit from hub — edit each soul.md before they join.",
+  connectivity: "Choose cloud-connected or pure local operation.",
+  design: "Optional starting look for your 3D campus.",
+  tour: "Quick tour of your command center.",
+};
 
 const TOUR_ITEMS = [
   { panel: "Office", detail: "Watch agents move through the 3D office and track KPIs." },
@@ -34,18 +61,21 @@ export function OnboardingWizard() {
   const [industry, setIndustry] = useState("");
   const [tagline, setTagline] = useState("");
   const [playModeConfig, setPlayModeConfig] = useState<PlayModeConfig>({
-    playMode: "game",
-    randomEventsEnabled: true,
+    playMode: showOffice3D ? "game" : "work",
+    randomEventsEnabled: showOffice3D,
     randomEventChance: DEFAULT_EVENT_CHANCE,
   });
+  const steps = useMemo(() => (showOffice3D ? V2_STEPS : V1_STEPS), []);
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
+  const [agentRoster, setAgentRoster] = useState<AgentRosterSlotState[]>(defaultAgentRosterState());
   const [submitting, setSubmitting] = useState(false);
 
-  const step = STEPS[stepIndex];
+  const step = steps[stepIndex];
+  const isLastStep = stepIndex === steps.length - 1;
 
   useEffect(() => {
-    if (!onboardingReady || onboardingCompleted) {
+    if (!showPauseMenu || !onboardingReady || onboardingCompleted) {
       return;
     }
     if (!isPaused) {
@@ -62,7 +92,11 @@ export function OnboardingWizard() {
       setStatusMessage("Enter a company name with at least 2 characters.");
       return;
     }
-    setStepIndex((current) => Math.min(current + 1, STEPS.length - 1));
+    if (step === "agents" && !isAgentRosterValid(agentRoster, pureLocalMode)) {
+      setStatusMessage("Complete all three agent slots with valid soul.md content.");
+      return;
+    }
+    setStepIndex((current) => Math.min(current + 1, steps.length - 1));
   };
 
   const goBack = () => {
@@ -72,6 +106,10 @@ export function OnboardingWizard() {
   const finish = async () => {
     if (companyName.trim().length < 2) {
       setStatusMessage("Enter a company name with at least 2 characters.");
+      return;
+    }
+    if (!isAgentRosterValid(agentRoster, pureLocalMode)) {
+      setStatusMessage("Complete all three agent slots with valid soul.md content.");
       return;
     }
     setSubmitting(true);
@@ -85,6 +123,7 @@ export function OnboardingWizard() {
         random_events_enabled:
           playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
         random_event_chance: playModeConfig.randomEventChance,
+        agent_roster: toAgentRosterPayload(agentRoster),
       });
       setSettings({
         ...useGameStore.getState().settings,
@@ -102,11 +141,15 @@ export function OnboardingWizard() {
       }
       await reloadGameState();
       setOnboardingCompleted(true);
-      setActivePanel("office");
-      if (useGameStore.getState().isPaused) {
+      setActivePanel(defaultActivePanel);
+      if (showPauseMenu && useGameStore.getState().isPaused) {
         useGameStore.getState().togglePause();
       }
-      setStatusMessage(`Welcome to ${result.company_name}. Your office simulation is live.`);
+      setStatusMessage(
+        showOffice3D
+          ? `Welcome to ${result.company_name}. Your office simulation is live.`
+          : `Welcome to ${result.company_name}. Your AI company platform is ready.`,
+      );
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -116,20 +159,28 @@ export function OnboardingWizard() {
 
   return (
     <div className="onboarding-overlay onboarding-overlay-blocking" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-      <div className={`onboarding-wizard ${step === "style" ? "onboarding-wizard-wide" : ""}`}>
+      <div
+        className={`onboarding-wizard ${
+          step === "style" || step === "agents" ? "onboarding-wizard-wide" : ""
+        }`}
+      >
         <header className="onboarding-header">
           <p className="modal-eyebrow">First launch setup</p>
           <h2 id="onboarding-title">Set up your first company</h2>
-          <p className="muted">Step {stepIndex + 1} of {STEPS.length} — company details are required before you start.</p>
+          <p className="muted">
+            Step {stepIndex + 1} of {steps.length} — {STEP_LABELS[step]}: {STEP_HINTS[step]}
+          </p>
         </header>
 
-        <div className="onboarding-progress">
-          {STEPS.map((item, index) => (
+        <div className="onboarding-progress onboarding-progress-labeled" aria-label="Onboarding progress">
+          {steps.map((item, index) => (
             <span
               key={item}
-              className={`onboarding-dot ${index <= stepIndex ? "active" : ""}`}
-              aria-hidden="true"
-            />
+              className={`onboarding-progress-item ${index <= stepIndex ? "active" : ""}`}
+            >
+              <span className="onboarding-dot" aria-hidden="true" />
+              <span className="onboarding-progress-label">{STEP_LABELS[item]}</span>
+            </span>
           ))}
         </div>
 
@@ -178,6 +229,40 @@ export function OnboardingWizard() {
             <h3>Game Mode or Work Mode?</h3>
             <PlayModePicker value={playModeConfig} onChange={setPlayModeConfig} />
           </section>
+        ) : null}
+
+        {step === "agents" ? (
+          <>
+            <div className="onboarding-step onboarding-step-inline-choice">
+              <p className="muted">
+                Recruitment uses soulmd-hub when connected. Switch to Pure Local if you want custom
+                soul.md only.
+              </p>
+              <div className="onboarding-choice-grid agent-roster-mode-grid">
+                <button
+                  type="button"
+                  className={`onboarding-choice ${!pureLocalMode ? "selected" : ""}`}
+                  onClick={() => setPureLocalMode(false)}
+                >
+                  <strong>Hub recruitment</strong>
+                  <span>Browse hub candidates for recruit slots.</span>
+                </button>
+                <button
+                  type="button"
+                  className={`onboarding-choice ${pureLocalMode ? "selected" : ""}`}
+                  onClick={() => setPureLocalMode(true)}
+                >
+                  <strong>Pure Local recruit</strong>
+                  <span>Paste custom soul.md for recruit slots.</span>
+                </button>
+              </div>
+            </div>
+            <AgentRosterStep
+              pureLocalMode={pureLocalMode}
+              value={agentRoster}
+              onChange={setAgentRoster}
+            />
+          </>
         ) : null}
 
         {step === "connectivity" ? (
@@ -262,7 +347,8 @@ export function OnboardingWizard() {
               ))}
             </ul>
             <p className="onboarding-ready-copy">
-              {companyName.trim()} is ready. Mira, Kai, and Ren will join once you start
+              {companyName.trim()} is ready. Your founding agents join with the soul.md profiles you
+              configured
               {playModeConfig.playMode === "game" ? ", and Fate will watch from the Meta office" : ""}.
             </p>
           </section>
@@ -272,7 +358,7 @@ export function OnboardingWizard() {
           <button type="button" onClick={goBack} disabled={stepIndex === 0 || submitting}>
             Back
           </button>
-          {step !== "tour" ? (
+          {!isLastStep ? (
             <button type="button" className="primary-action" onClick={goNext}>
               Next
             </button>
@@ -283,7 +369,7 @@ export function OnboardingWizard() {
               onClick={() => void finish()}
               disabled={submitting}
             >
-              {submitting ? "Starting..." : "Start simulation"}
+              {submitting ? "Starting..." : showOffice3D ? "Start simulation" : "Get started"}
             </button>
           )}
         </footer>

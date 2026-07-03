@@ -1,4 +1,5 @@
 use crate::commands::events::apply_event;
+use crate::config;
 use crate::db::persistence::commit;
 use crate::state::{AppState, GameEvent, GodModeLogEntry};
 use crate::token_budget::{top_up_company_tokens, total_company_tokens};
@@ -18,6 +19,9 @@ pub struct GodModeActionResult {
 }
 
 fn ensure_enabled(state: &AppState) -> Result<(), String> {
+    if !config::is_v2() {
+        return Err("God Mode is only available in SoulCorp Simulator (v2).".into());
+    }
     if state.settings.god_mode_enabled {
         Ok(())
     } else {

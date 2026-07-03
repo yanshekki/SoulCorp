@@ -1,5 +1,6 @@
+use crate::commands::onboarding::persist_single_agent_soul;
 use crate::commands::tier::ensure_agent_capacity;
-use crate::db::persistence::commit;
+use crate::db::persistence::{commit, commit_if_company_ready};
 use crate::finance::total_monthly_salary;
 use crate::token_budget::{charge_tokens, ensure_agent_wallet, ChargeContext};
 use crate::ai::provider::TokenUsageSource;
@@ -7,7 +8,10 @@ use crate::hub::HubClient;
 use crate::relationships::{
     build_relationship_graph, connect_new_agent, ensure_relationship_backfill, RelationshipGraph,
 };
-use crate::soul::parse_soul_content;
+use crate::soul::{
+    import_hub_soul, import_hub_soul_result, soul_profile_from_editor_content, HubSoulImportResult,
+    SoulProfile,
+};
 use crate::state::{AgentRecord, AppState, MeetingState};
 use crate::tier::can_use_feature;
 use serde::{Deserialize, Serialize};
@@ -29,11 +33,15 @@ pub struct RecruitmentCandidate {
     pub soul_id: Option<u64>,
     pub name: String,
     pub headline: String,
+    /// Job title from soulmd-hub listing (stored on AgentRecord.role when hired).
+    pub job_role: String,
     pub skills: Vec<String>,
     pub vibe: String,
     pub verified: bool,
     pub hourly_rate_usdt: f64,
     pub soul_md_content: Option<String>,
+    #[serde(default)]
+    pub file_type: Option<String>,
     #[serde(default)]
     pub compatibility_score: Option<f32>,
     #[serde(default)]
@@ -84,6 +92,8 @@ pub struct HireCandidateRequest {
     pub department: String,
     pub offered_salary: f32,
     pub soul_md_content: Option<String>,
+    #[serde(default)]
+    pub system_prompt_source: Option<String>,
 }
 
 fn listings_to_candidates(listings: &[Value]) -> Vec<RecruitmentCandidate> {
@@ -127,12 +137,17 @@ fn listing_to_candidate(item: &Value) -> Option<RecruitmentCandidate> {
         .get("is_nft")
         .and_then(|value| value.as_bool().or_else(|| value.as_i64().map(|n| n == 1)))
         .unwrap_or(false);
+    let file_type = item
+        .get("file_type")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
 
     Some(RecruitmentCandidate {
         id: format!("hub-soul-{id}"),
         soul_id: Some(id),
         name: title.to_string(),
         headline: description.to_string(),
+        job_role: role.to_string(),
         skills: if skills.is_empty() {
             vec![role.to_lowercase()]
         } else {
@@ -142,6 +157,7 @@ fn listing_to_candidate(item: &Value) -> Option<RecruitmentCandidate> {
         verified,
         hourly_rate_usdt: price.max(10.0),
         soul_md_content: None,
+        file_type,
         compatibility_score: None,
         skill_overlap: None,
         department_fit: None,
@@ -158,11 +174,13 @@ fn bonus_recruits_from_state(state: &AppState) -> Vec<RecruitmentCandidate> {
             soul_id: None,
             name: recruit.name.clone(),
             headline: recruit.headline.clone(),
+            job_role: recruit.vibe.clone(),
             skills: recruit.skills.clone(),
             vibe: recruit.vibe.clone(),
             verified: true,
             hourly_rate_usdt: recruit.hourly_rate_usdt,
             soul_md_content: None,
+            file_type: None,
             compatibility_score: None,
             skill_overlap: None,
             department_fit: None,
@@ -348,6 +366,12 @@ fn enrich_candidates(state: &AppState, candidates: Vec<RecruitmentCandidate>) ->
 pub fn get_agent_relationship_graph(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<RelationshipGraph, String> {
+    if crate::config::is_v1() {
+        return Ok(RelationshipGraph {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        });
+    }
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ensure_relationship_backfill(&mut state);
     Ok(build_relationship_graph(&state))
@@ -428,6 +452,9 @@ pub fn record_recruitment_interview(
 
 #[tauri::command]
 pub fn get_morale_heatmap(state: State<'_, Mutex<AppState>>) -> Result<Vec<MoraleHeatmapEntry>, String> {
+    if crate::config::is_v1() {
+        return Ok(Vec::new());
+    }
     let state = state.lock().map_err(|e| e.to_string())?;
     let mut entries: Vec<MoraleHeatmapEntry> = state
         .agents
@@ -523,12 +550,12 @@ async fn load_recruitment_candidates(
         HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
 
-    match client.list_souls(query.as_deref(), 20).await {
+    match client.list_souls(query.as_deref(), 50).await {
         Ok(listings) if !listings.is_empty() => {
             {
                 let mut state = app_state.lock().map_err(|e| e.to_string())?;
                 state.hub.cached_hub_soul_listings = listings.clone();
-                commit(app.clone(), &state)?;
+                commit_if_company_ready(app.clone(), &state)?;
             }
             let candidates = listings_to_candidates(&listings);
             let state = app_state.lock().map_err(|e| e.to_string())?;
@@ -589,6 +616,47 @@ pub async fn list_recruitment_candidates(
 }
 
 #[tauri::command]
+pub async fn fetch_recruitment_candidate_soul(
+    candidate_id: String,
+    app_state: State<'_, Mutex<AppState>>,
+) -> Result<HubSoulImportResult, String> {
+    let soul_id = candidate_id
+        .strip_prefix("hub-soul-")
+        .and_then(|id| id.parse::<u64>().ok())
+        .ok_or_else(|| "Only hub candidates include downloadable soul.md content.".to_string())?;
+
+    let client = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
+    };
+
+    client
+        .fetch_soul_detail(soul_id)
+        .await
+        .map(import_hub_soul_result)
+        .map_err(|error| format!("Failed to fetch SOUL.md for candidate: {error}"))
+}
+
+fn soul_profile_from_hire_request(
+    soul_content: &str,
+    system_prompt_source: Option<String>,
+) -> Option<SoulProfile> {
+    if soul_content.trim().is_empty() {
+        return None;
+    }
+
+    let mut profile = soul_profile_from_editor_content(soul_content).ok()?;
+    if let Some(source) = system_prompt_source
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        profile.system_prompt_source = Some(source.to_string());
+    }
+    Some(profile)
+}
+
+#[tauri::command]
 pub async fn hire_candidate(
     request: HireCandidateRequest,
     app_state: State<'_, Mutex<AppState>>,
@@ -608,25 +676,20 @@ pub async fn hire_candidate(
         )
     };
 
-    let soul_content = if let Some(content) = request.soul_md_content.clone() {
-        content
+    let soul = if let Some(content) = request.soul_md_content.clone() {
+        soul_profile_from_hire_request(&content, request.system_prompt_source.clone())
     } else if let Some(soul_id) = request
         .candidate_id
         .strip_prefix("hub-soul-")
         .and_then(|id| id.parse::<u64>().ok())
     {
-        client
-            .fetch_soul_content(soul_id)
+        let record = client
+            .fetch_soul_detail(soul_id)
             .await
-            .map_err(|error| format!("Failed to fetch SOUL.md for candidate: {error}"))?
+            .map_err(|error| format!("Failed to fetch SOUL.md for candidate: {error}"))?;
+        Some(import_hub_soul(record))
     } else {
-        String::new()
-    };
-
-    let soul = if soul_content.trim().is_empty() {
         None
-    } else {
-        parse_soul_content(&soul_content).ok()
     };
 
     let mut state = app_state.lock().map_err(|e| e.to_string())?;
@@ -657,6 +720,8 @@ pub async fn hire_candidate(
         ai_provider: None,
         agent_kind: None,
         skills: crate::state::skills_for_role(&role),
+        reports_to: None,
+        manages_department: None,
     };
 
     state.agents.insert(agent_id.clone(), record.clone());
@@ -682,10 +747,12 @@ pub async fn hire_candidate(
         .saturating_add(state.agents.len() as u64 * 75);
     spawn_onboarding_meeting(&mut state, &agent_id);
 
-    commit(app, &state)?;
-    Ok(state
+    let hired = state
         .agents
         .get(&agent_id)
         .cloned()
-        .unwrap_or(record))
+        .unwrap_or(record);
+    persist_single_agent_soul(&app, &state, &hired)?;
+    commit(app, &state)?;
+    Ok(hired)
 }

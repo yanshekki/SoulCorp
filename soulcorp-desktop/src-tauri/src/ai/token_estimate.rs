@@ -9,6 +9,13 @@ pub fn estimate_tokens(text: &str) -> u32 {
 
 pub fn estimate_request(request: &ChatRequest) -> u32 {
     let mut total = estimate_tokens(&request.system_prompt)
+        .saturating_add(
+            request
+                .context
+                .as_deref()
+                .map(estimate_tokens)
+                .unwrap_or(0),
+        )
         + estimate_tokens(&request.user_prompt);
     for turn in &request.conversation_turns {
         total = total.saturating_add(estimate_tokens(&turn.content));

@@ -2,7 +2,7 @@ use crate::ai::{self, provider::ChatRequest, provider::ChatTurn, BilledChatReque
 use crate::db::persistence::commit;
 use crate::progress::ProgressReporter;
 use crate::relationships::{relationship_label, upsert_relationship};
-use crate::soul::build_system_prompt;
+use crate::soul::build_chat_parts_for_agent;
 use crate::state::{AgentRecord, AppState, InternalProject, MeetingMessage, MeetingState};
 use crate::workspace::write_meeting_notes_from_state;
 use serde::{Deserialize, Serialize};
@@ -300,7 +300,13 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
         state.company_name, meeting.meeting_type
     );
 
-    let system_prompt = build_speaker_prompt(&speaker, &meeting_context);
+    let (persona, context) = build_chat_parts_for_agent(
+        speaker.soul.as_ref(),
+        &speaker.name,
+        &speaker.role,
+        &speaker.department,
+        &meeting_context,
+    );
     let conversation_turns: Vec<ChatTurn> = meeting
         .messages
         .iter()
@@ -340,7 +346,8 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
         speaker_ai_provider: speaker.ai_provider.clone(),
         department_ai_providers: state.department_ai_providers.clone(),
         chat_request: ChatRequest {
-            system_prompt,
+            system_prompt: persona,
+            context: Some(context),
             user_prompt,
             temperature: temperature_for_meeting(&meeting.meeting_type),
             soul_id: speaker.soul_id,
@@ -391,7 +398,12 @@ async fn finalize_meeting(
         .map(|meeting| meeting.morale_delta)
         .unwrap_or(0.05);
 
-    apply_meeting_outcome_to_state(&mut state, &meeting_type);
+    let outcome_summary = state
+        .meetings
+        .get(meeting_id)
+        .and_then(|m| m.outcome_summary.clone())
+        .unwrap_or_else(|| "Meeting action items".to_string());
+    apply_meeting_outcome_to_state(&mut state, &meeting_type, &outcome_summary);
     apply_meeting_relationship_effects(&mut state, &meeting_type, &participant_ids);
 
     for agent_id in &participant_ids {
@@ -418,17 +430,6 @@ async fn finalize_meeting(
     );
     commit(app, &state)?;
     Ok(snapshot)
-}
-
-fn build_speaker_prompt(speaker: &AgentRecord, meeting_context: &str) -> String {
-    if let Some(soul) = &speaker.soul {
-        build_system_prompt(soul, meeting_context)
-    } else {
-        format!(
-            "You are {} ({}) from {} in SoulCorp.\n{meeting_context}",
-            speaker.name, speaker.role, speaker.department
-        )
-    }
 }
 
 fn relationship_context_for_participants(state: &AppState, participant_ids: &[String]) -> String {
@@ -561,7 +562,7 @@ fn meeting_outcome_plan(meeting_type: &str) -> (f32, f64, String, bool) {
     }
 }
 
-fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str) {
+fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str, outcome_summary: &str) {
     let (progress_delta, revenue_delta, _, spawn_project) = meeting_outcome_plan(meeting_type);
 
     if let Some(project) = state
@@ -584,13 +585,20 @@ fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str) {
     let bonus = (revenue_delta * 0.25).round().max(0.0) as u64;
     crate::token_budget::top_up_company_tokens(state, bonus);
 
+    crate::scrum::issue_meeting_directive_and_route(state, meeting_type, outcome_summary);
+
     if spawn_project && state.projects.len() < 6 {
+        let pm_agent_id = state.default_pm_agent_id.clone();
         state.projects.push(InternalProject {
             id: format!("proj-{}", Uuid::new_v4()),
             title: "New initiative from strategy meeting".into(),
             progress: 0.05,
             priority: 3,
             owner_department: "Executive".into(),
+            description: "Spawned from a strategy meeting.".into(),
+            pm_agent_id,
+            active_sprint_id: None,
+            default_cycle_days: 14,
         });
     }
 }
@@ -640,6 +648,12 @@ mod tests {
 
         let plan = prepare_meeting_turn(&state, &meeting).expect("meeting turn");
         assert!(plan.chat_request.system_prompt.contains("Mira"));
-        assert!(plan.chat_request.system_prompt.contains("Relationships"));
+        assert!(
+            plan.chat_request
+                .context
+                .as_deref()
+                .unwrap_or("")
+                .contains("Relationships")
+        );
     }
 }

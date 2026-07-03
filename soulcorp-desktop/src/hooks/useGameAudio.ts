@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { audioDirector } from "../audio/AudioDirector";
+import { showGameAudio } from "../config/features";
 import { useGameStore } from "../stores/gameStore";
 import { isNightCampus } from "../components/world/sceneTheme";
 import { DEFAULT_CAMPUS_THEME } from "../types/visualDesign";
@@ -14,6 +15,9 @@ export function useGameAudio(): void {
   const prevHoverRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!showGameAudio) {
+      return;
+    }
     const unlock = () => {
       audioDirector.unlock();
     };
@@ -26,6 +30,9 @@ export function useGameAudio(): void {
   }, []);
 
   useEffect(() => {
+    if (!showGameAudio) {
+      return;
+    }
     const musicOn = settings.music_enabled ?? true;
     const sfxOn = settings.sfx_enabled ?? true;
     audioDirector.setMusicEnabled(musicOn);
@@ -43,6 +50,9 @@ export function useGameAudio(): void {
   ]);
 
   useEffect(() => {
+    if (!showGameAudio) {
+      return;
+    }
     if (activePanel === "design_studio") {
       audioDirector.playBgm("studio");
       return;
@@ -61,6 +71,9 @@ export function useGameAudio(): void {
   }, [activePanel, buildMode, worldView, visualDesign.campus]);
 
   useEffect(() => {
+    if (!showGameAudio) {
+      return;
+    }
     if (!audioDirector.isUnlocked()) {
       prevHoverRef.current = hoveredDoor;
       return;

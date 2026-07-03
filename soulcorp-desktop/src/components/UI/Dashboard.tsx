@@ -1,3 +1,4 @@
+import { showAgentMorale, showEventFeed, showSimulationChrome } from "../../config/features";
 import { useGameStore } from "../../stores/gameStore";
 import { totalCompanyTokens } from "../../utils/companyState";
 import { agentInnovationScore, agentSkillLevel } from "../../utils/agentStats";
@@ -20,14 +21,18 @@ export function Dashboard() {
         <p className="muted">No agents yet. Create or select a company to populate this dashboard.</p>
       ) : null}
       <div className="kpi-grid">
-        <article>
-          <span>Day</span>
-          <strong>{simulation.dayNumber}</strong>
-        </article>
-        <article>
-          <span>Tick</span>
-          <strong>{simulation.tick}</strong>
-        </article>
+        {showSimulationChrome ? (
+          <>
+            <article>
+              <span>Day</span>
+              <strong>{simulation.dayNumber}</strong>
+            </article>
+            <article>
+              <span>Tick</span>
+              <strong>{simulation.tick}</strong>
+            </article>
+          </>
+        ) : null}
         <article>
           <span>Tokens</span>
           <strong>{totalCompanyTokens(finance).toLocaleString()}</strong>
@@ -45,7 +50,8 @@ export function Dashboard() {
             <div>
               <strong>{agent.name}</strong>
               <p>
-                {agent.department} · morale {(agent.morale * 100).toFixed(0)}% · skill{" "}
+                {agent.department}
+                {showAgentMorale ? ` · morale ${(agent.morale * 100).toFixed(0)}%` : ""} · skill{" "}
                 {agentSkillLevel(agent)} · innovation {agentInnovationScore(agent)}
               </p>
             </div>
@@ -65,7 +71,7 @@ export function Dashboard() {
             </div>
           ))}
       </div>
-      <EventFeed />
+      {showEventFeed ? <EventFeed /> : null}
     </section>
   );
 }

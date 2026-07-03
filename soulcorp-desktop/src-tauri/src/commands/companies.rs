@@ -3,8 +3,10 @@ use crate::db::persistence::{
     save_registry, switch_active_company,
 };
 use crate::fate::clamp_event_chance;
+use crate::commands::onboarding::persist_agent_roster_workspace;
 use crate::state::{
-    fresh_company_state, summary_from_state, AppState, CompanySummary, PlayMode,
+    default_agent_roster, fresh_company_state, summary_from_state, AgentSlotSetup, AppState,
+    CompanySummary, PlayMode,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -25,6 +27,8 @@ pub struct CreateCompanyRequest {
     pub pure_local_mode: bool,
     pub random_events_enabled: bool,
     pub random_event_chance: f32,
+    #[serde(default = "default_agent_roster")]
+    pub agent_roster: Vec<AgentSlotSetup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +116,7 @@ pub fn create_company(
         clamp_event_chance(request.random_event_chance),
     );
     state.onboarding_completed = true;
+    state.apply_agent_roster(&request.agent_roster)?;
 
     let company_id = state.company_id.clone();
     let summary = summary_from_state(&state);
@@ -121,6 +126,7 @@ pub fn create_company(
     registry.active_company_id = Some(company_id.clone());
     save_registry(&app, &registry)?;
     commit(app.clone(), &state)?;
+    persist_agent_roster_workspace(&app, &state)?;
 
     reset_commit_debounce(&company_id);
     let mut locked = app_state.lock().map_err(|e| e.to_string())?;

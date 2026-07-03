@@ -2,9 +2,96 @@ use crate::ai::provider::TokenUsageSource;
 use crate::state::{
     AgentRecord, AgentTokenWallet, AppState, DepartmentTokenWallet, TokenEconomy, TokenUsageEntry,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+#[derive(Debug)]
+struct PeriodWalletFields<'a> {
+    period_limit: &'a mut u64,
+    period_type: &'a mut String,
+    period_days: &'a mut u32,
+    period_spent: &'a mut u64,
+    period_started_at: &'a mut Option<String>,
+}
+
+fn period_duration_days(period_type: &str, custom_days: u32) -> Option<u32> {
+    match period_type {
+        "weekly" => Some(7),
+        "monthly" => Some(30),
+        "quarterly" => Some(90),
+        "yearly" => Some(365),
+        "custom" => Some(custom_days.max(1)),
+        _ => None,
+    }
+}
+
+fn maybe_reset_period(fields: &mut PeriodWalletFields<'_>) {
+    if *fields.period_limit == 0 || fields.period_type == "none" {
+        return;
+    }
+    let Some(duration_days) = period_duration_days(fields.period_type, *fields.period_days) else {
+        return;
+    };
+    let now = Utc::now();
+    let should_reset = match fields.period_started_at.as_ref() {
+        None => {
+            *fields.period_started_at = Some(now.to_rfc3339());
+            false
+        }
+        Some(started_at) => DateTime::parse_from_rfc3339(started_at)
+            .map(|started| {
+                let elapsed = now.signed_duration_since(started.with_timezone(&Utc));
+                elapsed.num_days() >= duration_days as i64
+            })
+            .unwrap_or(true),
+    };
+    if should_reset {
+        *fields.period_spent = 0;
+        *fields.period_started_at = Some(now.to_rfc3339());
+    }
+}
+
+fn period_fields_from_department(wallet: &mut DepartmentTokenWallet) -> PeriodWalletFields<'_> {
+    PeriodWalletFields {
+        period_limit: &mut wallet.period_limit,
+        period_type: &mut wallet.period_type,
+        period_days: &mut wallet.period_days,
+        period_spent: &mut wallet.period_spent,
+        period_started_at: &mut wallet.period_started_at,
+    }
+}
+
+fn period_fields_from_agent(wallet: &mut AgentTokenWallet) -> PeriodWalletFields<'_> {
+    PeriodWalletFields {
+        period_limit: &mut wallet.period_limit,
+        period_type: &mut wallet.period_type,
+        period_days: &mut wallet.period_days,
+        period_spent: &mut wallet.period_spent,
+        period_started_at: &mut wallet.period_started_at,
+    }
+}
+
+pub fn reset_token_budget_periods(state: &mut AppState) {
+    for wallet in state.token_economy.departments.values_mut() {
+        maybe_reset_period(&mut period_fields_from_department(wallet));
+    }
+    for wallet in state.token_economy.agents.values_mut() {
+        maybe_reset_period(&mut period_fields_from_agent(wallet));
+    }
+}
+
+fn period_limit_blocks(cost: u64, limit: u64, spent: u64, label: &str) -> Result<(), String> {
+    if limit == 0 {
+        return Ok(());
+    }
+    if spent.saturating_add(cost) > limit {
+        return Err(format!(
+            "{label} period limit reached ({spent}/{limit} tokens used this period)."
+        ));
+    }
+    Ok(())
+}
 
 pub const LEDGER_CAP: usize = 200;
 
@@ -83,6 +170,8 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
     }
 
     let total = total_company_tokens(&state.token_economy).max(1);
+    let previous_departments = state.token_economy.departments.clone();
+    let previous_agents = state.token_economy.agents.clone();
     let mut dept_weights: HashMap<String, f32> = HashMap::new();
     for agent in &agents {
         *dept_weights.entry(agent.department.clone()).or_insert(0.0) += 1.0;
@@ -112,10 +201,19 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
         assigned = assigned.saturating_add(dept_total);
 
         let agent_share = dept_total / dept_agents.len().max(1) as u64;
+        let previous_dept = previous_departments.get(department);
         let mut dept_wallet = DepartmentTokenWallet {
             balance: 0,
             allocated: dept_total,
-            spent: 0,
+            spent: previous_dept.map(|wallet| wallet.spent).unwrap_or(0),
+            period_limit: previous_dept.map(|wallet| wallet.period_limit).unwrap_or(0),
+            period_type: previous_dept
+                .map(|wallet| wallet.period_type.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            period_days: previous_dept.map(|wallet| wallet.period_days).unwrap_or(30),
+            period_spent: previous_dept.map(|wallet| wallet.period_spent).unwrap_or(0),
+            period_started_at: previous_dept
+                .and_then(|wallet| wallet.period_started_at.clone()),
         };
 
         for (agent_index, agent) in dept_agents.iter().enumerate() {
@@ -124,12 +222,21 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
             } else {
                 agent_share
             };
+            let previous_agent = previous_agents.get(&agent.id);
             state.token_economy.agents.insert(
                 agent.id.clone(),
                 AgentTokenWallet {
                     balance: agent_amount,
                     allocated: agent_amount,
-                    spent: 0,
+                    spent: previous_agent.map(|wallet| wallet.spent).unwrap_or(0),
+                    period_limit: previous_agent.map(|wallet| wallet.period_limit).unwrap_or(0),
+                    period_type: previous_agent
+                        .map(|wallet| wallet.period_type.clone())
+                        .unwrap_or_else(|| "none".to_string()),
+                    period_days: previous_agent.map(|wallet| wallet.period_days).unwrap_or(30),
+                    period_spent: previous_agent.map(|wallet| wallet.period_spent).unwrap_or(0),
+                    period_started_at: previous_agent
+                        .and_then(|wallet| wallet.period_started_at.clone()),
                 },
             );
             dept_wallet.balance = dept_wallet.balance.saturating_add(agent_amount);
@@ -158,27 +265,39 @@ pub fn can_afford(state: &AppState, agent_id: &str, cost: u32) -> Result<(), Str
         .ok_or_else(|| format!("Agent '{agent_id}' not found."))?;
     let department = agent.department.clone();
 
-    let agent_balance = economy
-        .agents
-        .get(agent_id)
-        .map(|wallet| wallet.balance)
-        .unwrap_or(0);
-    if agent_balance < cost {
+    if let Some(wallet) = economy.agents.get(agent_id) {
+        if wallet.balance < cost {
+            return Err(format!(
+                "{} has insufficient tokens ({} available, {cost} required).",
+                agent.name, wallet.balance
+            ));
+        }
+        period_limit_blocks(
+            cost,
+            wallet.period_limit,
+            wallet.period_spent,
+            &format!("{}'s budget", agent.name),
+        )?;
+    } else if cost > 0 {
         return Err(format!(
-            "{} has insufficient tokens ({agent_balance} available, {cost} required).",
+            "{} has insufficient tokens (0 available, {cost} required).",
             agent.name
         ));
     }
 
-    let dept_balance = economy
-        .departments
-        .get(&department)
-        .map(|wallet| wallet.balance)
-        .unwrap_or(0);
-    if dept_balance < cost {
-        return Err(format!(
-            "{department} department has insufficient tokens ({dept_balance} available, {cost} required)."
-        ));
+    if let Some(wallet) = economy.departments.get(&department) {
+        if wallet.balance < cost {
+            return Err(format!(
+                "{department} department has insufficient tokens ({} available, {cost} required).",
+                wallet.balance
+            ));
+        }
+        period_limit_blocks(
+            cost,
+            wallet.period_limit,
+            wallet.period_spent,
+            &format!("{department} department budget"),
+        )?;
     }
 
     if total_company_tokens(economy) < cost {
@@ -197,6 +316,7 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
         return Ok(());
     }
 
+    reset_token_budget_periods(state);
     can_afford(state, &ctx.agent_id, ctx.total_tokens)?;
 
     let department = ctx.department.clone();
@@ -205,10 +325,22 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
     if let Some(wallet) = state.token_economy.agents.get_mut(&agent_id) {
         wallet.balance = wallet.balance.saturating_sub(cost);
         wallet.spent = wallet.spent.saturating_add(cost);
+        if wallet.period_limit > 0 && wallet.period_type != "none" {
+            if wallet.period_started_at.is_none() {
+                wallet.period_started_at = Some(Utc::now().to_rfc3339());
+            }
+            wallet.period_spent = wallet.period_spent.saturating_add(cost);
+        }
     }
     if let Some(wallet) = state.token_economy.departments.get_mut(&department) {
         wallet.balance = wallet.balance.saturating_sub(cost);
         wallet.spent = wallet.spent.saturating_add(cost);
+        if wallet.period_limit > 0 && wallet.period_type != "none" {
+            if wallet.period_started_at.is_none() {
+                wallet.period_started_at = Some(Utc::now().to_rfc3339());
+            }
+            wallet.period_spent = wallet.period_spent.saturating_add(cost);
+        }
     }
     state.token_economy.company_balance = state.token_economy.company_balance.saturating_sub(cost);
 
@@ -301,6 +433,79 @@ pub fn top_up_company_tokens(state: &mut AppState, amount: u64) {
     apply_enforcement(state);
 }
 
+pub fn update_department_token_budget(
+    state: &mut AppState,
+    department: &str,
+    period_limit: u64,
+    period_type: &str,
+    period_days: u32,
+) -> Result<(), String> {
+    ensure_department_wallet(&mut state.token_economy, department);
+    let wallet = state
+        .token_economy
+        .departments
+        .get_mut(department)
+        .ok_or_else(|| format!("Department '{department}' not found."))?;
+    let period_changed = wallet.period_type != period_type
+        || wallet.period_days != period_days.max(1)
+        || (wallet.period_limit == 0) != (period_limit == 0);
+    wallet.period_limit = period_limit;
+    wallet.period_type = if period_limit == 0 {
+        "none".to_string()
+    } else {
+        period_type.to_string()
+    };
+    wallet.period_days = period_days.max(1);
+    if period_changed || wallet.period_started_at.is_none() {
+        wallet.period_spent = 0;
+        wallet.period_started_at = if period_limit == 0 {
+            None
+        } else {
+            Some(Utc::now().to_rfc3339())
+        };
+    }
+    Ok(())
+}
+
+pub fn update_agent_token_budget(
+    state: &mut AppState,
+    agent_id: &str,
+    period_limit: u64,
+    period_type: &str,
+    period_days: u32,
+) -> Result<(), String> {
+    let agent = state
+        .agents
+        .get(agent_id)
+        .ok_or_else(|| format!("Agent '{agent_id}' not found."))?
+        .clone();
+    ensure_agent_wallet(&mut state.token_economy, &agent);
+    let wallet = state
+        .token_economy
+        .agents
+        .get_mut(agent_id)
+        .ok_or_else(|| format!("Agent wallet '{agent_id}' not found."))?;
+    let period_changed = wallet.period_type != period_type
+        || wallet.period_days != period_days.max(1)
+        || (wallet.period_limit == 0) != (period_limit == 0);
+    wallet.period_limit = period_limit;
+    wallet.period_type = if period_limit == 0 {
+        "none".to_string()
+    } else {
+        period_type.to_string()
+    };
+    wallet.period_days = period_days.max(1);
+    if period_changed || wallet.period_started_at.is_none() {
+        wallet.period_spent = 0;
+        wallet.period_started_at = if period_limit == 0 {
+            None
+        } else {
+            Some(Utc::now().to_rfc3339())
+        };
+    }
+    Ok(())
+}
+
 pub fn apply_enforcement(state: &mut AppState) {
     let company_depleted = total_company_tokens(&state.token_economy) == 0;
     state.token_economy.company_starved = company_depleted;
@@ -359,6 +564,8 @@ mod tests {
                 ai_provider: None,
                 agent_kind: None,
                 skills: crate::state::skills_for_role("Engineer"),
+                reports_to: None,
+                manages_department: None,
             },
         );
         state.token_economy.company_balance = 1000;
@@ -389,6 +596,15 @@ mod tests {
             state.token_economy.agents[&agent_id].balance,
             before_agent - 30
         );
+    }
+
+    #[test]
+    fn period_limit_blocks_overuse() {
+        let mut state = sample_state();
+        update_agent_token_budget(&mut state, "agent-1", 50, "monthly", 30).unwrap();
+        state.token_economy.agents.get_mut("agent-1").unwrap().period_spent = 45;
+        assert!(can_afford(&state, "agent-1", 10).is_err());
+        assert!(can_afford(&state, "agent-1", 5).is_ok());
     }
 
     #[test]

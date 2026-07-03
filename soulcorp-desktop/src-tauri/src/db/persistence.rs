@@ -272,6 +272,7 @@ pub fn bootstrap_companies(app: &AppHandle) -> Result<(CompanyRegistry, AppState
 
         let mut state = load_company_state(app, &active_id)?
             .ok_or_else(|| format!("Missing snapshot for company {active_id}"))?;
+        crate::operations::normalize_v1_operational_state(&mut state);
         if !state.agents.is_empty() && state.token_economy.departments.is_empty() {
             crate::token_budget::initialize_wallets_from_agents(&mut state);
         }
@@ -286,6 +287,13 @@ pub fn bootstrap_companies(app: &AppHandle) -> Result<(CompanyRegistry, AppState
     }
 
     Ok((CompanyRegistry::default(), AppState::default()))
+}
+
+pub fn commit_if_company_ready(app: AppHandle, state: &AppState) -> Result<(), String> {
+    if state.company_id.is_empty() {
+        return Ok(());
+    }
+    commit(app, state)
 }
 
 pub fn commit(app: AppHandle, state: &AppState) -> Result<(), String> {
@@ -352,6 +360,7 @@ pub fn switch_active_company(
     let mut next = load_company_state(app, target_company_id)?
         .ok_or_else(|| format!("Company {target_company_id} not found."))?;
     next.company_id = target_company_id.to_string();
+    crate::operations::normalize_v1_operational_state(&mut next);
     Ok(next)
 }
 
@@ -446,6 +455,6 @@ mod tests {
         assert_eq!(restored.company_id, "company-test");
         assert_eq!(restored.tick, 42);
         assert_eq!(restored.day_number, 7);
-        assert_eq!(restored.agents.len(), 4);
+        assert_eq!(restored.agents.len(), state.agents.len());
     }
 }

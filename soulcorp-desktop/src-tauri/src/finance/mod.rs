@@ -47,66 +47,72 @@ pub fn normalize_allocations(allocations: &mut BudgetAllocations) {
     allocations.rnd_pct = allocations.rnd_pct / sum * 100.0;
 }
 
-pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
+pub struct DailyFinanceResult {
+    pub daily_salary_paid: u64,
+    pub inflow_tokens: u64,
+}
+
+/// Payroll, inflow, and burn snapshot for one simulation day (does not advance tick).
+pub fn apply_daily_finance(state: &mut AppState) -> DailyFinanceResult {
     let agent_count = state.agents.len().max(1) as u64;
     let salary_weight = state.token_economy.allocations.salaries_pct as f64 / 100.0;
     let marketing_weight = state.token_economy.allocations.marketing_pct as f64 / 100.0;
     let rnd_weight = state.token_economy.allocations.rnd_pct as f64 / 100.0;
 
-    let mut daily_salary_paid = 0u64;
-    let mut inflow_tokens = 0u64;
+    state.day_number += 1;
+    let daily_salary_paid =
+        (total_monthly_salary(&state.agents) as f64 / 30.0 * salary_weight.max(0.25)) as u64;
+    let rnd_spend = (agent_count as f64 * 75.0 * rnd_weight / 30.0) as u64;
+    let payroll_total = daily_salary_paid.saturating_add(rnd_spend);
 
-    if state.tick % 30 == 0 {
-        state.day_number += 1;
-        daily_salary_paid =
-            (total_monthly_salary(&state.agents) as f64 / 30.0 * salary_weight.max(0.25)) as u64;
-        let rnd_spend = (agent_count as f64 * 75.0 * rnd_weight / 30.0) as u64;
-        let payroll_total = daily_salary_paid.saturating_add(rnd_spend);
-
-        if payroll_total > 0 && total_company_tokens(&state.token_economy) >= payroll_total {
-            let agent_charges: Vec<(String, String)> = state
-                .agents
-                .values()
-                .filter(|agent| !is_system_agent(agent))
-                .map(|agent| (agent.id.clone(), agent.department.clone()))
-                .collect();
-            let share = payroll_total / agent_charges.len().max(1) as u64;
-            for (agent_id, department) in agent_charges {
-                if share == 0 {
-                    continue;
-                }
-                let _ = charge_tokens(
-                    state,
-                    ChargeContext {
-                        source: "payroll".into(),
-                        agent_id,
-                        department,
-                        provider: "simulation".into(),
-                        prompt_tokens: 0,
-                        completion_tokens: 0,
-                        total_tokens: share as u32,
-                        usage_source: TokenUsageSource::Estimated,
-                    },
-                );
+    if payroll_total > 0 && total_company_tokens(&state.token_economy) >= payroll_total {
+        let agent_charges: Vec<(String, String)> = state
+            .agents
+            .values()
+            .filter(|agent| !is_system_agent(agent))
+            .map(|agent| (agent.id.clone(), agent.department.clone()))
+            .collect();
+        let share = payroll_total / agent_charges.len().max(1) as u64;
+        for (agent_id, department) in agent_charges {
+            if share == 0 {
+                continue;
             }
+            let _ = charge_tokens(
+                state,
+                ChargeContext {
+                    source: "payroll".into(),
+                    agent_id,
+                    department,
+                    provider: "simulation".into(),
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    total_tokens: share as u32,
+                    usage_source: TokenUsageSource::Estimated,
+                },
+            );
         }
-
-        inflow_tokens = (state.token_economy.monthly_inflow_tokens as f64 / 30.0) as u64;
-        let marketing_bonus =
-            (state.token_economy.monthly_inflow_tokens as f64 * marketing_weight * 0.05) as u64;
-        state.token_economy.company_balance = state
-            .token_economy
-            .company_balance
-            .saturating_add(inflow_tokens)
-            .saturating_add(marketing_bonus);
-
-        state.token_economy.monthly_burn_tokens = (total_monthly_salary(&state.agents) as f64
-            * salary_weight.max(0.25)
-            + agent_count as f64 * 75.0 * rnd_weight) as u64;
     }
 
-    apply_enforcement(state);
+    let inflow_tokens = (state.token_economy.monthly_inflow_tokens as f64 / 30.0) as u64;
+    let marketing_bonus =
+        (state.token_economy.monthly_inflow_tokens as f64 * marketing_weight * 0.05) as u64;
+    state.token_economy.company_balance = state
+        .token_economy
+        .company_balance
+        .saturating_add(inflow_tokens)
+        .saturating_add(marketing_bonus);
 
+    state.token_economy.monthly_burn_tokens = (total_monthly_salary(&state.agents) as f64
+        * salary_weight.max(0.25)
+        + agent_count as f64 * 75.0 * rnd_weight) as u64;
+
+    DailyFinanceResult {
+        daily_salary_paid,
+        inflow_tokens,
+    }
+}
+
+pub fn apply_agent_tick_wear(state: &mut AppState) {
     for agent in state.agents.values_mut() {
         if is_system_agent(agent) || agent.status == "meeting" || agent.status == "throttled" {
             continue;
@@ -116,6 +122,20 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
             agent.morale = (agent.morale - 0.02).max(0.0);
         }
     }
+}
+
+pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
+    let mut daily_salary_paid = 0u64;
+    let mut inflow_tokens = 0u64;
+
+    if state.tick % 30 == 0 {
+        let daily = apply_daily_finance(state);
+        daily_salary_paid = daily.daily_salary_paid;
+        inflow_tokens = daily.inflow_tokens;
+    }
+
+    apply_enforcement(state);
+    apply_agent_tick_wear(state);
 
     FinanceTickResult {
         company_starved: state.token_economy.company_starved,
@@ -148,6 +168,8 @@ mod tests {
                 ai_provider: None,
                 agent_kind: None,
                 skills: crate::state::skills_for_role("Engineer"),
+                reports_to: None,
+                manages_department: None,
             },
         );
         let mut state = AppState {

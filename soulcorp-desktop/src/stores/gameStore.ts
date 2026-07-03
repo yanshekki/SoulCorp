@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { defaultActivePanel, IS_V1 } from "../config/features";
+import { normalizePanelForEdition } from "../config/navigation";
 import { EMPTY_FINANCE } from "../utils/companyState";
 import type {
   Achievement,
@@ -27,6 +29,10 @@ interface GameStore {
   companyTagline: string;
   companies: CompanySummary[];
   activeCompanyId: string | null;
+  /** Bumped after reloadGameState / company switch so panels refresh scoped data. */
+  companyRevision: number;
+  /** Bumped after scrum mutations so Command Center ↔ Projects stay in sync. */
+  scrumRevision: number;
   showCreateCompany: boolean;
   onboardingCompleted: boolean;
   onboardingReady: boolean;
@@ -113,6 +119,8 @@ interface GameStore {
   setCompanyTagline: (companyTagline: string) => void;
   setCompanies: (companies: CompanySummary[]) => void;
   setActiveCompanyId: (companyId: string | null) => void;
+  bumpCompanyRevision: () => void;
+  bumpScrumRevision: () => void;
   setShowCreateCompany: (show: boolean) => void;
   setOnboardingCompleted: (completed: boolean) => void;
   setOnboardingReady: (ready: boolean) => void;
@@ -125,11 +133,13 @@ export const useGameStore = create<GameStore>((set) => ({
   companyTagline: "",
   companies: [],
   activeCompanyId: null,
+  companyRevision: 0,
+  scrumRevision: 0,
   showCreateCompany: false,
   onboardingCompleted: false,
   onboardingReady: false,
   statusMessage: "Initializing agent systems...",
-  activePanel: "office",
+  activePanel: defaultActivePanel,
   agents: [],
   agentRecords: [],
   buildings: [],
@@ -162,8 +172,8 @@ export const useGameStore = create<GameStore>((set) => ({
   },
   finance: EMPTY_FINANCE,
   settings: {
-    play_mode: "game",
-    random_events_enabled: true,
+    play_mode: IS_V1 ? "work" : "game",
+    random_events_enabled: !IS_V1,
     random_event_chance: 0.15,
     god_mode_enabled: false,
     ai_provider: "mock",
@@ -343,25 +353,58 @@ export const useGameStore = create<GameStore>((set) => ({
     set((state) => ({ events: [event, ...state.events].slice(0, 8) })),
   setActivePanel: (panel) =>
     set((state) => {
-      if (panel === "design_studio") {
-        const exitingInterior =
-          state.worldView === "interior"
-            ? {
-                worldView: "campus" as const,
-                interiorBuildingId: null,
-                cameraTransition: 1,
-                selectedAgentId: null,
-                selectedFurnitureId: null,
-                hoveredFurnitureId: null,
-              }
-            : {};
+      const resolvedPanel = normalizePanelForEdition(panel);
+      const exitInterior =
+        state.worldView === "interior" &&
+        (resolvedPanel === "design_studio" ||
+          resolvedPanel === "settings" ||
+          resolvedPanel === "god_mode" ||
+          resolvedPanel === "achievements" ||
+          resolvedPanel === "executive" ||
+          resolvedPanel === "agents" ||
+          resolvedPanel === "recruitment" ||
+          resolvedPanel === "marketplace" ||
+          resolvedPanel === "finance" ||
+          resolvedPanel === "meeting" ||
+          resolvedPanel === "workspace")
+          ? {
+              worldView: "campus" as const,
+              interiorBuildingId: null,
+              cameraTransition: 1,
+              selectedAgentId: null,
+              selectedFurnitureId: null,
+              hoveredFurnitureId: null,
+            }
+          : {};
+
+      if (resolvedPanel === "design_studio") {
         return {
-          activePanel: panel,
+          activePanel: resolvedPanel,
           inspectorExpanded: false,
-          ...exitingInterior,
+          ...exitInterior,
         };
       }
-      return { activePanel: panel };
+
+      if (
+        resolvedPanel === "settings" ||
+        resolvedPanel === "god_mode" ||
+        resolvedPanel === "achievements" ||
+        resolvedPanel === "executive" ||
+        resolvedPanel === "agents" ||
+        resolvedPanel === "recruitment" ||
+        resolvedPanel === "marketplace" ||
+        resolvedPanel === "finance" ||
+        resolvedPanel === "meeting" ||
+        resolvedPanel === "workspace"
+      ) {
+        return {
+          activePanel: resolvedPanel,
+          inspectorExpanded: false,
+          ...exitInterior,
+        };
+      }
+
+      return { activePanel: resolvedPanel, ...exitInterior };
     }),
   setActiveMeeting: (meeting) => set({ activeMeeting: meeting }),
   setAchievements: (achievements) => set({ achievements }),
@@ -374,6 +417,10 @@ export const useGameStore = create<GameStore>((set) => ({
   setCompanyTagline: (companyTagline) => set({ companyTagline }),
   setCompanies: (companies) => set({ companies }),
   setActiveCompanyId: (activeCompanyId) => set({ activeCompanyId }),
+  bumpCompanyRevision: () =>
+    set((state) => ({ companyRevision: state.companyRevision + 1 })),
+  bumpScrumRevision: () =>
+    set((state) => ({ scrumRevision: state.scrumRevision + 1 })),
   setShowCreateCompany: (showCreateCompany) => set({ showCreateCompany }),
   setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
   setOnboardingReady: (ready) => set({ onboardingReady: ready }),

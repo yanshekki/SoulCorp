@@ -62,6 +62,7 @@ fn generate_fate_event(state: &mut AppState) -> Result<GameEvent, String> {
         ),
         temperature: 0.85,
         soul_id: None,
+        context: None,
         conversation_turns: Vec::new(),
     };
 

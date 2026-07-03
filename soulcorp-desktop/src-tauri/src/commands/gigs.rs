@@ -169,6 +169,12 @@ pub async fn accept_hub_gig(
             qc_notes: None,
         };
         state.gig_contracts.push(contract.clone());
+        crate::scrum::issue_marketplace_directive(
+            &mut state,
+            &contract.contract_id,
+            &contract.title,
+            &contract.description,
+        );
         commit(app, &state)?;
         contract
     };
@@ -240,12 +246,7 @@ pub async fn submit_gig_for_qc(
         if contract.status != "in_progress" {
             return Err("Only in-progress contracts can be submitted for QC.".to_string());
         }
-        if contract.progress < 0.95 {
-            return Err(format!(
-                "Work is only {:.0}% complete. Keep agents working or wait for simulation ticks.",
-                contract.progress * 100.0
-            ));
-        }
+        crate::operations::gig_ready_for_qc(&state, contract)?;
         let gig_id = contract.gig_id;
         let pure_local = state.settings.pure_local_mode;
         let qc_score = compute_qc_score(&state, contract);

@@ -1,6 +1,8 @@
 mod achievements;
 mod ai;
+mod config;
 mod fate;
+mod scrum;
 mod commands;
 mod db;
 mod progress;
@@ -8,6 +10,7 @@ mod finance;
 mod token_budget;
 mod gigs;
 mod hub;
+mod operations;
 mod relationships;
 mod report;
 mod soul;
@@ -23,16 +26,30 @@ use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
+/// Remember size/position between sessions, but never restore maximized/fullscreen.
+const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
+    .union(StateFlags::POSITION)
+    .union(StateFlags::VISIBLE)
+    .union(StateFlags::DECORATIONS);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(WINDOW_STATE_FLAGS)
+                .build(),
+        )
         .setup(|app| {
             db::init_database(app.handle())?;
             let (_registry, mut state) = db::persistence::bootstrap_companies(app.handle())?;
+            crate::operations::normalize_v1_operational_state(&mut state);
+            if crate::config::is_v1() && !state.company_id.is_empty() {
+                let _ = db::persistence::commit(app.handle().clone(), &state);
+            }
             if state.onboarding_completed && state.agents.is_empty() {
-                state.seed_defaults();
+                let _ = state.apply_agent_roster(&state::default_agent_roster());
             } else if state.agents.is_empty() {
                 // Wait for first-launch onboarding before seeding starter agents.
             } else if state.projects.is_empty() {
@@ -46,11 +63,13 @@ pub fn run() {
             }
             app.manage(Mutex::new(state));
             commands::spawn_smoke_watchdog(app.handle().clone());
+            crate::scrum::spawn_scrum_worker(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::start_local_agent,
             commands::load_agent_soul,
+            commands::update_agent_soul,
             commands::update_agent_ai_provider,
             commands::list_agents,
             commands::run_simulation_tick,
@@ -108,12 +127,42 @@ pub fn run() {
             commands::get_token_usage_ledger,
             commands::allocate_department_tokens_cmd,
             commands::allocate_agent_tokens_cmd,
+            commands::update_department_token_budget_cmd,
+            commands::update_agent_token_budget_cmd,
             commands::rebalance_token_wallets_cmd,
             commands::estimate_meeting_turn_cost,
             commands::list_internal_projects,
+            commands::list_projects,
+            commands::create_project,
+            commands::update_project,
+            commands::get_scrum_snapshot,
+            commands::get_work_tree,
+            commands::create_work_node,
+            commands::update_work_node,
+            commands::assign_work_node,
+            commands::issue_directive,
+            commands::list_directives,
+            commands::route_directive,
+            commands::create_sprint,
+            commands::start_sprint,
+            commands::close_sprint,
+            commands::plan_sprint_cmd,
+            commands::set_default_pm_agent,
+            commands::estimate_work_execution_cost,
+            commands::run_work_execution,
+            commands::approve_deliverable,
+            commands::list_execution_runs,
+            commands::link_work_node_to_gig,
+            commands::get_command_center_overview,
+            commands::preview_route_directive_cmd,
+            commands::cancel_directive,
+            commands::update_directive_status,
+            commands::send_co_ceo_directive_to_stae,
+            commands::run_batch_executions,
             commands::update_budget_allocations,
             commands::adjust_agent_salary,
             commands::list_recruitment_candidates,
+            commands::fetch_recruitment_candidate_soul,
             commands::get_agent_relationship_graph,
             commands::get_recruitment_analytics,
             commands::record_recruitment_interview,
@@ -186,7 +235,7 @@ pub fn run() {
         .expect("error while running tauri application")
         .run(|app_handle, event| {
             if let RunEvent::Exit = event {
-                let _ = app_handle.save_window_state(StateFlags::all());
+                let _ = app_handle.save_window_state(WINDOW_STATE_FLAGS);
                 if let Some(state) = app_handle.try_state::<Mutex<AppState>>() {
                     if let Ok(locked) = state.lock() {
                         let _ = flush_pending_commit(app_handle.clone(), &locked);

@@ -89,7 +89,6 @@ pub fn fresh_company_state(
         state.settings.ai_provider = "mock".to_string();
         state.hub.connected = false;
     }
-    state.seed_defaults();
     crate::fate::sync_play_mode_side_effects(&mut state);
     state
 }

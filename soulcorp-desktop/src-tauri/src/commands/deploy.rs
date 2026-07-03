@@ -226,7 +226,17 @@ fn run_vercel_publish(staging_dir: &PathBuf) -> Result<DeployResult, String> {
 
 #[tauri::command]
 pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStatus, String> {
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    // Read persisted deploy metadata under a short lock, then probe CLI tools without
+    // holding AppState — npx vercel/netlify can take seconds and would freeze simulation.
+    let (last_deploy_url, last_deploy_at, last_deploy_provider) = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        (
+            locked.last_deploy_url.clone(),
+            locked.last_deploy_at.clone(),
+            locked.last_deploy_provider.clone(),
+        )
+    };
+
     let (git_available, git_version) = command_available("git", &["--version"]);
     let (gh_available, gh_version) = command_available("gh", &["--version"]);
     let gh_authenticated = gh_available && gh_authenticated();
@@ -263,9 +273,9 @@ pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStat
         vercel_version,
         netlify_cli_available,
         message,
-        last_deploy_url: locked.last_deploy_url.clone(),
-        last_deploy_at: locked.last_deploy_at.clone(),
-        last_deploy_provider: locked.last_deploy_provider.clone(),
+        last_deploy_url,
+        last_deploy_at,
+        last_deploy_provider,
     })
 }
 

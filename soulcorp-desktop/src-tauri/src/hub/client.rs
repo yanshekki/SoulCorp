@@ -1,3 +1,4 @@
+use crate::soul::HubSoulRecord;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -295,15 +296,18 @@ impl HubClient {
         Ok(souls)
     }
 
-    pub async fn fetch_soul_content(&self, soul_id: u64) -> Result<String, String> {
+    pub async fn fetch_soul_detail(&self, soul_id: u64) -> Result<HubSoulRecord, String> {
         let url = format!("{}/api/soul.php?id={soul_id}", self.base_url.trim_end_matches('/'));
         let response = self.get_json(&url, false).await?;
-        response
+        let data = response
             .get("data")
-            .and_then(|data| data.get("content"))
-            .and_then(|value| value.as_str())
-            .map(|value| value.to_string())
-            .ok_or_else(|| "Soul content missing from hub response.".to_string())
+            .cloned()
+            .ok_or_else(|| "Soul data missing from hub response.".to_string())?;
+        serde_json::from_value(data).map_err(|error| format!("Invalid hub soul payload: {error}"))
+    }
+
+    pub async fn fetch_soul_content(&self, soul_id: u64) -> Result<String, String> {
+        Ok(self.fetch_soul_detail(soul_id).await?.content)
     }
 }
 

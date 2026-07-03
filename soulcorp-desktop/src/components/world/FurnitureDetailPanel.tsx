@@ -1,5 +1,6 @@
 import { getCatalogEntry } from "../../data/furnitureCatalog";
 import { useGameStore } from "../../stores/gameStore";
+import { formatAgentOptionLabel } from "../../utils/agentLabel";
 import type { OfficeVisualConfig } from "../../types/visualDesign";
 import {
   bindAgentToDesk,
@@ -76,7 +77,7 @@ export function FurnitureDetailPanel({
               <option value="">Unassigned (auto hash)</option>
               {departmentAgents.map((record) => (
                 <option key={record.id} value={record.id}>
-                  {record.name} · {record.role}
+                  {formatAgentOptionLabel(record)}
                 </option>
               ))}
             </select>

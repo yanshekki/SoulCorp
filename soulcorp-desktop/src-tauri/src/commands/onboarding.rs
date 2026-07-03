@@ -1,9 +1,13 @@
 use crate::db::persistence::{commit, load_registry, save_registry};
 use crate::fate::{clamp_event_chance, sync_play_mode_side_effects};
-use crate::state::{fresh_company_state, summary_from_state, AppState, PlayMode};
+use crate::state::{
+    default_agent_roster, fresh_company_state, summary_from_state, AgentRecord, AgentSlotSetup,
+    AppState, PlayMode,
+};
+use crate::workspace::{company_workspace_root, WorkspaceStorage};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnboardingState {
@@ -22,6 +26,8 @@ pub struct CompleteOnboardingRequest {
     pub pure_local_mode: bool,
     pub random_events_enabled: bool,
     pub random_event_chance: f32,
+    #[serde(default = "default_agent_roster")]
+    pub agent_roster: Vec<AgentSlotSetup>,
 }
 
 fn normalize_company_name(raw: &str) -> Result<String, String> {
@@ -96,6 +102,9 @@ pub fn complete_onboarding(
     }
 
     state.onboarding_completed = true;
+    if state.agents.is_empty() {
+        state.apply_agent_roster(&request.agent_roster)?;
+    }
 
     let mut registry = load_registry(&app)?;
     registry.upsert_summary(summary_from_state(&state));
@@ -108,8 +117,34 @@ pub fn complete_onboarding(
         company_tagline,
         completed: true,
     };
-    commit(app, &state)?;
+    commit(app.clone(), &state)?;
+    persist_agent_roster_workspace(&app, &state)?;
     Ok(snapshot)
+}
+
+pub fn persist_single_agent_soul(
+    app: &AppHandle,
+    state: &AppState,
+    agent: &AgentRecord,
+) -> Result<(), String> {
+    if state.company_id.is_empty() || agent.agent_kind.as_deref() == Some("fate") {
+        return Ok(());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
+    storage.ensure_seed()?;
+    storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
+    if let Some(soul) = &agent.soul {
+        storage.write_agent_soul_file(&agent.id, &soul.raw_content)?;
+    }
+    Ok(())
+}
+
+pub fn persist_agent_roster_workspace(app: &AppHandle, state: &AppState) -> Result<(), String> {
+    for agent in state.agents.values() {
+        persist_single_agent_soul(app, state, agent)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

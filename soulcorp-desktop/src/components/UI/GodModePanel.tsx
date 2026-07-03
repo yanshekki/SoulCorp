@@ -1,12 +1,32 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useGameStore } from "../../stores/gameStore";
 import type { GodModeActionResult, GodModeLogEntry, TokenEconomy } from "../../types/game";
 
-const GOD_MODE_ACTIONS = [
+export type GodModeCategory = "simulation" | "economy" | "agents" | "chaos";
+
+export const GOD_MODE_CATEGORIES: { id: GodModeCategory; label: string }[] = [
+  { id: "simulation", label: "Simulation" },
+  { id: "economy", label: "Economy" },
+  { id: "agents", label: "Agents" },
+  { id: "chaos", label: "Chaos" },
+];
+
+type GodModeAction = {
+  command: string;
+  label: string;
+  category: GodModeCategory;
+  preview: string;
+  risk: string;
+  args?: Record<string, unknown>;
+};
+
+export const GOD_MODE_ACTIONS: GodModeAction[] = [
   {
     command: "god_mode_time_warp",
     label: "Time Warp (+7 days)",
+    category: "simulation",
     args: { days: 7 },
     preview: "Fast-forward one week. Projects advance; burn accrues.",
     risk: "Agents may feel rushed; morale can dip slightly.",
@@ -14,12 +34,14 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_mass_motivation",
     label: "Mass Motivation",
+    category: "agents",
     preview: "Boost company-wide morale immediately.",
     risk: "Raises reality debt; overuse breeds dependency.",
   },
   {
     command: "god_mode_emergency_budget",
     label: "Emergency Budget (+2500 tokens)",
+    category: "economy",
     args: { amount: 2500 },
     preview: "Inject tokens into the company pool.",
     risk: "Reality debt increases; agents expect future bailouts.",
@@ -27,18 +49,21 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_divine_inspiration",
     label: "Divine Inspiration",
+    category: "agents",
     preview: "Temporary creativity and speed boost for all agents.",
     risk: "Crash after effect wears off if overused.",
   },
   {
     command: "god_mode_black_swan",
     label: "Black Swan Event",
+    category: "chaos",
     preview: "Trigger a major random event — could help or hurt.",
     risk: "Unpredictable cash and morale swings.",
   },
   {
     command: "god_mode_agent_mutation",
     label: "Agent Mutation",
+    category: "agents",
     args: {},
     preview: "Randomly shift one agent's personality traits.",
     risk: "May break team chemistry or create drama.",
@@ -46,6 +71,7 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_reality_edit",
     label: "Reality Edit (top project)",
+    category: "economy",
     args: {},
     preview: "Force the top project forward or repair a setback.",
     risk: "High reality debt; agents sense unnatural outcomes.",
@@ -53,18 +79,21 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_perfect_hiring",
     label: "Perfect Hiring",
+    category: "economy",
     preview: "Reveal a hidden S-tier recruitment candidate.",
     risk: "Moderate reality cost; sets high salary expectations.",
   },
   {
     command: "god_mode_total_chaos",
     label: "Total Chaos Mode (24h)",
+    category: "chaos",
     preview: "All agents become unpredictable for one day.",
     risk: "Severe morale volatility; hard to recover quickly.",
   },
   {
     command: "god_mode_reset_agent_memory",
     label: "Reset Agent Memory",
+    category: "agents",
     args: {},
     preview: "Wipe one agent's memory and relationships.",
     risk: "Traumatic for the agent; trust damage across team.",
@@ -72,6 +101,7 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_force_relationship",
     label: "Force Romance",
+    category: "agents",
     args: { relationshipType: "romance" },
     preview: "Create an artificial romance between two agents.",
     risk: "May spark drama or resentment if discovered.",
@@ -79,20 +109,67 @@ const GOD_MODE_ACTIONS = [
   {
     command: "god_mode_force_relationship",
     label: "Force Rivalry",
+    category: "agents",
     args: { relationshipType: "rivalry" },
     preview: "Create an artificial rivalry between two agents.",
     risk: "Can tank meeting productivity until resolved.",
   },
-] as const;
+];
+
+interface GodModeDisabledGateProps {
+  onEnable: () => void;
+  busy?: boolean;
+}
+
+export function GodModeDisabledGate({ onEnable, busy }: GodModeDisabledGateProps) {
+  return (
+    <div className="god-mode-disabled-gate">
+      <div className="god-mode-disabled-card">
+        <h3>CEO intervention powers</h3>
+        <p className="muted">
+          God Mode lets you bend simulation rules — time warps, emergency budgets, agent mutations,
+          and more. Every action raises <strong>reality debt</strong>; agents eventually sense
+          unnatural outcomes.
+        </p>
+        <ul className="god-mode-disabled-list">
+          <li>12 intervention powers across simulation, economy, agents, and chaos</li>
+          <li>Visible reality debt meter and intervention log</li>
+          <li>Consequences persist in finance, morale, and agent relationships</li>
+        </ul>
+        <button type="button" className="primary-action" onClick={onEnable} disabled={busy}>
+          {busy ? "Enabling…" : "Enable God Mode"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RealityDebtMeter({ realityDebt }: { realityDebt: number }) {
+  return (
+    <div className="reality-debt-meter" aria-label="Reality debt">
+      <span>Reality debt {(realityDebt * 100).toFixed(0)}%</span>
+      <div className="reality-debt-bar">
+        <span
+          className={realityDebt >= 0.35 ? "reality-debt-fill warning" : "reality-debt-fill"}
+          style={{ width: `${Math.round(realityDebt * 100)}%` }}
+        />
+      </div>
+      {realityDebt >= 0.35 ? (
+        <p className="muted">High debt — agents sense unnatural outcomes.</p>
+      ) : null}
+    </div>
+  );
+}
 
 export function GodModePanel() {
-  const settings = useGameStore((state) => state.settings);
+  const { activeCompanyId, companyRevision } = useCompanyScope();
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setSimulation = useGameStore((state) => state.setSimulation);
   const setFinance = useGameStore((state) => state.setFinance);
   const [history, setHistory] = useState<GodModeLogEntry[]>([]);
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>(GOD_MODE_ACTIONS[0].label);
   const [realityDebt, setRealityDebt] = useState(0);
+  const [running, setRunning] = useState<string | null>(null);
 
   const refreshHistory = async () => {
     const [entries, status] = await Promise.all([
@@ -104,14 +181,18 @@ export function GodModePanel() {
   };
 
   useEffect(() => {
-    if (settings.god_mode_enabled) {
-      void refreshHistory();
+    if (!activeCompanyId) {
+      setHistory([]);
+      setRealityDebt(0);
+      return;
     }
-  }, [settings.god_mode_enabled]);
+    void refreshHistory();
+  }, [activeCompanyId, companyRevision]);
 
-  const runAction = async (command: string, args?: Record<string, unknown>) => {
+  const runAction = async (action: GodModeAction) => {
+    setRunning(action.label);
     try {
-      const result = await invoke<GodModeActionResult>(command, args ?? {});
+      const result = await invoke<GodModeActionResult>(action.command, action.args ?? {});
       setSimulation({ dayNumber: result.day_number });
       const finance = await invoke<TokenEconomy>("get_finance_state");
       setFinance(finance);
@@ -119,80 +200,93 @@ export function GodModePanel() {
       await refreshHistory();
     } catch (error) {
       setStatusMessage(String(error));
+    } finally {
+      setRunning(null);
     }
   };
 
-  if (!settings.god_mode_enabled) {
-    return (
-      <section className="panel-card">
-        <h2>God Mode</h2>
-        <p className="muted">Enable God Mode in Settings to use CEO powers.</p>
-      </section>
-    );
-  }
-
-  const activePreview = GOD_MODE_ACTIONS.find((action) => action.label === hovered);
+  const activePreview = GOD_MODE_ACTIONS.find((action) => action.label === selected);
 
   return (
-    <section className="panel-card god-mode">
-      <h2>God Mode</h2>
-      <p className="muted">CEO intervention powers with visible consequences.</p>
-      <div className="reality-debt-meter" aria-label="Reality debt">
-        <span>Reality debt {(realityDebt * 100).toFixed(0)}%</span>
-        <div className="reality-debt-bar">
-          <span
-            className={realityDebt >= 0.35 ? "reality-debt-fill warning" : "reality-debt-fill"}
-            style={{ width: `${Math.round(realityDebt * 100)}%` }}
-          />
-        </div>
-        {realityDebt >= 0.35 ? (
-          <p className="muted">High debt — agents sense unnatural outcomes.</p>
-        ) : null}
-      </div>
-      {activePreview ? (
-        <div className="god-mode-preview">
-          <strong>{activePreview.label}</strong>
-          <p>{activePreview.preview}</p>
-          <p className="muted">Risk: {activePreview.risk}</p>
-        </div>
-      ) : (
-        <p className="muted god-mode-preview-hint">Hover an action to preview impact and risk.</p>
-      )}
-      <div className="panel-actions stacked">
-        {GOD_MODE_ACTIONS.map((action) => (
-          <button
-            key={action.label}
-            type="button"
-            onMouseEnter={() => setHovered(action.label)}
-            onMouseLeave={() => setHovered(null)}
-            onFocus={() => setHovered(action.label)}
-            onBlur={() => setHovered(null)}
-            onClick={() =>
-              void runAction(
-                action.command,
-                "args" in action && action.args ? { ...action.args } : {},
-              )
+    <div className="god-mode-panel god-mode-panel--page">
+      <div className="god-mode-page-body">
+        <div className="god-mode-main">
+          {GOD_MODE_CATEGORIES.map((category) => {
+            const actions = GOD_MODE_ACTIONS.filter((action) => action.category === category.id);
+            if (actions.length === 0) {
+              return null;
             }
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
-
-      {history.length > 0 && (
-        <div className="god-mode-history">
-          <h3>Intervention Log</h3>
-          <ul>
-            {history.map((entry) => (
-              <li key={entry.id}>
-                <strong>Day {entry.day_number}</strong> · {entry.action.replace(/_/g, " ")}
-                <span className="muted"> — {entry.message}</span>
-                <span className="muted"> · reality cost {(entry.reality_cost * 100).toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
+            return (
+              <section key={category.id} className="god-mode-category">
+                <h3>{category.label}</h3>
+                <div className="god-mode-action-grid">
+                  {actions.map((action) => (
+                    <article
+                      key={action.label}
+                      className={`god-mode-action-card${selected === action.label ? " selected" : ""}`}
+                      onMouseEnter={() => setSelected(action.label)}
+                      onFocus={() => setSelected(action.label)}
+                    >
+                      <div className="god-mode-action-card-body">
+                        <strong>{action.label}</strong>
+                        <p className="muted">{action.preview}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="god-mode-action-btn"
+                        disabled={running !== null}
+                        onClick={() => void runAction(action)}
+                      >
+                        {running === action.label ? "Running…" : "Execute"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
-      )}
-    </section>
+
+        <aside className="god-mode-side-panel">
+          <RealityDebtMeter realityDebt={realityDebt} />
+
+          {activePreview ? (
+            <div className="god-mode-preview">
+              <strong>{activePreview.label}</strong>
+              <p>{activePreview.preview}</p>
+              <p className="muted">Risk: {activePreview.risk}</p>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={running !== null}
+                onClick={() => void runAction(activePreview)}
+              >
+                {running === activePreview.label ? "Running…" : `Execute ${activePreview.label}`}
+              </button>
+            </div>
+          ) : null}
+
+          <div className="god-mode-history">
+            <h3>Intervention Log</h3>
+            {history.length > 0 ? (
+              <ul>
+                {history.map((entry) => (
+                  <li key={entry.id}>
+                    <strong>Day {entry.day_number}</strong> · {entry.action.replace(/_/g, " ")}
+                    <span className="muted"> — {entry.message}</span>
+                    <span className="muted">
+                      {" "}
+                      · reality cost {(entry.reality_cost * 100).toFixed(0)}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">No interventions yet. Execute a power to begin the log.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }

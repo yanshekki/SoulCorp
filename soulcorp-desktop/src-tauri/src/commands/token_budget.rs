@@ -3,7 +3,7 @@ use crate::db::persistence::commit;
 use crate::state::{AppState, TokenEconomy, TokenUsageEntry};
 use crate::token_budget::{
     allocate_agent_tokens, allocate_department_tokens, rebalance_token_wallets,
-    total_company_tokens,
+    total_company_tokens, update_agent_token_budget, update_department_token_budget,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -26,6 +26,25 @@ pub struct DepartmentAllocationRequest {
 pub struct AgentAllocationRequest {
     pub agent_id: String,
     pub amount: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenBudgetPolicyRequest {
+    pub period_limit: u64,
+    pub period_type: String,
+    pub period_days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepartmentTokenBudgetRequest {
+    pub department: String,
+    pub policy: TokenBudgetPolicyRequest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentTokenBudgetRequest {
+    pub agent_id: String,
+    pub policy: TokenBudgetPolicyRequest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +159,7 @@ pub fn estimate_meeting_turn_cost(
         user_prompt: meeting.meeting_type.clone(),
         temperature: 0.7,
         soul_id: agent.soul_id,
+        context: None,
         conversation_turns: Vec::new(),
     });
     let affordable = crate::token_budget::can_afford(&state, &speaker_id, estimate).is_ok();
@@ -155,6 +175,44 @@ pub fn estimate_meeting_turn_cost(
             )
         },
     })
+}
+
+#[tauri::command]
+pub fn update_department_token_budget_cmd(
+    request: DepartmentTokenBudgetRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<TokenEconomy, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    update_department_token_budget(
+        &mut state,
+        &request.department,
+        request.policy.period_limit,
+        &request.policy.period_type,
+        request.policy.period_days.unwrap_or(30),
+    )?;
+    let economy = state.token_economy.clone();
+    commit(app, &state)?;
+    Ok(economy)
+}
+
+#[tauri::command]
+pub fn update_agent_token_budget_cmd(
+    request: AgentTokenBudgetRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<TokenEconomy, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    update_agent_token_budget(
+        &mut state,
+        &request.agent_id,
+        request.policy.period_limit,
+        &request.policy.period_type,
+        request.policy.period_days.unwrap_or(30),
+    )?;
+    let economy = state.token_economy.clone();
+    commit(app, &state)?;
+    Ok(economy)
 }
 
 #[tauri::command]

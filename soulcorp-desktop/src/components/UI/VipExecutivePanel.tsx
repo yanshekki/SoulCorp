@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type {
   AgentRecord,
@@ -9,6 +9,14 @@ import type {
   CustomDepartmentBuilding,
 } from "../../types/game";
 import type { Building } from "../../types/world";
+import { formatAgentOptionLabel } from "../../utils/agentLabel";
+import { sendCoCeoDirectiveToStae } from "../../services/scrumClient";
+
+export const VIP_EXECUTIVE_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "departments", label: "Departments" },
+  { id: "co-ceo", label: "AI Co-CEO" },
+] as const;
 
 function toWorldBuilding(building: CustomDepartmentBuilding): Building {
   return {
@@ -24,8 +32,13 @@ function toWorldBuilding(building: CustomDepartmentBuilding): Building {
   };
 }
 
-export function VipExecutivePanel() {
+interface VipExecutivePanelProps {
+  onSectionFocus?: (sectionId: string) => void;
+}
+
+export function VipExecutivePanel({ onSectionFocus }: VipExecutivePanelProps) {
   const tierBenefits = useGameStore((state) => state.tierBenefits);
+  const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const buildings = useGameStore((state) => state.buildings);
   const setBuildings = useGameStore((state) => state.setBuildings);
@@ -44,6 +57,7 @@ export function VipExecutivePanel() {
   const [deptAccentColor, setDeptAccentColor] = useState("#5ec8ff");
   const [assignAgentId, setAssignAgentId] = useState("");
   const [targetDepartment, setTargetDepartment] = useState("Engineering");
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = async () => {
     try {
@@ -69,7 +83,7 @@ export function VipExecutivePanel() {
     if (tierBenefits.custom_departments || tierBenefits.ai_co_ceo) {
       void refresh();
     }
-  }, [tierBenefits.custom_departments, tierBenefits.ai_co_ceo]);
+  }, [activeCompanyId, tierBenefits.custom_departments, tierBenefits.ai_co_ceo]);
 
   useEffect(() => {
     if (agentRecords.length === 0) {
@@ -80,6 +94,33 @@ export function VipExecutivePanel() {
       agentRecords.some((agent) => agent.id === current) ? current : agentRecords[0].id,
     );
   }, [agentRecords]);
+
+  useEffect(() => {
+    if (!onSectionFocus) {
+      return;
+    }
+    const root = scrollRootRef.current?.closest(".vip-executive-page-scroll");
+    const sections = scrollRootRef.current?.querySelectorAll("[data-vip-section]");
+    if (!root || !sections?.length) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const sectionId = visible?.target.getAttribute("data-vip-section");
+        if (sectionId) {
+          onSectionFocus(sectionId);
+        }
+      },
+      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [onSectionFocus, departments, coCeoStatus]);
 
   const deleteDepartment = async (departmentId: string) => {
     try {
@@ -163,6 +204,19 @@ export function VipExecutivePanel() {
     }
   };
 
+  const sendToStae = async (directive: CoCeoBriefing["directives"][number]) => {
+    try {
+      await sendCoCeoDirectiveToStae({
+        title: directive.title,
+        description: directive.description,
+        target_department: directive.target_department,
+      });
+      setStatusMessage(`Sent to Command Center STAE: ${directive.title}`);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   const applyDirective = async (directiveId: string, directive: CoCeoBriefing["directives"][number]) => {
     try {
       const status = await invoke<CoCeoStatus>("apply_co_ceo_directive", {
@@ -192,37 +246,63 @@ export function VipExecutivePanel() {
     }
   };
 
-  if (!tierBenefits.custom_departments && !tierBenefits.ai_co_ceo) {
-    return (
-      <section className="panel-card vip-executive-panel">
-        <h2>VIP Executive</h2>
-        <p className="muted">Upgrade to VIP to unlock custom departments and the AI Co-CEO.</p>
-      </section>
-    );
-  }
-
   const allDepartments = [
     ...(departments?.builtin ?? []),
     ...(departments?.custom.map((department) => department.name) ?? []),
   ];
 
   return (
-    <section className="panel-card vip-executive-panel">
-      <h2>VIP Executive</h2>
-      <p className="muted">
-        Design branded departments with SOPs and deploy an AI Co-CEO that proposes strategy and
-        manages agents autonomously.
-      </p>
+    <div className="vip-executive-panel vip-executive-panel--page" ref={scrollRootRef}>
+      <section
+        id="overview"
+        className="vip-executive-card vip-executive-card--wide"
+        data-vip-section="overview"
+      >
+        <header className="vip-executive-card-header">
+          <h3>Executive overview</h3>
+          <p className="muted">VIP tooling for org design and strategic AI leadership.</p>
+        </header>
+        <div className="analytics-grid vip-executive-overview-grid">
+          <article>
+            <strong>{departments?.custom.length ?? 0}</strong>
+            <span>Custom departments</span>
+          </article>
+          <article>
+            <strong>{coCeoStatus?.spawned ? "Active" : "Inactive"}</strong>
+            <span>AI Co-CEO</span>
+          </article>
+          <article>
+            <strong>{coCeoStatus?.directives_applied ?? 0}</strong>
+            <span>Directives applied</span>
+          </article>
+          <article>
+            <strong>{coCeoStatus?.autonomy_enabled ? "On" : "Off"}</strong>
+            <span>Autonomy</span>
+          </article>
+        </div>
+      </section>
 
       {tierBenefits.custom_departments ? (
-        <div className="vip-section">
-          <h3>Custom departments</h3>
+        <section
+          id="departments"
+          className="vip-executive-card vip-executive-card--wide"
+          data-vip-section="departments"
+        >
+          <header className="vip-executive-card-header">
+            <h3>Custom departments</h3>
+            <p className="muted">Branded buildings, SOPs, and agent reassignment.</p>
+          </header>
+
           {departments?.custom.length ? (
-            <ul className="custom-dept-list">
+            <ul className="custom-dept-list vip-executive-dept-grid">
               {departments.custom.map((department) => (
-                <li key={department.id}>
+                <li key={department.id} className="vip-executive-dept-card">
+                  <div className="vip-executive-dept-colors">
+                    <span style={{ background: department.brand_color }} aria-hidden="true" />
+                    <span style={{ background: department.accent_color }} aria-hidden="true" />
+                  </div>
                   <strong>{department.display_name}</strong>
-                  <span>{department.name}</span>
+                  <span className="muted">{department.name}</span>
                   <p className="muted">{department.sop || "No SOP yet."}</p>
                   <button
                     type="button"
@@ -235,86 +315,96 @@ export function VipExecutivePanel() {
               ))}
             </ul>
           ) : (
-            <p className="muted">No custom departments yet.</p>
+            <p className="muted">No custom departments yet. Create one below.</p>
           )}
 
-          <div className="gig-form">
-            <label className="field-label">
-              Internal name
-              <input value={deptName} onChange={(event) => setDeptName(event.target.value)} />
-            </label>
-            <label className="field-label">
-              Display name
-              <input
-                value={deptDisplayName}
-                onChange={(event) => setDeptDisplayName(event.target.value)}
-              />
-            </label>
-            <label className="field-label">
-              SOP / mission
-              <textarea
-                rows={3}
-                value={deptSop}
-                onChange={(event) => setDeptSop(event.target.value)}
-              />
-            </label>
-            <label className="field-label">
-              Brand color
-              <input
-                type="color"
-                value={deptBrandColor}
-                onChange={(event) => setDeptBrandColor(event.target.value)}
-              />
-            </label>
-            <label className="field-label">
-              Accent color
-              <input
-                type="color"
-                value={deptAccentColor}
-                onChange={(event) => setDeptAccentColor(event.target.value)}
-              />
-            </label>
-            <button type="button" className="primary-action" onClick={() => void createDepartment()}>
-              Create department
-            </button>
-          </div>
+          <div className="vip-executive-form-grid">
+            <div className="gig-form vip-executive-create-form">
+              <h4>Create department</h4>
+              <label className="field-label">
+                Internal name
+                <input value={deptName} onChange={(event) => setDeptName(event.target.value)} />
+              </label>
+              <label className="field-label">
+                Display name
+                <input
+                  value={deptDisplayName}
+                  onChange={(event) => setDeptDisplayName(event.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                SOP / mission
+                <textarea
+                  rows={3}
+                  value={deptSop}
+                  onChange={(event) => setDeptSop(event.target.value)}
+                />
+              </label>
+              <div className="vip-executive-color-row">
+                <label className="field-label">
+                  Brand color
+                  <input
+                    type="color"
+                    value={deptBrandColor}
+                    onChange={(event) => setDeptBrandColor(event.target.value)}
+                  />
+                </label>
+                <label className="field-label">
+                  Accent color
+                  <input
+                    type="color"
+                    value={deptAccentColor}
+                    onChange={(event) => setDeptAccentColor(event.target.value)}
+                  />
+                </label>
+              </div>
+              <button type="button" className="primary-action" onClick={() => void createDepartment()}>
+                Create department
+              </button>
+            </div>
 
-          <div className="assign-dept-row">
-            <label className="field-label">
-              Reassign agent
-              <select value={assignAgentId} onChange={(event) => setAssignAgentId(event.target.value)}>
-                {agentRecords.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-label">
-              Department
-              <select
-                value={targetDepartment}
-                onChange={(event) => setTargetDepartment(event.target.value)}
-              >
-                {allDepartments.map((department) => (
-                  <option key={department} value={department}>
-                    {department}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" onClick={() => void handleAssignDepartment()}>
-              Assign
-            </button>
+            <div className="vip-executive-assign-card">
+              <h4>Reassign agent</h4>
+              <label className="field-label">
+                Agent
+                <select value={assignAgentId} onChange={(event) => setAssignAgentId(event.target.value)}>
+                  {agentRecords.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {formatAgentOptionLabel(agent)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Department
+                <select
+                  value={targetDepartment}
+                  onChange={(event) => setTargetDepartment(event.target.value)}
+                >
+                  {allDepartments.map((department) => (
+                    <option key={department} value={department}>
+                      {department}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" onClick={() => void handleAssignDepartment()}>
+                Assign agent
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
       ) : null}
 
       {tierBenefits.ai_co_ceo ? (
-        <div className="vip-section">
-          <h3>AI Co-CEO</h3>
+        <section id="co-ceo" className="vip-executive-card vip-executive-card--wide" data-vip-section="co-ceo">
+          <header className="vip-executive-card-header">
+            <h3>AI Co-CEO</h3>
+            <p className="muted">Aria Nexus — executive briefings and applied strategy directives.</p>
+          </header>
+
           {coCeoStatus ? (
-            <div className="analytics-grid">
+            <div className="analytics-grid vip-executive-overview-grid">
               <article>
                 <strong>{coCeoStatus.spawned ? "Active" : "Not spawned"}</strong>
                 <span>Status</span>
@@ -334,7 +424,7 @@ export function VipExecutivePanel() {
             </div>
           ) : null}
 
-          <div className="panel-actions">
+          <div className="panel-actions vip-executive-actions">
             {!coCeoStatus?.spawned ? (
               <button type="button" className="primary-action" onClick={() => void spawnCoCeo()}>
                 Spawn AI Co-CEO
@@ -360,10 +450,10 @@ export function VipExecutivePanel() {
           </div>
 
           {briefing ? (
-            <div className="co-ceo-briefing">
+            <div className="co-ceo-briefing vip-executive-briefing">
               <p>{briefing.summary}</p>
               <p className="muted">Provider: {briefing.provider}</p>
-              <div className="directive-list">
+              <div className="directive-list vip-executive-directive-grid">
                 {briefing.directives.map((directive) => (
                   <article key={directive.id} className="directive-card">
                     <header>
@@ -371,19 +461,28 @@ export function VipExecutivePanel() {
                       <span>{directive.target_department}</span>
                     </header>
                     <p>{directive.description}</p>
-                    <button
-                      type="button"
-                      onClick={() => void applyDirective(directive.id, directive)}
-                    >
-                      Apply directive
-                    </button>
+                    <div className="panel-actions">
+                      <button
+                        type="button"
+                        onClick={() => void applyDirective(directive.id, directive)}
+                      >
+                        Apply morale
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => void sendToStae(directive)}
+                      >
+                        Send to STAE
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
             </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
-    </section>
+    </div>
   );
 }

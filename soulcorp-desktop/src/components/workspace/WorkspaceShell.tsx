@@ -19,8 +19,9 @@ export function WorkspaceShell() {
     >
       <aside className="workspace-sidebar">
         <div className="workspace-sidebar-header">
+          <p className="workflow-step-badge">CEO Workflow · Step 3</p>
           <h2>Workspace</h2>
-          <p>Company hub, department teams, and employee journals</p>
+          <p>Review deliverables, meeting notes, and team docs from your workflow</p>
         </div>
         <WorkspaceSearch onOpenResult={(pageId) => void openPage(pageId)} />
         <WorkspaceDatabase />

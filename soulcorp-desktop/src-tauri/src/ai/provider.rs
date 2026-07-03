@@ -8,11 +8,15 @@ pub struct ChatTurn {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatRequest {
+    /// Persona prompt (soul-derived). Task/meeting context lives in [`Self::context`].
     pub system_prompt: String,
     pub user_prompt: String,
     pub temperature: f32,
     #[serde(default)]
     pub soul_id: Option<u64>,
+    /// Meeting, scrum, or task context — used by hub provider instead of parsing `system_prompt`.
+    #[serde(default)]
+    pub context: Option<String>,
     #[serde(default)]
     pub conversation_turns: Vec<ChatTurn>,
 }

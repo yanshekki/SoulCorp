@@ -1,11 +1,12 @@
 use crate::achievements::evaluate;
+use crate::config;
 use crate::commands::events::{apply_god_mode_reality_debt, should_attempt_fate_event};
 use crate::commands::export::write_auto_backup;
 use crate::commands::god_mode::apply_chaos_mode_tick;
 use crate::commands::vip::apply_co_ceo_autonomy_tick;
 use crate::db::persistence::commit_debounced;
 use crate::finance::{apply_tick_finance, count_active_agents};
-use crate::token_budget::total_company_tokens;
+use crate::token_budget::{reset_token_budget_periods, total_company_tokens};
 use crate::fate::events::generate_and_apply_fate_event;
 use crate::gigs::apply_gig_contract_ticks;
 use crate::progress::ProgressReporter;
@@ -57,6 +58,12 @@ pub async fn run_simulation_tick(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<SimulationTickResult, String> {
+    if config::is_v1() {
+        return Err(
+            "Simulation ticks are only available in SoulCorp Simulator (v2).".into(),
+        );
+    }
+
     let progress = ProgressReporter::new(app.clone(), "sim_tick");
     progress.emit_percent("Starting simulation tick…", 5.0, Some("start"));
 
@@ -64,21 +71,31 @@ pub async fn run_simulation_tick(
         let mut state = state.lock().map_err(|e| e.to_string())?;
 
         state.tick += 1;
-        apply_chaos_mode_tick(&mut state);
+        reset_token_budget_periods(&mut state);
+        if config::is_v2() {
+            apply_chaos_mode_tick(&mut state);
+        }
         progress.emit_percent("Processing finance…", 20.0, Some("finance"));
 
         let finance_result = apply_tick_finance(&mut state);
         progress.emit_percent("Updating gig contracts…", 40.0, Some("gigs"));
 
         let gig_result = apply_gig_contract_ticks(&mut state);
-        if state.tick % 20 == 0 {
+        if config::is_v2() && state.tick % 20 == 0 {
             progress.emit_percent("Updating relationships…", 55.0, Some("relationships"));
             apply_relationship_tick(&mut state);
         }
         let co_ceo_note = apply_co_ceo_autonomy_tick(&mut state);
-        let reality_note = apply_god_mode_reality_debt(&mut state);
+        crate::scrum::maybe_advance_sprint_cycle(&mut state);
+        let reality_note = if config::is_v2() {
+            apply_god_mode_reality_debt(&mut state)
+        } else {
+            None
+        };
 
-        let try_fate_event = state.tick % 15 == 0 && should_attempt_fate_event(&state);
+        let try_fate_event = config::is_v2()
+            && state.tick % 15 == 0
+            && should_attempt_fate_event(&state);
 
         let write_daily = finance_result.daily_salary_paid > 0;
         let activity_snapshot = ActivitySnapshot::from_state(&state);
@@ -111,6 +128,19 @@ pub async fn run_simulation_tick(
             total_tokens: total_company_tokens(&state.token_economy),
             company_starved: finance_result.company_starved,
         }
+    };
+
+    let scrum_note = {
+        let mut locked = state.lock().map_err(|e| e.to_string())?;
+        let note = if locked.settings.scrum_worker_enabled {
+            None
+        } else {
+            crate::scrum::apply_scrum_execution_tick(&mut locked, &app)
+        };
+        if note.is_some() {
+            let _ = commit_debounced(app.clone(), &locked);
+        }
+        note
     };
 
     let event = if snapshot.try_fate_event {
@@ -156,6 +186,8 @@ pub async fn run_simulation_tick(
             "Day {}: gig deliverable submitted for QC review.",
             snapshot.day_number
         )
+    } else if let Some(note) = scrum_note {
+        format!("Day {}: {note}", snapshot.day_number)
     } else if snapshot.finance_daily_salary_paid > 0 {
         format!(
             "Day {} payroll processed ({} tokens).",
@@ -213,7 +245,9 @@ pub async fn run_simulation_tick(
             if outcome.pages_written > 0 {
                 state.stats.pages_created += outcome.pages_written;
             }
-            let _achievement_snapshot = evaluate(&mut state);
+            if config::is_v2() {
+                let _achievement_snapshot = evaluate(&mut state);
+            }
             commit_debounced(app.clone(), &state)?;
         }
         Err(err) => {

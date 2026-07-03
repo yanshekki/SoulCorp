@@ -686,6 +686,13 @@ impl WorkspaceStorage {
         Ok(created)
     }
 
+    pub fn write_agent_soul_file(&self, agent_id: &str, content: &str) -> Result<(), String> {
+        let dir = self.root.join("agent-souls");
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        fs::write(dir.join(format!("{agent_id}.md")), content).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn ensure_agent_folder(
         &self,
         agent_id: &str,

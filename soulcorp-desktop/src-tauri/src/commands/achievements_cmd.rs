@@ -1,4 +1,5 @@
-use crate::achievements::{evaluate, AchievementSnapshot};
+use crate::achievements::{default_achievements, default_endings, evaluate, AchievementSnapshot};
+use crate::config;
 use crate::db::persistence::commit;
 use crate::state::AppState;
 use std::sync::Mutex;
@@ -10,6 +11,13 @@ pub fn get_achievements(
     app: AppHandle,
 ) -> Result<AchievementSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    if config::is_v1() {
+        return Ok(AchievementSnapshot {
+            achievements: default_achievements(),
+            endings: default_endings(),
+            newly_unlocked: vec![],
+        });
+    }
     let snapshot = evaluate(&mut state);
     commit(app, &state)?;
     Ok(snapshot)

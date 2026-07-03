@@ -34,6 +34,19 @@ pub struct SettingsUpdate {
     pub music_volume: Option<f32>,
     pub sfx_enabled: Option<bool>,
     pub sfx_volume: Option<f32>,
+    pub scrum_auto_schedule: Option<bool>,
+    pub scrum_auto_execute: Option<bool>,
+    pub scrum_execution_paused: Option<bool>,
+    pub scrum_min_tokens_guard: Option<u64>,
+    pub scrum_max_executions_per_tick: Option<u32>,
+    pub scrum_worker_enabled: Option<bool>,
+    pub scrum_worker_interval_secs: Option<u32>,
+    pub scrum_auto_route: Option<bool>,
+    pub scrum_auto_approve: Option<bool>,
+    pub scrum_parallel_agents: Option<bool>,
+    pub scrum_auto_retry_blocked: Option<bool>,
+    pub scrum_max_blocked_retries: Option<u8>,
+    pub scrum_use_agent_tools: Option<bool>,
 }
 
 #[tauri::command]
@@ -147,6 +160,45 @@ pub fn update_game_settings(
     }
     if let Some(volume) = update.sfx_volume {
         state.settings.sfx_volume = volume.clamp(0.0, 1.0);
+    }
+    if let Some(enabled) = update.scrum_auto_schedule {
+        state.settings.scrum_auto_schedule = enabled;
+    }
+    if let Some(enabled) = update.scrum_auto_execute {
+        state.settings.scrum_auto_execute = enabled;
+    }
+    if let Some(paused) = update.scrum_execution_paused {
+        state.settings.scrum_execution_paused = paused;
+    }
+    if let Some(guard) = update.scrum_min_tokens_guard {
+        state.settings.scrum_min_tokens_guard = guard;
+    }
+    if let Some(max) = update.scrum_max_executions_per_tick {
+        state.settings.scrum_max_executions_per_tick = max.max(1);
+    }
+    if let Some(enabled) = update.scrum_worker_enabled {
+        state.settings.scrum_worker_enabled = enabled;
+    }
+    if let Some(secs) = update.scrum_worker_interval_secs {
+        state.settings.scrum_worker_interval_secs = secs.max(5);
+    }
+    if let Some(enabled) = update.scrum_auto_route {
+        state.settings.scrum_auto_route = enabled;
+    }
+    if let Some(enabled) = update.scrum_auto_approve {
+        state.settings.scrum_auto_approve = enabled;
+    }
+    if let Some(enabled) = update.scrum_parallel_agents {
+        state.settings.scrum_parallel_agents = enabled;
+    }
+    if let Some(enabled) = update.scrum_auto_retry_blocked {
+        state.settings.scrum_auto_retry_blocked = enabled;
+    }
+    if let Some(max) = update.scrum_max_blocked_retries {
+        state.settings.scrum_max_blocked_retries = max.max(1);
+    }
+    if let Some(enabled) = update.scrum_use_agent_tools {
+        state.settings.scrum_use_agent_tools = enabled;
     }
 
     let settings = state.settings.clone();

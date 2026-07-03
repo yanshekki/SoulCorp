@@ -3,14 +3,10 @@ import { reloadGameState } from "../../hooks/useReloadGameState";
 import { clearAllTestData, seedFakeTestData } from "../../services/testModeClient";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
+import { IS_V2, simulationAutoRun } from "../../config/features";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
-interface TestModeButtonProps {
-  /** Inline in app statusbar (default) — avoids overlapping build Save + footer. */
-  placement?: "statusbar" | "floating";
-}
-
-export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps) {
+export function TestModeButton() {
   if (!import.meta.env.DEV) {
     return null;
   }
@@ -50,7 +46,14 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
       resetLocalStores();
       setOnboardingReady(true);
       await reloadGameState();
-      setStatusMessage(result.message);
+      useGameStore.getState().setActivePanel("projects");
+      useGameStore.getState().bumpScrumRevision();
+      setStatusMessage(
+        `${result.message} Create a company to begin with real operational data.`,
+      );
+      requestAnimationFrame(() => {
+        document.getElementById("command")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -67,10 +70,14 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
       setOnboardingReady(true);
       await reloadGameState();
       useGameStore.setState({
-        isPaused: false,
-        activePanel: "office",
+        isPaused: !simulationAutoRun,
+        activePanel: simulationAutoRun ? "office" : "projects",
       });
+      useGameStore.getState().bumpScrumRevision();
       setStatusMessage(result.message);
+      requestAnimationFrame(() => {
+        document.getElementById("command")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -79,30 +86,42 @@ export function TestModeButton({ placement = "statusbar" }: TestModeButtonProps)
   };
 
   return (
-    <div
-      className={`test-mode-root${placement === "statusbar" ? " test-mode-root--statusbar" : " test-mode-root--floating"}`}
-      ref={rootRef}
-    >
-      {open ? (
-        <div className="test-mode-menu" role="menu">
-          <button type="button" disabled={busy} onClick={() => void handleClear()}>
-            Clear all data
-          </button>
-          <button type="button" disabled={busy} onClick={() => void handleSeed()}>
-            Seed fake data
-          </button>
-        </div>
-      ) : null}
+    <div className="test-mode-toolbar" ref={rootRef} data-open={open || undefined}>
       <button
         type="button"
         className="test-mode-trigger"
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-controls="test-mode-actions"
         disabled={busy}
         onClick={() => setOpen((value) => !value)}
       >
         {busy ? "Working…" : "Test mode"}
+        <span className="test-mode-chevron" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
       </button>
+      {open ? (
+        <div id="test-mode-actions" className="test-mode-actions" role="group" aria-label="Test mode actions">
+          <button
+            type="button"
+            className="test-mode-action test-mode-action--danger"
+            disabled={busy}
+            onClick={() => void handleClear()}
+          >
+            Clear all data
+          </button>
+          {IS_V2 ? (
+            <button
+              type="button"
+              className="test-mode-action"
+              disabled={busy}
+              onClick={() => void handleSeed()}
+            >
+              Seed fake data
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
