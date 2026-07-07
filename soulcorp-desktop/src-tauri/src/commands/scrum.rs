@@ -842,6 +842,7 @@ pub struct AutomationStatus {
     pub openclaw_available: bool,
     pub openclaw_version: Option<String>,
     pub openclaw_message: String,
+    pub readiness: crate::operations::AutomationReadiness,
 }
 
 #[tauri::command]
@@ -862,5 +863,6 @@ pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<Automa
         openclaw_available: openclaw.binary_available,
         openclaw_version: openclaw.version,
         openclaw_message: openclaw.message,
+        readiness: crate::operations::compute_automation_readiness(&state),
     })
 }

@@ -110,6 +110,7 @@ pub fn complete_onboarding(
         state.apply_agent_roster(&request.agent_roster)?;
     }
     state.apply_project_setup(request.project_setup_mode, request.custom_project.clone())?;
+    apply_v1_automation_defaults(&mut state);
 
     let mut registry = load_registry(&app)?;
     registry.upsert_summary(summary_from_state(&state));
@@ -143,6 +144,16 @@ pub fn persist_single_agent_soul(
         storage.write_agent_soul_file(&agent.id, &soul.raw_content)?;
     }
     Ok(())
+}
+
+fn apply_v1_automation_defaults(state: &mut AppState) {
+    state.settings.scrum_worker_enabled = true;
+    state.settings.orchestrator_enabled = true;
+    state.settings.scrum_auto_route = true;
+    state.settings.scrum_auto_schedule = true;
+    state.settings.scrum_auto_execute = true;
+    state.settings.scrum_auto_approve = true;
+    state.settings.scrum_execution_paused = false;
 }
 
 pub fn persist_agent_roster_workspace(app: &AppHandle, state: &AppState) -> Result<(), String> {

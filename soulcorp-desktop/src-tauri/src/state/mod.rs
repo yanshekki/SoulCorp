@@ -156,6 +156,8 @@ pub struct GameSettings {
     pub hub_auto_pull_interval_secs: u32,
     #[serde(default = "default_true")]
     pub orchestrator_auto_complete_gigs: bool,
+    #[serde(default)]
+    pub orchestrator_auto_recruit: bool,
 }
 
 fn default_worker_interval() -> u32 {
@@ -409,6 +411,8 @@ impl<'de> Deserialize<'de> for GameSettings {
             hub_auto_pull_interval_secs: u32,
             #[serde(default = "default_true")]
             orchestrator_auto_complete_gigs: bool,
+            #[serde(default)]
+            orchestrator_auto_recruit: bool,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -479,6 +483,7 @@ impl<'de> Deserialize<'de> for GameSettings {
             orchestrator_auto_hub_pull: helper.orchestrator_auto_hub_pull,
             hub_auto_pull_interval_secs: helper.hub_auto_pull_interval_secs.max(60),
             orchestrator_auto_complete_gigs: helper.orchestrator_auto_complete_gigs,
+            orchestrator_auto_recruit: helper.orchestrator_auto_recruit,
         })
     }
 }
@@ -557,6 +562,7 @@ impl Default for GameSettings {
             orchestrator_auto_hub_pull: true,
             hub_auto_pull_interval_secs: 300,
             orchestrator_auto_complete_gigs: true,
+            orchestrator_auto_recruit: false,
         }
     }
 }

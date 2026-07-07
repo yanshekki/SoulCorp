@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import { IS_V2 } from "../../../config/features";
+import { IS_V1, IS_V2 } from "../../../config/features";
 import { useGameStore } from "../../../stores/gameStore";
 import type { AgentRecord, CoCeoBriefing, CoCeoStatus } from "../../../types/game";
 import { sendCoCeoDirectiveToStae } from "../../../services/scrumClient";
@@ -136,6 +136,13 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
   return (
     <div className="command-co-ceo-panel">
       <p className="muted">Aria Nexus — strategy briefings and directives into your backlog.</p>
+      {IS_V1 ? (
+        <p className="muted command-co-ceo-v1-hint">
+          V1 background automation is controlled in <strong>Policies → Enable orchestrator</strong>.
+          Use briefings here to manually queue directives; the worker issues them automatically when
+          orchestrator is on.
+        </p>
+      ) : null}
 
       <div className="command-form-section">
         <h4>Company vision</h4>

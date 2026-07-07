@@ -67,11 +67,39 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
         timestamp: Utc::now().to_rfc3339(),
     };
 
-    if !state.settings.scrum_worker_enabled
-        || state.settings.scrum_execution_paused
-        || state.company_id.is_empty()
-    {
+    if state.company_id.is_empty() {
+        push_worker_log(state, &["Worker tick skipped: no active company.".into()]);
         return report;
+    }
+    if !state.settings.scrum_worker_enabled {
+        push_worker_log(state, &["Worker tick skipped: scrum worker disabled.".into()]);
+        return report;
+    }
+    if state.settings.scrum_execution_paused {
+        push_worker_log(state, &["Worker tick skipped: execution paused.".into()]);
+        return report;
+    }
+
+    if state.projects.is_empty() {
+        state.seed_projects();
+        report
+            .messages
+            .push("Auto-seeded default project (board was empty).".into());
+    }
+
+    let pool = crate::token_budget::total_company_tokens(&state.token_economy);
+    if pool < state.settings.scrum_min_tokens_guard {
+        let msg = format!(
+            "Worker alert: token pool ({pool}) below guard {} — auto-execution may skip.",
+            state.settings.scrum_min_tokens_guard
+        );
+        report.messages.push(msg.clone());
+        push_worker_log(state, &[msg]);
+    }
+    if state.token_economy.company_starved {
+        let msg = "Finance alert: company starved — agents may be throttled.".to_string();
+        report.messages.push(msg.clone());
+        push_worker_log(state, &[msg]);
     }
 
     seed_default_org_links(state);
@@ -201,6 +229,9 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
     let auto_complete = try_auto_complete_gigs(state);
     report.gigs_completed = auto_complete.completed;
     report.messages.extend(auto_complete.messages);
+
+    let recruit = crate::operations::try_auto_recruit_tick(state);
+    report.messages.extend(recruit.messages);
 
     update_directive_lifecycle(state);
     crate::operations::sync_agent_visual_state(state);

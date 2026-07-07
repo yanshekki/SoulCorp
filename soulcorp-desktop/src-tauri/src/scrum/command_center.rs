@@ -289,6 +289,11 @@ pub fn issue_marketplace_directive(
             }
         }
     }
+    if state.settings.scrum_auto_schedule {
+        if let Ok(sprint_id) = super::scheduler::ensure_active_sprint(state, &project_id) {
+            let _ = super::scheduler::plan_sprint(state, &sprint_id);
+        }
+    }
     state
         .directives
         .iter()

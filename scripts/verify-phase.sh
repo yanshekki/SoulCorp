@@ -211,6 +211,21 @@ case "${PHASE}" in
     grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/commands/deploy.rs"
     echo "Phase 18 one-click deploy + QC-rated export checks passed."
     ;;
+  19)
+    grep -q "orchestrator_idle_interval_secs" "${DESKTOP_DIR}/src-tauri/src/commands/settings.rs"
+    grep -q "orchestrator_auto_hub_pull" "${DESKTOP_DIR}/src-tauri/src/commands/settings.rs"
+    grep -q "orchestrator_auto_recruit" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
+    grep -q "compute_automation_readiness" "${DESKTOP_DIR}/src-tauri/src/operations/automation_readiness.rs"
+    grep -q "try_auto_recruit_tick" "${DESKTOP_DIR}/src-tauri/src/operations/auto_recruit.rs"
+    grep -q "apply_v1_automation_defaults" "${DESKTOP_DIR}/src-tauri/src/commands/onboarding.rs"
+    grep -q "command-readiness-checklist" "${DESKTOP_DIR}/src/components/UI/command-center/CommandCenterPanel.tsx"
+    grep -q "command-co-ceo-v1-hint" "${DESKTOP_DIR}/src/components/UI/command-center/CoCeoPanel.tsx"
+    grep -q "onboarding-llm-hint" "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
+    grep -q "readiness:" "${DESKTOP_DIR}/src-tauri/src/commands/scrum.rs"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/operations/automation_readiness.rs"
+    grep -q "settings_update_accepts_orchestrator_hub_fields" "${DESKTOP_DIR}/src-tauri/src/commands/settings.rs"
+    echo "Phase 19 V1 production readiness checks passed."
+    ;;
   17)
     test -f "${DESKTOP_DIR}/src-tauri/src/commands/vip.rs"
     test -f "${DESKTOP_DIR}/src/components/UI/VipExecutivePanel.tsx"

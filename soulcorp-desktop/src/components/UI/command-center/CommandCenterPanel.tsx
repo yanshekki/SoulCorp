@@ -484,6 +484,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         orchestrator_auto_accept_gigs: patch.orchestrator_auto_accept_gigs,
         orchestrator_max_active_gigs: patch.orchestrator_max_active_gigs,
         orchestrator_auto_start_gigs: patch.orchestrator_auto_start_gigs,
+        orchestrator_idle_interval_secs: patch.orchestrator_idle_interval_secs,
+        orchestrator_urgent_interval_secs: patch.orchestrator_urgent_interval_secs,
+        orchestrator_auto_hub_pull: patch.orchestrator_auto_hub_pull,
+        hub_auto_pull_interval_secs: patch.hub_auto_pull_interval_secs,
+        orchestrator_auto_complete_gigs: patch.orchestrator_auto_complete_gigs,
+        orchestrator_auto_recruit: patch.orchestrator_auto_recruit,
       },
     });
     setSettings(next);
@@ -576,6 +582,27 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 {overview.burndown_remaining}/{overview.burndown_total} pts left
               </span>
             </article>
+            <div className="command-readiness-checklist">
+              <h4>
+                Automation readiness{" "}
+                {automation?.readiness?.ready ? (
+                  <span className="command-readiness-ok">Ready</span>
+                ) : (
+                  <span className="command-readiness-warn">Setup needed</span>
+                )}
+              </h4>
+              <ul className="command-readiness-list">
+                {(automation?.readiness?.items ?? []).map((item) => (
+                  <li
+                    key={item.id}
+                    className={item.ok ? "command-readiness-item--ok" : "command-readiness-item--warn"}
+                  >
+                    <strong>{item.label}</strong>
+                    <span className="muted">{item.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className="command-automation-log">
               <h4>Automation activity</h4>
               <p className="muted">
@@ -1164,6 +1191,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 }
               />
               <span>Auto-complete gigs after QC approval</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_recruit ?? false}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_recruit: e.target.checked })
+                }
+              />
+              <span>Auto-recruit when unassigned sprint work piles up</span>
             </label>
             <label className="field-label">
               Max active gig contracts

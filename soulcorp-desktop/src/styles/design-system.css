@@ -4238,6 +4238,49 @@ body.workspace-resizing {
   background: var(--bg-inset);
 }
 
+.command-readiness-checklist,
+.command-automation-log {
+  grid-column: 1 / -1;
+  margin-top: var(--space-2);
+}
+
+.command-readiness-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.command-readiness-item--ok strong::before {
+  content: "✓ ";
+  color: var(--accent-success, #22c55e);
+}
+
+.command-readiness-item--warn strong::before {
+  content: "○ ";
+  color: var(--accent-warn, #eab308);
+}
+
+.command-readiness-ok {
+  color: var(--accent-success, #22c55e);
+  font-weight: 600;
+}
+
+.command-readiness-warn {
+  color: var(--accent-warn, #eab308);
+  font-weight: 600;
+}
+
+.command-co-ceo-v1-hint,
+.onboarding-llm-hint {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-inset);
+}
+
 .command-alerts {
   grid-column: 1 / -1;
   margin-top: var(--space-2);

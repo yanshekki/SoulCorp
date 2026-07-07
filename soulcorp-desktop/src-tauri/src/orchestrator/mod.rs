@@ -35,10 +35,25 @@ pub fn apply_orchestrator_tick(
     }
 
     if state.settings.scrum_execution_paused {
+        report.messages.push("Orchestrator skipped: execution paused.".into());
+        push_orchestrator_log(state, &report.messages);
         return report;
     }
 
-    if total_company_tokens(&state.token_economy) < state.settings.scrum_min_tokens_guard {
+    if state.projects.is_empty() {
+        state.seed_projects();
+        report
+            .messages
+            .push("Orchestrator seeded default project before briefing.".into());
+    }
+
+    let pool = total_company_tokens(&state.token_economy);
+    if pool < state.settings.scrum_min_tokens_guard {
+        report.messages.push(format!(
+            "Orchestrator skipped: token pool ({pool}) below guard {}.",
+            state.settings.scrum_min_tokens_guard
+        ));
+        push_orchestrator_log(state, &report.messages);
         return report;
     }
 

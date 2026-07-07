@@ -1,3 +1,9 @@
+pub mod auto_recruit;
+pub mod automation_readiness;
+
+pub use auto_recruit::try_auto_recruit_tick;
+pub use automation_readiness::{compute_automation_readiness, AutomationReadiness};
+
 use crate::config;
 use crate::gigs::hub_sync::{blocking_submit_gig_qc, enqueue_gig_qc_submit, hub_client_from_state};
 use crate::gigs::{compute_qc_score, submit_contract_for_qc_at_index};

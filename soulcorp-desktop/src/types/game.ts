@@ -724,6 +724,19 @@ export interface GameSettings {
   orchestrator_auto_hub_pull?: boolean;
   hub_auto_pull_interval_secs?: number;
   orchestrator_auto_complete_gigs?: boolean;
+  orchestrator_auto_recruit?: boolean;
+}
+
+export interface AutomationReadinessItem {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface AutomationReadiness {
+  items: AutomationReadinessItem[];
+  ready: boolean;
 }
 
 export interface AutomationStatus {
@@ -740,6 +753,7 @@ export interface AutomationStatus {
   openclaw_available: boolean;
   openclaw_version?: string | null;
   openclaw_message: string;
+  readiness: AutomationReadiness;
 }
 
 export interface OpenClawStatus {

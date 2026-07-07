@@ -61,6 +61,12 @@ pub struct SettingsUpdate {
     pub orchestrator_auto_accept_gigs: Option<bool>,
     pub orchestrator_max_active_gigs: Option<u32>,
     pub orchestrator_auto_start_gigs: Option<bool>,
+    pub orchestrator_idle_interval_secs: Option<u32>,
+    pub orchestrator_urgent_interval_secs: Option<u32>,
+    pub orchestrator_auto_hub_pull: Option<bool>,
+    pub hub_auto_pull_interval_secs: Option<u32>,
+    pub orchestrator_auto_complete_gigs: Option<bool>,
+    pub orchestrator_auto_recruit: Option<bool>,
 }
 
 #[tauri::command]
@@ -258,8 +264,50 @@ pub fn update_game_settings(
     if let Some(enabled) = update.orchestrator_auto_start_gigs {
         state.settings.orchestrator_auto_start_gigs = enabled;
     }
+    if let Some(secs) = update.orchestrator_idle_interval_secs {
+        state.settings.orchestrator_idle_interval_secs = secs.max(60);
+    }
+    if let Some(secs) = update.orchestrator_urgent_interval_secs {
+        state.settings.orchestrator_urgent_interval_secs = secs.max(60);
+    }
+    if let Some(enabled) = update.orchestrator_auto_hub_pull {
+        state.settings.orchestrator_auto_hub_pull = enabled;
+    }
+    if let Some(secs) = update.hub_auto_pull_interval_secs {
+        state.settings.hub_auto_pull_interval_secs = secs.max(60);
+    }
+    if let Some(enabled) = update.orchestrator_auto_complete_gigs {
+        state.settings.orchestrator_auto_complete_gigs = enabled;
+    }
+    if let Some(enabled) = update.orchestrator_auto_recruit {
+        state.settings.orchestrator_auto_recruit = enabled;
+    }
 
     let settings = state.settings.clone();
     commit(app, &state)?;
     Ok(settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_update_accepts_orchestrator_hub_fields() {
+        let json = r#"{
+            "orchestrator_idle_interval_secs": 900,
+            "orchestrator_urgent_interval_secs": 450,
+            "orchestrator_auto_hub_pull": false,
+            "hub_auto_pull_interval_secs": 600,
+            "orchestrator_auto_complete_gigs": false,
+            "orchestrator_auto_recruit": true
+        }"#;
+        let update: SettingsUpdate = serde_json::from_str(json).expect("deserialize");
+        assert_eq!(update.orchestrator_idle_interval_secs, Some(900));
+        assert_eq!(update.orchestrator_urgent_interval_secs, Some(450));
+        assert_eq!(update.orchestrator_auto_hub_pull, Some(false));
+        assert_eq!(update.hub_auto_pull_interval_secs, Some(600));
+        assert_eq!(update.orchestrator_auto_complete_gigs, Some(false));
+        assert_eq!(update.orchestrator_auto_recruit, Some(true));
+    }
 }

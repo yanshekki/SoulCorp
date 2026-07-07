@@ -34,6 +34,10 @@ export interface AutomationStatus {
   openclaw_available: boolean;
   openclaw_version?: string | null;
   openclaw_message: string;
+  readiness?: {
+    items: Array<{ id: string; label: string; ok: boolean; detail: string }>;
+    ready: boolean;
+  };
 }
 
 /** Listen for background scrum worker ticks and refresh UI state. */

@@ -299,8 +299,15 @@ export function OnboardingWizard() {
             <h3>Cloud or local?</h3>
             <p className="muted">
               soulmd-hub powers marketplace gigs, recruitment, and cloud sync. Pure Local Mode keeps
-              everything on your machine.
+              everything on your machine with mock AI dialogue.
             </p>
+            {!showOffice3D ? (
+              <p className="muted onboarding-llm-hint">
+                After setup, open <strong>Settings → AI Provider</strong> to connect Ollama or an API
+                key for real meetings and task execution. The background worker and orchestrator start
+                enabled by default.
+              </p>
+            ) : null}
             <div className="onboarding-choice-grid">
               <button
                 type="button"
