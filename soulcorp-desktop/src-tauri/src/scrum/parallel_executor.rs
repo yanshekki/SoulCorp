@@ -73,7 +73,7 @@ pub fn run_detached_parallel_tick(app: &AppHandle) -> Option<ParallelBatchReport
 
     let results: Vec<ParallelLlmResult> = jobs
         .par_iter()
-        .map(|job| run_parallel_llm(job))
+        .map(run_parallel_llm)
         .collect();
 
     let mut report = ParallelBatchReport {

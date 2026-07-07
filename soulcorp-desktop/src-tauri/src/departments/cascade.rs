@@ -85,7 +85,7 @@ pub fn transfer_department_members(state: &mut AppState, from: &str, to: &str) {
             .token_economy
             .departments
             .entry(to.to_string())
-            .or_insert_with(Default::default);
+            .or_default();
         target.balance = target.balance.saturating_add(wallet.balance);
         target.allocated = target.allocated.saturating_add(wallet.allocated);
         target.spent = target.spent.saturating_add(wallet.spent);

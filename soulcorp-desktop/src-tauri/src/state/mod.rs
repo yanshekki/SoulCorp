@@ -31,17 +31,12 @@ pub struct CustomProjectSetup {
     pub owner_department: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayMode {
+    #[default]
     Game,
     Work,
-}
-
-impl Default for PlayMode {
-    fn default() -> Self {
-        PlayMode::Game
-    }
 }
 
 fn default_random_event_chance() -> f32 {

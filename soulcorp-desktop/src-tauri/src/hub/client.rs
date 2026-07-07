@@ -281,7 +281,7 @@ impl HubClient {
         let mut url = format!(
             "{}/api/souls.php?limit={}&sort=popular",
             self.base_url.trim_end_matches('/'),
-            limit.max(1).min(50)
+            limit.clamp(1, 50)
         );
         if let Some(query) = query.filter(|value| !value.trim().is_empty()) {
             url.push_str(&format!("&q={}", encode_query_component(query)));
@@ -291,7 +291,7 @@ impl HubClient {
         let souls = response
             .get("data")
             .and_then(|value| value.as_array())
-            .map(|items| items.clone())
+            .cloned()
             .unwrap_or_default();
         Ok(souls)
     }

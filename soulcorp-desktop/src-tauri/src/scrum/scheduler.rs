@@ -25,10 +25,10 @@ pub fn skill_match_score(task: &WorkNode, agent: &AgentRecord) -> f32 {
         }
     }
     let role = agent.role.to_lowercase();
-    if role.contains("pm") || role.contains("project") {
-        if matches!(task.kind, WorkNodeKind::Story | WorkNodeKind::Epic) {
-            score += 0.1;
-        }
+    if (role.contains("pm") || role.contains("project"))
+        && matches!(task.kind, WorkNodeKind::Story | WorkNodeKind::Epic)
+    {
+        score += 0.1;
     }
     score * agent.energy.clamp(0.2, 1.0) * agent.morale.clamp(0.2, 1.0)
 }
@@ -430,7 +430,7 @@ pub fn agent_inboxes(state: &AppState) -> Vec<super::types::AgentInboxEntry> {
             }
         })
         .collect();
-    entries.sort_by(|a, b| b.assigned_points.cmp(&a.assigned_points));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.assigned_points));
     entries
 }
 

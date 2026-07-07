@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildingStyle {
+    #[default]
     Modern,
     Classic,
     Glass,
@@ -11,15 +12,10 @@ pub enum BuildingStyle {
     Startup,
 }
 
-impl Default for BuildingStyle {
-    fn default() -> Self {
-        BuildingStyle::Modern
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OfficeDeskStyle {
+    #[default]
     Open,
     Cubicle,
     Executive,
@@ -27,39 +23,23 @@ pub enum OfficeDeskStyle {
     Lounge,
 }
 
-impl Default for OfficeDeskStyle {
-    fn default() -> Self {
-        OfficeDeskStyle::Open
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OfficeLighting {
     Warm,
     Cool,
+    #[default]
     Natural,
 }
 
-impl Default for OfficeLighting {
-    fn default() -> Self {
-        OfficeLighting::Natural
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum HairStyle {
+    #[default]
     Short,
     Bob,
     Spiky,
     Long,
-}
-
-impl Default for HairStyle {
-    fn default() -> Self {
-        HairStyle::Short
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

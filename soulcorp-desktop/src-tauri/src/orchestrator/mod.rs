@@ -64,16 +64,8 @@ pub fn apply_orchestrator_tick(
         .filter(|n| n.status == WorkNodeStatus::Blocked)
         .count();
 
-    let pending_work = state.work_nodes.iter().any(|n| {
-        !matches!(
-            n.status,
-            WorkNodeStatus::Done | WorkNodeStatus::Blocked
-        )
-    });
-
-    let should_issue = open_directives == 0
-        || (blocked_tasks >= 2 && open_directives <= 1)
-        || (!pending_work && open_directives == 0);
+    let should_issue =
+        open_directives == 0 || (blocked_tasks >= 2 && open_directives <= 1);
 
     if !should_issue && !force {
         return report;

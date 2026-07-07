@@ -134,7 +134,7 @@ impl AiProvider for HubChatProvider {
         Ok(ChatResponse {
             content: content.to_string(),
             provider: self.name().to_string(),
-            usage: estimate_from_texts(&content, content.trim()),
+            usage: estimate_from_texts(content, content.trim()),
         })
     }
 }

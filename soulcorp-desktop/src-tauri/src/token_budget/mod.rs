@@ -138,7 +138,7 @@ pub fn ensure_department_wallet(economy: &mut TokenEconomy, department: &str) {
     economy
         .departments
         .entry(department.to_string())
-        .or_insert_with(DepartmentTokenWallet::default);
+        .or_default();
 }
 
 pub fn ensure_agent_wallet(economy: &mut TokenEconomy, agent: &AgentRecord) {
@@ -146,7 +146,7 @@ pub fn ensure_agent_wallet(economy: &mut TokenEconomy, agent: &AgentRecord) {
     economy
         .agents
         .entry(agent.id.clone())
-        .or_insert_with(AgentTokenWallet::default);
+        .or_default();
 }
 
 pub fn initialize_wallets_from_agents(state: &mut AppState) {

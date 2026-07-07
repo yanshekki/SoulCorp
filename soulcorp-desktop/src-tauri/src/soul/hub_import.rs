@@ -82,7 +82,7 @@ pub fn parse_modular_content(content: &str) -> Result<HashMap<String, String>, S
     let mut modules = HashMap::new();
     for (filename, file_content) in object {
         let module_text = match file_content {
-            serde_json::Value::String(text) => unescape_hub_text(&text),
+            serde_json::Value::String(text) => unescape_hub_text(text),
             other => other.to_string(),
         };
         modules.insert(filename.clone(), module_text);
@@ -117,10 +117,10 @@ fn module_by_names<'a>(modules: &'a HashMap<String, String>, names: &[&str]) -> 
         for (filename, content) in modules {
             let normalized = filename.to_ascii_uppercase();
             let target_upper = target.to_ascii_uppercase();
-            if normalized == target_upper || normalized.contains(&target_upper.trim_end_matches(".MD")) {
-                if !content.trim().is_empty() {
-                    return Some(content.as_str());
-                }
+            if (normalized == target_upper || normalized.contains(target_upper.trim_end_matches(".MD")))
+                && !content.trim().is_empty()
+            {
+                return Some(content.as_str());
             }
         }
     }

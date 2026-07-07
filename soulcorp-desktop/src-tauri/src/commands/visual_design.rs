@@ -203,8 +203,10 @@ pub fn apply_design_preset(
 }
 
 pub fn preset_for(preset_id: &str) -> CompanyVisualDesign {
-    let mut design = CompanyVisualDesign::default();
-    design.updated_at = Some(Utc::now().to_rfc3339());
+    let mut design = CompanyVisualDesign {
+        updated_at: Some(Utc::now().to_rfc3339()),
+        ..Default::default()
+    };
 
     match preset_id {
         "sunset-campus" => {

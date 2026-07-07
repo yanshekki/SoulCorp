@@ -134,7 +134,7 @@ pub fn apply_tick_finance(state: &mut AppState) -> FinanceTickResult {
     let mut daily_salary_paid = 0u64;
     let mut inflow_tokens = 0u64;
 
-    if state.tick % 30 == 0 {
+    if state.tick.is_multiple_of(30) {
         let daily = apply_daily_finance(state);
         daily_salary_paid = daily.daily_salary_paid;
         inflow_tokens = daily.inflow_tokens;

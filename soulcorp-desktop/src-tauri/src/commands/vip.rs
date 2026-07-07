@@ -429,7 +429,7 @@ pub fn apply_co_ceo_autonomy_tick(state: &mut AppState, app: &AppHandle) -> Opti
     if !crate::config::is_v2() || !state.co_ceo.autonomy_enabled {
         return None;
     }
-    if state.tick % 25 != 0 {
+    if !state.tick.is_multiple_of(25) {
         return None;
     }
 

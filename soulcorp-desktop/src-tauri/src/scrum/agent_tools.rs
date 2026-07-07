@@ -38,9 +38,7 @@ pub fn execute_with_tools(
             "Step 1 — Plan: List 3-5 concrete steps to complete this task.\nTask: {}\nDetails: {}",
             task.title, task.description
         ),
-        format!(
-            "Step 2 — Draft: Write the deliverable (summary, decisions, next steps) in markdown-friendly plain text.\nPrior plan:\n{{plan}}"
-        ),
+        "Step 2 — Draft: Write the deliverable (summary, decisions, next steps) in markdown-friendly plain text.\nPrior plan:\n{plan}".to_string(),
         format!(
             "Step 3 — Refine: Polish the draft against acceptance criteria. Return ONLY the final deliverable text.\nCriteria:\n- {}\n\nDraft:\n{{draft}}",
             ac

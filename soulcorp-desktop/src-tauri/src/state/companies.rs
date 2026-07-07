@@ -69,17 +69,22 @@ pub fn fresh_company_state(
 ) -> AppState {
     let company_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
-    let mut state = AppState::default();
-    state.company_id = company_id;
-    state.company_name = name.to_string();
-    state.company_industry = industry.to_string();
-    state.company_tagline = tagline.to_string();
-    state.company_created_at = Some(created_at);
-    state.onboarding_completed = false;
-    state.settings.play_mode = play_mode;
-    state.settings.pure_local_mode = pure_local_mode;
-    state.settings.random_events_enabled = random_events_enabled;
-    state.settings.random_event_chance = random_event_chance;
+    let mut state = AppState {
+        company_id,
+        company_name: name.to_string(),
+        company_industry: industry.to_string(),
+        company_tagline: tagline.to_string(),
+        company_created_at: Some(created_at),
+        onboarding_completed: false,
+        settings: super::GameSettings {
+            play_mode,
+            pure_local_mode,
+            random_events_enabled,
+            random_event_chance,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
     if pure_local_mode {
         state.settings.ai_provider = "mock".to_string();
         state.hub.connected = false;

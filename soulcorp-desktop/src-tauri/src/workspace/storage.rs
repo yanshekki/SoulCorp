@@ -967,7 +967,7 @@ impl WorkspaceStorage {
                 title: page.title.clone(),
             });
         }
-        versions.sort_by(|a, b| b.version.cmp(&a.version));
+        versions.sort_by_key(|b| std::cmp::Reverse(b.version));
         if versions.is_empty() {
             let page = self.read_page(page_id)?;
             versions.push(PageVersionSummary {

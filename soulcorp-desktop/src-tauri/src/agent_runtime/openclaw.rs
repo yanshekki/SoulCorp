@@ -323,7 +323,7 @@ fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<OpenClawRu
             .and_then(|value| value.session_id.clone());
         let duration_ms = meta
             .and_then(|value| value.duration_ms)
-            .unwrap_or_else(|| elapsed.as_millis() as u64);
+            .unwrap_or(elapsed.as_millis() as u64);
         return Ok(OpenClawRunResult {
             content,
             transport,
