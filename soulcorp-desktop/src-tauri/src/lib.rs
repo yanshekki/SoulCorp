@@ -40,6 +40,7 @@ const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(WINDOW_STATE_FLAGS)
@@ -204,6 +205,10 @@ pub fn run() {
             commands::get_god_mode_history,
             commands::get_god_mode_status,
             commands::init_workspace,
+            commands::list_workspace_snapshot,
+            commands::list_workspace_summaries,
+            commands::list_workspace_folder_children,
+            commands::resolve_workspace_items,
             commands::list_workspace_tree,
             commands::get_workspace_page,
             commands::create_workspace_page,
@@ -211,6 +216,12 @@ pub fn run() {
             commands::delete_workspace_page,
             commands::delete_workspace_folder,
             commands::reorder_workspace_pages,
+            commands::reorder_workspace_items,
+            commands::import_workspace_files,
+            commands::get_workspace_file,
+            commands::get_workspace_file_path,
+            commands::delete_workspace_file,
+            commands::open_workspace_file_externally,
             commands::update_workspace_page,
             commands::search_workspace,
             commands::list_linkable_entities,
@@ -228,6 +239,15 @@ pub fn run() {
             commands::get_workspace_presence,
             commands::clear_workspace_presence,
             commands::get_workspace_database,
+            commands::agent_workspace_list_folder,
+            commands::agent_workspace_get_context,
+            commands::agent_workspace_read_page,
+            commands::agent_workspace_search,
+            commands::agent_workspace_create_page,
+            commands::agent_workspace_append_page,
+            commands::agent_workspace_append_journal,
+            commands::agent_workspace_write_deliverable,
+            commands::agent_workspace_list_activity,
             commands::get_achievements,
             commands::export_company_backup,
             commands::export_company_report_markdown,

@@ -1,16 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useState } from "react";
 import {
   createWorkspaceFolder,
   createWorkspacePage,
+  deleteWorkspaceFile,
   deleteWorkspaceFolder,
   deleteWorkspacePage,
-  listWorkspaceTree,
-  reorderWorkspacePages,
+  importWorkspaceFiles,
+  listWorkspaceSnapshot,
+  reorderWorkspaceItems,
 } from "../../services/workspaceClient";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { WorkspaceFolder, WorkspacePage, WorkspaceTemplate } from "../../types/workspace";
+import type {
+  WorkspaceFileKind,
+  WorkspaceFolder,
+  WorkspacePage,
+  WorkspaceTemplate,
+} from "../../types/workspace";
+import { fileKindIcon } from "../../utils/workspaceFileTypes";
 
 interface WorkspaceSection {
   id: string;
@@ -55,26 +64,39 @@ function canCreateSubfolder(folder: WorkspaceFolder): boolean {
   );
 }
 
-function sortPages<T extends { sort_order?: number; title: string }>(pages: T[]): T[] {
-  return [...pages].sort((left, right) => {
-    const leftOrder = left.sort_order ?? 0;
-    const rightOrder = right.sort_order ?? 0;
-    if (leftOrder !== rightOrder) {
-      return leftOrder - rightOrder;
+type FolderItem =
+  | { kind: "page"; id: string; label: string; sort_order: number }
+  | { kind: "file"; id: string; label: string; sort_order: number; file_kind: WorkspaceFileKind };
+
+function sortFolderItems(items: FolderItem[]): FolderItem[] {
+  return [...items].sort((left, right) => {
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order;
     }
-    return left.title.localeCompare(right.title);
+    return left.label.localeCompare(right.label);
   });
 }
 
-export function FolderTree() {
+interface FolderTreeProps {
+  organizeMode?: boolean;
+}
+
+export function FolderTree({ organizeMode = false }: FolderTreeProps) {
   const tree = useWorkspaceStore((state) => state.tree);
   const selectedPageId = useWorkspaceStore((state) => state.selectedPageId);
+  const selectedFileId = useWorkspaceStore((state) => state.selectedFileId);
   const openingPageId = useWorkspaceStore((state) => state.openingPageId);
-  const setTree = useWorkspaceStore((state) => state.setTree);
+  const openingFileId = useWorkspaceStore((state) => state.openingFileId);
+  const folderChildren = useWorkspaceStore((state) => state.folderChildren);
+  const folderChildrenLoading = useWorkspaceStore((state) => state.folderChildrenLoading);
+  const loadFolderChildren = useWorkspaceStore((state) => state.loadFolderChildren);
+  const setWorkspaceFolders = useWorkspaceStore((state) => state.setWorkspaceFolders);
   const upsertPageSummary = useWorkspaceStore((state) => state.upsertPageSummary);
+  const upsertFileSummary = useWorkspaceStore((state) => state.upsertFileSummary);
   const removePageSummary = useWorkspaceStore((state) => state.removePageSummary);
+  const removeFileSummary = useWorkspaceStore((state) => state.removeFileSummary);
   const removeFolder = useWorkspaceStore((state) => state.removeFolder);
-  const openPage = useWorkspaceStore((state) => state.openPage);
+  const openWorkspaceItem = useWorkspaceStore((state) => state.openWorkspaceItem);
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
   const [templateFolderId, setTemplateFolderId] = useState<string | null>(null);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
@@ -93,18 +115,28 @@ export function FolderTree() {
       .catch(() => setTemplates([]));
   }, []);
 
-  const pagesByFolder = useMemo(() => {
-    const map = new Map<string, typeof tree.pages>();
-    for (const page of tree.pages) {
-      const current = map.get(page.folder_id) ?? [];
-      current.push(page);
-      map.set(page.folder_id, current);
-    }
-    for (const [folderId, pages] of map.entries()) {
-      map.set(folderId, sortPages(pages));
+  const itemsByFolder = useMemo(() => {
+    const map = new Map<string, FolderItem[]>();
+    for (const [folderId, children] of Object.entries(folderChildren)) {
+      const items: FolderItem[] = [
+        ...children.pages.map((page) => ({
+          kind: "page" as const,
+          id: page.id,
+          label: page.title,
+          sort_order: page.sort_order ?? 0,
+        })),
+        ...children.files.map((file) => ({
+          kind: "file" as const,
+          id: file.id,
+          label: file.name,
+          sort_order: file.sort_order ?? 0,
+          file_kind: file.file_kind,
+        })),
+      ];
+      map.set(folderId, sortFolderItems(items));
     }
     return map;
-  }, [tree.pages]);
+  }, [folderChildren]);
 
   const childrenFor = (folderId: string) =>
     tree.folders
@@ -128,12 +160,20 @@ export function FolderTree() {
         return left.name.localeCompare(right.name);
       });
 
-  const refreshTree = async () => {
-    const refreshed = await listWorkspaceTree();
-    setTree(refreshed);
+  const refreshFolders = async () => {
+    const snapshot = await listWorkspaceSnapshot();
+    setWorkspaceFolders(snapshot.folders);
+  };
+
+  const refreshFolder = async (folderId: string) => {
+    await loadFolderChildren(folderId, true);
   };
 
   const toggleFolder = (folderId: string) => {
+    const willExpand = collapsedFolders.has(folderId);
+    if (willExpand) {
+      void loadFolderChildren(folderId);
+    }
     setCollapsedFolders((current) => {
       const next = new Set(current);
       if (next.has(folderId)) {
@@ -155,7 +195,7 @@ export function FolderTree() {
       last_edited_by: page.last_edited_by,
       sort_order: page.sort_order,
     });
-    await openPage(page.id);
+    await openWorkspaceItem(page.id);
   };
 
   const createFromTemplate = async (folderId: string, templateId: string) => {
@@ -168,7 +208,7 @@ export function FolderTree() {
           title: null,
         },
       });
-      await refreshTree();
+      await refreshFolder(folderId);
       await selectCreatedPage(page);
       setTemplateFolderId(null);
     } finally {
@@ -180,7 +220,7 @@ export function FolderTree() {
     setBusy(true);
     try {
       const page = await createWorkspacePage(folderId, "Untitled Page");
-      await refreshTree();
+      await refreshFolder(folderId);
       await selectCreatedPage(page);
     } finally {
       setBusy(false);
@@ -195,13 +235,68 @@ export function FolderTree() {
     setBusy(true);
     try {
       await createWorkspaceFolder(folder.id, name.trim());
-      await refreshTree();
+      await refreshFolders();
     } finally {
       setBusy(false);
     }
   };
 
-  const handleDeletePage = async (pageId: string, title: string) => {
+  const uploadFiles = async (folderId: string) => {
+    const selected = await open({
+      multiple: true,
+      directory: false,
+      filters: [
+        { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"] },
+        { name: "PDF", extensions: ["pdf"] },
+        { name: "Documents", extensions: ["doc", "docx", "rtf", "odt", "txt", "md", "markdown"] },
+        { name: "Spreadsheets", extensions: ["xls", "xlsx", "csv", "ods"] },
+        { name: "Presentations", extensions: ["ppt", "pptx", "odp"] },
+        { name: "Archives", extensions: ["zip", "rar", "7z", "tar", "gz", "tgz"] },
+        { name: "Video", extensions: ["mp4", "m4v", "webm", "mov"] },
+        { name: "Audio", extensions: ["mp3", "wav", "ogg", "m4a"] },
+        { name: "Data", extensions: ["json", "yaml", "yml", "xml"] },
+      ],
+    });
+    if (!selected) {
+      return;
+    }
+    const paths = Array.isArray(selected) ? selected : [selected];
+    if (paths.length === 0) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const imported = await importWorkspaceFiles(folderId, paths);
+      await refreshFolder(folderId);
+      for (const file of imported) {
+        upsertFileSummary(file);
+      }
+      if (imported[0]) {
+        await openWorkspaceItem(imported[0].id);
+      }
+    } catch (error) {
+      window.alert(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteFile = async (folderId: string, fileId: string, name: string) => {
+    const confirmed = window.confirm(`Delete file "${name}"? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await deleteWorkspaceFile(fileId);
+      removeFileSummary(fileId);
+      await refreshFolder(folderId);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeletePage = async (folderId: string, pageId: string, title: string) => {
     const confirmed = window.confirm(`Delete page "${title}"? This cannot be undone.`);
     if (!confirmed) {
       return;
@@ -210,7 +305,7 @@ export function FolderTree() {
     try {
       await deleteWorkspacePage(pageId);
       removePageSummary(pageId);
-      await refreshTree();
+      await refreshFolder(folderId);
     } finally {
       setBusy(false);
     }
@@ -225,7 +320,7 @@ export function FolderTree() {
     try {
       await deleteWorkspaceFolder(folder.id);
       removeFolder(folder.id);
-      await refreshTree();
+      await refreshFolders();
     } catch (error) {
       window.alert(String(error));
     } finally {
@@ -233,39 +328,43 @@ export function FolderTree() {
     }
   };
 
-  const movePage = async (folderId: string, pageId: string, direction: "up" | "down") => {
-    const pages = pagesByFolder.get(folderId) ?? [];
-    const index = pages.findIndex((page) => page.id === pageId);
+  const moveItem = async (folderId: string, itemId: string, direction: "up" | "down") => {
+    const items = itemsByFolder.get(folderId) ?? [];
+    const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) {
       return;
     }
     const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= pages.length) {
+    if (targetIndex < 0 || targetIndex >= items.length) {
       return;
     }
 
-    const nextOrder = [...pages];
+    const nextOrder = [...items];
     const [current] = nextOrder.splice(index, 1);
     nextOrder.splice(targetIndex, 0, current);
 
     setBusy(true);
     try {
-      const refreshed = await reorderWorkspacePages(
-        folderId,
-        nextOrder.map((page) => page.id),
-      );
-      setTree(refreshed);
+      await reorderWorkspaceItems(folderId, nextOrder.map((item) => item.id));
+      await refreshFolder(folderId);
     } finally {
       setBusy(false);
     }
   };
 
   const renderFolder = (folder: WorkspaceFolder, depth = 0) => {
-    const pages = pagesByFolder.get(folder.id) ?? [];
+    const items = itemsByFolder.get(folder.id) ?? [];
     const children = childrenFor(folder.id);
     const isAgentFolder = folder.workspace_type === "agent";
     const isCollapsed = collapsedFolders.has(folder.id);
-    const hasContents = pages.length > 0 || children.length > 0 || templateFolderId === folder.id;
+    const isLoaded = Boolean(folderChildren[folder.id]);
+    const isLoadingChildren = Boolean(folderChildrenLoading[folder.id]);
+    const hasContents =
+      children.length > 0 ||
+      items.length > 0 ||
+      templateFolderId === folder.id ||
+      !isLoaded ||
+      isLoadingChildren;
 
     return (
       <div key={folder.id} className="folder-group" style={{ paddingLeft: depth * 12 }}>
@@ -283,6 +382,7 @@ export function FolderTree() {
             <span className="folder-row-name">{folder.name}</span>
             {isAgentFolder ? <span className="folder-row-badge">Employee</span> : null}
           </button>
+          {organizeMode ? (
           <div className="folder-row-actions">
             {canCreateSubfolder(folder) ? (
               <button
@@ -307,6 +407,15 @@ export function FolderTree() {
             <button
               type="button"
               className="tiny-btn"
+              title="Upload files"
+              disabled={busy}
+              onClick={() => void uploadFiles(folder.id)}
+            >
+              ⬆
+            </button>
+            <button
+              type="button"
+              className="tiny-btn"
               title="From template"
               disabled={busy}
               onClick={() =>
@@ -327,10 +436,14 @@ export function FolderTree() {
               </button>
             ) : null}
           </div>
+          ) : null}
         </div>
 
         {!isCollapsed ? (
           <>
+            {isLoadingChildren ? (
+              <p className="ws-folder-loading muted">Loading…</p>
+            ) : null}
             {templateFolderId === folder.id ? (
               <div className="template-picker">
                 {templates.map((template) => (
@@ -347,60 +460,92 @@ export function FolderTree() {
               </div>
             ) : null}
 
-            {pages.map((page, index) => (
-              <div
-                key={page.id}
-                className={`page-row-wrap ${selectedPageId === page.id ? "active" : ""}${
-                  openingPageId === page.id ? " opening" : ""
-                }`}
-              >
-                <div className="page-row-order">
+            {items.map((item, index) => {
+              const isActive =
+                item.kind === "page"
+                  ? selectedPageId === item.id
+                  : selectedFileId === item.id;
+              const isOpening =
+                item.kind === "page"
+                  ? openingPageId === item.id
+                  : openingFileId === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={`page-row-wrap${item.kind === "file" ? " file-row-wrap" : ""}${
+                    isActive ? " active" : ""
+                  }${isOpening ? " opening" : ""}`}
+                >
+                  {organizeMode ? (
+                  <div className="page-row-order">
+                    <button
+                      type="button"
+                      className="tiny-btn"
+                      title="Move up"
+                      disabled={busy || index === 0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void moveItem(folder.id, item.id, "up");
+                      }}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="tiny-btn"
+                      title="Move down"
+                      disabled={busy || index === items.length - 1}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void moveItem(folder.id, item.id, "down");
+                      }}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                  ) : null}
                   <button
                     type="button"
-                    className="tiny-btn"
-                    title="Move up"
-                    disabled={busy || index === 0}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void movePage(folder.id, page.id, "up");
-                    }}
+                    className={`page-row ${isActive ? "active" : ""}`}
+                    onClick={() => void openWorkspaceItem(item.id)}
                   >
-                    ↑
+                    {item.kind === "file" ? (
+                      <span className="folder-item-label">
+                        <span className="folder-item-icon" aria-hidden="true">
+                          {fileKindIcon(item.file_kind)}
+                        </span>
+                        <span className="folder-item-name">{item.label}</span>
+                      </span>
+                    ) : (
+                      <span className="folder-item-label">
+                        <span className="folder-item-icon" aria-hidden="true">
+                          📄
+                        </span>
+                        <span className="folder-item-name">{item.label}</span>
+                      </span>
+                    )}
                   </button>
+                  {organizeMode ? (
                   <button
                     type="button"
-                    className="tiny-btn"
-                    title="Move down"
-                    disabled={busy || index === pages.length - 1}
+                    className="tiny-btn danger page-delete-btn"
+                    title={item.kind === "file" ? "Delete file" : "Delete page"}
+                    disabled={busy}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void movePage(folder.id, page.id, "down");
+                      if (item.kind === "file") {
+                        void handleDeleteFile(folder.id, item.id, item.label);
+                      } else {
+                        void handleDeletePage(folder.id, item.id, item.label);
+                      }
                     }}
                   >
-                    ↓
+                    ×
                   </button>
+                  ) : null}
                 </div>
-                <button
-                  type="button"
-                  className={`page-row ${selectedPageId === page.id ? "active" : ""}`}
-                  onClick={() => void openPage(page.id)}
-                >
-                  {page.title}
-                </button>
-                <button
-                  type="button"
-                  className="tiny-btn danger page-delete-btn"
-                  title="Delete page"
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleDeletePage(page.id, page.title);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+              );
+            })}
 
             {children.map((child) => renderFolder(child, depth + 1))}
           </>

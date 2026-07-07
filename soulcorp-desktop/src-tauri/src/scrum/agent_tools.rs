@@ -4,8 +4,61 @@ use crate::ai::provider::ChatRequest;
 use crate::ai::{self, BilledChatRequest};
 use crate::soul::build_chat_parts_for_agent;
 use crate::state::{AgentRecord, AppState};
+use crate::workspace::{
+    agent_service::{format_workspace_context_for_prompt, AgentContext, AgentWorkspaceService},
+    WorkspaceStorage,
+};
+use std::path::Path;
 
 const MAX_TOOL_STEPS: usize = 3;
+
+fn build_workspace_prompt_context(
+    workspace_root: Option<&Path>,
+    agent: &AgentRecord,
+    search_query: &str,
+) -> Option<String> {
+    let root = workspace_root?;
+    let storage = WorkspaceStorage::new(root.to_path_buf()).ok()?;
+    storage.ensure_seed().ok()?;
+    let service = AgentWorkspaceService::new(&storage);
+    let agent_ctx = AgentContext::from_record(agent);
+    let mut parts = Vec::new();
+    if let Ok(context) = service.get_context(&agent_ctx) {
+        parts.push(format_workspace_context_for_prompt(&context));
+    }
+    let query = search_query.trim();
+    if !query.is_empty() {
+        if let Ok(results) = service.search(&agent_ctx, query, 5) {
+            if !results.is_empty() {
+                parts.push("Relevant workspace pages:".to_string());
+                for result in results {
+                    parts.push(format!(
+                        "- {} [{}]: {}",
+                        result.title, result.page_id, result.snippet
+                    ));
+                }
+            }
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("\n"))
+    }
+}
+
+fn merge_chat_context(persona_context: String, workspace_context: Option<String>) -> Option<String> {
+    match workspace_context {
+        Some(workspace) => Some(format!("{persona_context}\n\n--- Workspace ---\n{workspace}")),
+        None => {
+            if persona_context.trim().is_empty() {
+                None
+            } else {
+                Some(persona_context)
+            }
+        }
+    }
+}
 
 /// Multi-step agent execution: plan → draft → refine before returning final deliverable.
 pub fn execute_with_tools(
@@ -13,6 +66,7 @@ pub fn execute_with_tools(
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
+    workspace_root: Option<&Path>,
 ) -> Result<String, String> {
     let ac = if task.acceptance_criteria.is_empty() {
         "Meet the task objective with clear, actionable output.".to_string()
@@ -31,6 +85,12 @@ pub fn execute_with_tools(
         &agent.department,
         &task_context,
     );
+    let workspace_context = build_workspace_prompt_context(
+        workspace_root,
+        agent,
+        &format!("{project_title} {}", task.title),
+    );
+    let context = merge_chat_context(context, workspace_context);
 
     let mut transcript = String::new();
     let steps = [
@@ -58,7 +118,7 @@ pub fn execute_with_tools(
 
         let request = ChatRequest {
             system_prompt: persona.clone(),
-            context: Some(context.clone()),
+            context: context.clone(),
             user_prompt,
             temperature: if index == 2 { 0.4 } else { 0.55 },
             soul_id: agent.soul_id,
@@ -115,6 +175,12 @@ pub fn execute_with_tools_detached(
         &agent.department,
         &task_context,
     );
+    let workspace_context = build_workspace_prompt_context(
+        ctx.workspace_root.as_deref(),
+        agent,
+        &format!("{project_title} {}", task.title),
+    );
+    let context = merge_chat_context(context, workspace_context);
 
     let steps = [
         format!(
@@ -143,7 +209,7 @@ pub fn execute_with_tools_detached(
 
         let request = ChatRequest {
             system_prompt: persona.clone(),
-            context: Some(context.clone()),
+            context: context.clone(),
             user_prompt,
             temperature: if index == 2 { 0.4 } else { 0.55 },
             soul_id: agent.soul_id,

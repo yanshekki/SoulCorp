@@ -9,7 +9,10 @@ use crate::ai::{self, BilledChatRequest};
 use crate::ai::token_estimate;
 use crate::soul::build_chat_parts_for_agent;
 use crate::state::AppState;
-use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
+use crate::workspace::{
+    agent_service::{AgentContext, AgentWorkspaceService},
+    storage::{company_workspace_root, WorkspaceStorage},
+};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -133,8 +136,17 @@ pub fn execute_task(
         .map(|p| p.title.clone())
         .unwrap_or_else(|| "Company project".to_string());
 
+    let workspace_root = if state.company_id.is_empty() {
+        None
+    } else {
+        app.path()
+            .app_data_dir()
+            .ok()
+            .map(|dir| company_workspace_root(&dir, &state.company_id))
+    };
+
     let response_content =
-        execute_for_task(state, &task, &agent, &project_title);
+        execute_for_task(state, &task, &agent, &project_title, workspace_root);
 
     let result = match response_content {
         Ok(content) => {
@@ -258,17 +270,10 @@ pub(crate) fn write_deliverable(
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
-    storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
-
-    let folder_id = format!("folder-{}", agent.id);
+    let service = AgentWorkspaceService::new(&storage);
+    let agent_ctx = AgentContext::from_record(agent);
     let page_title = format!("Deliverable — {}", task.title);
-    let heading = format!("Task deliverable · {}", task.title);
-    let lines: Vec<String> = content
-        .lines()
-        .map(|line| line.to_string())
-        .collect();
-
-    let page = storage.append_journal_entry(&folder_id, &page_title, &heading, &lines, &agent.name)?;
+    let page = service.write_deliverable(&agent_ctx, &page_title, content)?;
     Ok(page.id)
 }
 

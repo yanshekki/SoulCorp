@@ -1,8 +1,13 @@
+use super::file_catalog::classify_file_name;
+use super::index::WorkspaceIndex;
 use super::models::{
     AddPageCommentRequest, Block, CreateFolderRequest, CreatePageRequest, DeleteFolderRequest,
-    DeletePageRequest, LinkedEntity, PageBacklink, PageComment, PageVersionSummary,
-    ReorderWorkspacePagesRequest, SearchResult, UpdatePageRequest, WorkspaceFolder, WorkspacePage,
-    WorkspacePageSummary, WorkspacePresenceEntry, WorkspaceTree, WorkspaceType,
+    DeletePageRequest, DeleteWorkspaceFileRequest, ImportWorkspaceFilesRequest, LinkedEntity,
+    PageBacklink, PageComment, PageVersionSummary, ReorderWorkspaceItemsRequest,
+    ReorderWorkspacePagesRequest, ResolveWorkspaceItemsRequest, SearchResult, UpdatePageRequest,
+    WorkspaceFile, WorkspaceFilePathResponse, WorkspaceFileSummary, WorkspaceFolder,
+    WorkspaceFolderChildren, WorkspacePage, WorkspacePresenceEntry,
+    WorkspaceSnapshot, WorkspaceSummaries, WorkspaceTree, WorkspaceType,
 };
 use std::collections::{HashMap, HashSet};
 use chrono::Utc;
@@ -22,10 +27,45 @@ impl WorkspaceStorage {
     }
 
     pub fn ensure_seed(&self) -> Result<(), String> {
+        self.index().ensure_schema()?;
         if self.read_folders()?.is_empty() {
             self.seed_defaults()?;
         }
+        self.ensure_index()?;
         Ok(())
+    }
+
+    fn index(&self) -> WorkspaceIndex {
+        WorkspaceIndex::new(&self.root)
+    }
+
+    pub fn ensure_index(&self) -> Result<(), String> {
+        let index = self.index();
+        index.ensure_schema()?;
+        if index.is_empty()? {
+            let pages = self.read_all_pages()?;
+            let files = self.read_all_files()?;
+            if !pages.is_empty() || !files.is_empty() {
+                index.rebuild(&pages, &files)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn sync_page_index(&self, page: &WorkspacePage) -> Result<(), String> {
+        self.index().upsert_page(page)
+    }
+
+    fn remove_page_index(&self, page_id: &str) -> Result<(), String> {
+        self.index().delete_page(page_id)
+    }
+
+    fn sync_file_index(&self, file: &WorkspaceFile) -> Result<(), String> {
+        self.index().upsert_file(file)
+    }
+
+    fn remove_file_index(&self, file_id: &str) -> Result<(), String> {
+        self.index().delete_file(file_id)
     }
 
     pub fn ensure_organization_structure(
@@ -264,28 +304,58 @@ impl WorkspaceStorage {
         Ok(())
     }
 
-    pub fn list_tree(&self) -> Result<WorkspaceTree, String> {
-        self.normalize_page_orders()?;
+    pub fn list_snapshot(&self) -> Result<WorkspaceSnapshot, String> {
+        self.ensure_index()?;
         let folders = self.read_folders()?;
-        let mut pages: Vec<WorkspacePageSummary> = self
-            .read_all_pages()?
-            .into_iter()
-            .map(|page| WorkspacePageSummary {
-                id: page.id,
-                title: page.title,
-                folder_id: page.folder_id,
-                last_edited_at: page.last_edited_at,
-                last_edited_by: page.last_edited_by,
-                sort_order: page.sort_order,
-            })
-            .collect();
-        pages.sort_by(|left, right| {
-            left.folder_id
-                .cmp(&right.folder_id)
-                .then(left.sort_order.cmp(&right.sort_order))
-                .then(left.title.cmp(&right.title))
-        });
-        Ok(WorkspaceTree { folders, pages })
+        let (page_count, file_count) = self.index().counts()?;
+        Ok(WorkspaceSnapshot {
+            folders,
+            page_count,
+            file_count,
+        })
+    }
+
+    pub fn list_summaries(&self) -> Result<WorkspaceSummaries, String> {
+        self.ensure_index()?;
+        Ok(WorkspaceSummaries {
+            pages: self.index().list_page_summaries()?,
+            files: self.index().list_file_summaries()?,
+        })
+    }
+
+    pub fn list_folder_children(&self, folder_id: &str) -> Result<WorkspaceFolderChildren, String> {
+        self.ensure_index()?;
+        let folders = self.read_folders()?;
+        if !folders.iter().any(|folder| folder.id == folder_id) {
+            return Err("Folder not found.".to_string());
+        }
+        let (pages, files) = self.index().list_folder_children(folder_id)?;
+        Ok(WorkspaceFolderChildren {
+            folder_id: folder_id.to_string(),
+            pages,
+            files,
+        })
+    }
+
+    pub fn resolve_items(
+        &self,
+        request: &ResolveWorkspaceItemsRequest,
+    ) -> Result<WorkspaceSummaries, String> {
+        self.ensure_index()?;
+        let (pages, files) = self.index().resolve_items(&request.item_ids)?;
+        Ok(WorkspaceSummaries { pages, files })
+    }
+
+    pub fn list_tree(&self) -> Result<WorkspaceTree, String> {
+        self.normalize_folder_item_orders()?;
+        self.ensure_index()?;
+        let folders = self.read_folders()?;
+        let summaries = self.list_summaries()?;
+        Ok(WorkspaceTree {
+            folders,
+            pages: summaries.pages,
+            files: summaries.files,
+        })
     }
 
     pub fn get_page(&self, page_id: &str) -> Result<WorkspacePage, String> {
@@ -303,7 +373,7 @@ impl WorkspaceStorage {
         }
 
         let now = Utc::now().to_rfc3339();
-        let sort_order = self.next_page_sort_order(&request.folder_id)?;
+        let sort_order = self.next_folder_item_sort_order(&request.folder_id)?;
         let page = WorkspacePage {
             id: format!("page-{}", Uuid::new_v4()),
             title: request.title.clone(),
@@ -375,15 +445,28 @@ impl WorkspaceStorage {
         Ok(())
     }
 
-    fn next_page_sort_order(&self, folder_id: &str) -> Result<u32, String> {
-        let max_order = self
+    fn next_folder_item_sort_order(&self, folder_id: &str) -> Result<u32, String> {
+        let page_max = self
             .read_all_pages()?
             .into_iter()
             .filter(|page| page.folder_id == folder_id)
             .map(|page| page.sort_order)
             .max()
             .unwrap_or(0);
-        Ok(max_order.saturating_add(1))
+        let file_max = self
+            .read_all_files()?
+            .into_iter()
+            .filter(|file| file.folder_id == folder_id)
+            .map(|file| file.sort_order)
+            .max()
+            .unwrap_or(0);
+        Ok(page_max.max(file_max).saturating_add(1))
+    }
+
+    fn normalize_folder_item_orders(&self) -> Result<(), String> {
+        self.normalize_page_orders()?;
+        self.normalize_file_orders()?;
+        Ok(())
     }
 
     fn normalize_page_orders(&self) -> Result<(), String> {
@@ -423,6 +506,181 @@ impl WorkspaceStorage {
         Ok(())
     }
 
+    fn normalize_file_orders(&self) -> Result<(), String> {
+        let files = self.read_all_files()?;
+        let mut by_folder: HashMap<String, Vec<WorkspaceFile>> = HashMap::new();
+        for file in files {
+            by_folder
+                .entry(file.folder_id.clone())
+                .or_default()
+                .push(file);
+        }
+
+        for mut folder_files in by_folder.into_values() {
+            let expected_orders: HashSet<u32> =
+                (0..folder_files.len() as u32).collect();
+            let actual_orders: HashSet<u32> =
+                folder_files.iter().map(|file| file.sort_order).collect();
+            if actual_orders == expected_orders {
+                continue;
+            }
+
+            folder_files.sort_by(|left, right| {
+                left.sort_order
+                    .cmp(&right.sort_order)
+                    .then(left.uploaded_at.cmp(&right.uploaded_at))
+                    .then(left.name.cmp(&right.name))
+            });
+
+            for (index, file) in folder_files.iter_mut().enumerate() {
+                if file.sort_order != index as u32 {
+                    file.sort_order = index as u32;
+                    self.write_file(file)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn import_files(
+        &self,
+        request: &ImportWorkspaceFilesRequest,
+        editor: &str,
+    ) -> Result<Vec<WorkspaceFileSummary>, String> {
+        let folders = self.read_folders()?;
+        if !folders.iter().any(|folder| folder.id == request.folder_id) {
+            return Err("Folder not found.".to_string());
+        }
+        if request.source_paths.is_empty() {
+            return Err("No files selected.".to_string());
+        }
+
+        let mut imported = Vec::new();
+        for source_path in &request.source_paths {
+            let source = Path::new(source_path);
+            if !source.exists() || !source.is_file() {
+                continue;
+            }
+            let file_name = source
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| "Invalid file name.".to_string())?
+                .to_string();
+            let type_info = classify_file_name(&file_name)?;
+            let metadata = fs::metadata(source).map_err(|e| e.to_string())?;
+            let sort_order = self.next_folder_item_sort_order(&request.folder_id)?;
+            let file = WorkspaceFile {
+                id: format!("file-{}", Uuid::new_v4()),
+                folder_id: request.folder_id.clone(),
+                name: file_name,
+                extension: type_info.extension,
+                mime_type: type_info.mime_type,
+                file_kind: type_info.kind,
+                size_bytes: metadata.len(),
+                uploaded_at: Utc::now().to_rfc3339(),
+                uploaded_by: editor.to_string(),
+                sort_order,
+            };
+            fs::create_dir_all(self.files_dir()).map_err(|e| e.to_string())?;
+            fs::copy(source, self.file_blob_path(&file.id)).map_err(|e| e.to_string())?;
+            self.write_file(&file)?;
+            imported.push(file_to_summary(file));
+        }
+
+        if imported.is_empty() {
+            return Err("No supported files could be imported.".to_string());
+        }
+        Ok(imported)
+    }
+
+    pub fn get_file(&self, file_id: &str) -> Result<WorkspaceFile, String> {
+        self.read_file(file_id)
+    }
+
+    pub fn get_file_path_response(&self, file_id: &str) -> Result<WorkspaceFilePathResponse, String> {
+        let file = self.read_file(file_id)?;
+        let absolute_path = self
+            .file_blob_path(&file.id)
+            .canonicalize()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        Ok(WorkspaceFilePathResponse {
+            file_id: file.id,
+            absolute_path,
+            mime_type: file.mime_type,
+            file_kind: file.file_kind,
+        })
+    }
+
+    pub fn delete_file(&self, request: &DeleteWorkspaceFileRequest) -> Result<(), String> {
+        let file = self.read_file(&request.file_id)?;
+        let meta_path = self.file_meta_path(&file.id);
+        let blob_path = self.file_blob_path(&file.id);
+        if meta_path.exists() {
+            fs::remove_file(meta_path).map_err(|e| e.to_string())?;
+        }
+        if blob_path.exists() {
+            fs::remove_file(blob_path).map_err(|e| e.to_string())?;
+        }
+        self.remove_file_index(&request.file_id)?;
+        Ok(())
+    }
+
+    pub fn reorder_items(&self, request: &ReorderWorkspaceItemsRequest) -> Result<(), String> {
+        if request.item_ids.is_empty() {
+            return Err("No items to reorder.".to_string());
+        }
+
+        let pages: HashMap<String, WorkspacePage> = self
+            .read_all_pages()?
+            .into_iter()
+            .filter(|page| page.folder_id == request.folder_id)
+            .map(|page| (page.id.clone(), page))
+            .collect();
+        let files: HashMap<String, WorkspaceFile> = self
+            .read_all_files()?
+            .into_iter()
+            .filter(|file| file.folder_id == request.folder_id)
+            .map(|file| (file.id.clone(), file))
+            .collect();
+
+        if pages.is_empty() && files.is_empty() {
+            return Err("Folder has no items to reorder.".to_string());
+        }
+
+        let mut ordered_ids: Vec<String> = request
+            .item_ids
+            .iter()
+            .filter(|item_id| pages.contains_key(*item_id) || files.contains_key(*item_id))
+            .cloned()
+            .collect();
+
+        for page_id in pages.keys() {
+            if !ordered_ids.iter().any(|item_id| item_id == page_id) {
+                ordered_ids.push(page_id.clone());
+            }
+        }
+        for file_id in files.keys() {
+            if !ordered_ids.iter().any(|item_id| item_id == file_id) {
+                ordered_ids.push(file_id.clone());
+            }
+        }
+
+        for (index, item_id) in ordered_ids.iter().enumerate() {
+            if let Some(mut page) = pages.get(item_id).cloned() {
+                page.sort_order = index as u32;
+                self.write_page(&page)?;
+            } else if let Some(mut file) = files.get(item_id).cloned() {
+                file.sort_order = index as u32;
+                self.write_file(&file)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn update_page(&self, request: &UpdatePageRequest) -> Result<WorkspacePage, String> {
         let mut page = self.read_page(&request.page_id)?;
         self.snapshot_page_version(&page)?;
@@ -450,56 +708,8 @@ impl WorkspaceStorage {
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, String> {
-        let needle = query.trim().to_lowercase();
-        if needle.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let mut results = Vec::new();
-        for page in self.read_all_pages()? {
-            let rich_text = page
-                .rich_doc
-                .as_ref()
-                .map(extract_text_from_rich_doc)
-                .unwrap_or_default();
-            let link_text = page
-                .linked_entities
-                .iter()
-                .map(|link| format!("{} {}", link.entity_type, link.title))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let haystack = format!(
-                "{} {} {} {}",
-                page.title.to_lowercase(),
-                page.blocks
-                    .iter()
-                    .map(|block| block.content.to_lowercase())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                rich_text.to_lowercase(),
-                link_text.to_lowercase()
-            );
-
-            if haystack.contains(&needle) {
-                let snippet = page
-                    .blocks
-                    .iter()
-                    .find(|block| block.content.to_lowercase().contains(&needle))
-                    .map(|block| block.content.clone())
-                    .unwrap_or_else(|| page.title.clone());
-
-                results.push(SearchResult {
-                    page_id: page.id,
-                    title: page.title,
-                    folder_id: page.folder_id,
-                    snippet,
-                    score: 1.0,
-                });
-            }
-        }
-
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        Ok(results)
+        self.ensure_index()?;
+        self.index().search(query, 40)
     }
 
     pub fn link_entity_to_page(
@@ -796,6 +1006,7 @@ impl WorkspaceStorage {
             self.write_presence(&presence)?;
         }
 
+        self.remove_page_index(&request.page_id)?;
         Ok(())
     }
 
@@ -823,6 +1034,14 @@ impl WorkspaceStorage {
             .any(|page| page.folder_id == request.folder_id);
         if has_pages {
             return Err("Delete or move pages out of this folder first.".to_string());
+        }
+
+        let has_files = self
+            .read_all_files()?
+            .iter()
+            .any(|file| file.folder_id == request.folder_id);
+        if has_files {
+            return Err("Delete or move files out of this folder first.".to_string());
         }
 
         let mut folders = folders;
@@ -913,6 +1132,59 @@ impl WorkspaceStorage {
 
     fn pages_dir(&self) -> PathBuf {
         self.root.join("pages")
+    }
+
+    fn files_dir(&self) -> PathBuf {
+        self.root.join("files")
+    }
+
+    fn file_meta_path(&self, file_id: &str) -> PathBuf {
+        self.files_dir().join(format!("{file_id}.json"))
+    }
+
+    fn file_blob_path(&self, file_id: &str) -> PathBuf {
+        self.files_dir().join(format!("{file_id}.bin"))
+    }
+
+    fn read_file(&self, file_id: &str) -> Result<WorkspaceFile, String> {
+        let path = self.file_meta_path(file_id);
+        let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&raw).map_err(|e| e.to_string())
+    }
+
+    fn write_file(&self, file: &WorkspaceFile) -> Result<(), String> {
+        fs::create_dir_all(self.files_dir()).map_err(|e| e.to_string())?;
+        let json = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
+        fs::write(self.file_meta_path(&file.id), json).map_err(|e| e.to_string())?;
+        self.sync_file_index(file)
+    }
+
+    fn read_all_files(&self) -> Result<Vec<WorkspaceFile>, String> {
+        let dir = self.files_dir();
+        if !dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let paths: Vec<PathBuf> = fs::read_dir(dir)
+            .map_err(|e| e.to_string())?
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        paths
+            .par_iter()
+            .map(|path| {
+                let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+                serde_json::from_str(&raw).map_err(|e| e.to_string())
+            })
+            .collect()
     }
 
     fn versions_dir(&self) -> PathBuf {
@@ -1115,6 +1387,7 @@ impl WorkspaceStorage {
         let json = serde_json::to_string_pretty(page).map_err(|e| e.to_string())?;
         fs::write(json_path, json).map_err(|e| e.to_string())?;
         fs::write(md_path, page_to_markdown(page)).map_err(|e| e.to_string())?;
+        self.sync_page_index(page)?;
         Ok(())
     }
 
@@ -1144,6 +1417,37 @@ impl WorkspaceStorage {
                 serde_json::from_str(&raw).map_err(|e| e.to_string())
             })
             .collect()
+    }
+}
+
+fn format_file_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    const GB: f64 = MB * 1024.0;
+    let size = bytes as f64;
+    if size >= GB {
+        format!("{:.1} GB", size / GB)
+    } else if size >= MB {
+        format!("{:.1} MB", size / MB)
+    } else if size >= KB {
+        format!("{:.1} KB", size / KB)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+fn file_to_summary(file: WorkspaceFile) -> WorkspaceFileSummary {
+    WorkspaceFileSummary {
+        id: file.id,
+        folder_id: file.folder_id,
+        name: file.name,
+        extension: file.extension,
+        mime_type: file.mime_type,
+        file_kind: file.file_kind,
+        size_bytes: file.size_bytes,
+        uploaded_at: file.uploaded_at,
+        uploaded_by: file.uploaded_by,
+        sort_order: file.sort_order,
     }
 }
 

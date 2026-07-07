@@ -1,14 +1,15 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { pickDefaultPageId } from "../services/workspaceClient";
+import {
+  initWorkspaceSnapshot,
+  pickDefaultPageIdFromFolder,
+} from "../services/workspaceClient";
 import { useGameStore } from "../stores/gameStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { clearLocalProgress, reportLocalProgress } from "../stores/progressStore";
-import type { WorkspaceTree } from "../types/workspace";
 
 export function useWorkspaceBootstrap(enabled: boolean) {
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
-  const setTree = useWorkspaceStore((state) => state.setTree);
+  const applySnapshot = useWorkspaceStore((state) => state.applySnapshot);
   const setIsLoading = useWorkspaceStore((state) => state.setIsLoading);
 
   useEffect(() => {
@@ -20,13 +21,20 @@ export function useWorkspaceBootstrap(enabled: boolean) {
       setIsLoading(true);
       reportLocalProgress("workspace_init", "Initializing workspace…", 20, "init");
       try {
-        const tree = await invoke<WorkspaceTree>("init_workspace");
-        const { selectedPageId, openPage } = useWorkspaceStore.getState();
-        setTree(tree);
+        const snapshot = await initWorkspaceSnapshot();
+        const { selectedPageId, openPage, loadFolderChildren } = useWorkspaceStore.getState();
+        applySnapshot(snapshot);
+        await useWorkspaceStore.getState().loadViewData(useWorkspaceStore.getState().activeView);
         if (!selectedPageId) {
-          const defaultPageId = pickDefaultPageId(tree);
-          if (defaultPageId) {
-            await openPage(defaultPageId);
+          const companyFolder =
+            snapshot.folders.find((folder) => folder.id === "folder-company") ??
+            snapshot.folders.find((folder) => folder.workspace_type === "company");
+          if (companyFolder) {
+            await loadFolderChildren(companyFolder.id);
+            const defaultPageId = await pickDefaultPageIdFromFolder(companyFolder.id);
+            if (defaultPageId) {
+              await openPage(defaultPageId);
+            }
           }
         }
       } catch (error) {
@@ -38,5 +46,5 @@ export function useWorkspaceBootstrap(enabled: boolean) {
     };
 
     void load();
-  }, [activeCompanyId, enabled, setIsLoading, setTree]);
+  }, [activeCompanyId, enabled, applySnapshot, setIsLoading]);
 }

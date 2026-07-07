@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceSearchResult } from "../../types/workspace";
 
@@ -11,36 +12,59 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
   const searchResults = useWorkspaceStore((state) => state.searchResults);
   const setSearchQuery = useWorkspaceStore((state) => state.setSearchQuery);
   const setSearchResults = useWorkspaceStore((state) => state.setSearchResults);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const runSearch = async () => {
-    const results = await invoke<WorkspaceSearchResult[]>("search_workspace", {
-      query: searchQuery,
-    });
-    setSearchResults(results);
+  const runSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await invoke<WorkspaceSearchResult[]>("search_workspace", { query });
+      setSearchResults(results);
+    } finally {
+      setSearching(false);
+    }
   };
 
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      void runSearch(searchQuery);
+    }, 320);
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [searchQuery]);
+
   return (
-    <div className="workspace-search">
-      <input
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
-        placeholder="Search workspace..."
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            void runSearch();
-          }
-        }}
-      />
-      <button type="button" onClick={() => void runSearch()}>
-        Search
-      </button>
-      {searchResults.length > 0 && (
-        <div className="search-results">
+    <div className="ws-search">
+      <div className="ws-search-input-wrap">
+        <span className="ws-search-icon" aria-hidden="true">
+          ⌕
+        </span>
+        <input
+          className="ws-search-input"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search pages & files…"
+          aria-label="Search workspace"
+        />
+        {searching ? <span className="ws-search-spinner" aria-hidden="true" /> : null}
+      </div>
+      {searchResults.length > 0 ? (
+        <div className="ws-search-results">
           {searchResults.map((result) => (
             <button
               key={result.page_id}
               type="button"
-              className="search-result"
+              className="ws-search-result"
               onClick={() => onOpenResult(result.page_id)}
             >
               <strong>{result.title}</strong>
@@ -48,7 +72,9 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
             </button>
           ))}
         </div>
-      )}
+      ) : searchQuery.trim() && !searching ? (
+        <p className="ws-search-empty muted">No matches</p>
+      ) : null}
     </div>
   );
 }

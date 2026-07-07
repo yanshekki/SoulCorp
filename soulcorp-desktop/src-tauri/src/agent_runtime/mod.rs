@@ -30,12 +30,19 @@ pub fn execute_for_task(
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
+    workspace_root: Option<std::path::PathBuf>,
 ) -> Result<String, String> {
     let mode = AgentRuntimeMode::from_setting(&state.settings.agent_runtime_mode);
     match mode {
         AgentRuntimeMode::LlmOnly => {
             if state.settings.scrum_use_agent_tools {
-                crate::scrum::agent_tools::execute_with_tools(state, task, agent, project_title)
+                crate::scrum::agent_tools::execute_with_tools(
+                    state,
+                    task,
+                    agent,
+                    project_title,
+                    workspace_root.as_deref(),
+                )
             } else {
                 execute_llm_only(state, task, agent, project_title)
             }

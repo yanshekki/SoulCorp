@@ -5,15 +5,18 @@ use crate::workspace::{
     create_page_from_template, list_templates, storage::company_workspace_root,
     write_meeting_notes_from_state, AddPageCommentRequest, CreateFolderRequest,
     CreatePageFromTemplateRequest, CreatePageRequest, DeleteFolderRequest, DeletePageRequest,
-    LinkableEntity, LinkEntityRequest, PageBacklink, PageComment, PageVersionSummary,
+    DeleteWorkspaceFileRequest, ImportWorkspaceFilesRequest, LinkableEntity, LinkEntityRequest,
+    PageBacklink, PageComment, PageVersionSummary, ReorderWorkspaceItemsRequest,
     ReorderWorkspacePagesRequest, RestorePageVersionRequest, SearchResult, UnlinkEntityRequest,
-    UpdatePageRequest,
-    WorkspaceDatabaseView, WorkspaceFolder, WorkspacePage, WorkspacePresenceEntry,
-    WorkspaceStorage, WorkspaceTemplate, WorkspaceTree,
+    UpdatePageRequest, WorkspaceDatabaseView, WorkspaceFile, WorkspaceFilePathResponse,
+    WorkspaceFileSummary, WorkspaceFolder, WorkspacePage, WorkspacePresenceEntry,
+    WorkspaceSnapshot, WorkspaceStorage, WorkspaceSummaries, WorkspaceTemplate,
+    WorkspaceTree, WorkspaceFolderChildren, ResolveWorkspaceItemsRequest,
 };
 use crate::workspace::LinkedEntity;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 fn collect_departments(state: &AppState) -> Vec<String> {
     crate::departments::department_names(state)
@@ -58,15 +61,53 @@ fn storage_for_app_handle_sync(
 pub fn init_workspace(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
-) -> Result<WorkspaceTree, String> {
+) -> Result<WorkspaceSnapshot, String> {
     let progress = ProgressReporter::new(app.clone(), "workspace_init");
     progress.emit_percent("Syncing workspace folders…", 40.0, Some("folders"));
     let storage = storage_for_app_handle_sync(&app, &state)?;
-    progress.emit_percent("Loading workspace pages…", 80.0, Some("pages"));
-    let tree = storage.list_tree()?;
+    progress.emit_percent("Building workspace index…", 80.0, Some("index"));
+    let snapshot = storage.list_snapshot()?;
     progress.finish("Workspace ready");
     progress.clear();
-    Ok(tree)
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn list_workspace_snapshot(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceSnapshot, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.list_snapshot()
+}
+
+#[tauri::command]
+pub fn list_workspace_summaries(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceSummaries, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.list_summaries()
+}
+
+#[tauri::command]
+pub fn list_workspace_folder_children(
+    app: AppHandle,
+    folder_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceFolderChildren, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.list_folder_children(&folder_id)
+}
+
+#[tauri::command]
+pub fn resolve_workspace_items(
+    app: AppHandle,
+    request: ResolveWorkspaceItemsRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceSummaries, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.resolve_items(&request)
 }
 
 #[tauri::command]
@@ -431,4 +472,68 @@ pub fn reorder_workspace_pages(
     let storage = storage_for_app_handle_sync(&app, &state)?;
     storage.reorder_pages(&request)?;
     storage.list_tree()
+}
+
+#[tauri::command]
+pub fn reorder_workspace_items(
+    app: AppHandle,
+    request: ReorderWorkspaceItemsRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceTree, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.reorder_items(&request)?;
+    storage.list_tree()
+}
+
+#[tauri::command]
+pub fn import_workspace_files(
+    app: AppHandle,
+    request: ImportWorkspaceFilesRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<WorkspaceFileSummary>, String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.import_files(&request, "player")
+}
+
+#[tauri::command]
+pub fn get_workspace_file(
+    app: AppHandle,
+    file_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceFile, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
+    storage.get_file(&file_id)
+}
+
+#[tauri::command]
+pub fn get_workspace_file_path(
+    app: AppHandle,
+    file_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceFilePathResponse, String> {
+    let storage = storage_for_app_handle(&app, &state)?;
+    storage.get_file_path_response(&file_id)
+}
+
+#[tauri::command]
+pub fn delete_workspace_file(
+    app: AppHandle,
+    request: DeleteWorkspaceFileRequest,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let storage = storage_for_app_handle_sync(&app, &state)?;
+    storage.delete_file(&request)
+}
+
+#[tauri::command]
+pub fn open_workspace_file_externally(
+    app: AppHandle,
+    file_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let storage = storage_for_app_handle(&app, &state)?;
+    let response = storage.get_file_path_response(&file_id)?;
+    app.opener()
+        .open_path(response.absolute_path, None::<&str>)
+        .map_err(|e| e.to_string())
 }

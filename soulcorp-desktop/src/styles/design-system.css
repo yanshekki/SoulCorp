@@ -3536,6 +3536,64 @@ body.workspace-resizing {
   cursor: pointer;
 }
 
+.agents-activity-subtitle {
+  margin: 0 0 var(--space-3);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.agents-activity-refresh {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.agents-activity-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.agents-activity-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.agents-activity-item {
+  width: 100%;
+  display: grid;
+  gap: var(--space-1);
+  text-align: left;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+}
+
+.agents-activity-item:hover {
+  border-color: var(--border-default);
+  background: var(--bg-elevated);
+}
+
+.agents-activity-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agents-activity-meta {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
 .agents-brain-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));

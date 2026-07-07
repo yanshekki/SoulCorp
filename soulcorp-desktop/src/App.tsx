@@ -37,6 +37,7 @@ import type { SidebarPanel } from "./types/game";
 import { hasActiveCompany } from "./utils/companyState";
 import "./App.css";
 import "./styles/design-system.css";
+import "./styles/workspace-editor.css";
 import "./styles/startup-warm-ui.css";
 
 const GAME_SCENE_PANELS = new Set<SidebarPanel>(showOffice3D ? ["office"] : []);

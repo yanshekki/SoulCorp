@@ -67,10 +67,82 @@ pub struct WorkspacePage {
     pub sort_order: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceFileKind {
+    Image,
+    Document,
+    Pdf,
+    Spreadsheet,
+    Presentation,
+    Archive,
+    Video,
+    Audio,
+    Text,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceFile {
+    pub id: String,
+    pub folder_id: String,
+    pub name: String,
+    pub extension: String,
+    pub mime_type: String,
+    pub file_kind: WorkspaceFileKind,
+    pub size_bytes: u64,
+    pub uploaded_at: String,
+    pub uploaded_by: String,
+    #[serde(default)]
+    pub sort_order: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceFileSummary {
+    pub id: String,
+    pub folder_id: String,
+    pub name: String,
+    pub extension: String,
+    pub mime_type: String,
+    pub file_kind: WorkspaceFileKind,
+    pub size_bytes: u64,
+    pub uploaded_at: String,
+    pub uploaded_by: String,
+    #[serde(default)]
+    pub sort_order: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceTree {
     pub folders: Vec<WorkspaceFolder>,
     pub pages: Vec<WorkspacePageSummary>,
+    #[serde(default)]
+    pub files: Vec<WorkspaceFileSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceSnapshot {
+    pub folders: Vec<WorkspaceFolder>,
+    pub page_count: u32,
+    pub file_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceFolderChildren {
+    pub folder_id: String,
+    pub pages: Vec<WorkspacePageSummary>,
+    pub files: Vec<WorkspaceFileSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceSummaries {
+    pub pages: Vec<WorkspacePageSummary>,
+    pub files: Vec<WorkspaceFileSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolveWorkspaceItemsRequest {
+    pub item_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +160,31 @@ pub struct WorkspacePageSummary {
 pub struct ReorderWorkspacePagesRequest {
     pub folder_id: String,
     pub page_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReorderWorkspaceItemsRequest {
+    pub folder_id: String,
+    pub item_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportWorkspaceFilesRequest {
+    pub folder_id: String,
+    pub source_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteWorkspaceFileRequest {
+    pub file_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceFilePathResponse {
+    pub file_id: String,
+    pub absolute_path: String,
+    pub mime_type: String,
+    pub file_kind: WorkspaceFileKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,4 +318,80 @@ pub struct WorkspacePresenceEntry {
     pub page_id: String,
     pub editor: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceReadPageRequest {
+    pub agent_id: String,
+    pub page_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceSearchRequest {
+    pub agent_id: String,
+    pub query: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceCreatePageRequest {
+    pub agent_id: String,
+    pub title: String,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceAppendRequest {
+    pub agent_id: String,
+    pub page_id: String,
+    pub heading: String,
+    pub lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceJournalRequest {
+    pub agent_id: String,
+    pub journal_title: String,
+    pub heading: String,
+    pub lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceDeliverableRequest {
+    pub agent_id: String,
+    pub title: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspacePageView {
+    pub page_id: String,
+    pub title: String,
+    pub folder_id: String,
+    pub text: String,
+    pub last_edited_at: String,
+    pub last_edited_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceActivityEntry {
+    pub agent_id: String,
+    pub agent_name: String,
+    pub page_id: String,
+    pub title: String,
+    pub folder_id: String,
+    pub last_edited_at: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWorkspaceContext {
+    pub agent_id: String,
+    pub agent_name: String,
+    pub folder_id: String,
+    pub pages: Vec<WorkspacePageSummary>,
+    #[serde(default)]
+    pub files: Vec<WorkspaceFileSummary>,
+    pub recent_edits: Vec<AgentWorkspaceActivityEntry>,
 }

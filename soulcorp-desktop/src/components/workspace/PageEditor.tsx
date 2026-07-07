@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { JSONContent } from "@tiptap/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteWorkspacePage,
   listWorkspaceTree,
@@ -8,18 +8,38 @@ import {
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspacePage, WorkspacePresenceEntry } from "../../types/workspace";
 import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
-import { PageComments } from "./PageComments";
-import { PageLinks } from "./PageLinks";
-import { PageVersionHistory } from "./PageVersionHistory";
+import { PageEditorSidebar } from "./PageEditorSidebar";
 import { TipTapEditor } from "./TipTapEditor";
+import { WorkspaceEmptyState } from "./WorkspaceEmptyState";
 
-const AUTO_SAVE_DELAY_MS = 1500;
+const AUTO_SAVE_DELAY_MS = 1200;
 
 function pageSnapshot(title: string, richDoc: JSONContent): string {
   return JSON.stringify({ title, richDoc });
 }
 
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) {
+    return "just now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) {
+    return `${hours}h ago`;
+  }
+  return date.toLocaleDateString();
+}
+
 export function PageEditor() {
+  const tree = useWorkspaceStore((state) => state.tree);
   const selectedPage = useWorkspaceStore((state) => state.selectedPage);
   const openingPageId = useWorkspaceStore((state) => state.openingPageId);
   const pageOpenError = useWorkspaceStore((state) => state.pageOpenError);
@@ -34,8 +54,28 @@ export function PageEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
   const [presence, setPresence] = useState<WorkspacePresenceEntry[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const lastSavedSnapshotRef = useRef("");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const folderPath = useMemo(() => {
+    if (!selectedPage) {
+      return "";
+    }
+    const names: string[] = [];
+    let folderId: string | null | undefined = selectedPage.folder_id;
+    const guard = new Set<string>();
+    while (folderId && !guard.has(folderId)) {
+      guard.add(folderId);
+      const folder = tree.folders.find((item) => item.id === folderId);
+      if (!folder) {
+        break;
+      }
+      names.unshift(folder.name);
+      folderId = folder.parent_id;
+    }
+    return names.join(" / ");
+  }, [selectedPage, tree.folders]);
 
   const savePage = useCallback(
     async (auto = false) => {
@@ -145,26 +185,27 @@ export function PageEditor() {
 
   if (openingPageId && !selectedPage) {
     return (
-      <div className="page-editor empty">
-        <p>Loading page...</p>
+      <div className="ws-editor-root ws-editor-root--loading">
+        <div className="ws-editor-loading">
+          <span className="ws-editor-loading-spinner" aria-hidden="true" />
+          Opening page…
+        </div>
       </div>
     );
   }
 
   if (!selectedPage) {
     return (
-      <div className="page-editor empty">
-        {pageOpenError ? (
-          <p className="page-open-error">Could not open page: {pageOpenError}</p>
-        ) : (
-          <p>Select or create a page from the folder tree.</p>
-        )}
+      <div className="ws-editor-root ws-editor-root--empty">
+        <WorkspaceEmptyState error={pageOpenError} />
       </div>
     );
   }
 
   const deletePage = async () => {
-    const confirmed = window.confirm(`Delete "${title || selectedPage.title}"? This cannot be undone.`);
+    const confirmed = window.confirm(
+      `Delete "${title || selectedPage.title}"? This cannot be undone.`,
+    );
     if (!confirmed) {
       return;
     }
@@ -202,61 +243,83 @@ export function PageEditor() {
 
   const saveLabel =
     saveStatus === "saving" || saving
-      ? "Saving..."
+      ? "Saving…"
       : saveStatus === "unsaved"
-        ? "Save"
+        ? "Unsaved"
         : "Saved";
 
   return (
-    <div className="page-editor">
-      <header className="page-editor-header">
-        <input
-          className="page-title-input"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        <div className="page-editor-actions">
-          <span className={`page-save-status page-save-status-${saveStatus}`}>{saveLabel}</span>
-          <button
-            type="button"
-            onClick={() => void savePage()}
-            disabled={saving || saveStatus === "saved"}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="danger-btn"
-            disabled={saving}
-            onClick={() => void deletePage()}
-          >
-            Delete
-          </button>
+    <div className={`ws-editor-root${sidebarOpen ? "" : " ws-editor-root--sidebar-collapsed"}`}>
+      <div className="ws-editor-main">
+        <header className="ws-editor-topbar">
+          <div className="ws-editor-topbar-left">
+            {folderPath ? <span className="ws-editor-breadcrumb">{folderPath}</span> : null}
+            <span className={`ws-save-pill ws-save-pill--${saveStatus}`}>{saveLabel}</span>
+            {saveError ? <span className="ws-save-error-inline">{saveError}</span> : null}
+          </div>
+          <div className="ws-editor-topbar-actions">
+            {presence.length > 0 ? (
+              <span className="ws-presence-pill">
+                {presence.map((entry) => entry.editor).join(", ")} viewing
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="ws-topbar-btn"
+              onClick={() => void savePage()}
+              disabled={saving || saveStatus === "saved"}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="ws-topbar-btn ws-topbar-btn--danger"
+              disabled={saving}
+              onClick={() => void deletePage()}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              className="ws-topbar-btn ws-topbar-btn--ghost"
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-pressed={sidebarOpen}
+            >
+              {sidebarOpen ? "Hide panel" : "Show panel"}
+            </button>
+          </div>
+        </header>
+
+        <div className="ws-editor-scroll">
+          <article className="ws-editor-page">
+            <input
+              className="ws-page-title"
+              value={title}
+              placeholder="Untitled"
+              onChange={(event) => setTitle(event.target.value)}
+              aria-label="Page title"
+            />
+            <div className="ws-page-meta">
+              <span>v{selectedPage.version}</span>
+              <span>·</span>
+              <span>
+                Edited {formatRelativeTime(selectedPage.last_edited_at)} by{" "}
+                {selectedPage.last_edited_by}
+              </span>
+            </div>
+            <TipTapEditor value={richDoc} onChange={setRichDoc} />
+          </article>
         </div>
-      </header>
+      </div>
 
-      {saveError ? <p className="page-save-error">{saveError}</p> : null}
-
-      {presence.length > 0 ? (
-        <p className="workspace-presence muted">
-          Viewing: {presence.map((entry) => entry.editor).join(", ")}
-        </p>
+      {sidebarOpen ? (
+        <PageEditorSidebar
+          page={selectedPage}
+          onPageUpdated={setSelectedPage}
+          onOpenPage={(pageId) => void openPage(pageId)}
+          onRestored={handleRestored}
+        />
       ) : null}
-
-      <PageLinks
-        page={selectedPage}
-        onPageUpdated={setSelectedPage}
-        onOpenPage={(pageId) => void openPage(pageId)}
-      />
-
-      <TipTapEditor value={richDoc} onChange={setRichDoc} />
-
-      <PageVersionHistory pageId={selectedPage.id} onRestored={handleRestored} />
-      <PageComments pageId={selectedPage.id} />
-
-      <footer className="page-meta">
-        v{selectedPage.version} · last edited by {selectedPage.last_edited_by} · TipTap blocks
-      </footer>
     </div>
   );
 }

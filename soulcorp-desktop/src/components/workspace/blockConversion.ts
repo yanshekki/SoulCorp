@@ -85,6 +85,33 @@ export function blocksFromRichDoc(doc: JSONContent): WorkspaceBlock[] {
       continue;
     }
 
+    if (node.type === "blockquote") {
+      blocks.push({
+        id: crypto.randomUUID(),
+        type: "text",
+        content: `> ${text}`,
+      });
+      continue;
+    }
+
+    if (node.type === "codeBlock") {
+      blocks.push({
+        id: crypto.randomUUID(),
+        type: "text",
+        content: `\`\`\`\n${text}\n\`\`\``,
+      });
+      continue;
+    }
+
+    if (node.type === "horizontalRule") {
+      blocks.push({
+        id: crypto.randomUUID(),
+        type: "text",
+        content: "---",
+      });
+      continue;
+    }
+
     blocks.push({
       id: crypto.randomUUID(),
       type: "text",

@@ -1,33 +1,64 @@
+import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
+import TextAlign from "@tiptap/extension-text-align";
+import { Table } from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
 import Underline from "@tiptap/extension-underline";
+import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { JSONContent } from "@tiptap/core";
 import { useEffect } from "react";
+import { EditorBubbleMenu } from "./EditorBubbleMenu";
+import { EditorToolbar } from "./EditorToolbar";
 
 interface TipTapEditorProps {
   value: JSONContent;
   onChange: (doc: JSONContent) => void;
   editable?: boolean;
+  placeholder?: string;
 }
 
-export function TipTapEditor({ value, onChange, editable = true }: TipTapEditorProps) {
+export function TipTapEditor({
+  value,
+  onChange,
+  editable = true,
+  placeholder = "Type '/' for blocks, or start writing…",
+}: TipTapEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: { HTMLAttributes: { class: "ws-code-block" } },
+        blockquote: { HTMLAttributes: { class: "ws-blockquote" } },
       }),
       Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: "ws-editor-link", rel: "noopener noreferrer" },
+      }),
+      Highlight.configure({ multicolor: false }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Placeholder.configure({
-        placeholder: "Write notes, meeting outcomes, or project plans...",
-      }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      Placeholder.configure({ placeholder }),
     ],
     content: value,
     editable,
+    editorProps: {
+      attributes: {
+        class: "ws-prosemirror",
+        spellcheck: "true",
+      },
+    },
     onUpdate: ({ editor: current }) => {
       onChange(current.getJSON());
     },
@@ -45,53 +76,40 @@ export function TipTapEditor({ value, onChange, editable = true }: TipTapEditorP
   }, [editor, value]);
 
   useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    editor.setEditable(editable);
+  }, [editor, editable]);
+
+  useEffect(() => {
     return () => {
       editor?.destroy();
     };
   }, [editor]);
 
   if (!editor) {
-    return <div className="tiptap-editor loading">Loading editor...</div>;
+    return (
+      <div className="ws-editor-loading">
+        <span className="ws-editor-loading-spinner" aria-hidden="true" />
+        Loading editor…
+      </div>
+    );
   }
 
   return (
-    <div className="tiptap-shell">
-      <div className="tiptap-toolbar">
-        <button
-          type="button"
-          className={editor.isActive("bold") ? "active" : ""}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          Bold
-        </button>
-        <button
-          type="button"
-          className={editor.isActive("italic") ? "active" : ""}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          Italic
-        </button>
-        <button
-          type="button"
-          className={editor.isActive("heading", { level: 2 }) ? "active" : ""}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        >
-          Bullets
-        </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleTaskList().run()}
-        >
-          Todo
-        </button>
+    <div className="ws-tiptap-shell">
+      {editable ? <EditorToolbar editor={editor} /> : null}
+      <div className="ws-tiptap-body">
+        {editable ? <EditorBubbleMenu editor={editor} /> : null}
+        <EditorContent editor={editor} className="ws-tiptap-content" />
       </div>
-      <EditorContent editor={editor} className="tiptap-editor" />
+      {editable ? (
+        <footer className="ws-editor-footer-hint">
+          <span>Markdown-style shortcuts supported</span>
+          <span>Ctrl+B bold · Ctrl+I italic · Tab in lists</span>
+        </footer>
+      ) : null}
     </div>
   );
 }

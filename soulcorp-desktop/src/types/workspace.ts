@@ -58,9 +58,61 @@ export interface WorkspacePageSummary {
   sort_order?: number;
 }
 
+export type WorkspaceFileKind =
+  | "image"
+  | "document"
+  | "pdf"
+  | "spreadsheet"
+  | "presentation"
+  | "archive"
+  | "video"
+  | "audio"
+  | "text"
+  | "other";
+
+export interface WorkspaceFileSummary {
+  id: string;
+  folder_id: string;
+  name: string;
+  extension: string;
+  mime_type: string;
+  file_kind: WorkspaceFileKind;
+  size_bytes: number;
+  uploaded_at: string;
+  uploaded_by: string;
+  sort_order?: number;
+}
+
+export interface WorkspaceFile extends WorkspaceFileSummary {}
+
+export interface WorkspaceFilePathResponse {
+  file_id: string;
+  absolute_path: string;
+  mime_type: string;
+  file_kind: WorkspaceFileKind;
+}
+
 export interface WorkspaceTree {
   folders: WorkspaceFolder[];
   pages: WorkspacePageSummary[];
+  files: WorkspaceFileSummary[];
+}
+
+export interface WorkspaceSnapshot {
+  folders: WorkspaceFolder[];
+  page_count: number;
+  file_count: number;
+}
+
+export interface WorkspaceSummaries {
+  pages: WorkspacePageSummary[];
+  files: WorkspaceFileSummary[];
+}
+
+export interface WorkspaceFolderChildren {
+  folder_id: string;
+  pages: WorkspacePageSummary[];
+  files: WorkspaceFileSummary[];
 }
 
 export interface WorkspaceSearchResult {
@@ -106,4 +158,32 @@ export interface WorkspacePresenceEntry {
   page_id: string;
   editor: string;
   updated_at: string;
+}
+
+export interface AgentWorkspacePageView {
+  page_id: string;
+  title: string;
+  folder_id: string;
+  text: string;
+  last_edited_at: string;
+  last_edited_by: string;
+}
+
+export interface AgentWorkspaceActivityEntry {
+  agent_id: string;
+  agent_name: string;
+  page_id: string;
+  title: string;
+  folder_id: string;
+  last_edited_at: string;
+  action: string;
+}
+
+export interface AgentWorkspaceContext {
+  agent_id: string;
+  agent_name: string;
+  folder_id: string;
+  pages: WorkspacePageSummary[];
+  files: WorkspaceFileSummary[];
+  recent_edits: AgentWorkspaceActivityEntry[];
 }

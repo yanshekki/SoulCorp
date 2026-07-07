@@ -1,6 +1,7 @@
 use crate::state::{
     AgentRecord, AppState, GameEvent, GigContract, InternalProject, MeetingState, TokenEconomy,
 };
+use crate::workspace::agent_service::{AgentContext, AgentWorkspaceService};
 use crate::workspace::models::LinkedEntity;
 use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
 use std::collections::HashMap;
@@ -44,23 +45,19 @@ pub fn write_daily_activity_docs(app: &AppHandle, snapshot: &ActivitySnapshot) -
     let day = snapshot.day_number;
     let agents = &snapshot.agents;
 
-    for agent in agents {
-        storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
-    }
+    let service = AgentWorkspaceService::new(&storage);
 
     for agent in agents {
-        let folder_id = format!("folder-{}", agent.id);
+        let agent_ctx = AgentContext {
+            id: agent.id.clone(),
+            name: agent.name.clone(),
+            department: agent.department.clone(),
+        };
         let journal_title = format!("{} — Daily Journal", agent.name);
         let heading = format!("Day {day} Activity Log");
         let lines = activity_lines_for_agent(agent, snapshot);
 
-        let page = storage.append_journal_entry(
-            &folder_id,
-            &journal_title,
-            &heading,
-            &lines,
-            &agent.name,
-        )?;
+        let page = service.append_journal(&agent_ctx, &journal_title, &heading, &lines)?;
         storage.link_entity_to_page(
             &page.id,
             LinkedEntity {
@@ -125,12 +122,14 @@ pub fn write_event_activity_doc(
     );
     storage.append_company_feed_entry(snapshot.day_number, &title, &body)?;
 
-    for agent in &snapshot.agents {
-        storage.ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
-    }
+    let service = AgentWorkspaceService::new(&storage);
 
     for agent in &snapshot.agents {
-        let folder_id = format!("folder-{}", agent.id);
+        let agent_ctx = AgentContext {
+            id: agent.id.clone(),
+            name: agent.name.clone(),
+            department: agent.department.clone(),
+        };
         let journal_title = format!("{} — Daily Journal", agent.name);
         let heading = format!("Day {} — Event Response", snapshot.day_number);
         let lines = vec![
@@ -138,7 +137,7 @@ pub fn write_event_activity_doc(
             format!("Personal impact: morale {:+.0}%", event.morale_delta * 100.0),
             reaction_line_for_agent(agent, event),
         ];
-        storage.append_journal_entry(&folder_id, &journal_title, &heading, &lines, &agent.name)?;
+        service.append_journal(&agent_ctx, &journal_title, &heading, &lines)?;
     }
 
     Ok(1 + snapshot.agents.len() as u32)

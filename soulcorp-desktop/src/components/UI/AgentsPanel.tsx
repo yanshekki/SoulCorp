@@ -12,9 +12,11 @@ import type { AgentRecord, CompanyDepartmentsSnapshot } from "../../types/game";
 import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
 import { SoulMdEditor } from "./SoulMdEditor";
+import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
+  { id: "activity", label: "Activity" },
   { id: "departments", label: "Departments" },
   { id: "employees", label: "Employees" },
 ] as const;
@@ -256,6 +258,8 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
           </p>
         )}
       </section>
+
+      <AgentWorkspaceActivityFeed />
 
       <section
         id="departments"

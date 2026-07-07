@@ -668,6 +668,7 @@ mod tests {
         let tree = WorkspaceTree {
             folders: vec![],
             pages: vec![],
+            files: vec![],
         };
         let html = build_index_html(&state, &tree, "Acme AI Labs", false);
         assert!(html.contains("Acme AI Labs"));
