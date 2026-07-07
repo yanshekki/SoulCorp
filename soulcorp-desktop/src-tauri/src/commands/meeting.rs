@@ -3,7 +3,7 @@ use crate::db::persistence::commit;
 use crate::progress::ProgressReporter;
 use crate::relationships::{relationship_label, upsert_relationship};
 use crate::soul::build_chat_parts_for_agent;
-use crate::state::{AgentRecord, AppState, InternalProject, MeetingMessage, MeetingState};
+use crate::state::{AppState, InternalProject, MeetingMessage, MeetingState};
 use crate::workspace::write_meeting_notes_from_state;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -255,7 +255,6 @@ struct MeetingTurnPlan {
     department_ai_providers: std::collections::HashMap<String, String>,
     chat_request: ChatRequest,
     settings: crate::state::GameSettings,
-    hub: crate::state::HubState,
 }
 
 fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<MeetingTurnPlan, String> {
@@ -354,7 +353,6 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
             conversation_turns,
         },
         settings: state.settings.clone(),
-        hub: state.hub.clone(),
     })
 }
 

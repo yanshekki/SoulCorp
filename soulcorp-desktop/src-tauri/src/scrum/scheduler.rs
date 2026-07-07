@@ -527,52 +527,6 @@ pub fn maybe_advance_sprint_cycle(state: &mut AppState) {
     }
 }
 
-pub fn spawn_story_from_meeting(state: &mut AppState, meeting_type: &str, summary: &str) {
-    if meeting_type != "Project Kickoff" && meeting_type != "Strategy Discussion" {
-        return;
-    }
-    let project_id = state
-        .projects
-        .iter()
-        .min_by_key(|p| p.priority)
-        .map(|p| p.id.clone())
-        .unwrap_or_else(|| "proj-core".to_string());
-    let now = now_iso();
-    let rank = super::tree::next_backlog_rank(&state.work_nodes, &project_id, None);
-    let dept = state
-        .projects
-        .iter()
-        .find(|p| p.id == project_id)
-        .map(|p| p.owner_department.clone())
-        .unwrap_or_else(|| "Engineering".to_string());
-    let pm_id = resolve_pm_agent_id(state, Some(&project_id));
-    state.work_nodes.push(WorkNode {
-        id: new_node_id(),
-        parent_id: None,
-        project_id: project_id.clone(),
-        kind: WorkNodeKind::Story,
-        title: format!("{meeting_type} outcome"),
-        description: summary.to_string(),
-        status: WorkNodeStatus::Ready,
-        priority: 4,
-        story_points: if meeting_type == "Strategy Discussion" { 8 } else { 5 },
-        backlog_rank: rank,
-        assignee_agent_id: None,
-        assigned_by_manager_id: department_head_for(state, &dept),
-        owner_pm_agent_id: pm_id,
-        retry_count: 0,
-        department: dept,
-        sprint_id: None,
-        depends_on: Vec::new(),
-        acceptance_criteria: vec!["Deliverable from meeting action items.".to_string()],
-        linked_workspace_page_id: None,
-        linked_gig_contract_id: None,
-        created_at: now.clone(),
-        updated_at: now,
-        completed_at: None,
-    });
-}
-
 pub fn ensure_active_sprint(state: &mut AppState, project_id: &str) -> Result<String, String> {
     if let Some(project) = state.projects.iter().find(|p| p.id == project_id) {
         if let Some(sid) = &project.active_sprint_id {

@@ -1,4 +1,4 @@
-use crate::state::{summary_from_state, AppState, CompanyRegistry, CompanySummary};
+use crate::state::{summary_from_state, AppState, CompanyRegistry};
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension};
 use std::fs;

@@ -2,7 +2,7 @@ use crate::ai::normalize_agent_ai_provider;
 use crate::commands::onboarding::persist_single_agent_soul;
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
-use crate::soul::{parse_soul_content, parse_soul_md, soul_profile_from_editor_content, SoulProfile};
+use crate::soul::{parse_soul_md, soul_profile_from_editor_content, SoulProfile};
 use crate::state::{AgentRecord, AppState};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;

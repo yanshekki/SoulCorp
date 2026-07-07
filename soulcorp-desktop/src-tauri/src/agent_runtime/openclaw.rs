@@ -23,6 +23,7 @@ pub struct OpenClawProbe {
 pub struct OpenClawRunResult {
     pub content: String,
     pub transport: String,
+    #[allow(dead_code)]
     pub session_id: Option<String>,
     pub duration_ms: u64,
 }

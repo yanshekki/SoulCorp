@@ -29,38 +29,6 @@ pub struct BilledChatRequest {
     pub source: String,
 }
 
-pub fn provider_for(settings: &GameSettings, hub: &HubState) -> Arc<dyn AiProvider> {
-    match settings.ai_provider.as_str() {
-        "ollama" => Arc::new(OllamaProvider::new(
-            settings.ollama_base_url.clone(),
-            settings.ollama_model.clone(),
-        )),
-        "openai" => Arc::new(OpenAiCompatibleProvider::new(
-            settings.openai_base_url.clone(),
-            settings.openai_api_key.clone(),
-            settings.openai_model.clone(),
-            "openai".to_string(),
-        )),
-        "grok" => Arc::new(OpenAiCompatibleProvider::new(
-            settings.grok_base_url.clone(),
-            settings.grok_api_key.clone(),
-            settings.grok_model.clone(),
-            "grok".to_string(),
-        )),
-        "claude" => Arc::new(OpenAiCompatibleProvider::new(
-            settings.claude_base_url.clone(),
-            settings.claude_api_key.clone(),
-            settings.claude_model.clone(),
-            "claude".to_string(),
-        )),
-        "soulmd-hub" | "soulmd_hub" | "hub" => Arc::new(HubChatProvider::new(
-            hub.base_url.clone(),
-            hub.api_key.clone(),
-        )),
-        _ => Arc::new(MockProvider),
-    }
-}
-
 pub fn chat_with_fallback_billed(
     state: &mut AppState,
     billed: BilledChatRequest,
@@ -170,38 +138,6 @@ pub fn chat_detached(
     Ok((response, charge))
 }
 
-pub fn chat_with_fallback(
-    settings: &GameSettings,
-    hub: &HubState,
-    request: ChatRequest,
-    department_providers: &HashMap<String, String>,
-    department: &str,
-    agent_override: Option<&str>,
-) -> Result<ChatResponse, String> {
-    let status = probe_agent_ai(
-        settings,
-        hub,
-        department_providers,
-        department,
-        agent_override,
-    );
-    let provider = provider_for_active(&status, settings, hub);
-    match provider.chat(request.clone()) {
-        Ok(response) => Ok(response),
-        Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
-            eprintln!(
-                "LLM provider '{}' failed, using mock fallback: {error}",
-                status.active_provider
-            );
-            let fallback = MockProvider;
-            let mut response = fallback.chat(request)?;
-            response.provider = format!("mock-fallback ({})", status.active_provider);
-            Ok(response)
-        }
-        Err(error) => Err(error),
-    }
-}
-
 fn provider_for_active(
     status: &MeetingAiStatus,
     settings: &GameSettings,
@@ -236,12 +172,4 @@ fn provider_for_active(
         )),
         _ => Arc::new(MockProvider),
     }
-}
-
-pub fn default_provider() -> Arc<dyn AiProvider> {
-    Arc::new(MockProvider)
-}
-
-pub fn chat(provider: &dyn AiProvider, request: ChatRequest) -> Result<ChatResponse, String> {
-    provider.chat(request)
 }

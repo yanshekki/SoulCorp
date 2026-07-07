@@ -3,7 +3,7 @@ mod companies;
 pub mod visual_design;
 
 pub use agent_roster::{
-    default_agent_roster, validate_agent_roster, AgentSlotMode, AgentSlotSetup,
+    default_agent_roster, AgentSlotSetup,
 };
 
 use crate::achievements::{Achievement, Ending};
@@ -870,6 +870,7 @@ impl<'de> Deserialize<'de> for TokenEconomy {
 }
 
 /// Legacy alias kept for gradual migration in command signatures.
+#[allow(dead_code)]
 pub type FinanceState = TokenEconomy;
 
 fn default_cycle_days() -> u32 {
@@ -953,6 +954,7 @@ pub struct CompanyDepartment {
 }
 
 /// Backward-compatible alias used by older snapshots and VIP types.
+#[allow(dead_code)]
 pub type CustomDepartment = CompanyDepartment;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1134,6 +1136,7 @@ impl Default for AppState {
 }
 
 impl AppState {
+    #[cfg(test)]
     pub fn seed_defaults(&mut self) {
         if !self.agents.is_empty() {
             return;

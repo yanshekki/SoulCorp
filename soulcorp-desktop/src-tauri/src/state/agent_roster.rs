@@ -38,6 +38,7 @@ pub struct AgentSlotSetup {
 pub struct PresetAgentMeta {
     pub preset_id: &'static str,
     pub agent_id: &'static str,
+    #[allow(dead_code)]
     pub name: &'static str,
     pub role: &'static str,
     pub department: &'static str,

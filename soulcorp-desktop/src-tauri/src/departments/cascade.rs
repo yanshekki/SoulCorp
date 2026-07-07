@@ -80,7 +80,7 @@ pub fn transfer_department_members(state: &mut AppState, from: &str, to: &str) {
     }
 
     let from_wallet = state.token_economy.departments.remove(from);
-    if let Some(mut wallet) = from_wallet {
+    if let Some(wallet) = from_wallet {
         let target = state
             .token_economy
             .departments

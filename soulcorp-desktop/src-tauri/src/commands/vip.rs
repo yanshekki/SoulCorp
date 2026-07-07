@@ -275,7 +275,7 @@ pub async fn run_co_ceo_briefing(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CoCeoBriefing, String> {
-    let (settings, hub, context, co_ceo_id, co_ceo_department, co_ceo_provider, department_providers) = {
+    let (_settings, _hub, context, co_ceo_id, co_ceo_department, co_ceo_provider, department_providers) = {
         let state = state.lock().map_err(|e| e.to_string())?;
         let co_ceo_id = state
             .co_ceo

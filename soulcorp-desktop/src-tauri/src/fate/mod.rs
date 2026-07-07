@@ -11,10 +11,6 @@ pub fn is_system_agent(agent: &AgentRecord) -> bool {
     agent.agent_kind.as_deref() == Some("fate")
 }
 
-pub fn is_fate_agent_id(agent_id: &str) -> bool {
-    agent_id == FATE_AGENT_ID
-}
-
 pub fn eligible_for_random_events(state: &AppState) -> bool {
     state.settings.play_mode == PlayMode::Game && state.settings.random_events_enabled
 }

@@ -272,17 +272,6 @@ pub(crate) fn write_deliverable(
     Ok(page.id)
 }
 
-fn build_agent_prompt(agent: &crate::state::AgentRecord, context: &str) -> String {
-    let (persona, ctx) = build_chat_parts_for_agent(
-        agent.soul.as_ref(),
-        &agent.name,
-        &agent.role,
-        &agent.department,
-        context,
-    );
-    format!("{persona}\n\nContext: {ctx}")
-}
-
 pub(crate) fn truncate_summary(content: &str) -> String {
     let trimmed = content.trim();
     if trimmed.chars().count() <= 240 {
@@ -326,79 +315,6 @@ pub fn apply_scrum_execution_tick(state: &mut AppState, app: &AppHandle) -> Opti
             run.work_node_id
         )),
         Err(err) => Some(format!("Work execution failed: {err}")),
-    }
-}
-
-pub fn apply_parallel_execution_tick(state: &mut AppState, app: &AppHandle) -> Option<String> {
-    if !state.settings.scrum_auto_execute || state.settings.scrum_execution_paused {
-        return None;
-    }
-
-    if crate::token_budget::total_company_tokens(&state.token_economy)
-        < state.settings.scrum_min_tokens_guard
-    {
-        return None;
-    }
-
-    let busy_agents: std::collections::HashSet<String> = state
-        .work_nodes
-        .iter()
-        .filter(|n| n.status == WorkNodeStatus::InProgress)
-        .filter_map(|n| n.assignee_agent_id.clone())
-        .collect();
-
-    let idle_agents: Vec<String> = state
-        .agents
-        .values()
-        .filter(|a| !crate::fate::is_system_agent(a))
-        .filter(|a| a.status != "working" && !busy_agents.contains(&a.id))
-        .map(|a| a.id.clone())
-        .collect();
-
-    let max_parallel = state
-        .settings
-        .scrum_max_executions_per_tick
-        .max(1) as usize;
-
-    let mut notes = Vec::new();
-    let mut used_agents = busy_agents;
-
-    for agent_id in idle_agents.into_iter().take(max_parallel) {
-        let candidate = state
-            .work_nodes
-            .iter()
-            .filter(|n| {
-                n.kind == WorkNodeKind::Task
-                    && n.assignee_agent_id.as_deref() == Some(agent_id.as_str())
-                    && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
-                    && dependencies_satisfied(state, n)
-            })
-            .max_by(|a, b| a.priority.cmp(&b.priority))
-            .map(|n| n.id.clone());
-
-        let Some(task_id) = candidate else {
-            continue;
-        };
-
-        used_agents.insert(agent_id);
-        match execute_task(state, app, &task_id) {
-            Ok(run) => notes.push(format!(
-                "Parallel work execution {} for task {}.",
-                match run.status {
-                    ExecutionStatus::Succeeded => "completed",
-                    ExecutionStatus::Throttled => "throttled (tokens)",
-                    _ => "finished",
-                },
-                run.work_node_id
-            )),
-            Err(err) => notes.push(format!("Parallel work execution failed: {err}")),
-        }
-    }
-
-    if notes.is_empty() {
-        None
-    } else {
-        Some(notes.join(" "))
     }
 }
 

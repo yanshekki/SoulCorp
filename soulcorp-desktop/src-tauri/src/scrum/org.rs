@@ -153,7 +153,7 @@ pub fn seed_default_org_links(state: &mut AppState) {
 mod tests {
     use super::*;
     use crate::scrum::types::{DirectiveSource, DirectiveStatus};
-    use crate::state::{AppState, PlayMode};
+    use crate::state::AppState;
 
     #[test]
     fn resolves_department_directive_to_matching_project() {

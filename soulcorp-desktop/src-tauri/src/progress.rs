@@ -27,15 +27,6 @@ impl ProgressReporter {
         }
     }
 
-    pub fn emit(&self, label: impl Into<String>, done: u32, total: u32) {
-        let percent = if total == 0 {
-            0.0
-        } else {
-            ((done as f64 / total as f64) * 100.0).min(100.0)
-        };
-        self.emit_percent(label, percent, None);
-    }
-
     pub fn emit_percent(&self, label: impl Into<String>, percent: f64, phase: Option<&str>) {
         let _ = self.app.emit(
             EVENT_NAME,

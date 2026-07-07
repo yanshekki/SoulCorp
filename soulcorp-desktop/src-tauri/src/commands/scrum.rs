@@ -1,7 +1,7 @@
 use crate::db::persistence::commit;
 use crate::scrum::{
     agent_inboxes, board_snapshot, build_overview, build_work_tree, ensure_active_sprint,
-    estimate_execution, execute_task, issue_co_ceo_directive, maybe_advance_sprint_cycle, new_node_id,
+    estimate_execution, execute_task, issue_co_ceo_directive, new_node_id,
     now_iso, plan_sprint, preview_route_directive, route_directive_llm, route_directive_rule_based,
     validate_depends_on_dag, validate_parent_child, CommandCenterOverview, DirectivePreviewNode,
     ExecutionRun, ScrumBoardSnapshot, Sprint, SprintStatus, WorkNode, WorkNodeKind, WorkNodeStatus,

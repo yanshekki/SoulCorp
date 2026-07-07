@@ -8,7 +8,7 @@ use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState};
 
 pub use llm::execute_llm_only;
-pub use openclaw::{execute_openclaw, probe_openclaw, OpenClawProbe};
+pub use openclaw::execute_openclaw;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentRuntimeMode {

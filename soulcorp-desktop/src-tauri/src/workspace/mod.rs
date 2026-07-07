@@ -8,5 +8,5 @@ pub use activity_docs::{
     ActivitySnapshot,
 };
 pub use models::*;
-pub use storage::{company_workspace_root, workspace_root, WorkspaceStorage};
+pub use storage::{company_workspace_root, WorkspaceStorage};
 pub use templates::{create_page_from_template, list_templates};

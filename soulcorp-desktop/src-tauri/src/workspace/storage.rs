@@ -1147,10 +1147,6 @@ impl WorkspaceStorage {
     }
 }
 
-pub fn workspace_root(app_data_dir: &Path) -> PathBuf {
-    app_data_dir.join("workspaces")
-}
-
 pub fn company_workspace_root(app_data_dir: &Path, company_id: &str) -> PathBuf {
     app_data_dir.join("companies").join(company_id).join("workspace")
 }

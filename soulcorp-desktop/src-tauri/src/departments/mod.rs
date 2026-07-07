@@ -7,7 +7,7 @@ pub use cascade::{
     transfer_department_members,
 };
 pub use defaults::{department_exists, department_names, ensure_default_departments, max_departments};
-pub use org_chart::{build_org_chart, would_create_reporting_cycle, OrgChartNode, OrgChartSnapshot};
+pub use org_chart::{build_org_chart, would_create_reporting_cycle, OrgChartSnapshot};
 
 use crate::state::{AppState, CompanyDepartment};
 use chrono::Utc;

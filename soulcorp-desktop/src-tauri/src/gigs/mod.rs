@@ -2,14 +2,15 @@ pub mod auto_accept;
 pub mod auto_complete;
 pub mod hub_sync;
 
-pub use auto_accept::{try_auto_accept_hub_gigs, AutoAcceptReport};
-pub use auto_complete::{try_auto_complete_gigs, AutoCompleteReport};
-pub use hub_sync::{flush_pending_hub_gig_ops, try_auto_hub_pull, HubFlushReport, HubPullReport};
+pub use auto_accept::try_auto_accept_hub_gigs;
+pub use auto_complete::try_auto_complete_gigs;
+pub use hub_sync::{flush_pending_hub_gig_ops, try_auto_hub_pull};
 
 use crate::state::{AppState, GigContract};
 use crate::tier::benefits_for_tier;
 
 pub struct GigTickResult {
+    #[allow(dead_code)]
     pub contracts_advanced: u32,
     pub contracts_submitted_for_qc: u32,
 }
@@ -158,34 +159,6 @@ pub fn finalize_contract_at_index(state: &mut AppState, index: usize) {
     state.stats.gigs_completed += 1;
 }
 
-pub fn finalize_contract_payout(state: &mut AppState, contract: &mut GigContract) {
-    if contract.status == "completed" {
-        return;
-    }
-
-    if contract.payout_usdt <= 0.0 {
-        let (payout, fee) = payout_for_budget(&state.hub.user_tier, contract.budget_usdt);
-        contract.payout_usdt = payout;
-        contract.platform_fee_usdt = fee;
-    }
-
-    let payout = contract.payout_usdt;
-    contract.status = "completed".to_string();
-    contract.progress = 1.0;
-    contract.completed_at = Some(chrono::Utc::now().to_rfc3339());
-
-    let payout_tokens = payout.round().max(0.0) as u64;
-    state.token_economy.company_balance = state
-        .token_economy
-        .company_balance
-        .saturating_add(payout_tokens);
-    state.token_economy.monthly_inflow_tokens = state
-        .token_economy
-        .monthly_inflow_tokens
-        .saturating_add(payout_tokens);
-    state.stats.gigs_completed += 1;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,7 +178,7 @@ mod tests {
     fn gig_lifecycle_transitions_to_completed() {
         let mut state = AppState::default();
         state.hub.user_tier = "free".to_string();
-        let mut contract = GigContract {
+        state.gig_contracts.push(GigContract {
             contract_id: "c1".into(),
             gig_id: 1,
             title: "Test gig".into(),
@@ -222,9 +195,9 @@ mod tests {
             started_at: None,
             submitted_at: None,
             completed_at: None,
-        };
-        finalize_contract_payout(&mut state, &mut contract);
-        assert_eq!(contract.status, "completed");
+        });
+        finalize_contract_at_index(&mut state, 0);
+        assert_eq!(state.gig_contracts[0].status, "completed");
         assert_eq!(state.stats.gigs_completed, 1);
         assert!(state.token_economy.company_balance > 0);
     }

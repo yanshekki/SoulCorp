@@ -1,4 +1,4 @@
-use crate::ai::{self, provider::ChatRequest, BilledChatRequest};
+use crate::ai::{self, BilledChatRequest};
 use crate::scrum::executor::build_execution_request;
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState};

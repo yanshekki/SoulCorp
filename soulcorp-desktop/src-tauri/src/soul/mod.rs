@@ -1,8 +1,7 @@
 mod hub_import;
 
 pub use hub_import::{
-    compile_hub_system_prompt, detect_file_type, import_hub_soul, import_hub_soul_result,
-    parse_modular_content, unescape_hub_text, HubSoulImportResult, HubSoulRecord,
+    import_hub_soul, import_hub_soul_result, HubSoulImportResult, HubSoulRecord,
 };
 
 use serde::{Deserialize, Serialize};
@@ -140,11 +139,6 @@ fn extract_section(content: &str, heading: &str) -> String {
     } else {
         section.to_string()
     }
-}
-
-pub fn build_system_prompt(profile: &SoulProfile, context: &str) -> String {
-    let (persona, ctx) = build_system_prompt_parts(profile, context);
-    format!("{persona}\n\nContext: {ctx}")
 }
 
 #[cfg(test)]

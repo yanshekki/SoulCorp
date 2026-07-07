@@ -6,6 +6,7 @@ use crate::ai::provider::TokenUsageSource;
 pub struct FinanceTickResult {
     pub company_starved: bool,
     pub daily_salary_paid: u64,
+    #[allow(dead_code)]
     pub inflow_tokens: u64,
 }
 

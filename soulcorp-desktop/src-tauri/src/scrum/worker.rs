@@ -14,7 +14,7 @@ use crate::gigs::{
     flush_pending_hub_gig_ops, try_auto_accept_hub_gigs, try_auto_complete_gigs,
     try_auto_hub_pull,
 };
-use crate::operations::{advance_gigs_on_work_delivered, try_auto_submit_gig_qc};
+use crate::operations::try_auto_submit_gig_qc;
 use crate::orchestrator::apply_orchestrator_tick;
 use crate::state::AppState;
 use chrono::Utc;

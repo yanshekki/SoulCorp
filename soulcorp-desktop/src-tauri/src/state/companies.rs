@@ -23,11 +23,6 @@ pub struct CompanyRegistry {
 }
 
 impl CompanyRegistry {
-    pub fn active_company(&self) -> Option<&CompanySummary> {
-        let active_id = self.active_company_id.as_ref()?;
-        self.companies.iter().find(|company| &company.id == active_id)
-    }
-
     pub fn upsert_summary(&mut self, summary: CompanySummary) {
         if let Some(existing) = self
             .companies

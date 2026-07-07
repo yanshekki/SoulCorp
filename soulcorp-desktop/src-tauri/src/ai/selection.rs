@@ -66,13 +66,6 @@ pub fn effective_provider_for_agent(
     settings.ai_provider.clone()
 }
 
-pub fn effective_provider(
-    settings: &GameSettings,
-    agent_override: Option<&str>,
-) -> String {
-    effective_provider_for_agent(settings, &HashMap::new(), "", agent_override)
-}
-
 pub fn provider_label(provider: &str) -> &'static str {
     match provider {
         "ollama" => "Ollama (local)",

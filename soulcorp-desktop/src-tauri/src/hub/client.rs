@@ -306,9 +306,6 @@ impl HubClient {
         serde_json::from_value(data).map_err(|error| format!("Invalid hub soul payload: {error}"))
     }
 
-    pub async fn fetch_soul_content(&self, soul_id: u64) -> Result<String, String> {
-        Ok(self.fetch_soul_detail(soul_id).await?.content)
-    }
 }
 
 fn encode_query_component(value: &str) -> String {
@@ -320,47 +317,6 @@ fn encode_query_component(value: &str) -> String {
             _ => format!("%{:02X}", ch as u32),
         })
         .collect()
-}
-
-pub fn mock_gigs() -> Vec<HubGig> {
-    let mut gigs = mock_standard_gigs();
-    gigs.extend(mock_executive_gigs());
-    gigs
-}
-
-pub fn mock_standard_gigs() -> Vec<HubGig> {
-    vec![
-        HubGig {
-            gig_id: 1001,
-            title: "Landing page for AI startup".into(),
-            description: "React + Tailwind marketing page".into(),
-            budget_usdt: 450.0,
-            status: "open".into(),
-            required_skills: vec!["react".into(), "tailwind".into()],
-            executive_lounge: false,
-        },
-        HubGig {
-            gig_id: 1002,
-            title: "HR onboarding SOUL.md pack".into(),
-            description: "Create 3 verified HR personas".into(),
-            budget_usdt: 220.0,
-            status: "open".into(),
-            required_skills: vec!["copywriting".into(), "hr".into()],
-            executive_lounge: false,
-        },
-    ]
-}
-
-pub fn mock_executive_gigs() -> Vec<HubGig> {
-    vec![HubGig {
-        gig_id: 2101,
-        title: "Enterprise AI platform rewrite".into(),
-        description: "VIP Executive Lounge — 6-week platform modernization".into(),
-        budget_usdt: 2800.0,
-        status: "open".into(),
-        required_skills: vec!["rust".into(), "architecture".into(), "leadership".into()],
-        executive_lounge: true,
-    }]
 }
 
 pub fn filter_gigs_for_tier(gigs: Vec<HubGig>, _tier: &str) -> Vec<HubGig> {
