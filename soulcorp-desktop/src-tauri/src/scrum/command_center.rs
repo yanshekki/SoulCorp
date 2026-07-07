@@ -2,6 +2,7 @@ use super::types::{
     Directive, DirectiveSource, DirectiveStatus, DirectiveTarget, ExecutionStatus, WorkNode,
     WorkNodeKind, WorkNodeStatus,
 };
+use crate::finance::projected_monthly_payroll;
 use crate::state::AppState;
 use crate::token_budget::total_company_tokens;
 use serde::{Deserialize, Serialize};
@@ -19,6 +20,7 @@ pub struct CommandCenterOverview {
     pub day_number: u32,
     pub token_pool: u64,
     pub monthly_burn: u64,
+    pub monthly_payroll: u64,
     pub avg_morale: f32,
     pub avg_energy: f32,
     pub open_directives: u32,
@@ -148,6 +150,7 @@ pub fn build_overview(state: &AppState, project_id: Option<&str>) -> CommandCent
         day_number: state.day_number,
         token_pool: total_company_tokens(&state.token_economy),
         monthly_burn: state.token_economy.monthly_burn_tokens,
+        monthly_payroll: projected_monthly_payroll(&state.agents),
         avg_morale,
         avg_energy,
         open_directives,

@@ -108,7 +108,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".marketplace-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-marketplace-section]");
     if (!root || !sections?.length) {
       return;
@@ -312,10 +312,6 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </p>
         </header>
 
-        {tierBenefits.executive_lounge ? (
-          <p className="tier-highlight">Executive Lounge gigs are visible on your tier.</p>
-        ) : null}
-
         <div className="hub-status-row hub-sync-status">
           <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>
             {hubStatus.connected ? "Connected" : "Offline"}
@@ -404,16 +400,14 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           <span className="marketplace-count-pill">{browseGigs.length} available</span>
         </header>
 
-        {tierBenefits.executive_lounge ? (
-          <label className="checkbox-row executive-lounge-filter">
-            <input
-              type="checkbox"
-              checked={executiveLoungeOnly}
-              onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
-            />
-            <span>Executive Lounge gigs only</span>
-          </label>
-        ) : null}
+        <label className="checkbox-row executive-lounge-filter">
+          <input
+            type="checkbox"
+            checked={executiveLoungeOnly}
+            onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
+          />
+          <span>Executive Lounge gigs only</span>
+        </label>
 
         {browseGigs.length === 0 ? (
           <p className="muted">

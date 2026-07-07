@@ -229,7 +229,7 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
                               updateSlot(slot.preset_id, { department: event.target.value })
                             }
                           >
-                            {["Engineering", "Human Resources", "Executive", "Marketing"].map(
+                            {["Engineering", "Human Resources", "Executive", "Marketplace"].map(
                               (department) => (
                                 <option key={department} value={department}>
                                   {department}

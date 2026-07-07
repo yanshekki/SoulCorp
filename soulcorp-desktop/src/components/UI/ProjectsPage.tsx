@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import { getNextWorkflowPanel } from "../../config/navigation";
+import { AppPageShell } from "./AppPageShell";
 import { ProjectsPanel, PROJECTS_SECTIONS } from "./ProjectsPanel";
 
 export function ProjectsPage() {
@@ -15,52 +16,29 @@ export function ProjectsPage() {
   const nextPanel = getNextWorkflowPanel("projects");
 
   return (
-    <div className="projects-page">
-      <header className="projects-page-header">
-        <div>
-          <p className="workflow-step-badge">CEO Workflow · Step 1</p>
-          <h2>Projects</h2>
-          <p className="muted">
-            Directive → backlog → sprint → assign → execute. Deliverables land in Workspace.
-          </p>
-        </div>
-        {nextPanel ? (
-          <button
-            type="button"
-            className="workflow-next-btn workflow-next-btn--header"
-            onClick={() => setActivePanel(nextPanel)}
-          >
+    <AppPageShell
+      title="Projects"
+      subtitle="Directive → sprint → execute"
+      badge="Step 1"
+      navTitle="Pipeline"
+      navVariant="pipeline"
+      navItems={PROJECTS_SECTIONS.map((section) => ({
+        id: section.id,
+        label: section.label,
+        hint: section.hint,
+        step: section.step,
+      }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+      headerAction={
+        nextPanel ? (
+          <button type="button" className="btn btn--workflow" onClick={() => setActivePanel(nextPanel)}>
             Next: Meeting →
           </button>
-        ) : null}
-      </header>
-
-      <div className="projects-page-body">
-        <nav className="projects-page-nav" aria-label="Projects workflow">
-          <p className="projects-nav-title">Pipeline</p>
-          {PROJECTS_SECTIONS.map((section, index) => (
-            <div key={section.id} className="projects-nav-item">
-              {index > 0 ? <span className="projects-nav-connector" aria-hidden="true" /> : null}
-              <button
-                type="button"
-                className={`projects-nav-btn${activeSection === section.id ? " active" : ""}`}
-                onClick={() => scrollToSection(section.id)}
-                title={section.hint}
-              >
-                <span className="projects-nav-step">{section.step}</span>
-                <span className="projects-nav-text">
-                  <span className="projects-nav-label">{section.label}</span>
-                  <span className="projects-nav-hint">{section.hint}</span>
-                </span>
-              </button>
-            </div>
-          ))}
-        </nav>
-
-        <div className="projects-page-scroll">
-          <ProjectsPanel onSectionFocus={setActiveSection} />
-        </div>
-      </div>
-    </div>
+        ) : null
+      }
+    >
+      <ProjectsPanel onSectionFocus={setActiveSection} />
+    </AppPageShell>
   );
 }

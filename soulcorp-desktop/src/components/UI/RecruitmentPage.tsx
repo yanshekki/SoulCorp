@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { AppPageShell } from "./AppPageShell";
 import { RecruitmentPanel, RECRUITMENT_SECTIONS } from "./RecruitmentPanel";
 
 export function RecruitmentPage() {
@@ -10,35 +11,15 @@ export function RecruitmentPage() {
   }, []);
 
   return (
-    <div className="recruitment-page">
-      <header className="recruitment-page-header">
-        <div>
-          <h2>Recruitment</h2>
-          <p className="muted">
-            Browse SOUL.md personas from soulmd-hub, score team fit, run panel interviews, and map
-            agent relationships.
-          </p>
-        </div>
-      </header>
-
-      <div className="recruitment-page-body">
-        <nav className="recruitment-page-nav" aria-label="Recruitment sections">
-          {RECRUITMENT_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={`recruitment-nav-btn${activeSection === section.id ? " active" : ""}`}
-              onClick={() => scrollToSection(section.id)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="recruitment-page-scroll">
-          <RecruitmentPanel onSectionFocus={setActiveSection} />
-        </div>
-      </div>
-    </div>
+    <AppPageShell
+      title="Recruitment"
+      subtitle="Hire & onboard agents"
+      badge="Step 4"
+      navItems={RECRUITMENT_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+    >
+      <RecruitmentPanel onSectionFocus={setActiveSection} />
+    </AppPageShell>
   );
 }

@@ -47,6 +47,20 @@ pub struct SettingsUpdate {
     pub scrum_auto_retry_blocked: Option<bool>,
     pub scrum_max_blocked_retries: Option<u8>,
     pub scrum_use_agent_tools: Option<bool>,
+    pub orchestrator_enabled: Option<bool>,
+    pub orchestrator_interval_secs: Option<u32>,
+    pub orchestrator_auto_meeting: Option<bool>,
+    pub orchestrator_auto_spawn_co_ceo: Option<bool>,
+    pub orchestrator_max_directives_per_cycle: Option<u32>,
+    pub agent_runtime_mode: Option<String>,
+    pub openclaw_binary_path: Option<String>,
+    pub openclaw_use_local: Option<bool>,
+    pub openclaw_prefer_gateway: Option<bool>,
+    pub openclaw_default_agent_id: Option<String>,
+    pub openclaw_timeout_secs: Option<u32>,
+    pub orchestrator_auto_accept_gigs: Option<bool>,
+    pub orchestrator_max_active_gigs: Option<u32>,
+    pub orchestrator_auto_start_gigs: Option<bool>,
 }
 
 #[tauri::command]
@@ -199,6 +213,50 @@ pub fn update_game_settings(
     }
     if let Some(enabled) = update.scrum_use_agent_tools {
         state.settings.scrum_use_agent_tools = enabled;
+    }
+    if let Some(enabled) = update.orchestrator_enabled {
+        state.settings.orchestrator_enabled = enabled;
+    }
+    if let Some(secs) = update.orchestrator_interval_secs {
+        state.settings.orchestrator_interval_secs = secs.max(60);
+    }
+    if let Some(enabled) = update.orchestrator_auto_meeting {
+        state.settings.orchestrator_auto_meeting = enabled;
+    }
+    if let Some(enabled) = update.orchestrator_auto_spawn_co_ceo {
+        state.settings.orchestrator_auto_spawn_co_ceo = enabled;
+    }
+    if let Some(max) = update.orchestrator_max_directives_per_cycle {
+        state.settings.orchestrator_max_directives_per_cycle = max.max(1);
+    }
+    if let Some(mode) = update.agent_runtime_mode {
+        if !mode.trim().is_empty() {
+            state.settings.agent_runtime_mode = mode.trim().to_string();
+        }
+    }
+    if let Some(path) = update.openclaw_binary_path {
+        state.settings.openclaw_binary_path = path;
+    }
+    if let Some(enabled) = update.openclaw_use_local {
+        state.settings.openclaw_use_local = enabled;
+    }
+    if let Some(enabled) = update.openclaw_prefer_gateway {
+        state.settings.openclaw_prefer_gateway = enabled;
+    }
+    if let Some(agent_id) = update.openclaw_default_agent_id {
+        state.settings.openclaw_default_agent_id = agent_id;
+    }
+    if let Some(timeout) = update.openclaw_timeout_secs {
+        state.settings.openclaw_timeout_secs = timeout.max(30);
+    }
+    if let Some(enabled) = update.orchestrator_auto_accept_gigs {
+        state.settings.orchestrator_auto_accept_gigs = enabled;
+    }
+    if let Some(max) = update.orchestrator_max_active_gigs {
+        state.settings.orchestrator_max_active_gigs = max.max(1);
+    }
+    if let Some(enabled) = update.orchestrator_auto_start_gigs {
+        state.settings.orchestrator_auto_start_gigs = enabled;
     }
 
     let settings = state.settings.clone();

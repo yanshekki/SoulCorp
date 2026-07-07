@@ -7,6 +7,7 @@ export type SidebarPanel =
   | "design_studio"
   | "finance"
   | "marketplace"
+  | "departments"
   | "recruitment"
   | "agents"
   | "tier"
@@ -121,6 +122,33 @@ export interface CustomDepartment {
   accent_color: string;
   building_id: string;
   created_at: string;
+  parent_department_id?: string | null;
+  head_agent_id?: string | null;
+}
+
+export interface DepartmentListEntry extends CustomDepartment {
+  member_count: number;
+  head_agent_name?: string | null;
+}
+
+export interface DepartmentsSnapshot {
+  departments: DepartmentListEntry[];
+  buildings: CustomDepartmentBuilding[];
+}
+
+export interface OrgChartNode {
+  agent_id: string;
+  name: string;
+  role: string;
+  department: string;
+  reports_to?: string | null;
+  manages_department?: string | null;
+  children: OrgChartNode[];
+}
+
+export interface OrgChartSnapshot {
+  roots: OrgChartNode[];
+  unassigned: OrgChartNode[];
 }
 
 export interface CustomDepartmentBuilding {
@@ -418,6 +446,7 @@ export interface CommandCenterOverview {
   day_number: number;
   token_pool: number;
   monthly_burn: number;
+  monthly_payroll: number;
   avg_morale: number;
   avg_energy: number;
   open_directives: number;
@@ -589,6 +618,14 @@ export interface AgentSlotSetup {
   soul_md_edited?: boolean;
 }
 
+export type ProjectSetupMode = "preset" | "custom";
+
+export interface CustomProjectSetup {
+  title: string;
+  description: string;
+  owner_department: string;
+}
+
 export interface CreateCompanyRequest {
   company_name: string;
   industry: string;
@@ -598,6 +635,8 @@ export interface CreateCompanyRequest {
   random_events_enabled: boolean;
   random_event_chance: number;
   agent_roster: AgentSlotSetup[];
+  project_setup_mode?: ProjectSetupMode;
+  custom_project?: CustomProjectSetup | null;
 }
 
 export interface SwitchCompanyResponse {
@@ -621,6 +660,8 @@ export interface CompleteOnboardingRequest {
   random_events_enabled: boolean;
   random_event_chance: number;
   agent_roster: AgentSlotSetup[];
+  project_setup_mode?: ProjectSetupMode;
+  custom_project?: CustomProjectSetup | null;
 }
 
 export interface GameSettings {
@@ -664,6 +705,62 @@ export interface GameSettings {
   scrum_auto_retry_blocked?: boolean;
   scrum_max_blocked_retries?: number;
   scrum_use_agent_tools?: boolean;
+  orchestrator_enabled?: boolean;
+  orchestrator_interval_secs?: number;
+  orchestrator_idle_interval_secs?: number;
+  orchestrator_urgent_interval_secs?: number;
+  orchestrator_auto_meeting?: boolean;
+  orchestrator_auto_spawn_co_ceo?: boolean;
+  orchestrator_max_directives_per_cycle?: number;
+  agent_runtime_mode?: string;
+  openclaw_binary_path?: string;
+  openclaw_use_local?: boolean;
+  openclaw_prefer_gateway?: boolean;
+  openclaw_default_agent_id?: string;
+  openclaw_timeout_secs?: number;
+  orchestrator_auto_accept_gigs?: boolean;
+  orchestrator_max_active_gigs?: number;
+  orchestrator_auto_start_gigs?: boolean;
+  orchestrator_auto_hub_pull?: boolean;
+  hub_auto_pull_interval_secs?: number;
+  orchestrator_auto_complete_gigs?: boolean;
+}
+
+export interface AutomationStatus {
+  scrum_worker_last_tick_at?: string | null;
+  scrum_worker_log: string[];
+  orchestrator_last_tick_at?: string | null;
+  orchestrator_log: string[];
+  orchestrator_directives_total: number;
+  orchestrator_meetings_total: number;
+  sync_queue_pending: number;
+  hub_last_pull_at?: string | null;
+  company_vision: string;
+  parallel_llm_enabled: boolean;
+  openclaw_available: boolean;
+  openclaw_version?: string | null;
+  openclaw_message: string;
+}
+
+export interface OpenClawStatus {
+  runtime_mode: string;
+  binary_path: string;
+  binary_available: boolean;
+  version?: string | null;
+  agent_command_available: boolean;
+  gateway_healthy: boolean;
+  use_local: boolean;
+  prefer_gateway: boolean;
+  default_agent_id: string;
+  timeout_secs: number;
+  message: string;
+}
+
+export interface OpenClawTestResult {
+  ok: boolean;
+  transport?: string | null;
+  preview: string;
+  message: string;
 }
 
 export interface Achievement {

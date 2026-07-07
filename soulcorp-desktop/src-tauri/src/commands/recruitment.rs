@@ -1,7 +1,6 @@
 use crate::commands::onboarding::persist_single_agent_soul;
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::{commit, commit_if_company_ready};
-use crate::finance::total_monthly_salary;
 use crate::token_budget::{charge_tokens, ensure_agent_wallet, ChargeContext};
 use crate::ai::provider::TokenUsageSource;
 use crate::hub::HubClient;
@@ -13,7 +12,7 @@ use crate::soul::{
     SoulProfile,
 };
 use crate::state::{AgentRecord, AppState, MeetingState};
-use crate::tier::can_use_feature;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -337,9 +336,7 @@ fn compute_candidate_compatibility(
     let mut score = (0.32 + overlap_score + gap_fill + morale_room + vibe_bonus + verified_bonus
         + relationship_bonus)
         .clamp(0.35, 0.98);
-    if can_use_feature(&state.hub.user_tier, "priority_gig_matching") {
-        score = (score + 0.04).min(0.99);
-    }
+    score = (score + 0.04).min(0.99);
 
     let projected_morale_delta = ((gap_fill + vibe_bonus) * 0.35 - 0.02).clamp(-0.05, 0.12);
     (score, overlap, department_fit, projected_morale_delta)
@@ -433,7 +430,7 @@ pub async fn get_recruitment_analytics(
         skill_gaps: compute_skill_gaps(&state, &candidates),
         agents_hired: state.stats.agents_hired,
         interviews_started: state.stats.interviews_started,
-        priority_matching: can_use_feature(&state.hub.user_tier, "priority_gig_matching"),
+        priority_matching: true,
         candidate_scores,
     })
 }
@@ -743,8 +740,6 @@ pub async fn hire_candidate(
     }
     connect_new_agent(&mut state, &agent_id, &department);
     state.stats.agents_hired += 1;
-    state.token_economy.monthly_burn_tokens = total_monthly_salary(&state.agents)
-        .saturating_add(state.agents.len() as u64 * 75);
     spawn_onboarding_meeting(&mut state, &agent_id);
 
     let hired = state

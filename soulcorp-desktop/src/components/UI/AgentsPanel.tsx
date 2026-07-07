@@ -68,7 +68,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".agents-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-agents-section]");
     if (!root || !sections?.length) {
       return;

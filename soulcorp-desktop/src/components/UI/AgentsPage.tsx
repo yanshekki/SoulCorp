@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { AppPageShell } from "./AppPageShell";
 import { AgentsPanel, AGENTS_SECTIONS } from "./AgentsPanel";
 
 export function AgentsPage() {
@@ -10,35 +11,14 @@ export function AgentsPage() {
   }, []);
 
   return (
-    <div className="agents-page">
-      <header className="agents-page-header">
-        <div>
-          <h2>Agent Brains</h2>
-          <p className="muted">
-            Department defaults and per-employee LLM overrides. Priority: agent → department →
-            company default. Token limits are in Tokens.
-          </p>
-        </div>
-      </header>
-
-      <div className="agents-page-body">
-        <nav className="agents-page-nav" aria-label="Agent brain sections">
-          {AGENTS_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={`agents-nav-btn${activeSection === section.id ? " active" : ""}`}
-              onClick={() => scrollToSection(section.id)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="agents-page-scroll">
-          <AgentsPanel onSectionFocus={setActiveSection} />
-        </div>
-      </div>
-    </div>
+    <AppPageShell
+      title="Agent Brains"
+      subtitle="LLM config per agent & department"
+      navItems={AGENTS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+    >
+      <AgentsPanel onSectionFocus={setActiveSection} />
+    </AppPageShell>
   );
 }

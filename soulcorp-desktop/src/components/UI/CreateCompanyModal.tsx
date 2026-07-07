@@ -19,6 +19,13 @@ import {
 } from "./AgentRosterStep";
 import { toAgentRosterPayload } from "../../data/presetAgents";
 import type { AgentRosterSlotState } from "../../data/presetAgents";
+import {
+  ProjectSetupStep,
+  defaultProjectSetupState,
+  isProjectSetupValid,
+  toProjectSetupPayload,
+  type ProjectSetupState,
+} from "./ProjectSetupStep";
 
 export function CreateCompanyModal() {
   const showCreateCompany = useGameStore((state) => state.showCreateCompany);
@@ -38,6 +45,7 @@ export function CreateCompanyModal() {
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [openDesignStudioAfter, setOpenDesignStudioAfter] = useState(false);
   const [agentRoster, setAgentRoster] = useState<AgentRosterSlotState[]>(defaultAgentRosterState());
+  const [projectSetup, setProjectSetup] = useState<ProjectSetupState>(defaultProjectSetupState());
   const [submitting, setSubmitting] = useState(false);
 
   if (!showCreateCompany) {
@@ -59,6 +67,10 @@ export function CreateCompanyModal() {
       setStatusMessage("Complete all three agent slots with valid soul.md content.");
       return;
     }
+    if (!isProjectSetupValid(projectSetup)) {
+      setStatusMessage("Enter a project title with at least 2 characters.");
+      return;
+    }
     setSubmitting(true);
     try {
       await createCompany({
@@ -71,6 +83,7 @@ export function CreateCompanyModal() {
           playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
         random_event_chance: playModeConfig.randomEventChance,
         agent_roster: toAgentRosterPayload(agentRoster),
+        ...toProjectSetupPayload(projectSetup),
       });
       if (designPresetId && designPresetId !== "default") {
         await applyDesignPreset(designPresetId);
@@ -93,6 +106,7 @@ export function CreateCompanyModal() {
       setDesignPresetId(null);
       setOpenDesignStudioAfter(false);
       setAgentRoster(defaultAgentRosterState());
+      setProjectSetup(defaultProjectSetupState());
       setStatusMessage(
         showDesignStudio
           ? `Created ${companyName.trim()}. Your new office is live.`
@@ -187,6 +201,12 @@ export function CreateCompanyModal() {
             pureLocalMode={pureLocalMode}
             value={agentRoster}
             onChange={setAgentRoster}
+          />
+
+          <ProjectSetupStep
+            value={projectSetup}
+            onChange={setProjectSetup}
+            companyName={companyName}
           />
         </section>
 

@@ -219,14 +219,14 @@ export const useGameStore = create<GameStore>((set) => ({
   tierBenefits: {
     tier: "free",
     platform_fee_percent: 10,
-    max_agents: 50,
-    cloud_sync_enabled: false,
-    priority_gig_matching: false,
-    event_foresight_days: 0,
-    white_label_export: false,
-    executive_lounge: false,
-    custom_departments: false,
-    ai_co_ceo: false,
+    max_agents: null,
+    cloud_sync_enabled: true,
+    priority_gig_matching: true,
+    event_foresight_days: 3,
+    white_label_export: true,
+    executive_lounge: true,
+    custom_departments: true,
+    ai_co_ceo: true,
   },
   setStatusMessage: (message) => set({ statusMessage: message }),
   setAgents: (agents) => set({ agents }),
@@ -360,7 +360,7 @@ export const useGameStore = create<GameStore>((set) => ({
           resolvedPanel === "settings" ||
           resolvedPanel === "god_mode" ||
           resolvedPanel === "achievements" ||
-          resolvedPanel === "executive" ||
+          resolvedPanel === "departments" ||
           resolvedPanel === "agents" ||
           resolvedPanel === "recruitment" ||
           resolvedPanel === "marketplace" ||
@@ -389,7 +389,7 @@ export const useGameStore = create<GameStore>((set) => ({
         resolvedPanel === "settings" ||
         resolvedPanel === "god_mode" ||
         resolvedPanel === "achievements" ||
-        resolvedPanel === "executive" ||
+        resolvedPanel === "departments" ||
         resolvedPanel === "agents" ||
         resolvedPanel === "recruitment" ||
         resolvedPanel === "marketplace" ||

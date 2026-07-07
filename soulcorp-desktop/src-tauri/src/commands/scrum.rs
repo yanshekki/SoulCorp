@@ -500,6 +500,7 @@ pub fn create_sprint(
         status: SprintStatus::Planning,
         committed_story_ids: Vec::new(),
         velocity_target: request.velocity_target.max(1),
+        started_at: None,
     };
     let sprint_id = sprint.id.clone();
     state.sprints.push(sprint.clone());
@@ -523,6 +524,9 @@ pub fn start_sprint(
         .find(|s| s.id == sprint_id)
         .ok_or_else(|| "Sprint not found.".to_string())?;
     sprint.status = SprintStatus::Active;
+    if sprint.started_at.is_none() {
+        sprint.started_at = Some(now_iso());
+    }
     let snapshot = sprint.clone();
     if state.settings.scrum_auto_schedule {
         let _ = plan_sprint(&mut state, &sprint_id);
@@ -719,10 +723,35 @@ pub fn run_batch_executions(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<BatchExecutionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if state.settings.scrum_execution_paused {
-        return Err("Execution queue is paused.".to_string());
+    let parallel = {
+        let state = state.lock().map_err(|e| e.to_string())?;
+        if state.settings.scrum_execution_paused {
+            return Err("Execution queue is paused.".to_string());
+        }
+        state.settings.scrum_parallel_agents
+    };
+
+    if parallel {
+        let mut result = BatchExecutionResult {
+            attempted: 0,
+            succeeded: 0,
+            failed: 0,
+            messages: Vec::new(),
+        };
+        if let Some(batch) = crate::scrum::parallel_executor::run_detached_parallel_tick(&app) {
+            result.attempted = batch.executed;
+            result.succeeded = batch.executed;
+            result.messages = batch.messages;
+        }
+        let mut state = state.lock().map_err(|e| e.to_string())?;
+        if let Some(note) = crate::operations::try_scrum_auto_execute_after_work(&mut state, &app) {
+            result.messages.push(note);
+        }
+        commit(app, &state)?;
+        return Ok(result);
     }
+
+    let mut state = state.lock().map_err(|e| e.to_string())?;
     let max_runs = state.settings.scrum_max_executions_per_tick.max(1);
     let mut result = BatchExecutionResult {
         attempted: 0,
@@ -796,4 +825,42 @@ pub fn link_work_node_to_gig(
     let snapshot = node.clone();
     commit(app, &state)?;
     Ok(snapshot)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutomationStatus {
+    pub scrum_worker_last_tick_at: Option<String>,
+    pub scrum_worker_log: Vec<String>,
+    pub orchestrator_last_tick_at: Option<String>,
+    pub orchestrator_log: Vec<String>,
+    pub orchestrator_directives_total: u32,
+    pub orchestrator_meetings_total: u32,
+    pub sync_queue_pending: u32,
+    pub hub_last_pull_at: Option<String>,
+    pub company_vision: String,
+    pub parallel_llm_enabled: bool,
+    pub openclaw_available: bool,
+    pub openclaw_version: Option<String>,
+    pub openclaw_message: String,
+}
+
+#[tauri::command]
+pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<AutomationStatus, String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    let openclaw = crate::agent_runtime::openclaw::probe_openclaw(&state.settings);
+    Ok(AutomationStatus {
+        scrum_worker_last_tick_at: state.scrum_worker.last_tick_at.clone(),
+        scrum_worker_log: state.scrum_worker.recent_log.clone(),
+        orchestrator_last_tick_at: state.orchestrator.last_tick_at.clone(),
+        orchestrator_log: state.orchestrator.recent_log.clone(),
+        orchestrator_directives_total: state.orchestrator.directives_issued_total,
+        orchestrator_meetings_total: state.orchestrator.meetings_triggered,
+        sync_queue_pending: state.sync_queue.len() as u32,
+        hub_last_pull_at: state.hub.last_sync_at.clone(),
+        company_vision: state.company_vision.clone(),
+        parallel_llm_enabled: state.settings.scrum_parallel_agents,
+        openclaw_available: openclaw.binary_available,
+        openclaw_version: openclaw.version,
+        openclaw_message: openclaw.message,
+    })
 }

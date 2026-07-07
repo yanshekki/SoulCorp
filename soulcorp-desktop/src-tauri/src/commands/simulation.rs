@@ -85,8 +85,8 @@ pub async fn run_simulation_tick(
             progress.emit_percent("Updating relationships…", 55.0, Some("relationships"));
             apply_relationship_tick(&mut state);
         }
-        let co_ceo_note = apply_co_ceo_autonomy_tick(&mut state);
-        crate::scrum::maybe_advance_sprint_cycle(&mut state);
+        let co_ceo_note = apply_co_ceo_autonomy_tick(&mut state, &app);
+        crate::scrum::advance_sprint_lifecycle(&mut state);
         let reality_note = if config::is_v2() {
             apply_god_mode_reality_debt(&mut state)
         } else {

@@ -106,7 +106,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".tokens-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-tokens-section]");
     if (!root || !sections?.length) {
       return;

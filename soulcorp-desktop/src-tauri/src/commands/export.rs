@@ -10,7 +10,7 @@ use crate::static_site::{
     build_vercel_json,
     build_workspace_index_html, build_workspace_page_html,
 };
-use crate::tier::can_use_feature;
+
 use crate::workspace::{storage::company_workspace_root, WorkspaceStorage};
 use chrono::Utc;
 use printpdf::{BuiltinFont, Mm, PdfDocument};
@@ -277,7 +277,7 @@ pub fn prepare_static_site_bundle(
 ) -> Result<(StaticSiteBundle, crate::workspace::WorkspaceTree), String> {
     let tree = workspace_tree_for(app, state)?;
     let company_name = company_name_for(state);
-    let white_label = can_use_feature(&state.hub.user_tier, "white_label_export");
+    let white_label = true;
     let bundle = StaticSiteBundle {
         company_name: company_name.clone(),
         white_label,

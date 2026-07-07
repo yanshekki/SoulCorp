@@ -1,6 +1,5 @@
 use crate::achievements::Achievement;
 use crate::state::{AgentRecord, AppState, GameEvent, InternalProject, TokenEconomy};
-use crate::tier::can_use_feature;
 use crate::workspace::WorkspaceTree;
 
 pub fn company_name_for(state: &AppState) -> String {
@@ -9,11 +8,7 @@ pub fn company_name_for(state: &AppState) -> String {
     } else {
         state.company_name.trim().to_string()
     };
-    if can_use_feature(&state.hub.user_tier, "white_label_export") {
-        format!("{base} (White-label)")
-    } else {
-        base
-    }
+    format!("{base} (White-label)")
 }
 
 pub fn build_markdown(

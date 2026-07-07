@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
 import { appTagline, showPauseMenu } from "../../config/features";
-import { getNavGroups, getNextWorkflowPanel } from "../../config/navigation";
+import { getNavGroups, getNextWorkflowPanel, IMMERSIVE_PANELS } from "../../config/navigation";
 import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Dashboard } from "./Dashboard";
@@ -48,135 +48,90 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
     case "workspace":
       return (
         <section className="panel-card workspace-guide">
-          <p className="workflow-step-badge">Step 3 · Deliver</p>
           <h2>Workspace</h2>
-          <p className="muted">
-            Read agent deliverables, meeting notes, and company docs produced by your workflow.
-          </p>
-          <ul className="workspace-guide-list">
-            <li>
-              <strong>Deliverables</strong> — open pages created by LLM task execution.
-            </li>
-            <li>
-              <strong>Teams</strong> — department pages, weekly priorities, and journals.
-            </li>
-            <li>
-              <strong>CEO (you)</strong> — edit, link projects, and approve final output.
-            </li>
-          </ul>
+          <p className="muted">Deliverables & docs from your workflow.</p>
+          <WorkflowNextStep panel="workspace" />
         </section>
       );
     case "meeting":
       return (
         <section className="panel-card meeting-guide">
-          <p className="workflow-step-badge">Step 2 · Align</p>
           <h2>Meeting</h2>
-          <p className="muted">
-            Run multi-agent meetings to align on directives before execution. Notes auto-save to
-            Workspace.
-          </p>
+          <p className="muted">Align team before execution.</p>
           <WorkflowNextStep panel="meeting" />
         </section>
       );
     case "projects":
       return (
         <section className="panel-card projects-guide">
-          <p className="workflow-step-badge">Step 1 · Plan</p>
           <h2>Projects</h2>
-          <p className="muted">
-            Start here: issue CEO directives → PM decomposes backlog → plan sprint → assign agents →
-            run LLM execution.
-          </p>
+          <p className="muted">Directive → sprint → execute.</p>
           <WorkflowNextStep panel="projects" />
         </section>
       );
     case "finance":
       return (
         <section className="panel-card tokens-guide">
-          <p className="workflow-step-badge">Step 6 · Budget</p>
           <h2>Tokens</h2>
-          <p className="muted">
-            Fund LLM execution — token pool, per-agent wallets, usage ledger, and salary controls.
-          </p>
+          <p className="muted">Pool, wallets, usage.</p>
         </section>
       );
     case "marketplace":
       return (
         <section className="panel-card marketplace-guide">
-          <p className="workflow-step-badge">Step 7 · Revenue</p>
           <h2>Marketplace</h2>
-          <p className="muted">
-            Turn deliverables into income — post gigs, manage contracts, and track payouts.
-          </p>
+          <p className="muted">Gigs, contracts, payouts.</p>
+        </section>
+      );
+    case "departments":
+      return (
+        <section className="panel-card departments-guide">
+          <h2>Departments</h2>
+          <p className="muted">Teams & reporting lines.</p>
         </section>
       );
     case "recruitment":
       return (
         <section className="panel-card recruitment-guide">
-          <p className="workflow-step-badge">Step 4 · Staff</p>
           <h2>Recruitment</h2>
-          <p className="muted">
-            Hire agents before scaling execution — browse candidates, interview, and onboard to teams.
-          </p>
+          <p className="muted">Hire & onboard agents.</p>
         </section>
       );
     case "agents":
       return (
         <section className="panel-card agents-guide">
-          <p className="workflow-step-badge">Step 5 · Configure</p>
           <h2>Agent Brains</h2>
-          <p className="muted">
-            Set department LLM defaults and per-employee overrides before running tasks.
-          </p>
+          <p className="muted">LLM config per agent & department.</p>
         </section>
       );
     case "tier":
       return <TierPanel />;
-    case "executive":
-      return (
-        <section className="panel-card vip-executive-guide">
-          <h2>VIP Executive</h2>
-          <p className="muted">
-            Custom departments and AI Co-CEO controls live in the main stage.
-          </p>
-        </section>
-      );
     case "achievements":
       return (
         <section className="panel-card achievements-guide">
           <h2>Achievements</h2>
-          <p className="muted">
-            Milestones, category progress, and alternate endings live in the main stage.
-          </p>
+          <p className="muted">Milestones & endings.</p>
         </section>
       );
     case "design_studio":
       return (
         <section className="panel-card">
           <h2>3D Design Studio</h2>
-          <p className="muted">
-            Customize campus theme, department buildings, office interiors, and agent looks in the
-            main stage.
-          </p>
-          <p className="muted">Use the top nav <strong>3D Design</strong> tab to open the editor.</p>
+          <p className="muted">Campus, buildings, interiors, agent looks.</p>
         </section>
       );
     case "settings":
       return (
         <section className="panel-card settings-guide">
           <h2>Settings</h2>
-          <p className="muted">
-            Configure cloud sync, AI providers, backups, and deploy in the main stage.
-          </p>
+          <p className="muted">Sync, AI providers, backups, deploy.</p>
         </section>
       );
     case "god_mode":
       return (
         <section className="panel-card god-mode-guide">
           <h2>God Mode</h2>
-          <p className="muted">
-            CEO intervention powers, reality debt, and intervention log live in the main stage.
-          </p>
+          <p className="muted">CEO intervention powers.</p>
         </section>
       );
     case "office":
@@ -196,51 +151,14 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const navGroups = getNavGroups();
 
   const immersiveInterior = worldView === "interior" && activePanel === "office";
-  const immersiveDesignStudio = activePanel === "design_studio";
-  const immersiveSettings = activePanel === "settings";
-  const immersiveGodMode = activePanel === "god_mode";
-  const immersiveAchievements = activePanel === "achievements";
-  const immersiveExecutive = activePanel === "executive";
-  const immersiveAgents = activePanel === "agents";
-  const immersiveRecruitment = activePanel === "recruitment";
-  const immersiveMarketplace = activePanel === "marketplace";
-  const immersiveTokens = activePanel === "finance";
-  const immersiveMeeting = activePanel === "meeting";
-  const immersiveProjects = activePanel === "projects";
-  const immersiveWorkspace = activePanel === "workspace";
-  const immersiveStage =
-    immersiveInterior ||
-    immersiveDesignStudio ||
-    immersiveSettings ||
-    immersiveGodMode ||
-    immersiveAchievements ||
-    immersiveExecutive ||
-    immersiveAgents ||
-    immersiveRecruitment ||
-    immersiveMarketplace ||
-    immersiveTokens ||
-    immersiveMeeting ||
-    immersiveProjects ||
-    immersiveWorkspace;
+  const immersiveStage = IMMERSIVE_PANELS.has(activePanel) || immersiveInterior;
   const inspectorDrawerOpen = immersiveInterior && inspectorExpanded;
   const hideShellInspector =
-    immersiveDesignStudio ||
-    immersiveSettings ||
-    immersiveGodMode ||
-    immersiveAchievements ||
-    immersiveExecutive ||
-    immersiveAgents ||
-    immersiveRecruitment ||
-    immersiveMarketplace ||
-    immersiveTokens ||
-    immersiveMeeting ||
-    immersiveProjects ||
-    immersiveWorkspace ||
-    (immersiveInterior && !inspectorExpanded);
+    IMMERSIVE_PANELS.has(activePanel) || (immersiveInterior && !inspectorExpanded);
 
   return (
     <div
-      className={`app-shell${immersiveInterior ? " app-shell--immersive-office" : ""}${immersiveDesignStudio ? " app-shell--design-studio" : ""}${immersiveSettings ? " app-shell--settings" : ""}${immersiveGodMode ? " app-shell--god-mode" : ""}${immersiveAchievements ? " app-shell--achievements" : ""}${immersiveExecutive ? " app-shell--executive" : ""}${immersiveAgents ? " app-shell--agents" : ""}${immersiveRecruitment ? " app-shell--recruitment" : ""}${immersiveMarketplace ? " app-shell--marketplace" : ""}${immersiveTokens ? " app-shell--tokens" : ""}${immersiveMeeting ? " app-shell--meeting" : ""}${immersiveProjects ? " app-shell--projects" : ""}${immersiveWorkspace ? " app-shell--workspace" : ""}`}
+      className={`app-shell${immersiveInterior ? " app-shell--immersive-office" : ""}${immersiveStage ? " app-shell--immersive-stage" : ""}`}
     >
       <header className="app-topbar">
         <div className="app-topbar-row app-topbar-row-primary">

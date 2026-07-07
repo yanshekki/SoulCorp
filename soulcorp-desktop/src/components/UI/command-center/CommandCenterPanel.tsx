@@ -3,6 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showSimulationChrome, simulationAutoRun } from "../../../config/features";
 import { useGameStore } from "../../../stores/gameStore";
 import type {
+  AutomationStatus,
+  OpenClawStatus,
+  OpenClawTestResult,
   CommandCenterOverview,
   Directive,
   DirectivePreviewNode,
@@ -13,6 +16,8 @@ import type {
 } from "../../../types/game";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
+import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
+import { CoCeoPanel } from "./CoCeoPanel";
 import {
   cancelDirective,
   closeSprint,
@@ -31,8 +36,6 @@ import {
   updateProject,
 } from "../../../services/scrumClient";
 
-const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
-
 const DIRECTIVE_TEMPLATES = [
   { label: "Ship feature", title: "Ship feature", body: "Deliver a shippable increment this sprint." },
   { label: "Fix production", title: "Fix production issue", body: "Resolve critical bug and document root cause." },
@@ -41,7 +44,7 @@ const DIRECTIVE_TEMPLATES = [
   { label: "Cost reduction", title: "Reduce token burn", body: "Optimize workflows to lower LLM token usage." },
 ] as const;
 
-type CommandTab = "overview" | "directives" | "projects" | "sprint" | "policies";
+type CommandTab = "overview" | "directives" | "co_ceo" | "projects" | "sprint" | "policies";
 
 interface CommandCenterPanelProps {
   onJumpToSection?: (sectionId: string) => void;
@@ -86,12 +89,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const setSettings = useGameStore((s) => s.setSettings);
   const setStatusMessage = useGameStore((s) => s.setStatusMessage);
   const finance = useGameStore((s) => s.finance);
+  const { departmentNames: departments } = useCompanyDepartments();
 
   const [tab, setTab] = useState<CommandTab>("overview");
   const [snapshot, setSnapshot] = useState<ScrumSnapshot | null>(null);
   const [overview, setOverview] = useState<CommandCenterOverview | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [automation, setAutomation] = useState<AutomationStatus | null>(null);
+  const [openclawStatus, setOpenclawStatus] = useState<OpenClawStatus | null>(null);
+  const [openclawTesting, setOpenclawTesting] = useState(false);
 
   const [directiveTitle, setDirectiveTitle] = useState("");
   const [directiveBody, setDirectiveBody] = useState("");
@@ -104,7 +111,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const [directiveFilter, setDirectiveFilter] = useState<string>("all");
 
   const [newProjectTitle, setNewProjectTitle] = useState("");
-  const [newProjectDept, setNewProjectDept] = useState(DEPARTMENTS[0]);
+  const [newProjectDept, setNewProjectDept] = useState(departments[0] ?? "Engineering");
   const [editProjectDesc, setEditProjectDesc] = useState("");
   const [editProjectPriority, setEditProjectPriority] = useState(3);
   const [editProjectCycle, setEditProjectCycle] = useState(14);
@@ -204,6 +211,40 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     };
   }, [activeCompanyId, setStatusMessage]);
 
+  const loadAutomationStatus = useCallback(async () => {
+    try {
+      const [status, openclaw] = await Promise.all([
+        invoke<AutomationStatus>("get_automation_status"),
+        invoke<OpenClawStatus>("get_openclaw_status"),
+      ]);
+      setAutomation(status);
+      setOpenclawStatus(openclaw);
+    } catch {
+      setAutomation(null);
+      setOpenclawStatus(null);
+    }
+  }, []);
+
+  const testOpenclaw = useCallback(async () => {
+    setOpenclawTesting(true);
+    try {
+      const result = await invoke<OpenClawTestResult>("test_openclaw_runtime", {
+        request: {},
+      });
+      setStatusMessage(result.message);
+      await loadAutomationStatus();
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setOpenclawTesting(false);
+    }
+  }, [loadAutomationStatus, setStatusMessage]);
+
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    void loadAutomationStatus();
+  }, [activeCompanyId, scrumRevision, loadAutomationStatus]);
+
   useEffect(() => {
     if (!simulationAutoRun || tab !== "overview" || !activeCompanyId) {
       return;
@@ -249,7 +290,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         targetType === "project"
           ? targetRef || project?.id || ""
           : targetType === "department"
-            ? targetRef || DEPARTMENTS[0]
+            ? targetRef || departments[0]
             : targetRef || agents[0]?.id || "";
       await issueDirective({
         title: directiveTitle.trim(),
@@ -278,7 +319,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
           targetType === "project"
             ? targetRef || projectId
             : targetType === "department"
-              ? targetRef || DEPARTMENTS[0]
+              ? targetRef || departments[0]
               : targetRef || agents[0]?.id || "";
         const d = await issueDirective({
           title: directiveTitle.trim(),
@@ -314,7 +355,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
           targetType === "project"
             ? targetRef || projectId
             : targetType === "department"
-              ? targetRef || DEPARTMENTS[0]
+              ? targetRef || departments[0]
               : targetRef || agents[0]?.id || "";
         const d = await issueDirective({
           title: directiveTitle.trim(),
@@ -429,10 +470,25 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         scrum_auto_retry_blocked: patch.scrum_auto_retry_blocked,
         scrum_max_blocked_retries: patch.scrum_max_blocked_retries,
         scrum_use_agent_tools: patch.scrum_use_agent_tools,
+        orchestrator_enabled: patch.orchestrator_enabled,
+        orchestrator_interval_secs: patch.orchestrator_interval_secs,
+        orchestrator_auto_meeting: patch.orchestrator_auto_meeting,
+        orchestrator_auto_spawn_co_ceo: patch.orchestrator_auto_spawn_co_ceo,
+        orchestrator_max_directives_per_cycle: patch.orchestrator_max_directives_per_cycle,
+        agent_runtime_mode: patch.agent_runtime_mode,
+        openclaw_binary_path: patch.openclaw_binary_path,
+        openclaw_use_local: patch.openclaw_use_local,
+        openclaw_prefer_gateway: patch.openclaw_prefer_gateway,
+        openclaw_default_agent_id: patch.openclaw_default_agent_id,
+        openclaw_timeout_secs: patch.openclaw_timeout_secs,
+        orchestrator_auto_accept_gigs: patch.orchestrator_auto_accept_gigs,
+        orchestrator_max_active_gigs: patch.orchestrator_max_active_gigs,
+        orchestrator_auto_start_gigs: patch.orchestrator_auto_start_gigs,
       },
     });
     setSettings(next);
     await syncScrumSnapshot();
+    await loadAutomationStatus();
   };
 
   const handleBatchRun = async () => {
@@ -453,16 +509,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   return (
     <section id="command" className="projects-card command-center" data-projects-section="command">
       <header className="projects-card-header">
-        <p className="workflow-step-badge">1 · Directive</p>
         <h3>Command Center</h3>
-        <p className="muted">CEO control tower — directives, projects, sprints, and execution policy.</p>
+        <p className="muted">Directives, projects, sprint, policies.</p>
       </header>
 
-      <nav className="command-center-tabs" aria-label="Command Center sections">
+      <nav className="app-page-nav app-page-nav--inline command-center-tabs" aria-label="Command Center sections">
         {(
           [
             ["overview", "Overview"],
             ["directives", "Directives"],
+            ["co_ceo", "Co-CEO"],
             ["projects", "Projects"],
             ["sprint", "Sprint"],
             ["policies", "Policies"],
@@ -471,10 +527,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
           <button
             key={id}
             type="button"
-            className={`command-center-tab${tab === id ? " active" : ""}`}
+            className={`app-page-nav-btn${tab === id ? " active" : ""}`}
             onClick={() => setTab(id)}
           >
-            {label}
+            <span className="app-page-nav-label">{label}</span>
           </button>
         ))}
       </nav>
@@ -506,6 +562,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               <strong>{overview.monthly_burn.toLocaleString()}</strong>
             </article>
             <article className="command-stat-card">
+              <span className="muted">Monthly payroll</span>
+              <strong>{overview.monthly_payroll.toLocaleString()}</strong>
+            </article>
+            <article className="command-stat-card">
               <span className="muted">Open directives</span>
               <strong>{overview.open_directives}</strong>
             </article>
@@ -516,6 +576,31 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 {overview.burndown_remaining}/{overview.burndown_total} pts left
               </span>
             </article>
+            <div className="command-automation-log">
+              <h4>Automation activity</h4>
+              <p className="muted">
+                Worker last tick: {automation?.scrum_worker_last_tick_at ?? "—"} · Orchestrator:{" "}
+                {automation?.orchestrator_last_tick_at ?? "—"} · Directives issued:{" "}
+                {automation?.orchestrator_directives_total ?? 0} · Hub queue:{" "}
+                {automation?.sync_queue_pending ?? 0} · Hub pull:{" "}
+                {automation?.hub_last_pull_at ?? "—"}
+                {automation?.parallel_llm_enabled ? " · Parallel LLM: on" : ""}
+                {automation?.openclaw_available
+                  ? ` · OpenClaw: ${automation.openclaw_version ?? "ready"}`
+                  : automation?.openclaw_message
+                    ? ` · OpenClaw: ${automation.openclaw_message}`
+                    : ""}
+              </p>
+              {(automation?.scrum_worker_log.length ?? 0) > 0 ? (
+                <ul className="command-activity-list">
+                  {automation?.scrum_worker_log.slice(-8).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Background worker has not logged activity yet.</p>
+              )}
+            </div>
             <div className="command-alerts">
               <h4>Alerts</h4>
               {overview.alerts.length === 0 ? (
@@ -540,6 +625,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               )}
             </div>
           </div>
+        ) : null}
+
+        {tab === "co_ceo" ? (
+          <CoCeoPanel onChanged={() => void syncScrumSnapshot()} />
         ) : null}
 
         {tab === "directives" ? (
@@ -577,7 +666,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                         <option key={p.id} value={p.id}>{p.title}</option>
                       ))
                     : targetType === "department"
-                      ? DEPARTMENTS.map((d) => (
+                      ? departments.map((d) => (
                           <option key={d} value={d}>{d}</option>
                         ))
                       : agents.map((a) => (
@@ -709,7 +798,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 <label className="field-label">
                   Department
                   <select value={newProjectDept} onChange={(e) => setNewProjectDept(e.target.value)}>
-                    {DEPARTMENTS.map((d) => (
+                    {departments.map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
@@ -924,7 +1013,9 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_parallel_agents ?? false}
                 onChange={(e) => void persistSettings({ scrum_parallel_agents: e.target.checked })}
               />
-              <span>Parallel agents (one task per idle agent per cycle)</span>
+              <span>
+                Parallel LLM execution (one task per idle agent; LLM calls run outside app lock)
+              </span>
             </label>
             <label className="checkbox-row">
               <input
@@ -944,6 +1035,225 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               />
               <span>Multi-step agent tools (plan → draft → refine)</span>
             </label>
+            <h4 className="command-policies-subhead">Company orchestrator</h4>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_enabled ?? true}
+                onChange={(e) => void persistSettings({ orchestrator_enabled: e.target.checked })}
+              />
+              <span>Auto strategic loop (Co-CEO briefings → directives)</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_meeting ?? true}
+                onChange={(e) => void persistSettings({ orchestrator_auto_meeting: e.target.checked })}
+              />
+              <span>Auto escalation meetings when tasks are blocked</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_spawn_co_ceo ?? true}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_spawn_co_ceo: e.target.checked })
+                }
+              />
+              <span>Auto-spawn AI Co-CEO if missing</span>
+            </label>
+            <label className="field-label">
+              Orchestrator interval — active work (seconds)
+              <input
+                type="number"
+                min={60}
+                max={86400}
+                value={settings.orchestrator_interval_secs ?? 3600}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_interval_secs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label className="field-label">
+              Orchestrator interval — idle (seconds)
+              <input
+                type="number"
+                min={60}
+                max={86400}
+                value={settings.orchestrator_idle_interval_secs ?? 600}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_idle_interval_secs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label className="field-label">
+              Orchestrator interval — blocked / urgent (seconds)
+              <input
+                type="number"
+                min={60}
+                max={86400}
+                value={settings.orchestrator_urgent_interval_secs ?? 300}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_urgent_interval_secs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label className="field-label">
+              Max directives per orchestrator cycle
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={settings.orchestrator_max_directives_per_cycle ?? 1}
+                onChange={(e) =>
+                  void persistSettings({
+                    orchestrator_max_directives_per_cycle: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <h4 className="command-policies-subhead">Marketplace automation</h4>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_hub_pull ?? true}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_hub_pull: e.target.checked })
+                }
+              />
+              <span>Auto-pull hub listings (no manual sync required)</span>
+            </label>
+            <label className="field-label">
+              Hub auto-pull interval (seconds)
+              <input
+                type="number"
+                min={60}
+                max={86400}
+                value={settings.hub_auto_pull_interval_secs ?? 300}
+                onChange={(e) =>
+                  void persistSettings({ hub_auto_pull_interval_secs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_accept_gigs ?? true}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_accept_gigs: e.target.checked })
+                }
+              />
+              <span>Auto-accept open marketplace gigs (from cached hub listings)</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_start_gigs ?? true}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_start_gigs: e.target.checked })
+                }
+              />
+              <span>Auto-start accepted gigs (issue marketplace directive)</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.orchestrator_auto_complete_gigs ?? true}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_auto_complete_gigs: e.target.checked })
+                }
+              />
+              <span>Auto-complete gigs after QC approval</span>
+            </label>
+            <label className="field-label">
+              Max active gig contracts
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={settings.orchestrator_max_active_gigs ?? 3}
+                onChange={(e) =>
+                  void persistSettings({ orchestrator_max_active_gigs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <h4 className="command-policies-subhead">Agent runtime</h4>
+            <label className="field-label">
+              Runtime mode
+              <select
+                value={settings.agent_runtime_mode ?? "llm_only"}
+                onChange={(e) => void persistSettings({ agent_runtime_mode: e.target.value })}
+              >
+                <option value="llm_only">In-app LLM only</option>
+                <option value="openclaw">OpenClaw subprocess</option>
+              </select>
+            </label>
+            <label className="field-label">
+              OpenClaw binary path
+              <input
+                type="text"
+                value={settings.openclaw_binary_path ?? ""}
+                placeholder="openclaw (PATH) or /usr/local/bin/openclaw"
+                onChange={(e) => void persistSettings({ openclaw_binary_path: e.target.value })}
+              />
+            </label>
+            <label className="field-label">
+              OpenClaw default agent id
+              <input
+                type="text"
+                value={settings.openclaw_default_agent_id ?? "main"}
+                placeholder="main"
+                onChange={(e) =>
+                  void persistSettings({ openclaw_default_agent_id: e.target.value })
+                }
+              />
+            </label>
+            <label className="field-label">
+              OpenClaw timeout (seconds)
+              <input
+                type="number"
+                min={30}
+                max={3600}
+                value={settings.openclaw_timeout_secs ?? 600}
+                onChange={(e) =>
+                  void persistSettings({ openclaw_timeout_secs: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.openclaw_use_local ?? true}
+                onChange={(e) => void persistSettings({ openclaw_use_local: e.target.checked })}
+              />
+              <span>Run OpenClaw embedded locally (`openclaw agent --local`)</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.openclaw_prefer_gateway ?? false}
+                onChange={(e) =>
+                  void persistSettings({ openclaw_prefer_gateway: e.target.checked })
+                }
+              />
+              <span>Prefer OpenClaw gateway when healthy (omit --local)</span>
+            </label>
+            {openclawStatus ? (
+              <p className="muted">
+                OpenClaw: {openclawStatus.binary_available ? "detected" : "missing"} ·{" "}
+                {openclawStatus.agent_command_available ? "agent CLI ok" : "legacy stdin only"} ·{" "}
+                {openclawStatus.gateway_healthy ? "gateway healthy" : "gateway offline"} —{" "}
+                {openclawStatus.message}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="btn"
+              disabled={openclawTesting || settings.agent_runtime_mode !== "openclaw"}
+              onClick={() => void testOpenclaw()}
+            >
+              {openclawTesting ? "Testing OpenClaw…" : "Test OpenClaw runtime"}
+            </button>
             <label className="checkbox-row">
               <input
                 type="checkbox"

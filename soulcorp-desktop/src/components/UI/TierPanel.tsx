@@ -150,11 +150,7 @@ export function TierPanel() {
   };
 
   const upgradeHint =
-    tierBenefits.tier === "vip"
-      ? "You have full Executive Lounge access."
-      : tierBenefits.tier === "pro"
-        ? "Stake 500 $SOUL or pay on-chain to unlock VIP perks."
-        : "Stake $SOUL on hub (Pro 100 / VIP 500) or pay USDT/USDC on NEAR.";
+    "All features are included. Upgrade tier to lower platform fees on marketplace payouts.";
 
   return (
     <section className="panel-card tier-panel">
@@ -289,15 +285,9 @@ export function TierPanel() {
         </div>
       ) : null}
 
-      {tierBenefits.executive_lounge ? (
-        <p className="tier-highlight">Executive Lounge: exclusive high-budget gigs unlocked.</p>
-      ) : null}
-
-      {tierBenefits.custom_departments || tierBenefits.ai_co_ceo ? (
-        <p className="tier-highlight">
-          Open the Executive panel to create custom departments and run the AI Co-CEO.
-        </p>
-      ) : null}
+      <p className="tier-highlight">
+        AI Co-CEO lives in Projects → Command Center. Executive Lounge gigs are in Marketplace.
+      </p>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 use crate::db::persistence::commit;
 use crate::hub::{filter_gigs_for_tier, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
-use crate::tier::can_use_feature;
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -193,19 +193,25 @@ pub async fn sync_with_hub(
     let progress = crate::progress::ProgressReporter::new(app.clone(), "hub_sync");
     progress.emit_percent("Connecting to SoulMD Hub…", 30.0, Some("connect"));
 
-    let (client, queue) = {
+    let client = {
         let state = app_state.lock().map_err(|e| e.to_string())?;
         if state.settings.pure_local_mode {
             return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
         }
-        if !can_use_feature(&state.hub.user_tier, "cloud_sync") {
-            return Err(
-                "Cloud sync requires Pro or VIP tier. Stake $SOUL on soulmd-hub to upgrade."
-                    .to_string(),
-            );
-        }
+        client_from_state(&state)
+    };
 
-        (client_from_state(&state), state.sync_queue.clone())
+    {
+        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let flush = crate::gigs::flush_pending_hub_gig_ops(&mut state);
+        if flush.qc_submitted > 0 || flush.gigs_assigned > 0 || flush.gigs_started > 0 {
+            let _ = crate::db::persistence::commit(app.clone(), &state);
+        }
+    }
+
+    let queue = {
+        let state = app_state.lock().map_err(|e| e.to_string())?;
+        state.sync_queue.clone()
     };
 
     if !queue.is_empty() {

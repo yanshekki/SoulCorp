@@ -17,7 +17,7 @@ export function GodModePage() {
         update: { god_mode_enabled: true },
       });
       setSettings(next);
-      setStatusMessage("God Mode enabled. Use CEO powers wisely.");
+      setStatusMessage("God Mode enabled.");
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -26,19 +26,20 @@ export function GodModePage() {
   };
 
   return (
-    <div className="god-mode-page">
-      <header className="god-mode-page-header">
-        <div>
+    <div className="app-page">
+      <header className="app-page-header">
+        <div className="app-page-header-main">
           <h2>God Mode</h2>
-          <p className="muted">CEO intervention powers with visible consequences.</p>
+          <p className="muted">CEO intervention powers</p>
         </div>
       </header>
-
-      {settings.god_mode_enabled ? (
-        <GodModePanel />
-      ) : (
-        <GodModeDisabledGate onEnable={() => void enableGodMode()} busy={enabling} />
-      )}
+      <div className="app-page-content god-mode-page-content">
+        {settings.god_mode_enabled ? (
+          <GodModePanel />
+        ) : (
+          <GodModeDisabledGate onEnable={() => void enableGodMode()} busy={enabling} />
+        )}
+      </div>
     </div>
   );
 }

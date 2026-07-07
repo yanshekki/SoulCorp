@@ -58,9 +58,9 @@ pub fn check_feature_access(
     };
     let allowed = can_use_feature(&tier, &feature);
     let message = if allowed {
-        format!("Feature '{feature}' is available on {tier} tier.")
+        format!("Feature '{feature}' is available.")
     } else {
-        format!("Feature '{feature}' requires Pro or VIP tier.")
+        format!("Feature '{feature}' is not recognized.")
     };
 
     Ok(FeatureAccessResult {

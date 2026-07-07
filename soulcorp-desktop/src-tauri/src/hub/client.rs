@@ -363,8 +363,6 @@ pub fn mock_executive_gigs() -> Vec<HubGig> {
     }]
 }
 
-pub fn filter_gigs_for_tier(mut gigs: Vec<HubGig>, tier: &str) -> Vec<HubGig> {
-    let lounge = crate::tier::can_use_feature(tier, "executive_lounge");
-    gigs.retain(|gig| !gig.executive_lounge || lounge);
+pub fn filter_gigs_for_tier(gigs: Vec<HubGig>, _tier: &str) -> Vec<HubGig> {
     gigs
 }

@@ -17,14 +17,22 @@ import {
 } from "./AgentRosterStep";
 import { toAgentRosterPayload } from "../../data/presetAgents";
 import type { AgentRosterSlotState } from "../../data/presetAgents";
+import {
+  ProjectSetupStep,
+  defaultProjectSetupState,
+  isProjectSetupValid,
+  toProjectSetupPayload,
+  type ProjectSetupState,
+} from "./ProjectSetupStep";
 
-const V1_STEPS = ["welcome", "agents", "connectivity"] as const;
-const V2_STEPS = ["welcome", "style", "agents", "connectivity", "design", "tour"] as const;
+const V1_STEPS = ["welcome", "agents", "projects", "connectivity"] as const;
+const V2_STEPS = ["welcome", "style", "agents", "projects", "connectivity", "design", "tour"] as const;
 
 const STEP_LABELS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], string> = {
   welcome: "Company",
   style: "Mode",
   agents: "Agents",
+  projects: "Projects",
   connectivity: "Connect",
   design: "Design",
   tour: "Tour",
@@ -34,6 +42,7 @@ const STEP_HINTS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], 
   welcome: "Enter your company profile to continue.",
   style: "Choose how you want to run this company.",
   agents: "Pick preset agents or recruit from hub — edit each soul.md before they join.",
+  projects: "Use preset starter projects or define your own flagship project.",
   connectivity: "Choose cloud-connected or pure local operation.",
   design: "Optional starting look for your 3D campus.",
   tour: "Quick tour of your command center.",
@@ -69,6 +78,7 @@ export function OnboardingWizard() {
   const [pureLocalMode, setPureLocalMode] = useState(false);
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [agentRoster, setAgentRoster] = useState<AgentRosterSlotState[]>(defaultAgentRosterState());
+  const [projectSetup, setProjectSetup] = useState<ProjectSetupState>(defaultProjectSetupState());
   const [submitting, setSubmitting] = useState(false);
 
   const step = steps[stepIndex];
@@ -96,6 +106,10 @@ export function OnboardingWizard() {
       setStatusMessage("Complete all three agent slots with valid soul.md content.");
       return;
     }
+    if (step === "projects" && !isProjectSetupValid(projectSetup)) {
+      setStatusMessage("Enter a project title with at least 2 characters.");
+      return;
+    }
     setStepIndex((current) => Math.min(current + 1, steps.length - 1));
   };
 
@@ -112,6 +126,10 @@ export function OnboardingWizard() {
       setStatusMessage("Complete all three agent slots with valid soul.md content.");
       return;
     }
+    if (!isProjectSetupValid(projectSetup)) {
+      setStatusMessage("Enter a project title with at least 2 characters.");
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await completeOnboarding({
@@ -124,6 +142,7 @@ export function OnboardingWizard() {
           playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
         random_event_chance: playModeConfig.randomEventChance,
         agent_roster: toAgentRosterPayload(agentRoster),
+        ...toProjectSetupPayload(projectSetup),
       });
       setSettings({
         ...useGameStore.getState().settings,
@@ -161,7 +180,9 @@ export function OnboardingWizard() {
     <div className="onboarding-overlay onboarding-overlay-blocking" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <div
         className={`onboarding-wizard ${
-          step === "style" || step === "agents" ? "onboarding-wizard-wide" : ""
+          step === "style" || step === "agents" || step === "projects"
+            ? "onboarding-wizard-wide"
+            : ""
         }`}
       >
         <header className="onboarding-header">
@@ -263,6 +284,14 @@ export function OnboardingWizard() {
               onChange={setAgentRoster}
             />
           </>
+        ) : null}
+
+        {step === "projects" ? (
+          <ProjectSetupStep
+            value={projectSetup}
+            onChange={setProjectSetup}
+            companyName={companyName}
+          />
         ) : null}
 
         {step === "connectivity" ? (

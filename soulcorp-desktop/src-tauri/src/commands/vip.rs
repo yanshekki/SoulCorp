@@ -1,9 +1,15 @@
 use crate::ai::{self, normalize_ai_provider_override, provider::ChatRequest, BilledChatRequest};
+use crate::commands::departments::{
+    CreateDepartmentRequest, DeleteDepartmentRequest, UpdateAgentOrgRequest,
+};
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::commit;
+use crate::departments::{
+    department_names, ensure_default_departments, list_departments_snapshot,
+};
 use crate::soul::parse_soul_content;
-use crate::state::{AgentRecord, AppState, CustomDepartment, InternalProject};
-use crate::tier::can_use_feature;
+use crate::state::{AgentRecord, AppState, CompanyDepartment, InternalProject};
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -41,7 +47,7 @@ pub struct DepartmentAiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompanyDepartmentsSnapshot {
     pub builtin: Vec<String>,
-    pub custom: Vec<CustomDepartment>,
+    pub custom: Vec<CompanyDepartment>,
     pub buildings: Vec<CustomDepartmentBuilding>,
     #[serde(default)]
     pub department_ai_providers: Vec<DepartmentAiConfig>,
@@ -99,47 +105,13 @@ pub struct ApplyCoCeoDirectiveRequest {
     pub morale_delta: f32,
 }
 
-fn effective_tier(state: &AppState) -> String {
-    if state.settings.pure_local_mode {
-        "local".to_string()
-    } else {
-        state.hub.user_tier.clone()
-    }
-}
-
-fn ensure_vip_feature(state: &AppState, feature: &str) -> Result<(), String> {
-    let tier = effective_tier(state);
-    if can_use_feature(&tier, feature) {
+fn require_v2_simulation(feature: &str) -> Result<(), String> {
+    if crate::config::is_v2() {
         Ok(())
     } else {
         Err(format!(
-            "VIP tier required for '{feature}'. Upgrade to unlock executive features."
+            "{feature} requires the v2 game edition. Use `pnpm dev:v2` or build with PRODUCT_EDITION=v2."
         ))
-    }
-}
-
-fn builtin_departments() -> Vec<String> {
-    vec![
-        "Engineering".to_string(),
-        "Human Resources".to_string(),
-        "Executive".to_string(),
-        "Marketing".to_string(),
-        "Marketplace".to_string(),
-    ]
-}
-
-fn custom_building_for_department(department: &CustomDepartment, index: usize) -> CustomDepartmentBuilding {
-    let x = -10.0 + (index as f32 * 3.6);
-    CustomDepartmentBuilding {
-        id: department.building_id.clone(),
-        name: department.display_name.clone(),
-        department: department.name.clone(),
-        position: [x, 0.0, -10.0 - (index as f32 * 0.8)],
-        size: [3.0, 2.4, 3.0],
-        color: department.brand_color.clone(),
-        roof_color: department.accent_color.clone(),
-        accent_color: department.accent_color.clone(),
-        description: department.sop.clone(),
     }
 }
 
@@ -147,7 +119,8 @@ fn custom_building_for_department(department: &CustomDepartment, index: usize) -
 pub fn list_company_departments(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ensure_default_departments(&mut state);
     Ok(list_company_departments_from_state(&state))
 }
 
@@ -185,39 +158,19 @@ pub fn create_custom_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    ensure_vip_feature(&state, "custom_departments")?;
-
-    let name = request.name.trim();
-    let display_name = request.display_name.trim();
-    if name.is_empty() || display_name.is_empty() {
-        return Err("Department name and display name are required.".to_string());
-    }
-    if state.custom_departments.len() >= 6 {
-        return Err("VIP companies can maintain up to 6 custom departments.".to_string());
-    }
-    if state
-        .custom_departments
-        .iter()
-        .any(|department| department.name.eq_ignore_ascii_case(name))
-    {
-        return Err(format!("Department '{name}' already exists."));
-    }
-
-    let department = CustomDepartment {
-        id: Uuid::new_v4().to_string(),
-        name: name.to_string(),
-        display_name: display_name.to_string(),
-        sop: request.sop.trim().to_string(),
-        brand_color: normalize_hex_color(&request.brand_color, "#6d7f9b"),
-        accent_color: normalize_hex_color(&request.accent_color, "#5ec8ff"),
-        building_id: format!("custom-{}", Uuid::new_v4()),
-        created_at: Utc::now().to_rfc3339(),
-    };
-    state.custom_departments.push(department);
-    let snapshot = list_company_departments_from_state(&state);
-    commit(app, &state)?;
-    Ok(snapshot)
+    crate::commands::departments::create_department(
+        CreateDepartmentRequest {
+            name: request.name,
+            display_name: request.display_name,
+            sop: request.sop,
+            brand_color: request.brand_color,
+            accent_color: request.accent_color,
+            parent_department_id: None,
+        },
+        state,
+        app,
+    )
+    .map(list_company_departments_from_snapshot)
 }
 
 #[tauri::command]
@@ -226,26 +179,25 @@ pub fn delete_custom_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    ensure_vip_feature(&state, "custom_departments")?;
-    let removed_name = state
-        .custom_departments
-        .iter()
-        .find(|department| department.id == department_id)
-        .map(|department| department.name.clone());
-    let before = state.custom_departments.len();
-    state
-        .custom_departments
-        .retain(|department| department.id != department_id);
-    if state.custom_departments.len() == before {
-        return Err("Custom department not found.".to_string());
-    }
-    if let Some(name) = removed_name {
-        state.department_ai_providers.remove(&name);
-    }
-    let snapshot = list_company_departments_from_state(&state);
-    commit(app, &state)?;
-    Ok(snapshot)
+    let transfer_to = {
+        let mut locked = state.lock().map_err(|e| e.to_string())?;
+        ensure_default_departments(&mut locked);
+        locked
+            .departments
+            .iter()
+            .find(|department| department.id != department_id)
+            .map(|department| department.name.clone())
+            .ok_or_else(|| "No transfer target department available.".to_string())?
+    };
+    crate::commands::departments::delete_department(
+        DeleteDepartmentRequest {
+            department_id,
+            transfer_to,
+        },
+        state,
+        app,
+    )
+    .map(list_company_departments_from_snapshot)
 }
 
 #[tauri::command]
@@ -254,25 +206,16 @@ pub fn assign_agent_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    let department_exists = builtin_departments().iter().any(|dept| dept == &request.department)
-        || state
-            .custom_departments
-            .iter()
-            .any(|dept| dept.name == request.department);
-    if !department_exists {
-        return Err(format!("Unknown department '{}'.", request.department));
-    }
-
-    let agent = state
-        .agents
-        .get_mut(&request.agent_id)
-        .ok_or_else(|| format!("Agent {} not found.", request.agent_id))?;
-    agent.department = request.department.clone();
-    agent.status = "idle".to_string();
-    let snapshot = agent.clone();
-    commit(app, &state)?;
-    Ok(snapshot)
+    crate::commands::departments::update_agent_org(
+        UpdateAgentOrgRequest {
+            agent_id: request.agent_id,
+            department: Some(request.department),
+            reports_to: None,
+            manages_department: None,
+        },
+        state,
+        app,
+    )
 }
 
 #[tauri::command]
@@ -287,7 +230,6 @@ pub fn spawn_co_ceo(
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    ensure_vip_feature(&state, "ai_co_ceo")?;
 
     if let Some(agent_id) = state.co_ceo.agent_id.clone() {
         if state.agents.contains_key(&agent_id) {
@@ -322,7 +264,7 @@ pub fn spawn_co_ceo(
 
     state.agents.insert(agent_id.clone(), record);
     state.co_ceo.agent_id = Some(agent_id);
-    state.co_ceo.autonomy_enabled = true;
+    state.co_ceo.autonomy_enabled = crate::config::is_v2();
     let status = co_ceo_status_from_state(&state);
     commit(app, &state)?;
     Ok(status)
@@ -335,7 +277,6 @@ pub async fn run_co_ceo_briefing(
 ) -> Result<CoCeoBriefing, String> {
     let (settings, hub, context, co_ceo_id, co_ceo_department, co_ceo_provider, department_providers) = {
         let state = state.lock().map_err(|e| e.to_string())?;
-        ensure_vip_feature(&state, "ai_co_ceo")?;
         let co_ceo_id = state
             .co_ceo
             .agent_id
@@ -422,7 +363,7 @@ pub fn apply_co_ceo_directive(
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    ensure_vip_feature(&state, "ai_co_ceo")?;
+    require_v2_simulation("Apply directive (morale & progress)")?;
 
     let project_index = state
         .projects
@@ -477,37 +418,42 @@ pub fn set_co_ceo_autonomy(
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
-    ensure_vip_feature(&state, "ai_co_ceo")?;
+    require_v2_simulation("Co-CEO autonomy")?;
     state.co_ceo.autonomy_enabled = enabled;
     let status = co_ceo_status_from_state(&state);
     commit(app, &state)?;
     Ok(status)
 }
 
-pub fn apply_co_ceo_autonomy_tick(state: &mut AppState) -> Option<String> {
-    if !state.co_ceo.autonomy_enabled {
+pub fn apply_co_ceo_autonomy_tick(state: &mut AppState, app: &AppHandle) -> Option<String> {
+    if !crate::config::is_v2() || !state.co_ceo.autonomy_enabled {
         return None;
     }
-    let tier = if state.settings.pure_local_mode {
-        "local"
-    } else {
-        state.hub.user_tier.as_str()
-    };
-    if !can_use_feature(tier, "ai_co_ceo") {
-        return None;
-    }
-    let co_ceo_id = state.co_ceo.agent_id.clone()?;
     if state.tick % 25 != 0 {
         return None;
+    }
+
+    let report = crate::orchestrator::apply_orchestrator_tick(state, app, true);
+    if report.directives_issued > 0 {
+        return Some(format!(
+            "AI Co-CEO issued {} directive(s).",
+            report.directives_issued
+        ));
     }
 
     if let Some(project) = state.projects.iter_mut().min_by_key(|project| project.priority) {
         project.progress = (project.progress + 0.02).min(1.0);
     }
-    if let Some(agent) = state.agents.get_mut(&co_ceo_id) {
-        agent.status = "working".to_string();
+    if let Some(co_ceo_id) = state.co_ceo.agent_id.clone() {
+        if let Some(agent) = state.agents.get_mut(&co_ceo_id) {
+            agent.status = "working".to_string();
+        }
     }
-    Some("AI Co-CEO advanced the top-priority project.".to_string())
+    report
+        .messages
+        .first()
+        .cloned()
+        .or_else(|| Some("AI Co-CEO advanced the top-priority project.".to_string()))
 }
 
 struct CoCeoPromptContext {
@@ -517,13 +463,7 @@ struct CoCeoPromptContext {
 }
 
 fn build_co_ceo_context(state: &AppState) -> CoCeoPromptContext {
-    let mut departments = builtin_departments();
-    departments.extend(
-        state
-            .custom_departments
-            .iter()
-            .map(|department| department.name.clone()),
-    );
+    let departments = department_names(state);
 
     let roster = state
         .agents
@@ -555,7 +495,7 @@ fn build_co_ceo_context(state: &AppState) -> CoCeoPromptContext {
         .join("\n");
 
     let custom_sops = state
-        .custom_departments
+        .departments
         .iter()
         .map(|department| format!("- {}: {}", department.display_name, department.sop))
         .collect::<Vec<_>>()
@@ -643,8 +583,7 @@ fn parse_directives_from_briefing(content: &str, departments: &[String]) -> Vec<
 }
 
 fn co_ceo_status_from_state(state: &AppState) -> CoCeoStatus {
-    let tier = effective_tier(state);
-    let available = can_use_feature(&tier, "ai_co_ceo");
+    let available = true;
     let agent_id = state.co_ceo.agent_id.clone();
     let agent_name = agent_id
         .as_ref()
@@ -667,58 +606,60 @@ fn co_ceo_status_from_state(state: &AppState) -> CoCeoStatus {
 }
 
 fn collect_company_departments(state: &AppState) -> Vec<String> {
-    let mut departments = builtin_departments();
-    for custom in &state.custom_departments {
-        if !departments
-            .iter()
-            .any(|department| department == &custom.name)
-        {
-            departments.push(custom.name.clone());
-        }
+    department_names(state)
+}
+
+fn list_company_departments_from_snapshot(
+    snapshot: crate::departments::DepartmentsSnapshot,
+) -> CompanyDepartmentsSnapshot {
+    CompanyDepartmentsSnapshot {
+        builtin: Vec::new(),
+        custom: snapshot
+            .departments
+            .into_iter()
+            .map(|entry| CompanyDepartment {
+                id: entry.id,
+                name: entry.name,
+                display_name: entry.display_name,
+                sop: entry.sop,
+                brand_color: entry.brand_color,
+                accent_color: entry.accent_color,
+                building_id: entry.building_id,
+                created_at: entry.created_at,
+                parent_department_id: entry.parent_department_id,
+                head_agent_id: entry.head_agent_id,
+            })
+            .collect(),
+        buildings: snapshot
+            .buildings
+            .into_iter()
+            .map(|building| CustomDepartmentBuilding {
+                id: building.id,
+                name: building.name,
+                department: building.department,
+                position: building.position,
+                size: building.size,
+                color: building.color,
+                roof_color: building.roof_color,
+                accent_color: building.accent_color,
+                description: building.description,
+            })
+            .collect(),
+        department_ai_providers: Vec::new(),
     }
-    for agent in state.agents.values() {
-        if !departments
-            .iter()
-            .any(|department| department == &agent.department)
-        {
-            departments.push(agent.department.clone());
-        }
-    }
-    departments.sort();
-    departments.dedup();
-    departments
 }
 
 fn list_company_departments_from_state(state: &AppState) -> CompanyDepartmentsSnapshot {
-    let buildings = state
-        .custom_departments
-        .iter()
-        .enumerate()
-        .map(|(index, department)| custom_building_for_department(department, index))
-        .collect();
-    let department_ai_providers = collect_company_departments(state)
+    let snapshot = list_departments_snapshot(state);
+    let mut legacy = list_company_departments_from_snapshot(snapshot);
+    legacy.department_ai_providers = collect_company_departments(state)
         .into_iter()
         .map(|department| DepartmentAiConfig {
             ai_provider: state.department_ai_providers.get(&department).cloned(),
             department,
         })
         .collect();
-
-    CompanyDepartmentsSnapshot {
-        builtin: builtin_departments(),
-        custom: state.custom_departments.clone(),
-        buildings,
-        department_ai_providers,
-    }
-}
-
-fn normalize_hex_color(value: &str, fallback: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.starts_with('#') && trimmed.len() >= 4 {
-        trimmed.to_string()
-    } else {
-        fallback.to_string()
-    }
+    legacy
 }
 
 #[cfg(test)]

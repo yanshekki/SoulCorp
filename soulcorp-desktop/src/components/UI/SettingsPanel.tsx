@@ -100,7 +100,7 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".settings-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-settings-section]");
     if (!root || !sections?.length) {
       return;

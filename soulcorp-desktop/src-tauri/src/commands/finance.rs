@@ -1,5 +1,5 @@
 use crate::db::persistence::commit;
-use crate::finance::{normalize_allocations, total_monthly_salary};
+use crate::finance::normalize_allocations;
 use crate::state::{AppState, InternalProject, TokenEconomy};
 use crate::token_budget::ensure_agent_wallet;
 use serde::{Deserialize, Serialize};
@@ -72,8 +72,6 @@ pub fn adjust_agent_salary(
     if let Some(record) = wallet_record {
         ensure_agent_wallet(&mut state.token_economy, &record);
     }
-    state.token_economy.monthly_burn_tokens =
-        total_monthly_salary(&state.agents).saturating_add(state.agents.len() as u64 * 75);
 
     let economy = state.token_economy.clone();
     commit(app, &state)?;

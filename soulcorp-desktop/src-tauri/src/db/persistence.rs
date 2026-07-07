@@ -273,6 +273,7 @@ pub fn bootstrap_companies(app: &AppHandle) -> Result<(CompanyRegistry, AppState
         let mut state = load_company_state(app, &active_id)?
             .ok_or_else(|| format!("Missing snapshot for company {active_id}"))?;
         crate::operations::normalize_v1_operational_state(&mut state);
+        crate::departments::ensure_default_departments(&mut state);
         if !state.agents.is_empty() && state.token_economy.departments.is_empty() {
             crate::token_budget::initialize_wallets_from_agents(&mut state);
         }

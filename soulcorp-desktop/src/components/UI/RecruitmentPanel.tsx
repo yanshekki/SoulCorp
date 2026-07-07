@@ -14,9 +14,8 @@ import type {
   RelationshipGraph,
   TokenEconomy,
 } from "../../types/game";
+import { useCompanyDepartments } from "../../hooks/useCompanyDepartments";
 import { RelationshipGraphView } from "./RelationshipGraphView";
-
-const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
 
 export const RECRUITMENT_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -53,6 +52,7 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
   const setActiveMeeting = useGameStore((state) => state.setActiveMeeting);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
+  const { departmentNames } = useCompanyDepartments();
 
   const [skillFilter, setSkillFilter] = useState("");
   const [heatmap, setHeatmap] = useState<MoraleHeatmapEntry[]>([]);
@@ -102,7 +102,7 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".recruitment-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-recruitment-section]");
     if (!root || !sections?.length) {
       return;
@@ -208,7 +208,7 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
         request: {
           candidate_id: candidate.id,
           role: candidate.job_role || candidate.vibe,
-          department: candidate.department_fit ?? DEPARTMENTS[0],
+          department: candidate.department_fit ?? departmentNames[0] ?? "Engineering",
           offered_salary: monthlySalary,
           soul_md_content: resolvedSoul.displayMd,
           system_prompt_source: resolvedSoul.systemPromptSource,

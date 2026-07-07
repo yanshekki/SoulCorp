@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { getVisibleSettingsSections } from "../../config/settingsSections";
+import { AppPageShell } from "./AppPageShell";
 import { SettingsPanel } from "./SettingsPanel";
 
 const VISIBLE_SETTINGS_SECTIONS = getVisibleSettingsSections();
@@ -13,34 +14,14 @@ export function SettingsPage() {
   }, []);
 
   return (
-    <div className="settings-page">
-      <header className="settings-page-header">
-        <div>
-          <h2>Settings</h2>
-          <p className="muted">
-            Cloud sync, AI providers, meeting defaults, backups, and one-click deploy.
-          </p>
-        </div>
-      </header>
-
-      <div className="settings-page-body">
-        <nav className="settings-page-nav" aria-label="Settings sections">
-          {VISIBLE_SETTINGS_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={`settings-nav-btn${activeSection === section.id ? " active" : ""}`}
-              onClick={() => scrollToSection(section.id)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="settings-page-scroll">
-          <SettingsPanel onSectionFocus={setActiveSection} />
-        </div>
-      </div>
-    </div>
+    <AppPageShell
+      title="Settings"
+      subtitle="Sync, AI providers, backups, deploy"
+      navItems={VISIBLE_SETTINGS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+    >
+      <SettingsPanel onSectionFocus={setActiveSection} />
+    </AppPageShell>
   );
 }

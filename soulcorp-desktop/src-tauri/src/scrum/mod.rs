@@ -1,6 +1,7 @@
 pub mod agent_tools;
 pub mod command_center;
 pub mod executor;
+pub mod parallel_executor;
 pub mod org;
 pub mod pm_review;
 pub mod scheduler;
@@ -15,11 +16,12 @@ pub use executor::{
     apply_parallel_execution_tick, apply_scrum_execution_tick, estimate_execution, execute_task,
     retry_blocked_tasks, route_directive_llm, update_directive_lifecycle,
 };
-pub use org::{resolve_pm_agent_id, seed_default_org_links};
+pub use org::{department_head_for, resolve_pm_agent_id, seed_default_org_links};
 pub use pm_review::{approve_deliverable_core, apply_pm_auto_review_tick};
 pub use scheduler::{
-    agent_inboxes, board_snapshot, ensure_active_sprint, maybe_advance_sprint_cycle, plan_sprint,
-    route_directive_rule_based, spawn_story_from_meeting,
+    advance_sprint_lifecycle, agent_inboxes, apply_department_head_delegation, board_snapshot,
+    ensure_active_sprint, maybe_advance_sprint_cycle, plan_sprint, route_directive_rule_based,
+    spawn_story_from_meeting,
 };
 pub use worker::{apply_scrum_worker_tick, spawn_scrum_worker};
 pub use command_center::{

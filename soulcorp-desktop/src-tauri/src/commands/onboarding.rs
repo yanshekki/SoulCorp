@@ -2,7 +2,7 @@ use crate::db::persistence::{commit, load_registry, save_registry};
 use crate::fate::{clamp_event_chance, sync_play_mode_side_effects};
 use crate::state::{
     default_agent_roster, fresh_company_state, summary_from_state, AgentRecord, AgentSlotSetup,
-    AppState, PlayMode,
+    AppState, CustomProjectSetup, PlayMode, ProjectSetupMode,
 };
 use crate::workspace::{company_workspace_root, WorkspaceStorage};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,10 @@ pub struct CompleteOnboardingRequest {
     pub random_event_chance: f32,
     #[serde(default = "default_agent_roster")]
     pub agent_roster: Vec<AgentSlotSetup>,
+    #[serde(default)]
+    pub project_setup_mode: ProjectSetupMode,
+    #[serde(default)]
+    pub custom_project: Option<CustomProjectSetup>,
 }
 
 fn normalize_company_name(raw: &str) -> Result<String, String> {
@@ -105,6 +109,7 @@ pub fn complete_onboarding(
     if state.agents.is_empty() {
         state.apply_agent_roster(&request.agent_roster)?;
     }
+    state.apply_project_setup(request.project_setup_mode, request.custom_project.clone())?;
 
     let mut registry = load_registry(&app)?;
     registry.upsert_summary(summary_from_state(&state));

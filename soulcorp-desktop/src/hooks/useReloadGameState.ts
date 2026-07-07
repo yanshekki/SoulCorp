@@ -23,8 +23,6 @@ import {
 import type {
   AchievementSnapshot,
   AgentRecord,
-  CompanyDepartmentsSnapshot,
-  CustomDepartmentBuilding,
   TokenEconomy,
   TokenEconomySnapshot,
   GameEvent,
@@ -33,24 +31,9 @@ import type {
   MeetingSnapshot,
   TierBenefits,
 } from "../types/game";
-import type { Building } from "../types/world";
 import type { WorkspaceTree } from "../types/workspace";
 
 const BOOTSTRAP_OP = "bootstrap";
-
-function toWorldBuilding(building: CustomDepartmentBuilding): Building {
-  return {
-    id: building.id,
-    name: building.name,
-    department: building.department,
-    position: building.position,
-    size: building.size,
-    color: building.color,
-    roofColor: building.roof_color,
-    accentColor: building.accent_color,
-    description: building.description,
-  };
-}
 
 export async function reloadGameState(
   operationId = BOOTSTRAP_OP,
@@ -184,30 +167,34 @@ export async function reloadGameState(
     (): TierBenefits => ({
       tier: "free",
       platform_fee_percent: 10,
-      max_agents: 50,
-      cloud_sync_enabled: false,
-      priority_gig_matching: false,
-      event_foresight_days: 0,
-      white_label_export: false,
-      executive_lounge: false,
-      custom_departments: false,
-      ai_co_ceo: false,
+      max_agents: null,
+      cloud_sync_enabled: true,
+      priority_gig_matching: true,
+      event_foresight_days: 3,
+      white_label_export: true,
+      executive_lounge: true,
+      custom_departments: true,
+      ai_co_ceo: true,
     }),
   );
   setTierBenefits(tierBenefits);
 
   let buildings = INITIAL_BUILDINGS;
-  if (tierBenefits.custom_departments) {
-    const deptSnapshot = await invoke<CompanyDepartmentsSnapshot>("list_company_departments").catch(
-      () => null,
-    );
-    if (deptSnapshot) {
-      const baseIds = new Set(INITIAL_BUILDINGS.map((building) => building.id));
-      buildings = [
-        ...INITIAL_BUILDINGS.filter((building) => baseIds.has(building.id)),
-        ...deptSnapshot.buildings.map(toWorldBuilding),
-      ];
-    }
+  const deptSnapshot = await invoke<import("../types/game").DepartmentsSnapshot>("list_departments").catch(
+    () => null,
+  );
+  if (deptSnapshot?.buildings.length) {
+    buildings = deptSnapshot.buildings.map((building) => ({
+      id: building.id,
+      name: building.name,
+      department: building.department,
+      position: building.position,
+      size: building.size,
+      color: building.color,
+      roofColor: building.roof_color,
+      accentColor: building.accent_color,
+      description: building.description,
+    }));
   }
   setBuildings(applyBuildingsVisualDesign(buildings, visualDesign));
 

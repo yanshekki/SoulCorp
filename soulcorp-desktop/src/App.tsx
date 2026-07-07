@@ -9,12 +9,13 @@ import { ShellLayout } from "./components/UI/ShellLayout";
 import { DesignStudioPage } from "./components/design/DesignStudioPage";
 import { AchievementsPage } from "./components/UI/AchievementsPage";
 import { AgentsPage } from "./components/UI/AgentsPage";
+import { DepartmentsPage } from "./components/UI/departments/DepartmentsPage";
 import { MarketplacePage } from "./components/UI/MarketplacePage";
 import { TokensPage } from "./components/UI/TokensPage";
 import { RecruitmentPage } from "./components/UI/RecruitmentPage";
 import { MeetingPage } from "./components/UI/MeetingPage";
 import { ProjectsPage } from "./components/UI/ProjectsPage";
-import { VipExecutivePage } from "./components/UI/VipExecutivePage";
+
 import { GodModePage } from "./components/UI/GodModePage";
 import { SettingsPage } from "./components/UI/SettingsPage";
 import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
@@ -30,6 +31,7 @@ import { useGameAudio } from "./hooks/useGameAudio";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
+import { useScrumWorkerSync } from "./hooks/useScrumWorkerSync";
 import { useGameStore } from "./stores/gameStore";
 import type { SidebarPanel } from "./types/game";
 import { hasActiveCompany } from "./utils/companyState";
@@ -76,6 +78,7 @@ function App() {
   useGameAudio();
   useOperationProgress();
   useSimulationLoop();
+  useScrumWorkerSync();
 
   useEffect(() => {
     invoke<string>("get_app_status")
@@ -115,8 +118,8 @@ function App() {
             <GodModePage />
           ) : showAchievements && activePanel === "achievements" ? (
             <AchievementsPage />
-          ) : activePanel === "executive" ? (
-            <VipExecutivePage />
+          ) : activePanel === "departments" ? (
+            <DepartmentsPage />
           ) : activePanel === "agents" ? (
             <AgentsPage />
           ) : activePanel === "recruitment" ? (

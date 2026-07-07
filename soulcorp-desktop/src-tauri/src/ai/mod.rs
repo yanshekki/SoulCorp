@@ -119,6 +119,57 @@ pub fn chat_with_fallback_billed(
     Ok(response)
 }
 
+/// LLM call without holding `AppState` — billing is returned for the caller to apply.
+pub fn chat_detached(
+    settings: &GameSettings,
+    hub: &HubState,
+    department_providers: &HashMap<String, String>,
+    billed: BilledChatRequest,
+    agent_override: Option<&str>,
+) -> Result<(ChatResponse, Option<ChargeContext>), String> {
+    let skip_billing = settings.pure_local_mode;
+    let status = probe_agent_ai(
+        settings,
+        hub,
+        department_providers,
+        &billed.department,
+        agent_override,
+    );
+
+    let provider = provider_for_active(&status, settings, hub);
+    let response = match provider.chat(billed.request.clone()) {
+        Ok(response) => response,
+        Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
+            eprintln!(
+                "LLM provider '{}' failed, using mock fallback: {error}",
+                status.active_provider
+            );
+            let fallback = MockProvider;
+            let mut response = fallback.chat(billed.request)?;
+            response.provider = format!("mock-fallback ({})", status.active_provider);
+            response
+        }
+        Err(error) => return Err(error),
+    };
+
+    let charge = if skip_billing || response.usage.source == TokenUsageSource::Zero {
+        None
+    } else {
+        Some(ChargeContext {
+            source: billed.source,
+            agent_id: billed.agent_id,
+            department: billed.department,
+            provider: response.provider.clone(),
+            prompt_tokens: response.usage.prompt_tokens,
+            completion_tokens: response.usage.completion_tokens,
+            total_tokens: response.usage.total_tokens,
+            usage_source: response.usage.source,
+        })
+    };
+
+    Ok((response, charge))
+}
+
 pub fn chat_with_fallback(
     settings: &GameSettings,
     hub: &HubState,

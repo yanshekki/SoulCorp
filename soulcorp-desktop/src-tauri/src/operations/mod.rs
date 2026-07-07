@@ -1,6 +1,8 @@
 use crate::config;
+use crate::gigs::hub_sync::{blocking_submit_gig_qc, enqueue_gig_qc_submit, hub_client_from_state};
+use crate::gigs::{compute_qc_score, submit_contract_for_qc_at_index};
 use crate::scrum::executor::apply_scrum_execution_tick;
-use crate::scrum::types::ExecutionStatus;
+use crate::scrum::types::{ExecutionStatus, WorkNodeKind, WorkNodeStatus};
 use crate::state::AppState;
 use tauri::AppHandle;
 
@@ -100,4 +102,74 @@ pub fn gig_ready_for_qc(state: &AppState, contract: &crate::state::GigContract) 
         "Work is only {:.0}% complete. Keep agents working or wait for simulation ticks.",
         contract.progress * 100.0
     ))
+}
+
+/// Auto-submit in-progress gigs that are QC-ready (v1 operational path).
+pub fn try_auto_submit_gig_qc(state: &mut AppState) -> u32 {
+    let mut submitted = 0u32;
+    let indices: Vec<usize> = state
+        .gig_contracts
+        .iter()
+        .enumerate()
+        .filter(|(_, contract)| contract.status == "in_progress")
+        .filter_map(|(index, contract)| {
+            gig_ready_for_qc(state, contract).ok().map(|_| index)
+        })
+        .collect();
+
+    for index in indices {
+        let (gig_id, contract_id, qc_score) = {
+            let contract = &state.gig_contracts[index];
+            (
+                contract.gig_id,
+                contract.contract_id.clone(),
+                compute_qc_score(state, contract),
+            )
+        };
+
+        if !state.settings.pure_local_mode && !state.hub.base_url.trim().is_empty() {
+            let client = hub_client_from_state(state);
+            if let Err(err) = blocking_submit_gig_qc(&client, gig_id, qc_score) {
+                enqueue_gig_qc_submit(state, gig_id, qc_score, &contract_id);
+                eprintln!("Hub QC queued for gig {gig_id}: {err}");
+            }
+        }
+
+        submit_contract_for_qc_at_index(state, index);
+        submitted += 1;
+    }
+    submitted
+}
+
+/// Keep agent status aligned with active scrum work for UI / v2 office visuals.
+pub fn sync_agent_visual_state(state: &mut AppState) {
+    let busy: std::collections::HashSet<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| n.status == WorkNodeStatus::InProgress)
+        .filter_map(|n| n.assignee_agent_id.clone())
+        .collect();
+
+    let in_review: std::collections::HashSet<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| n.kind == WorkNodeKind::Task && n.status == WorkNodeStatus::InReview)
+        .filter_map(|n| n.assignee_agent_id.clone())
+        .collect();
+
+    for agent in state.agents.values_mut() {
+        if crate::fate::is_system_agent(agent) {
+            continue;
+        }
+        if agent.status == "meeting" {
+            continue;
+        }
+        if busy.contains(&agent.id) {
+            agent.status = "working".to_string();
+        } else if in_review.contains(&agent.id) {
+            agent.status = "reviewing".to_string();
+        } else if agent.status == "working" || agent.status == "reviewing" {
+            agent.status = "idle".to_string();
+        }
+    }
 }

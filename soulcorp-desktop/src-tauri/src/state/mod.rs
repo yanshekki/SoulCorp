@@ -14,6 +14,23 @@ pub use companies::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectSetupMode {
+    #[default]
+    Preset,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomProjectSetup {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub owner_department: String,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayMode {
@@ -106,6 +123,44 @@ pub struct GameSettings {
     pub scrum_max_blocked_retries: u8,
     #[serde(default)]
     pub scrum_use_agent_tools: bool,
+    #[serde(default = "default_true")]
+    pub orchestrator_enabled: bool,
+    #[serde(default = "default_orchestrator_interval")]
+    pub orchestrator_interval_secs: u32,
+    #[serde(default = "default_orchestrator_idle_interval")]
+    pub orchestrator_idle_interval_secs: u32,
+    #[serde(default = "default_orchestrator_urgent_interval")]
+    pub orchestrator_urgent_interval_secs: u32,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_meeting: bool,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_spawn_co_ceo: bool,
+    #[serde(default = "default_orchestrator_max_directives")]
+    pub orchestrator_max_directives_per_cycle: u32,
+    #[serde(default = "default_agent_runtime_mode")]
+    pub agent_runtime_mode: String,
+    #[serde(default)]
+    pub openclaw_binary_path: String,
+    #[serde(default = "default_true")]
+    pub openclaw_use_local: bool,
+    #[serde(default)]
+    pub openclaw_prefer_gateway: bool,
+    #[serde(default = "default_openclaw_default_agent_id")]
+    pub openclaw_default_agent_id: String,
+    #[serde(default = "default_openclaw_timeout_secs")]
+    pub openclaw_timeout_secs: u32,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_accept_gigs: bool,
+    #[serde(default = "default_max_active_gigs")]
+    pub orchestrator_max_active_gigs: u32,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_start_gigs: bool,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_hub_pull: bool,
+    #[serde(default = "default_hub_auto_pull_interval")]
+    pub hub_auto_pull_interval_secs: u32,
+    #[serde(default = "default_true")]
+    pub orchestrator_auto_complete_gigs: bool,
 }
 
 fn default_worker_interval() -> u32 {
@@ -118,6 +173,42 @@ fn default_max_blocked_retries() -> u8 {
 
 fn default_max_executions_per_tick() -> u32 {
     1
+}
+
+fn default_orchestrator_interval() -> u32 {
+    3600
+}
+
+fn default_orchestrator_idle_interval() -> u32 {
+    600
+}
+
+fn default_orchestrator_urgent_interval() -> u32 {
+    300
+}
+
+fn default_hub_auto_pull_interval() -> u32 {
+    300
+}
+
+fn default_openclaw_default_agent_id() -> String {
+    "main".to_string()
+}
+
+fn default_openclaw_timeout_secs() -> u32 {
+    600
+}
+
+fn default_orchestrator_max_directives() -> u32 {
+    1
+}
+
+fn default_agent_runtime_mode() -> String {
+    "llm_only".to_string()
+}
+
+fn default_max_active_gigs() -> u32 {
+    3
 }
 
 fn default_music_enabled() -> bool {
@@ -285,6 +376,44 @@ impl<'de> Deserialize<'de> for GameSettings {
             scrum_max_blocked_retries: u8,
             #[serde(default)]
             scrum_use_agent_tools: bool,
+            #[serde(default = "default_true")]
+            orchestrator_enabled: bool,
+            #[serde(default = "default_orchestrator_interval")]
+            orchestrator_interval_secs: u32,
+            #[serde(default = "default_orchestrator_idle_interval")]
+            orchestrator_idle_interval_secs: u32,
+            #[serde(default = "default_orchestrator_urgent_interval")]
+            orchestrator_urgent_interval_secs: u32,
+            #[serde(default = "default_true")]
+            orchestrator_auto_meeting: bool,
+            #[serde(default = "default_true")]
+            orchestrator_auto_spawn_co_ceo: bool,
+            #[serde(default = "default_orchestrator_max_directives")]
+            orchestrator_max_directives_per_cycle: u32,
+            #[serde(default = "default_agent_runtime_mode")]
+            agent_runtime_mode: String,
+            #[serde(default)]
+            openclaw_binary_path: String,
+            #[serde(default = "default_true")]
+            openclaw_use_local: bool,
+            #[serde(default)]
+            openclaw_prefer_gateway: bool,
+            #[serde(default = "default_openclaw_default_agent_id")]
+            openclaw_default_agent_id: String,
+            #[serde(default = "default_openclaw_timeout_secs")]
+            openclaw_timeout_secs: u32,
+            #[serde(default = "default_true")]
+            orchestrator_auto_accept_gigs: bool,
+            #[serde(default = "default_max_active_gigs")]
+            orchestrator_max_active_gigs: u32,
+            #[serde(default = "default_true")]
+            orchestrator_auto_start_gigs: bool,
+            #[serde(default = "default_true")]
+            orchestrator_auto_hub_pull: bool,
+            #[serde(default = "default_hub_auto_pull_interval")]
+            hub_auto_pull_interval_secs: u32,
+            #[serde(default = "default_true")]
+            orchestrator_auto_complete_gigs: bool,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -336,6 +465,25 @@ impl<'de> Deserialize<'de> for GameSettings {
             scrum_auto_retry_blocked: helper.scrum_auto_retry_blocked,
             scrum_max_blocked_retries: helper.scrum_max_blocked_retries.max(1),
             scrum_use_agent_tools: helper.scrum_use_agent_tools,
+            orchestrator_enabled: helper.orchestrator_enabled,
+            orchestrator_interval_secs: helper.orchestrator_interval_secs.max(60),
+            orchestrator_idle_interval_secs: helper.orchestrator_idle_interval_secs.max(60),
+            orchestrator_urgent_interval_secs: helper.orchestrator_urgent_interval_secs.max(60),
+            orchestrator_auto_meeting: helper.orchestrator_auto_meeting,
+            orchestrator_auto_spawn_co_ceo: helper.orchestrator_auto_spawn_co_ceo,
+            orchestrator_max_directives_per_cycle: helper.orchestrator_max_directives_per_cycle.max(1),
+            agent_runtime_mode: helper.agent_runtime_mode,
+            openclaw_binary_path: helper.openclaw_binary_path,
+            openclaw_use_local: helper.openclaw_use_local,
+            openclaw_prefer_gateway: helper.openclaw_prefer_gateway,
+            openclaw_default_agent_id: helper.openclaw_default_agent_id,
+            openclaw_timeout_secs: helper.openclaw_timeout_secs.max(30),
+            orchestrator_auto_accept_gigs: helper.orchestrator_auto_accept_gigs,
+            orchestrator_max_active_gigs: helper.orchestrator_max_active_gigs.max(1),
+            orchestrator_auto_start_gigs: helper.orchestrator_auto_start_gigs,
+            orchestrator_auto_hub_pull: helper.orchestrator_auto_hub_pull,
+            hub_auto_pull_interval_secs: helper.hub_auto_pull_interval_secs.max(60),
+            orchestrator_auto_complete_gigs: helper.orchestrator_auto_complete_gigs,
         })
     }
 }
@@ -395,6 +543,25 @@ impl Default for GameSettings {
             scrum_auto_retry_blocked: true,
             scrum_max_blocked_retries: 2,
             scrum_use_agent_tools: false,
+            orchestrator_enabled: true,
+            orchestrator_interval_secs: 3600,
+            orchestrator_idle_interval_secs: 600,
+            orchestrator_urgent_interval_secs: 300,
+            orchestrator_auto_meeting: true,
+            orchestrator_auto_spawn_co_ceo: true,
+            orchestrator_max_directives_per_cycle: 1,
+            agent_runtime_mode: "llm_only".to_string(),
+            openclaw_binary_path: String::new(),
+            openclaw_use_local: true,
+            openclaw_prefer_gateway: false,
+            openclaw_default_agent_id: "main".to_string(),
+            openclaw_timeout_secs: 600,
+            orchestrator_auto_accept_gigs: true,
+            orchestrator_max_active_gigs: 3,
+            orchestrator_auto_start_gigs: true,
+            orchestrator_auto_hub_pull: true,
+            hub_auto_pull_interval_secs: 300,
+            orchestrator_auto_complete_gigs: true,
         }
     }
 }
@@ -770,7 +937,7 @@ pub struct MeetingMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CustomDepartment {
+pub struct CompanyDepartment {
     pub id: String,
     pub name: String,
     pub display_name: String,
@@ -779,6 +946,33 @@ pub struct CustomDepartment {
     pub accent_color: String,
     pub building_id: String,
     pub created_at: String,
+    #[serde(default)]
+    pub parent_department_id: Option<String>,
+    #[serde(default)]
+    pub head_agent_id: Option<String>,
+}
+
+/// Backward-compatible alias used by older snapshots and VIP types.
+pub type CustomDepartment = CompanyDepartment;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OrchestratorState {
+    #[serde(default)]
+    pub last_tick_at: Option<String>,
+    #[serde(default)]
+    pub directives_issued_total: u32,
+    #[serde(default)]
+    pub meetings_triggered: u32,
+    #[serde(default)]
+    pub recent_log: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScrumWorkerState {
+    #[serde(default)]
+    pub last_tick_at: Option<String>,
+    #[serde(default)]
+    pub recent_log: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -825,6 +1019,8 @@ pub struct AppState {
     #[serde(default)]
     pub company_tagline: String,
     #[serde(default)]
+    pub company_vision: String,
+    #[serde(default)]
     pub company_created_at: Option<String>,
     #[serde(default = "default_onboarding_completed")]
     pub onboarding_completed: bool,
@@ -853,12 +1049,16 @@ pub struct AppState {
     pub gig_contracts: Vec<GigContract>,
     #[serde(default)]
     pub agent_relationships: Vec<AgentRelationship>,
-    #[serde(default)]
-    pub custom_departments: Vec<CustomDepartment>,
+    #[serde(default, alias = "custom_departments")]
+    pub departments: Vec<CompanyDepartment>,
     #[serde(default)]
     pub department_ai_providers: HashMap<String, String>,
     #[serde(default)]
     pub co_ceo: CoCeoState,
+    #[serde(default)]
+    pub orchestrator: OrchestratorState,
+    #[serde(default)]
+    pub scrum_worker: ScrumWorkerState,
     #[serde(default)]
     pub projects: Vec<InternalProject>,
     #[serde(default)]
@@ -891,6 +1091,7 @@ impl Default for AppState {
             company_name: String::new(),
             company_industry: String::new(),
             company_tagline: String::new(),
+            company_vision: String::new(),
             company_created_at: None,
             onboarding_completed: false,
             settings: GameSettings::default(),
@@ -910,9 +1111,11 @@ impl Default for AppState {
             sync_queue: Vec::new(),
             gig_contracts: Vec::new(),
             agent_relationships: Vec::new(),
-            custom_departments: Vec::new(),
+            departments: Vec::new(),
             department_ai_providers: HashMap::new(),
             co_ceo: CoCeoState::default(),
+            orchestrator: OrchestratorState::default(),
+            scrum_worker: ScrumWorkerState::default(),
             projects: Vec::new(),
             work_nodes: Vec::new(),
             sprints: Vec::new(),
@@ -938,7 +1141,46 @@ impl AppState {
         let _ = self.apply_agent_roster(&default_agent_roster());
     }
 
-    pub fn seed_projects(&mut self) {
+    pub fn apply_project_setup(
+        &mut self,
+        mode: ProjectSetupMode,
+        custom: Option<CustomProjectSetup>,
+    ) -> Result<(), String> {
+        if !self.projects.is_empty() {
+            return Ok(());
+        }
+
+        match mode {
+            ProjectSetupMode::Preset => self.seed_preset_projects(),
+            ProjectSetupMode::Custom => {
+                let custom =
+                    custom.ok_or_else(|| "Custom project details are required.".to_string())?;
+                let title = custom.title.trim();
+                if title.len() < 2 {
+                    return Err("Project title must be at least 2 characters.".to_string());
+                }
+                let department = if custom.owner_department.trim().is_empty() {
+                    "Engineering".to_string()
+                } else {
+                    custom.owner_department.trim().to_string()
+                };
+                self.projects.push(InternalProject {
+                    id: format!("proj-{}", uuid::Uuid::new_v4()),
+                    title: title.to_string(),
+                    description: custom.description.trim().to_string(),
+                    progress: 0.0,
+                    priority: 1,
+                    owner_department: department,
+                    pm_agent_id: self.default_pm_agent_id.clone(),
+                    active_sprint_id: None,
+                    default_cycle_days: 14,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn seed_preset_projects(&mut self) {
         if !self.projects.is_empty() {
             return;
         }
@@ -967,6 +1209,10 @@ impl AppState {
             },
         ];
         self.seed_scrum_demo();
+    }
+
+    pub fn seed_projects(&mut self) {
+        self.seed_preset_projects();
     }
 
     pub fn seed_scrum_demo(&mut self) {
@@ -1073,5 +1319,39 @@ mod settings_tests {
         let settings: GameSettings = serde_json::from_value(raw).expect("settings");
         assert_eq!(settings.play_mode, PlayMode::Work);
         assert!(!settings.random_events_enabled);
+    }
+}
+
+#[cfg(test)]
+mod project_setup_tests {
+    use super::*;
+
+    #[test]
+    fn preset_setup_seeds_demo_backlog() {
+        let mut state = AppState::default();
+        state
+            .apply_project_setup(ProjectSetupMode::Preset, None)
+            .expect("preset");
+        assert_eq!(state.projects.len(), 2);
+        assert!(!state.work_nodes.is_empty());
+    }
+
+    #[test]
+    fn custom_setup_starts_with_empty_backlog() {
+        let mut state = AppState::default();
+        state
+            .apply_project_setup(
+                ProjectSetupMode::Custom,
+                Some(CustomProjectSetup {
+                    title: "My Launch".into(),
+                    description: "Ship v1".into(),
+                    owner_department: "Engineering".into(),
+                }),
+            )
+            .expect("custom");
+        assert_eq!(state.projects.len(), 1);
+        assert_eq!(state.projects[0].title, "My Launch");
+        assert!(state.work_nodes.is_empty());
+        assert!(state.sprints.is_empty());
     }
 }

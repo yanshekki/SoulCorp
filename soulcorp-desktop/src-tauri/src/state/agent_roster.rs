@@ -332,16 +332,10 @@ impl AppState {
             crate::fate::ensure_fate_agent(self);
         }
 
-        self.seed_projects();
         if !crate::config::is_v1() {
             crate::relationships::seed_default_relationships(self);
         }
-        self.token_economy.monthly_burn_tokens = self
-            .agents
-            .values()
-            .map(|agent| agent.salary as u64)
-            .sum::<u64>()
-            .saturating_add(self.agents.len() as u64 * 75);
+        crate::departments::ensure_default_departments(self);
         if self.token_economy.departments.is_empty() {
             crate::token_budget::initialize_wallets_from_agents(self);
         }
@@ -371,6 +365,21 @@ mod tests {
         for agent in starter_agents(&state) {
             assert!(agent.soul.is_some(), "agent {} should have soul", agent.id);
         }
+    }
+
+    #[test]
+    fn roster_finalize_leaves_monthly_burn_at_zero() {
+        let mut state = AppState::default();
+        state.settings.play_mode = PlayMode::Work;
+        state.token_economy.monthly_burn_tokens = 0;
+        state
+            .apply_agent_roster(&default_agent_roster())
+            .expect("apply default roster");
+        assert_eq!(state.token_economy.monthly_burn_tokens, 0);
+        assert_eq!(
+            crate::finance::projected_monthly_payroll(&state.agents),
+            13_425
+        );
     }
 
     #[test]

@@ -1,6 +1,10 @@
 mod achievements;
+mod agent_runtime;
 mod ai;
 mod config;
+mod departments;
+mod meeting;
+mod orchestrator;
 mod fate;
 mod scrum;
 mod commands;
@@ -96,6 +100,13 @@ pub fn run() {
             commands::open_hub_upgrade_page,
             commands::claim_near_tier_upgrade,
             commands::list_company_departments,
+            commands::list_departments,
+            commands::get_org_chart,
+            commands::create_department,
+            commands::update_department,
+            commands::rename_department,
+            commands::delete_department,
+            commands::update_agent_org,
             commands::update_department_ai_provider,
             commands::create_custom_department,
             commands::delete_custom_department,
@@ -113,6 +124,7 @@ pub fn run() {
             commands::create_company,
             commands::switch_company,
             commands::delete_company,
+            commands::update_company_vision,
             commands::get_visual_design,
             commands::save_visual_design,
             commands::update_building_visual,
@@ -154,6 +166,9 @@ pub fn run() {
             commands::list_execution_runs,
             commands::link_work_node_to_gig,
             commands::get_command_center_overview,
+            commands::get_automation_status,
+            commands::get_openclaw_status,
+            commands::test_openclaw_runtime,
             commands::preview_route_directive_cmd,
             commands::cancel_directive,
             commands::update_directive_status,

@@ -2,7 +2,7 @@ use crate::achievements::{default_achievements, default_endings};
 use crate::config;
 use crate::db::persistence::{clear_all_persisted_data, commit};
 use crate::relationships;
-use crate::state::{default_agent_roster, fresh_company_state};
+use crate::state::{default_agent_roster, fresh_company_state, ProjectSetupMode};
 use crate::state::visual_design::CompanyVisualDesign;
 use crate::state::{AppState, GameEvent, GigContract, PlayMode};
 use chrono::Utc;
@@ -35,6 +35,9 @@ fn build_fake_company_state() -> AppState {
     state
         .apply_agent_roster(&default_agent_roster())
         .expect("seed fake roster");
+    state
+        .apply_project_setup(ProjectSetupMode::Preset, None)
+        .expect("seed fake projects");
     state.day_number = 87;
     state.tick = 2400;
     state.token_economy.company_balance = 48_200;

@@ -134,6 +134,8 @@ pub struct Sprint {
     pub committed_story_ids: Vec<String>,
     #[serde(default = "default_velocity")]
     pub velocity_target: u8,
+    #[serde(default)]
+    pub started_at: Option<String>,
 }
 
 fn default_cycle_days() -> u32 {

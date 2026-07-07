@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { AppPageShell } from "./AppPageShell";
 import { FinancePanel, TOKENS_SECTIONS } from "./FinancePanel";
 
 export function TokensPage() {
@@ -10,35 +11,15 @@ export function TokensPage() {
   }, []);
 
   return (
-    <div className="tokens-page">
-      <header className="tokens-page-header">
-        <div>
-          <h2>Tokens</h2>
-          <p className="muted">
-            Company token pool, budget split, department and agent wallets with period caps, usage
-            ledger, and salary efficiency.
-          </p>
-        </div>
-      </header>
-
-      <div className="tokens-page-body">
-        <nav className="tokens-page-nav" aria-label="Token sections">
-          {TOKENS_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={`tokens-nav-btn${activeSection === section.id ? " active" : ""}`}
-              onClick={() => scrollToSection(section.id)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="tokens-page-scroll">
-          <FinancePanel onSectionFocus={setActiveSection} onNavigateSection={scrollToSection} />
-        </div>
-      </div>
-    </div>
+    <AppPageShell
+      title="Tokens"
+      subtitle="Pool, wallets, usage"
+      badge="Step 6"
+      navItems={TOKENS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+    >
+      <FinancePanel onSectionFocus={setActiveSection} onNavigateSection={scrollToSection} />
+    </AppPageShell>
   );
 }

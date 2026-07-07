@@ -160,7 +160,7 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
 
   useEffect(() => {
     if (!onSectionFocus) return;
-    const root = scrollRootRef.current?.closest(".projects-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-projects-section]");
     if (!root || !sections?.length) return;
     const observer = new IntersectionObserver(

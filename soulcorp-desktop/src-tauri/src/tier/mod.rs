@@ -34,78 +34,58 @@ pub struct TierBenefits {
     pub ai_co_ceo: bool,
 }
 
+fn platform_fee_for_tier(tier: UserTier) -> f32 {
+    match tier {
+        UserTier::Pro => 8.0,
+        UserTier::Vip => 5.0,
+        UserTier::Local => 0.0,
+        UserTier::Free => 10.0,
+    }
+}
+
+fn tier_label(tier: UserTier) -> &'static str {
+    match tier {
+        UserTier::Pro => "pro",
+        UserTier::Vip => "vip",
+        UserTier::Local => "local",
+        UserTier::Free => "free",
+    }
+}
+
+/// All product features are unlocked on every tier; only platform fee differs.
+fn full_feature_benefits(tier: UserTier) -> TierBenefits {
+    TierBenefits {
+        tier: tier_label(tier).to_string(),
+        platform_fee_percent: platform_fee_for_tier(tier),
+        max_agents: None,
+        cloud_sync_enabled: true,
+        priority_gig_matching: true,
+        event_foresight_days: 3,
+        white_label_export: true,
+        executive_lounge: true,
+        custom_departments: true,
+        ai_co_ceo: true,
+    }
+}
+
 pub fn benefits_for_tier(tier: &str) -> TierBenefits {
-    match UserTier::from_label(tier) {
-        UserTier::Pro => TierBenefits {
-            tier: "pro".to_string(),
-            platform_fee_percent: 8.0,
-            max_agents: None,
-            cloud_sync_enabled: true,
-            priority_gig_matching: true,
-            event_foresight_days: 1,
-            white_label_export: false,
-            executive_lounge: false,
-            custom_departments: false,
-            ai_co_ceo: false,
-        },
-        UserTier::Vip => TierBenefits {
-            tier: "vip".to_string(),
-            platform_fee_percent: 5.0,
-            max_agents: None,
-            cloud_sync_enabled: true,
-            priority_gig_matching: true,
-            event_foresight_days: 3,
-            white_label_export: true,
-            executive_lounge: true,
-            custom_departments: true,
-            ai_co_ceo: true,
-        },
-        UserTier::Local => TierBenefits {
-            tier: "local".to_string(),
-            platform_fee_percent: 0.0,
-            max_agents: None,
-            cloud_sync_enabled: false,
-            priority_gig_matching: false,
-            event_foresight_days: 0,
-            white_label_export: false,
-            executive_lounge: false,
-            custom_departments: false,
-            ai_co_ceo: false,
-        },
-        UserTier::Free => TierBenefits {
-            tier: "free".to_string(),
-            platform_fee_percent: 10.0,
-            max_agents: Some(50),
-            cloud_sync_enabled: false,
-            priority_gig_matching: false,
-            event_foresight_days: 0,
-            white_label_export: false,
-            executive_lounge: false,
-            custom_departments: false,
-            ai_co_ceo: false,
-        },
-    }
+    full_feature_benefits(UserTier::from_label(tier))
 }
 
-pub fn can_use_feature(tier: &str, feature: &str) -> bool {
-    let benefits = benefits_for_tier(tier);
-    match feature {
-        "cloud_sync" => benefits.cloud_sync_enabled,
-        "priority_gigs" => benefits.priority_gig_matching,
-        "white_label_export" => benefits.white_label_export,
-        "executive_lounge" => benefits.executive_lounge,
-        "custom_departments" => benefits.custom_departments,
-        "ai_co_ceo" => benefits.ai_co_ceo,
-        _ => false,
-    }
+pub fn can_use_feature(_tier: &str, feature: &str) -> bool {
+    matches!(
+        feature,
+        "cloud_sync"
+            | "priority_gigs"
+            | "white_label_export"
+            | "executive_lounge"
+            | "custom_departments"
+            | "ai_co_ceo"
+    )
 }
 
-pub fn agent_limit_reached(tier: &str, current_agents: usize) -> bool {
-    if let Some(limit) = benefits_for_tier(tier).max_agents {
-        current_agents >= limit as usize
-    } else {
-        false
-    }
+pub fn agent_limit_reached(_tier: &str, _current_agents: usize) -> bool {
+    false
 }
 
 #[cfg(test)]
@@ -113,21 +93,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pro_tier_enables_cloud_sync() {
-        assert!(can_use_feature("pro", "cloud_sync"));
-        assert!(benefits_for_tier("pro").event_foresight_days >= 1);
+    fn all_tiers_unlock_features() {
+        for tier in ["free", "pro", "vip", "local"] {
+            assert!(can_use_feature(tier, "cloud_sync"));
+            assert!(can_use_feature(tier, "executive_lounge"));
+            assert!(can_use_feature(tier, "custom_departments"));
+            assert!(can_use_feature(tier, "ai_co_ceo"));
+            assert!(can_use_feature(tier, "white_label_export"));
+            let benefits = benefits_for_tier(tier);
+            assert!(benefits.cloud_sync_enabled);
+            assert!(benefits.ai_co_ceo);
+            assert_eq!(benefits.max_agents, None);
+        }
     }
 
     #[test]
-    fn vip_unlocks_executive_features() {
-        assert!(can_use_feature("vip", "executive_lounge"));
-        assert!(can_use_feature("vip", "custom_departments"));
-        assert!(can_use_feature("vip", "ai_co_ceo"));
+    fn platform_fee_still_varies_by_tier() {
+        assert_eq!(benefits_for_tier("free").platform_fee_percent, 10.0);
+        assert_eq!(benefits_for_tier("pro").platform_fee_percent, 8.0);
+        assert_eq!(benefits_for_tier("vip").platform_fee_percent, 5.0);
     }
 
     #[test]
-    fn free_tier_caps_agents_at_fifty() {
-        assert!(!agent_limit_reached("free", 49));
-        assert!(agent_limit_reached("free", 50));
+    fn agent_limit_never_reached() {
+        assert!(!agent_limit_reached("free", 10_000));
     }
 }

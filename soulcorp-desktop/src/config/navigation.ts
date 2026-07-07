@@ -45,6 +45,7 @@ const V1_NAV_GROUPS: NavGroup[] = [
   {
     label: "Team & Budget",
     panels: [
+      { id: "departments", label: "Departments", workflowHint: "Org structure" },
       { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
       { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
       { id: "finance", label: "Tokens", workflowStep: 6, workflowHint: "Manage budget" },
@@ -58,10 +59,7 @@ const V1_NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Account",
-    panels: [
-      { id: "executive", label: "Executive" },
-      { id: "tier", label: "Pro / VIP" },
-    ],
+    panels: [{ id: "tier", label: "Pro / VIP" }],
   },
   {
     label: "System",
@@ -86,6 +84,7 @@ const V2_NAV_GROUPS: NavGroup[] = [
   {
     label: "Team & Budget",
     panels: [
+      { id: "departments", label: "Departments", workflowHint: "Org structure" },
       { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
       { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
       { id: "finance", label: "Tokens", workflowStep: 6, workflowHint: "Manage budget" },
@@ -105,7 +104,6 @@ const V2_NAV_GROUPS: NavGroup[] = [
     label: "Account",
     panels: [
       { id: "tier", label: "Pro / VIP" },
-      { id: "executive", label: "Executive" },
       { id: "achievements", label: "Achievements" },
     ],
   },
@@ -160,12 +158,17 @@ export function isPanelVisibleInEdition(panel: SidebarPanel): boolean {
       return showGodMode;
     case "achievements":
       return showAchievements;
+    case "executive":
+      return false;
     default:
       return true;
   }
 }
 
 export function normalizePanelForEdition(panel: SidebarPanel): SidebarPanel {
+  if (panel === "executive") {
+    return "projects";
+  }
   return isPanelVisibleInEdition(panel) ? panel : "projects";
 }
 
@@ -175,7 +178,7 @@ export const IMMERSIVE_PANELS = new Set<SidebarPanel>([
   "settings",
   "god_mode",
   "achievements",
-  "executive",
+  "departments",
   "agents",
   "recruitment",
   "marketplace",

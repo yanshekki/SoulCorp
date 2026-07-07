@@ -1,3 +1,11 @@
+pub mod auto_accept;
+pub mod auto_complete;
+pub mod hub_sync;
+
+pub use auto_accept::{try_auto_accept_hub_gigs, AutoAcceptReport};
+pub use auto_complete::{try_auto_complete_gigs, AutoCompleteReport};
+pub use hub_sync::{flush_pending_hub_gig_ops, try_auto_hub_pull, HubFlushReport, HubPullReport};
+
 use crate::state::{AppState, GigContract};
 use crate::tier::benefits_for_tier;
 

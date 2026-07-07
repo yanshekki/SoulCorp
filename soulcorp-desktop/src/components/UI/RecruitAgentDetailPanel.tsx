@@ -2,7 +2,7 @@ import type { RecruitmentCandidate } from "../../types/game";
 import { hubFileTypeLabel } from "../../utils/candidateSoul";
 import { SoulMdEditor } from "./SoulMdEditor";
 
-const DEPARTMENTS = ["Engineering", "Human Resources", "Executive", "Marketing"];
+import { useCompanyDepartments } from "../../hooks/useCompanyDepartments";
 
 interface RecruitAgentDetailPanelProps {
   candidate: RecruitmentCandidate | null;
@@ -25,6 +25,8 @@ export function RecruitAgentDetailPanel({
   onDepartmentChange,
   onSoulChange,
 }: RecruitAgentDetailPanelProps) {
+  const { departmentNames } = useCompanyDepartments();
+
   if (!candidate) {
     return (
       <div className="recruit-agent-detail recruit-agent-detail-empty">
@@ -79,7 +81,7 @@ export function RecruitAgentDetailPanel({
         <label className="field-label">
           Default department
           <select value={department} onChange={(event) => onDepartmentChange(event.target.value)}>
-            {DEPARTMENTS.map((item) => (
+            {departmentNames.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>

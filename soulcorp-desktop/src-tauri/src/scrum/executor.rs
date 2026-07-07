@@ -1,4 +1,4 @@
-use super::agent_tools::execute_with_tools;
+use crate::agent_runtime::execute_for_task;
 use super::org::resolve_pm_agent_id;
 use super::tree::{mark_story_done_if_tasks_complete, now_iso, recompute_project_progress};
 use super::types::{
@@ -56,7 +56,7 @@ pub fn execute_task(
     app: &AppHandle,
     work_node_id: &str,
 ) -> Result<ExecutionRun, String> {
-    let (task, agent_id, department) = {
+    let (task, agent_id) = {
         let task = state
             .work_nodes
             .iter()
@@ -73,8 +73,7 @@ pub fn execute_task(
             .assignee_agent_id
             .clone()
             .ok_or_else(|| "Assign an agent before executing.".to_string())?;
-        let department = task.department.clone();
-        (task, agent_id, department)
+        (task, agent_id)
     };
 
     let agent = state
@@ -134,25 +133,8 @@ pub fn execute_task(
         .map(|p| p.title.clone())
         .unwrap_or_else(|| "Company project".to_string());
 
-    let response_content = if state.settings.scrum_use_agent_tools {
-        execute_with_tools(state, &task, &agent, &project_title)
-    } else {
-        let request = build_execution_request(state, &task, &agent)?;
-        let dept_providers = state.department_ai_providers.clone();
-        let billed = BilledChatRequest {
-            request,
-            agent_id: agent_id.clone(),
-            department: department.clone(),
-            source: "work_execution".to_string(),
-        };
-        ai::chat_with_fallback_billed(
-            state,
-            billed,
-            &dept_providers,
-            agent.ai_provider.as_deref(),
-        )
-        .map(|resp| resp.content)
-    };
+    let response_content =
+        execute_for_task(state, &task, &agent, &project_title);
 
     let result = match response_content {
         Ok(content) => {
@@ -212,18 +194,11 @@ pub fn execute_task(
     result
 }
 
-fn build_execution_request(
-    state: &AppState,
+pub fn build_execution_request_for_project(
     task: &WorkNode,
     agent: &crate::state::AgentRecord,
+    project_title: &str,
 ) -> Result<ChatRequest, String> {
-    let project = state
-        .projects
-        .iter()
-        .find(|p| p.id == task.project_id)
-        .map(|p| p.title.clone())
-        .unwrap_or_else(|| "Company project".to_string());
-
     let ac = if task.acceptance_criteria.is_empty() {
         "Meet the task objective with clear, actionable output.".to_string()
     } else {
@@ -231,7 +206,7 @@ fn build_execution_request(
     };
 
     let task_context = format!(
-        "Project: {project}\nTask: {}\nDetails: {}\nAcceptance criteria:\n- {}",
+        "Project: {project_title}\nTask: {}\nDetails: {}\nAcceptance criteria:\n- {}",
         task.title, task.description, ac
     );
     let (persona, context) = build_chat_parts_for_agent(
@@ -242,7 +217,7 @@ fn build_execution_request(
         &task_context,
     );
     let user_prompt = format!(
-        "You are executing a work task for project '{project}'.\n\nTask: {}\nDetails: {}\n\nAcceptance criteria:\n- {}\n\nProduce a concise deliverable: summary, key decisions, and next steps. Write in markdown-friendly plain text.",
+        "You are executing a work task for project '{project_title}'.\n\nTask: {}\nDetails: {}\n\nAcceptance criteria:\n- {}\n\nProduce a concise deliverable: summary, key decisions, and next steps. Write in markdown-friendly plain text.",
         task.title, task.description, ac
     );
 
@@ -256,7 +231,21 @@ fn build_execution_request(
     })
 }
 
-fn write_deliverable(
+pub(crate) fn build_execution_request(
+    state: &AppState,
+    task: &WorkNode,
+    agent: &crate::state::AgentRecord,
+) -> Result<ChatRequest, String> {
+    let project = state
+        .projects
+        .iter()
+        .find(|p| p.id == task.project_id)
+        .map(|p| p.title.clone())
+        .unwrap_or_else(|| "Company project".to_string());
+    build_execution_request_for_project(task, agent, &project)
+}
+
+pub(crate) fn write_deliverable(
     app: &AppHandle,
     state: &AppState,
     task: &WorkNode,
@@ -294,7 +283,7 @@ fn build_agent_prompt(agent: &crate::state::AgentRecord, context: &str) -> Strin
     format!("{persona}\n\nContext: {ctx}")
 }
 
-fn truncate_summary(content: &str) -> String {
+pub(crate) fn truncate_summary(content: &str) -> String {
     let trimmed = content.trim();
     if trimmed.chars().count() <= 240 {
         trimmed.to_string()
@@ -358,36 +347,58 @@ pub fn apply_parallel_execution_tick(state: &mut AppState, app: &AppHandle) -> O
         .filter_map(|n| n.assignee_agent_id.clone())
         .collect();
 
-    let candidates: Vec<String> = state
-        .work_nodes
-        .iter()
-        .filter(|n| {
-            n.kind == WorkNodeKind::Task
-                && n.assignee_agent_id.is_some()
-                && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
-                && dependencies_satisfied(state, n)
-                && n.assignee_agent_id
-                    .as_ref()
-                    .is_some_and(|id| !busy_agents.contains(id))
-        })
-        .max_by(|a, b| a.priority.cmp(&b.priority))
-        .map(|n| n.id.clone())
-        .into_iter()
+    let idle_agents: Vec<String> = state
+        .agents
+        .values()
+        .filter(|a| !crate::fate::is_system_agent(a))
+        .filter(|a| a.status != "working" && !busy_agents.contains(&a.id))
+        .map(|a| a.id.clone())
         .collect();
 
-    let candidate = candidates.first()?;
+    let max_parallel = state
+        .settings
+        .scrum_max_executions_per_tick
+        .max(1) as usize;
 
-    match execute_task(state, app, candidate) {
-        Ok(run) => Some(format!(
-            "Parallel work execution {} for task {}.",
-            match run.status {
-                ExecutionStatus::Succeeded => "completed",
-                ExecutionStatus::Throttled => "throttled (tokens)",
-                _ => "finished",
-            },
-            run.work_node_id
-        )),
-        Err(err) => Some(format!("Parallel work execution failed: {err}")),
+    let mut notes = Vec::new();
+    let mut used_agents = busy_agents;
+
+    for agent_id in idle_agents.into_iter().take(max_parallel) {
+        let candidate = state
+            .work_nodes
+            .iter()
+            .filter(|n| {
+                n.kind == WorkNodeKind::Task
+                    && n.assignee_agent_id.as_deref() == Some(agent_id.as_str())
+                    && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
+                    && dependencies_satisfied(state, n)
+            })
+            .max_by(|a, b| a.priority.cmp(&b.priority))
+            .map(|n| n.id.clone());
+
+        let Some(task_id) = candidate else {
+            continue;
+        };
+
+        used_agents.insert(agent_id);
+        match execute_task(state, app, &task_id) {
+            Ok(run) => notes.push(format!(
+                "Parallel work execution {} for task {}.",
+                match run.status {
+                    ExecutionStatus::Succeeded => "completed",
+                    ExecutionStatus::Throttled => "throttled (tokens)",
+                    _ => "finished",
+                },
+                run.work_node_id
+            )),
+            Err(err) => notes.push(format!("Parallel work execution failed: {err}")),
+        }
+    }
+
+    if notes.is_empty() {
+        None
+    } else {
+        Some(notes.join(" "))
     }
 }
 
@@ -485,7 +496,7 @@ pub fn update_directive_lifecycle(state: &mut AppState) {
     }
 }
 
-fn dependencies_satisfied(state: &AppState, node: &WorkNode) -> bool {
+pub(crate) fn dependencies_satisfied(state: &AppState, node: &WorkNode) -> bool {
     node.depends_on.iter().all(|dep_id| {
         state
             .work_nodes
@@ -527,9 +538,21 @@ pub fn route_directive_llm(
         .flat_map(|a| a.skills.clone())
         .collect();
 
+    let departments: Vec<String> = state
+        .agents
+        .values()
+        .filter(|a| !crate::fate::is_system_agent(a))
+        .map(|a| a.department.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
     let prompt = format!(
-        "Break down this CEO directive into 1 story and 3 tasks as JSON array.\nDirective: {}\nDetails: {}\nTeam skills: {}\n\nReturn ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\"}}]}}]",
-        directive.title, directive.description, team_skills.join(", ")
+        "Break down this CEO directive into 1-2 stories with 3-6 tasks as JSON array.\nDirective: {}\nDetails: {}\nTeam skills: {}\nDepartments: {}\n\nUse cross-department tasks when needed. Order tasks so later items depend on earlier ones.\nReturn ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\"}}]}}]",
+        directive.title,
+        directive.description,
+        team_skills.join(", "),
+        departments.join(", ")
     );
 
     let (persona, ctx) = build_chat_parts_for_agent(
@@ -648,9 +671,12 @@ fn parse_llm_decomposition(
         created.push(story_node.clone());
         state.work_nodes.push(story_node);
 
+        let mut previous_task_id: Option<String> = None;
         for (task_index, task) in story.tasks.into_iter().take(6).enumerate() {
+            let task_id = super::tree::new_node_id();
+            let depends_on = previous_task_id.clone().into_iter().collect::<Vec<_>>();
             let task_node = WorkNode {
-                id: super::tree::new_node_id(),
+                id: task_id.clone(),
                 parent_id: Some(story_id.clone()),
                 project_id: project_id.to_string(),
                 kind: WorkNodeKind::Task,
@@ -670,7 +696,7 @@ fn parse_llm_decomposition(
                     task.department.clone()
                 },
                 sprint_id: None,
-                depends_on: Vec::new(),
+                depends_on,
                 acceptance_criteria: vec!["Complete and publish deliverable.".to_string()],
                 linked_workspace_page_id: None,
                 linked_gig_contract_id: None,
@@ -680,6 +706,7 @@ fn parse_llm_decomposition(
             };
             created.push(task_node.clone());
             state.work_nodes.push(task_node);
+            previous_task_id = Some(task_id);
         }
     }
 

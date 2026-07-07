@@ -17,6 +17,11 @@ pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentReco
         .sum()
 }
 
+pub fn projected_monthly_payroll(agents: &std::collections::HashMap<String, AgentRecord>) -> u64 {
+    let staffed = agents.values().filter(|agent| !is_system_agent(agent)).count() as u64;
+    total_monthly_salary(agents).saturating_add(staffed.saturating_mul(75))
+}
+
 pub fn count_active_agents(state: &AppState, include_throttled: bool) -> u32 {
     state
         .agents

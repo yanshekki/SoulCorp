@@ -122,7 +122,7 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
     if (!onSectionFocus) {
       return;
     }
-    const root = scrollRootRef.current?.closest(".achievements-page-scroll");
+    const root = scrollRootRef.current?.closest(".app-page-content");
     const sections = scrollRootRef.current?.querySelectorAll("[data-achievements-section]");
     if (!root || !sections?.length) {
       return;

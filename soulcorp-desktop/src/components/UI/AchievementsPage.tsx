@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { AppPageShell } from "./AppPageShell";
 import { AchievementsPanel, ACHIEVEMENT_NAV_SECTIONS } from "./AchievementsPanel";
 
 export function AchievementsPage() {
@@ -7,39 +8,21 @@ export function AchievementsPage() {
   const scrollToSection = useCallback((sectionId: string) => {
     setActiveSection(sectionId);
     if (sectionId === "all") {
-      document.querySelector(".achievements-page-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+      document.querySelector(".app-page-content")?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
   return (
-    <div className="achievements-page">
-      <header className="achievements-page-header">
-        <div>
-          <h2>Achievements</h2>
-          <p className="muted">Track milestones, culture goals, and alternate company endings.</p>
-        </div>
-      </header>
-
-      <div className="achievements-page-body">
-        <nav className="achievements-page-nav" aria-label="Achievement categories">
-          {ACHIEVEMENT_NAV_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={`achievements-nav-btn${activeSection === section.id ? " active" : ""}`}
-              onClick={() => scrollToSection(section.id)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="achievements-page-scroll">
-          <AchievementsPanel onSectionFocus={setActiveSection} />
-        </div>
-      </div>
-    </div>
+    <AppPageShell
+      title="Achievements"
+      subtitle="Milestones & endings"
+      navItems={ACHIEVEMENT_NAV_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
+      activeNavId={activeSection}
+      onNavSelect={scrollToSection}
+    >
+      <AchievementsPanel onSectionFocus={setActiveSection} />
+    </AppPageShell>
   );
 }

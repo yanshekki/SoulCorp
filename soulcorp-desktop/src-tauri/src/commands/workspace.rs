@@ -2,7 +2,7 @@ use crate::db::persistence::commit;
 use crate::progress::ProgressReporter;
 use crate::state::AppState;
 use crate::workspace::{
-    create_page_from_template, list_templates, storage::{company_workspace_root, default_departments},
+    create_page_from_template, list_templates, storage::company_workspace_root,
     write_meeting_notes_from_state, AddPageCommentRequest, CreateFolderRequest,
     CreatePageFromTemplateRequest, CreatePageRequest, DeleteFolderRequest, DeletePageRequest,
     LinkableEntity, LinkEntityRequest, PageBacklink, PageComment, PageVersionSummary,
@@ -16,13 +16,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
 fn collect_departments(state: &AppState) -> Vec<String> {
-    let mut departments = default_departments();
-    for custom in &state.custom_departments {
-        if !departments.iter().any(|department| department == &custom.name) {
-            departments.push(custom.name.clone());
-        }
-    }
-    departments
+    crate::departments::department_names(state)
 }
 
 fn storage_for_app(

@@ -6,7 +6,7 @@ use crate::fate::clamp_event_chance;
 use crate::commands::onboarding::persist_agent_roster_workspace;
 use crate::state::{
     default_agent_roster, fresh_company_state, summary_from_state, AgentSlotSetup, AppState,
-    CompanySummary, PlayMode,
+    CompanySummary, CustomProjectSetup, PlayMode, ProjectSetupMode,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -29,6 +29,10 @@ pub struct CreateCompanyRequest {
     pub random_event_chance: f32,
     #[serde(default = "default_agent_roster")]
     pub agent_roster: Vec<AgentSlotSetup>,
+    #[serde(default)]
+    pub project_setup_mode: ProjectSetupMode,
+    #[serde(default)]
+    pub custom_project: Option<CustomProjectSetup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +121,7 @@ pub fn create_company(
     );
     state.onboarding_completed = true;
     state.apply_agent_roster(&request.agent_roster)?;
+    state.apply_project_setup(request.project_setup_mode, request.custom_project.clone())?;
 
     let company_id = state.company_id.clone();
     let summary = summary_from_state(&state);
@@ -202,6 +207,34 @@ pub fn delete_company(
     Ok(CompanyListResponse {
         active_company_id: registry.active_company_id.clone(),
         companies: registry.companies.clone(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCompanyVisionRequest {
+    pub vision: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCompanyVisionResponse {
+    pub company_vision: String,
+}
+
+#[tauri::command]
+pub fn update_company_vision(
+    request: UpdateCompanyVisionRequest,
+    app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<UpdateCompanyVisionResponse, String> {
+    let vision = normalize_optional_field(&request.vision, 500, "Vision")?;
+    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    if state.company_id.is_empty() {
+        return Err("No active company.".to_string());
+    }
+    state.company_vision = vision.clone();
+    commit(app, &state)?;
+    Ok(UpdateCompanyVisionResponse {
+        company_vision: vision,
     })
 }
 

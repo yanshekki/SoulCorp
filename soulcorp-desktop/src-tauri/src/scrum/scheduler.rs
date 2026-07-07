@@ -1,4 +1,6 @@
-use super::org::{agent_eligible_for_task, department_head_for, resolve_pm_agent_id};
+use super::org::{
+    agent_eligible_for_task, department_head_for, resolve_pm_agent_id, subordinates_of,
+};
 use super::tree::{new_node_id, now_iso};
 use super::types::{
     Directive, DirectiveStatus, Sprint, SprintStatus, WorkNode, WorkNodeKind, WorkNodeStatus,
@@ -156,6 +158,86 @@ fn decompose_story_to_tasks(
             completed_at: None,
         })
         .collect()
+}
+
+/// Department heads assign unowned sprint tasks to subordinates.
+pub fn apply_department_head_delegation(state: &mut AppState) -> u32 {
+    let mut delegated = 0u32;
+    let managers: Vec<(String, String)> = state
+        .agents
+        .values()
+        .filter(|a| !crate::fate::is_system_agent(a))
+        .filter_map(|a| {
+            a.manages_department
+                .as_ref()
+                .map(|dept| (a.id.clone(), dept.clone()))
+        })
+        .collect();
+
+    let task_ids: Vec<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| {
+            n.kind == WorkNodeKind::Task
+                && n.assignee_agent_id.is_none()
+                && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
+        })
+        .map(|n| n.id.clone())
+        .collect();
+
+    for task_id in task_ids {
+        let task = match state.work_nodes.iter().find(|n| n.id == task_id) {
+            Some(t) => t.clone(),
+            None => continue,
+        };
+
+        let manager_id = managers
+            .iter()
+            .find(|(_, dept)| dept == &task.department)
+            .map(|(id, _)| id.clone())
+            .or_else(|| task.assigned_by_manager_id.clone());
+
+        let Some(manager_id) = manager_id else {
+            continue;
+        };
+
+        let subs = subordinates_of(state, &manager_id);
+        if subs.is_empty() {
+            continue;
+        }
+
+        let agents: Vec<AgentRecord> = state
+            .agents
+            .values()
+            .filter(|a| subs.contains(&a.id))
+            .cloned()
+            .collect();
+
+        let best = agents
+            .iter()
+            .filter(|agent| agent_eligible_for_task(&task, agent, state))
+            .map(|agent| {
+                (
+                    agent.id.clone(),
+                    skill_match_score(&task, agent) * agent_capacity(agent, &state.work_nodes),
+                )
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .filter(|(_, score)| *score > 0.15)
+            .map(|(id, _)| id);
+
+        let Some(agent_id) = best else {
+            continue;
+        };
+
+        if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
+            node.assignee_agent_id = Some(agent_id);
+            node.assigned_by_manager_id = Some(manager_id);
+            node.updated_at = now_iso();
+            delegated += 1;
+        }
+    }
+    delegated
 }
 
 pub fn plan_sprint(state: &mut AppState, sprint_id: &str) -> Result<u32, String> {
@@ -352,6 +434,78 @@ pub fn agent_inboxes(state: &AppState) -> Vec<super::types::AgentInboxEntry> {
     entries
 }
 
+/// Real-time sprint lifecycle for v1 (wall-clock) and v2 (simulation day).
+pub fn advance_sprint_lifecycle(state: &mut AppState) -> u32 {
+    let mut advanced = 0u32;
+    if crate::config::is_v2() {
+        maybe_advance_sprint_cycle(state);
+    }
+
+    let project_ids: Vec<String> = state.projects.iter().map(|p| p.id.clone()).collect();
+    for project_id in project_ids {
+        let Some(sprint_id) = state
+            .projects
+            .iter()
+            .find(|p| p.id == project_id)
+            .and_then(|p| p.active_sprint_id.clone())
+        else {
+            continue;
+        };
+
+        let sprint = match state.sprints.iter().find(|s| s.id == sprint_id) {
+            Some(s) => s.clone(),
+            None => continue,
+        };
+
+        if sprint.status == SprintStatus::Planning {
+            if let Some(s) = state.sprints.iter_mut().find(|s| s.id == sprint_id) {
+                s.status = SprintStatus::Active;
+                if s.started_at.is_none() {
+                    s.started_at = Some(now_iso());
+                }
+            }
+            let _ = plan_sprint(state, &sprint_id);
+            advanced += 1;
+            continue;
+        }
+
+        if sprint.status != SprintStatus::Active {
+            continue;
+        }
+
+        let should_close = if crate::config::is_v2() {
+            state.day_number >= sprint.end_day
+        } else {
+            sprint_started_days_ago(&sprint) >= sprint.cycle_length_days
+        };
+
+        if !should_close {
+            continue;
+        }
+
+        if let Some(s) = state.sprints.iter_mut().find(|s| s.id == sprint_id) {
+            s.status = SprintStatus::Closed;
+        }
+        if let Some(project) = state.projects.iter_mut().find(|p| p.id == project_id) {
+            project.active_sprint_id = None;
+        }
+        let _ = ensure_active_sprint(state, &project_id);
+        advanced += 1;
+    }
+    advanced
+}
+
+fn sprint_started_days_ago(sprint: &Sprint) -> u32 {
+    let Some(started) = sprint.started_at.as_deref() else {
+        return 0;
+    };
+    let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(started) else {
+        return 0;
+    };
+    let elapsed = chrono::Utc::now().signed_duration_since(parsed.with_timezone(&chrono::Utc));
+    (elapsed.num_days().max(0) as u32).saturating_add(1)
+}
+
 pub fn maybe_advance_sprint_cycle(state: &mut AppState) {
     for project in state.projects.clone() {
         let Some(sprint_id) = project.active_sprint_id.clone() else {
@@ -447,6 +601,7 @@ pub fn ensure_active_sprint(state: &mut AppState, project_id: &str) -> Result<St
         status: SprintStatus::Planning,
         committed_story_ids: Vec::new(),
         velocity_target: 21,
+        started_at: None,
     };
     state.sprints.push(sprint);
     if let Some(project) = state.projects.iter_mut().find(|p| p.id == project_id) {
