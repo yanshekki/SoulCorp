@@ -11,6 +11,57 @@ use crate::workspace::{
 use std::path::Path;
 
 const MAX_TOOL_STEPS: usize = 3;
+const RESEARCH_PAGE_LIMIT: usize = 3;
+const RESEARCH_SNIPPET_CHARS: usize = 700;
+const JOURNAL_TITLE_MAX_CHARS: usize = 80;
+
+struct WorkspaceExecution {
+    storage: WorkspaceStorage,
+}
+
+impl WorkspaceExecution {
+    fn open(root: &Path) -> Result<Self, String> {
+        let storage = WorkspaceStorage::new(root.to_path_buf())?;
+        storage.ensure_seed()?;
+        Ok(Self { storage })
+    }
+
+    fn service(&self) -> AgentWorkspaceService<'_> {
+        AgentWorkspaceService::new(&self.storage)
+    }
+}
+
+fn journal_title_for_task(task: &WorkNode) -> String {
+    let title = task.title.trim();
+    if title.chars().count() <= JOURNAL_TITLE_MAX_CHARS {
+        format!("Task — {title}")
+    } else {
+        format!(
+            "Task — {}…",
+            title.chars().take(JOURNAL_TITLE_MAX_CHARS).collect::<String>()
+        )
+    }
+}
+
+fn content_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+        .collect()
+}
+
+fn truncate_for_prompt(text: &str, max_chars: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= max_chars {
+        trimmed.to_string()
+    } else {
+        format!(
+            "{}…",
+            trimmed.chars().take(max_chars).collect::<String>()
+        )
+    }
+}
 
 fn build_workspace_prompt_context(
     workspace_root: Option<&Path>,
@@ -18,9 +69,8 @@ fn build_workspace_prompt_context(
     search_query: &str,
 ) -> Option<String> {
     let root = workspace_root?;
-    let storage = WorkspaceStorage::new(root.to_path_buf()).ok()?;
-    storage.ensure_seed().ok()?;
-    let service = AgentWorkspaceService::new(&storage);
+    let execution = WorkspaceExecution::open(root).ok()?;
+    let service = execution.service();
     let agent_ctx = AgentContext::from_record(agent);
     let mut parts = Vec::new();
     if let Ok(context) = service.get_context(&agent_ctx) {
@@ -47,6 +97,67 @@ fn build_workspace_prompt_context(
     }
 }
 
+fn gather_workspace_research(
+    execution: &WorkspaceExecution,
+    agent: &AgentRecord,
+    query: &str,
+) -> Option<String> {
+    let service = execution.service();
+    let agent_ctx = AgentContext::from_record(agent);
+    let results = service.search(&agent_ctx, query, RESEARCH_PAGE_LIMIT).ok()?;
+    if results.is_empty() {
+        return None;
+    }
+
+    let mut parts = vec!["Workspace pages read for this task:".to_string()];
+    for hit in results {
+        match service.read_page(&agent_ctx, &hit.page_id) {
+            Ok(page) => {
+                parts.push(format!(
+                    "### {} [{}]\n{}",
+                    page.title,
+                    page.page_id,
+                    truncate_for_prompt(&page.text, RESEARCH_SNIPPET_CHARS)
+                ));
+            }
+            Err(error) => {
+                parts.push(format!("### {} [{}] (unreadable: {error})", hit.title, hit.page_id));
+            }
+        }
+    }
+    if parts.len() <= 1 {
+        None
+    } else {
+        Some(parts.join("\n\n"))
+    }
+}
+
+fn persist_execution_note(
+    execution: &WorkspaceExecution,
+    agent: &AgentRecord,
+    task: &WorkNode,
+    heading: &str,
+    content: &str,
+) {
+    let lines = content_lines(content);
+    if lines.is_empty() {
+        return;
+    }
+    let service = execution.service();
+    let agent_ctx = AgentContext::from_record(agent);
+    let journal_title = journal_title_for_task(task);
+    if let Err(error) = service.append_journal(&agent_ctx, &journal_title, heading, &lines) {
+        eprintln!("Agent workspace journal write failed: {error}");
+    }
+}
+
+fn append_research_to_prompt(base_prompt: String, research: Option<String>) -> String {
+    match research {
+        Some(body) => format!("{base_prompt}\n\n--- Workspace research ---\n{body}"),
+        None => base_prompt,
+    }
+}
+
 fn merge_chat_context(persona_context: String, workspace_context: Option<String>) -> Option<String> {
     match workspace_context {
         Some(workspace) => Some(format!("{persona_context}\n\n--- Workspace ---\n{workspace}")),
@@ -58,6 +169,10 @@ fn merge_chat_context(persona_context: String, workspace_context: Option<String>
             }
         }
     }
+}
+
+fn task_search_query(project_title: &str, task: &WorkNode) -> String {
+    format!("{project_title} {}", task.title)
 }
 
 /// Multi-step agent execution: plan → draft → refine before returning final deliverable.
@@ -85,12 +200,10 @@ pub fn execute_with_tools(
         &agent.department,
         &task_context,
     );
-    let workspace_context = build_workspace_prompt_context(
-        workspace_root,
-        agent,
-        &format!("{project_title} {}", task.title),
-    );
+    let search_query = task_search_query(project_title, task);
+    let workspace_context = build_workspace_prompt_context(workspace_root, agent, &search_query);
     let context = merge_chat_context(context, workspace_context);
+    let workspace_exec = workspace_root.and_then(|root| WorkspaceExecution::open(root).ok());
 
     let mut transcript = String::new();
     let steps = [
@@ -111,7 +224,13 @@ pub fn execute_with_tools(
     for (index, step_template) in steps.iter().enumerate().take(MAX_TOOL_STEPS) {
         let user_prompt = match index {
             0 => step_template.clone(),
-            1 => step_template.replace("{plan}", &plan),
+            1 => {
+                let base = step_template.replace("{plan}", &plan);
+                let research = workspace_exec
+                    .as_ref()
+                    .and_then(|execution| gather_workspace_research(execution, agent, &search_query));
+                append_research_to_prompt(base, research)
+            }
             2 => step_template.replace("{draft}", &draft),
             _ => step_template.clone(),
         };
@@ -142,8 +261,30 @@ pub fn execute_with_tools(
         transcript.push_str("\n---\n");
 
         match index {
-            0 => plan = response.content.clone(),
-            1 => draft = response.content.clone(),
+            0 => {
+                plan = response.content.clone();
+                if let Some(execution) = workspace_exec.as_ref() {
+                    persist_execution_note(
+                        execution,
+                        agent,
+                        task,
+                        &format!("Plan · {project_title}"),
+                        &plan,
+                    );
+                }
+            }
+            1 => {
+                draft = response.content.clone();
+                if let Some(execution) = workspace_exec.as_ref() {
+                    persist_execution_note(
+                        execution,
+                        agent,
+                        task,
+                        &format!("Draft · {project_title}"),
+                        &draft,
+                    );
+                }
+            }
             2 => return Ok(response.content),
             _ => {}
         }
@@ -175,12 +316,13 @@ pub fn execute_with_tools_detached(
         &agent.department,
         &task_context,
     );
-    let workspace_context = build_workspace_prompt_context(
-        ctx.workspace_root.as_deref(),
-        agent,
-        &format!("{project_title} {}", task.title),
-    );
+    let search_query = task_search_query(project_title, task);
+    let workspace_context = build_workspace_prompt_context(ctx.workspace_root.as_deref(), agent, &search_query);
     let context = merge_chat_context(context, workspace_context);
+    let workspace_exec = ctx
+        .workspace_root
+        .as_deref()
+        .and_then(|root| WorkspaceExecution::open(root).ok());
 
     let steps = [
         format!(
@@ -202,7 +344,13 @@ pub fn execute_with_tools_detached(
     for (index, step_template) in steps.iter().enumerate().take(MAX_TOOL_STEPS) {
         let user_prompt = match index {
             0 => step_template.clone(),
-            1 => step_template.replace("{plan}", &plan),
+            1 => {
+                let base = step_template.replace("{plan}", &plan);
+                let research = workspace_exec
+                    .as_ref()
+                    .and_then(|execution| gather_workspace_research(execution, agent, &search_query));
+                append_research_to_prompt(base, research)
+            }
             2 => step_template.replace("{draft}", &draft),
             _ => step_template.clone(),
         };
@@ -236,8 +384,30 @@ pub fn execute_with_tools_detached(
         }
 
         match index {
-            0 => plan = response.content.clone(),
-            1 => draft = response.content.clone(),
+            0 => {
+                plan = response.content.clone();
+                if let Some(execution) = workspace_exec.as_ref() {
+                    persist_execution_note(
+                        execution,
+                        agent,
+                        task,
+                        &format!("Plan · {project_title}"),
+                        &plan,
+                    );
+                }
+            }
+            1 => {
+                draft = response.content.clone();
+                if let Some(execution) = workspace_exec.as_ref() {
+                    persist_execution_note(
+                        execution,
+                        agent,
+                        task,
+                        &format!("Draft · {project_title}"),
+                        &draft,
+                    );
+                }
+            }
             2 => {
                 return Ok(DetachedExecutionResult {
                     content: response.content,
@@ -254,4 +424,47 @@ pub fn execute_with_tools_detached(
         provider: last_provider,
         charge: charges.last().cloned(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn content_lines_skips_blank_lines() {
+        let lines = content_lines("alpha\n\n  beta  \n");
+        assert_eq!(lines, vec!["alpha".to_string(), "beta".to_string()]);
+    }
+
+    #[test]
+    fn journal_title_truncates_long_task_names() {
+        let task = WorkNode {
+            id: "task-1".to_string(),
+            parent_id: None,
+            project_id: "proj-1".to_string(),
+            kind: super::super::types::WorkNodeKind::Task,
+            title: "x".repeat(120),
+            description: String::new(),
+            status: super::super::types::WorkNodeStatus::Ready,
+            priority: 1,
+            story_points: 1,
+            backlog_rank: 1,
+            assignee_agent_id: None,
+            assigned_by_manager_id: None,
+            owner_pm_agent_id: None,
+            retry_count: 0,
+            department: "Engineering".to_string(),
+            sprint_id: None,
+            depends_on: vec![],
+            acceptance_criteria: vec![],
+            linked_workspace_page_id: None,
+            linked_gig_contract_id: None,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+            completed_at: None,
+        };
+        let title = journal_title_for_task(&task);
+        assert!(title.starts_with("Task — "));
+        assert!(title.chars().count() <= JOURNAL_TITLE_MAX_CHARS + "Task — …".chars().count());
+    }
 }

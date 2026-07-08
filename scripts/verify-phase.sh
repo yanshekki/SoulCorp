@@ -373,6 +373,8 @@ case "${PHASE}" in
     grep -q "agent_workspace_list_activity" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "agent_workspace_write_deliverable" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "format_workspace_context_for_prompt" "${DESKTOP_DIR}/src-tauri/src/scrum/agent_tools.rs"
+    grep -q "gather_workspace_research" "${DESKTOP_DIR}/src-tauri/src/scrum/agent_tools.rs"
+    grep -q "persist_execution_note" "${DESKTOP_DIR}/src-tauri/src/scrum/agent_tools.rs"
     grep -q "AgentWorkspaceActivityFeed" "${DESKTOP_DIR}/src/components/UI/AgentsPanel.tsx"
     grep -q "openWorkspacePage" "${DESKTOP_DIR}/src/components/UI/ProjectsPanel.tsx"
     grep -q "linked_workspace_page_id" "${DESKTOP_DIR}/src/components/UI/backlog/BacklogTreePanel.tsx"
