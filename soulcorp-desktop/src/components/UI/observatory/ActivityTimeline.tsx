@@ -1,7 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { filterByQuery } from "../../../utils/listSearch";
+import {
+  OBSERVATORY_HISTORY_PAGE_SIZE,
+  paginateItems,
+} from "../../../utils/pagination";
 import { SearchableListToolbar } from "../SearchableListToolbar";
+import { PaginationBar } from "../PaginationBar";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import type { AgentActivityEvent, AgentActivitySession } from "../../../types/agentActivity";
 
@@ -63,12 +68,18 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
   const sessions = useAgentActivityStore((state) => state.sessions);
   const selectedSessionId = useAgentActivityStore((state) => state.selectedSessionId);
   const [searchQuery, setSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
-  const visibleEvents = useMemo(() => {
-    const milestoneEvents = events.filter(
-      (event) => event.kind !== "token_delta" && event.kind !== "terminal_line",
-    );
+  const milestoneEvents = useMemo(
+    () =>
+      events.filter(
+        (event) => event.kind !== "token_delta" && event.kind !== "terminal_line",
+      ),
+    [events],
+  );
+
+  const filteredEvents = useMemo(() => {
     const filtered = filterByQuery(milestoneEvents, debouncedQuery, (event) => {
       const session = sessionForEvent(sessions, event);
       return [
@@ -81,68 +92,92 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
         event.agent_id,
       ];
     });
-    return [...filtered].slice(-120).reverse();
-  }, [events, sessions, debouncedQuery]);
+    return [...filtered].reverse();
+  }, [milestoneEvents, sessions, debouncedQuery]);
+
+  const { pageItems, totalPages, safePage } = useMemo(
+    () => paginateItems(filteredEvents, listPage, OBSERVATORY_HISTORY_PAGE_SIZE),
+    [filteredEvents, listPage],
+  );
+
+  useEffect(() => {
+    setListPage(0);
+  }, [events.length, debouncedQuery]);
+
+  useEffect(() => {
+    if (listPage !== safePage) {
+      setListPage(safePage);
+    }
+  }, [listPage, safePage]);
 
   const agentName = (agentId: string) =>
     sessions.find((session) => session.agent_id === agentId)?.agent_name ?? agentId;
 
   return (
     <div className="observatory-history-section">
-      {events.length > 0 ? (
+      {milestoneEvents.length > 0 ? (
         <SearchableListToolbar
           query={searchQuery}
           onQueryChange={setSearchQuery}
           placeholder="Search history by agent, task, step…"
           ariaLabel="Search observatory history"
-          matchCount={debouncedQuery.trim() ? visibleEvents.length : undefined}
-          totalCount={events.filter((event) => event.kind !== "token_delta" && event.kind !== "terminal_line").length}
+          matchCount={debouncedQuery.trim() ? filteredEvents.length : undefined}
+          totalCount={milestoneEvents.length}
         />
       ) : null}
 
-      {visibleEvents.length === 0 ? (
+      {filteredEvents.length === 0 ? (
         <p className="muted">
-          {events.length === 0
+          {milestoneEvents.length === 0
             ? "No activity yet. Run a task or meeting to populate history."
             : `No matches for “${debouncedQuery}”.`}
         </p>
       ) : (
-        <ul className="projects-execution-list observatory-history-list">
-          {visibleEvents.map((event) => {
-            const session = sessionForEvent(sessions, event);
-            const selected = selectedSessionId === event.session_id;
-            return (
-              <li key={event.id}>
-                <button
-                  type="button"
-                  className={`projects-execution-item observatory-history-item${
-                    selected ? " is-selected" : ""
-                  }`}
-                  onClick={() => onSelectSession(event.session_id, event.agent_id)}
-                >
-                  <div className="projects-execution-item-head">
-                    <span
-                      className={`execution-run-status execution-run-status--${statusClass(session)}`}
-                    >
-                      {eventLabel(event)}
-                    </span>
-                    {session?.status === "active" ? (
-                      <span className="observatory-live-pill inline">LIVE</span>
+        <>
+          <ul className="projects-execution-list observatory-history-list">
+            {pageItems.map((event) => {
+              const session = sessionForEvent(sessions, event);
+              const selected = selectedSessionId === event.session_id;
+              return (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    className={`projects-execution-item observatory-history-item${
+                      selected ? " is-selected" : ""
+                    }`}
+                    onClick={() => onSelectSession(event.session_id, event.agent_id)}
+                  >
+                    <div className="projects-execution-item-head">
+                      <span
+                        className={`execution-run-status execution-run-status--${statusClass(session)}`}
+                      >
+                        {eventLabel(event)}
+                      </span>
+                      {session?.status === "active" ? (
+                        <span className="observatory-live-pill inline">LIVE</span>
+                      ) : null}
+                      <strong>{agentName(event.agent_id)}</strong>
+                      {session?.source ? (
+                        <span className="muted">{session.source}</span>
+                      ) : null}
+                    </div>
+                    {event.content_full ? (
+                      <p className="projects-execution-preview muted">{event.content_full}</p>
                     ) : null}
-                    <strong>{agentName(event.agent_id)}</strong>
-                    {session?.source ? (
-                      <span className="muted">{session.source}</span>
-                    ) : null}
-                  </div>
-                  {event.content_full ? (
-                    <p className="projects-execution-preview muted">{event.content_full}</p>
-                  ) : null}
-                  <span className="projects-execution-meta muted">{formatWhen(event.timestamp)}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <span className="projects-execution-meta muted">{formatWhen(event.timestamp)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <PaginationBar
+            className="observatory-history-pagination"
+            page={safePage}
+            totalPages={totalPages}
+            label="Events"
+            onPageChange={setListPage}
+          />
+        </>
       )}
     </div>
   );

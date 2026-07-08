@@ -5994,7 +5994,8 @@ body.workspace-resizing {
 }
 
 .projects-execution-pagination,
-.execution-run-section-pagination {
+.execution-run-section-pagination,
+.observatory-history-pagination {
   margin-top: var(--space-2);
 }
 

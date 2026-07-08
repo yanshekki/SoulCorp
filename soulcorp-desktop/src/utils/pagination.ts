@@ -1,4 +1,5 @@
 export const EXECUTION_LOG_PAGE_SIZE = 10;
+export const OBSERVATORY_HISTORY_PAGE_SIZE = 10;
 export const EXECUTION_TEXT_LINES_PER_PAGE = 32;
 
 export interface PaginatedItems<T> {
