@@ -1,4 +1,5 @@
 import { useGameStore } from "../../stores/gameStore";
+import { openAgentWorkspace } from "../../utils/openWorkspacePage";
 import { hasMoraleDecorNearby } from "../../utils/furnitureInteractions";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { DEPARTMENT_BUILDING, deskForAgent } from "../../data/worldLayout";
@@ -73,6 +74,16 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
           </div>
         ) : null}
       </dl>
+      <div className="agent-detail-actions">
+        <button
+          type="button"
+          className="primary-action"
+          onClick={() => void openAgentWorkspace(record.id, record.name)}
+        >
+          Open Workspace
+        </button>
+      </div>
+
       <section>
         <h4>Skills & tools</h4>
         {skills.length === 0 ? (

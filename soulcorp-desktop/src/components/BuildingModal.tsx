@@ -3,6 +3,7 @@ import { audioDirector } from "../audio/AudioDirector";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { totalCompanyTokens } from "../utils/companyState";
+import { openAgentWorkspace, openDepartmentWorkspace } from "../utils/openWorkspacePage";
 import type { InternalProject } from "../types/game";
 
 export function BuildingModal() {
@@ -68,18 +69,32 @@ export function BuildingModal() {
           Click the door on campus or use Enter building below. Back to campus closes this panel.
         </p>
 
-        <button
-          type="button"
-          className="primary-action building-enter-btn"
-          onClick={() => {
-            audioDirector.unlock();
-            audioDirector.playSfx("door_open");
-            window.setTimeout(() => audioDirector.playSfx("camera_whoosh"), 120);
-            enterInterior(selectedBuilding.id);
-          }}
-        >
-          Enter building
-        </button>
+        <div className="building-modal-actions">
+          <button
+            type="button"
+            className="primary-action building-enter-btn"
+            onClick={() => {
+              audioDirector.unlock();
+              audioDirector.playSfx("door_open");
+              window.setTimeout(() => audioDirector.playSfx("camera_whoosh"), 120);
+              enterInterior(selectedBuilding.id);
+            }}
+          >
+            Enter building
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() =>
+              void openDepartmentWorkspace(
+                selectedBuilding.department,
+                `${selectedBuilding.name} docs`,
+              )
+            }
+          >
+            Open department workspace
+          </button>
+        </div>
 
         <section className="building-stats-grid">
           <article>
@@ -119,10 +134,19 @@ export function BuildingModal() {
               {departmentRecords.map((record) => {
                 const visual = departmentAgents.find((agent) => agent.id === record.id);
                 return (
-                  <li key={record.id}>
-                    <strong>{record.name}</strong> — {record.role} (
-                    {visual?.statusLabel ?? record.status}) · morale{" "}
-                    {(record.morale * 100).toFixed(0)}%
+                  <li key={record.id} className="building-agent-row">
+                    <span>
+                      <strong>{record.name}</strong> — {record.role} (
+                      {visual?.statusLabel ?? record.status}) · morale{" "}
+                      {(record.morale * 100).toFixed(0)}%
+                    </span>
+                    <button
+                      type="button"
+                      className="building-agent-workspace-link"
+                      onClick={() => void openAgentWorkspace(record.id, record.name)}
+                    >
+                      Workspace
+                    </button>
                   </li>
                 );
               })}

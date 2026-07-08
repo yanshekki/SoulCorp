@@ -14,6 +14,7 @@ import {
 } from "../../utils/buildModeActions";
 import { tryExitInterior } from "../../utils/buildModeExit";
 import { handleFurnitureClick } from "../../utils/furnitureInteractions";
+import { openAgentWorkspace } from "../../utils/openWorkspacePage";
 import { patchOfficeVisual } from "../../utils/syncVisualDesign";
 import { DEFAULT_OFFICE_VISUAL, type OfficeVisualConfig } from "../../types/visualDesign";
 import {
@@ -940,7 +941,23 @@ export function ThreeOfficeRenderer({
     canvas.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("wheel", onWindowWheel, { passive: false, capture: true });
     canvas.addEventListener("dblclick", onDoubleClick);
-    canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      const state = useGameStore.getState();
+      if (state.worldView !== "interior" || !interiorRef.current || state.buildMode !== "play") {
+        return;
+      }
+      const pointer = normalizedPointer(event as PointerEvent);
+      const agentId = interiorRef.current.raycastAgent(pointer.x, pointer.y);
+      if (!agentId) {
+        return;
+      }
+      const record = state.agentRecords.find((agent) => agent.id === agentId);
+      audioDirector.playSfx("ui_click");
+      void openAgentWorkspace(agentId, record?.name);
+    };
+
+    canvas.addEventListener("contextmenu", onContextMenu);
 
     const setWalkKey = (key: string, pressed: boolean) => {
       const state = useGameStore.getState();
@@ -1010,6 +1027,7 @@ export function ThreeOfficeRenderer({
       canvas.removeEventListener("wheel", onWheel);
       window.removeEventListener("wheel", onWindowWheel, { capture: true });
       canvas.removeEventListener("dblclick", onDoubleClick);
+      canvas.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onWindowBlur);

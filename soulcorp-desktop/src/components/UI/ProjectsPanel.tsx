@@ -19,7 +19,8 @@ import type {
   WorkNode,
 } from "../../types/game";
 import { agentLabelById } from "../../utils/agentLabel";
-import { openWorkspacePage } from "../../utils/openWorkspacePage";
+import { openWorkspaceFolder, openWorkspacePage } from "../../utils/openWorkspacePage";
+import { PROJECTS_FOLDER_ID } from "../../utils/workspaceFolderIds";
 import { notifyScrumChanged } from "../../utils/scrumSync";
 
 export const PROJECTS_SECTIONS = [
@@ -38,10 +39,12 @@ function KanbanColumn({
   title,
   items,
   agentLabels,
+  onOpenWorkspace,
 }: {
   title: string;
   items: WorkNode[];
   agentLabels: Map<string, string>;
+  onOpenWorkspace: (pageId: string, label: string) => void;
 }) {
   return (
     <div className="projects-kanban-col">
@@ -59,6 +62,15 @@ function KanbanColumn({
             <p className="muted">
               Assignee: {agentLabels.get(item.assignee_agent_id) ?? item.assignee_agent_id}
             </p>
+          ) : null}
+          {item.linked_workspace_page_id ? (
+            <button
+              type="button"
+              className="projects-kanban-workspace-link"
+              onClick={() => onOpenWorkspace(item.linked_workspace_page_id!, item.title)}
+            >
+              Open deliverable
+            </button>
           ) : null}
         </article>
       ))}
@@ -321,9 +333,14 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
           {board ? (
             <>
               <div className="projects-burndown">
-                <span>
+                <button
+                  type="button"
+                  className="projects-burndown-link"
+                  onClick={() => void openWorkspaceFolder(PROJECTS_FOLDER_ID, "Projects")}
+                  title="Open project docs in Workspace"
+                >
                   Burndown: {board.burndown_remaining} / {board.burndown_total} pts remaining
-                </span>
+                </button>
                 <div className="projects-burndown-bar">
                   <div
                     className="projects-burndown-fill"
@@ -336,11 +353,36 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
                 </div>
               </div>
               <div className="projects-kanban">
-                <KanbanColumn title="Backlog" items={board.backlog} agentLabels={agentLabels} />
-                <KanbanColumn title="Sprint" items={board.sprint_items} agentLabels={agentLabels} />
-                <KanbanColumn title="In Progress" items={board.in_progress} agentLabels={agentLabels} />
-                <KanbanColumn title="Review" items={board.in_review} agentLabels={agentLabels} />
-                <KanbanColumn title="Done" items={board.done} agentLabels={agentLabels} />
+                <KanbanColumn
+                  title="Backlog"
+                  items={board.backlog}
+                  agentLabels={agentLabels}
+                  onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
+                />
+                <KanbanColumn
+                  title="Sprint"
+                  items={board.sprint_items}
+                  agentLabels={agentLabels}
+                  onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
+                />
+                <KanbanColumn
+                  title="In Progress"
+                  items={board.in_progress}
+                  agentLabels={agentLabels}
+                  onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
+                />
+                <KanbanColumn
+                  title="Review"
+                  items={board.in_review}
+                  agentLabels={agentLabels}
+                  onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
+                />
+                <KanbanColumn
+                  title="Done"
+                  items={board.done}
+                  agentLabels={agentLabels}
+                  onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
+                />
               </div>
             </>
           ) : null}

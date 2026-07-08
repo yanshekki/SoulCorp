@@ -44,7 +44,7 @@ export function InteriorOverlay() {
     buildMode === "play"
       ? hoveredCatalogId
         ? furnitureInteractionHint(hoveredCatalogId)
-        : "Click desks, equipment, or agents"
+        : "Click agents · right-click agent for workspace"
       : null;
 
   return (

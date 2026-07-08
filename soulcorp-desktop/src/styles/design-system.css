@@ -4625,6 +4625,25 @@ body.workspace-resizing {
   gap: var(--space-2);
 }
 
+.backlog-team-docs-link {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+
+.backlog-team-docs-link:hover {
+  border-color: rgba(107, 164, 232, 0.45);
+  background: rgba(107, 164, 232, 0.08);
+}
+
 .backlog-stat-pill,
 .backlog-points-pill {
   font-size: 0.72rem;
@@ -4933,6 +4952,50 @@ body.workspace-resizing {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
+}
+
+.projects-burndown {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.projects-burndown-link {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.projects-burndown-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.projects-kanban-workspace-link {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-top: var(--space-1);
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.projects-kanban-workspace-link:hover {
+  text-decoration-color: currentColor;
 }
 
 .projects-burndown-bar {

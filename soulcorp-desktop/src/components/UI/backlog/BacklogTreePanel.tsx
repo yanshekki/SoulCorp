@@ -1,7 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react";
 import type { AgentRecord, InternalProject, WorkNode, WorkTreeSnapshot } from "../../../types/game";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
-import { openWorkspacePage } from "../../../utils/openWorkspacePage";
+import { openDepartmentWorkspace, openWorkspacePage } from "../../../utils/openWorkspacePage";
 import {
   backlogStats,
   canRunTask,
@@ -301,6 +301,18 @@ export function BacklogTreePanel({
           <span className="backlog-stat-pill">{stats.taskCount} tasks</span>
           <span className="backlog-stat-pill">{stats.storyPoints} pts</span>
         </div>
+
+        {project ? (
+          <button
+            type="button"
+            className="backlog-team-docs-link"
+            onClick={() =>
+              void openDepartmentWorkspace(project.owner_department, `${project.title} team docs`)
+            }
+          >
+            Team docs
+          </button>
+        ) : null}
       </div>
 
       <p className="muted backlog-hint">
