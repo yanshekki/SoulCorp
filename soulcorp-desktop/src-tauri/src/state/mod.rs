@@ -1009,6 +1009,8 @@ pub struct MeetingState {
     pub revenue_delta: f64,
     #[serde(default)]
     pub notes_generated: bool,
+    #[serde(default)]
+    pub notes_page_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

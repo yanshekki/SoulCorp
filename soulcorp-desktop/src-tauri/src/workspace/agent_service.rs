@@ -1,8 +1,8 @@
 use super::index::page_index_body;
 use super::models::{
     AgentWorkspaceActivityEntry, AgentWorkspaceContext, AgentWorkspacePageView, Block,
-    CreatePageRequest, SearchResult, UpdatePageRequest, WorkspaceFolderChildren, WorkspacePage,
-    WorkspaceType,
+    CreatePageRequest, LinkedEntity, SearchResult, UpdatePageRequest, WorkspaceFolderChildren,
+    WorkspacePage, WorkspaceType,
 };
 use uuid::Uuid;
 use super::storage::{department_folder_id, WorkspaceStorage};
@@ -183,6 +183,139 @@ impl<'a> AgentWorkspaceService<'a> {
             .collect();
         let heading = format!("Deliverable · {title}");
         self.storage.append_journal_entry(&folder_id, title, &heading, &lines, &agent.name)
+    }
+
+    pub fn write_meeting_notes(
+        &self,
+        day_number: u32,
+        meeting_id: &str,
+        meeting_type: &str,
+        messages: &[(String, String)],
+        participants: &[(String, String, String)],
+    ) -> Result<Vec<WorkspacePage>, String> {
+        if let Some(existing) = self.storage.find_page_linked_to_meeting(meeting_id)? {
+            return Ok(vec![existing]);
+        }
+
+        let mut created = Vec::new();
+        let participant_names: Vec<&str> = participants
+            .iter()
+            .map(|(_, name, _)| name.as_str())
+            .collect();
+
+        let company_page = self.storage.create_page(
+            &CreatePageRequest {
+                folder_id: "folder-projects".to_string(),
+                title: format!("Meeting Notes — {meeting_type}"),
+            },
+            "meeting-system",
+        )?;
+
+        let mut blocks = vec![
+            Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "heading".to_string(),
+                content: format!("{meeting_type} Summary"),
+                checked: None,
+            },
+            Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "text".to_string(),
+                content: format!("Participants: {}", participant_names.join(", ")),
+                checked: None,
+            },
+        ];
+
+        for (speaker, content) in messages {
+            blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "text".to_string(),
+                content: format!("{speaker}: {content}"),
+                checked: None,
+            });
+        }
+
+        let mut company_links = vec![LinkedEntity {
+            entity_type: "meeting".to_string(),
+            id: meeting_id.to_string(),
+            title: format!("{meeting_type} meeting"),
+        }];
+        for (agent_id, name, _) in participants {
+            company_links.push(LinkedEntity {
+                entity_type: "agent".to_string(),
+                id: agent_id.clone(),
+                title: name.clone(),
+            });
+        }
+
+        let company_updated = self.storage.update_page(&UpdatePageRequest {
+            page_id: company_page.id.clone(),
+            title: None,
+            blocks: Some(blocks),
+            rich_doc: None,
+            linked_entities: Some(company_links),
+            last_edited_by: Some("meeting-system".to_string()),
+        })?;
+        created.push(company_updated);
+
+        for (agent_id, name, department) in participants {
+            let agent = AgentContext {
+                id: agent_id.clone(),
+                name: name.clone(),
+                department: department.clone(),
+            };
+            self.ensure_agent_folder(&agent)?;
+
+            let journal_title = format!("{name} — Meeting Journal");
+            let heading = format!("{meeting_type} Reflection");
+            let mut lines = vec![format!(
+                "Participants: {}",
+                participant_names.join(", ")
+            )];
+            for (speaker, content) in messages {
+                if speaker == name {
+                    lines.push(format!("You: {content}"));
+                } else {
+                    lines.push(format!("{speaker}: {content}"));
+                }
+            }
+            lines.push("Action items: follow up in next sprint planning.".to_string());
+
+            let page = self.append_journal(&agent, &journal_title, &heading, &lines)?;
+            let linked = self.storage.link_entity_to_page(
+                &page.id,
+                LinkedEntity {
+                    entity_type: "meeting".to_string(),
+                    id: meeting_id.to_string(),
+                    title: format!("{meeting_type} meeting"),
+                },
+                &agent.name,
+            )?;
+            let linked = self.storage.link_entity_to_page(
+                &linked.id,
+                LinkedEntity {
+                    entity_type: "agent".to_string(),
+                    id: agent_id.clone(),
+                    title: name.clone(),
+                },
+                &agent.name,
+            )?;
+            created.push(linked);
+        }
+
+        let feed_summary = format!(
+            "{meeting_type} with {} participants — {} messages captured in workspace.",
+            participants.len(),
+            messages.len()
+        );
+        if let Ok(feed_page) = self
+            .storage
+            .append_company_feed_entry(day_number, &format!("Meeting — {meeting_type}"), &feed_summary)
+        {
+            created.push(feed_page);
+        }
+
+        Ok(created)
     }
 
     pub fn get_context(&self, agent: &AgentContext) -> Result<AgentWorkspaceContext, String> {
@@ -435,6 +568,48 @@ mod tests {
             .expect("create");
         let err = service.read_page(&intruder, &page.id).unwrap_err();
         assert!(err.contains("cannot access"));
+    }
+
+    #[test]
+    fn write_meeting_notes_creates_project_page_and_agent_journals() {
+        let (_root, storage) = temp_storage();
+        let service = AgentWorkspaceService::new(&storage);
+        let agent = sample_agent();
+        service.ensure_agent_folder(&agent).expect("folder");
+
+        let pages = service
+            .write_meeting_notes(
+                3,
+                "meet-42",
+                "Daily Standup",
+                &[
+                    ("Alpha".to_string(), "Shipped the API layer.".to_string()),
+                    ("Beta".to_string(), "Blocked on design review.".to_string()),
+                ],
+                &[(
+                    agent.id.clone(),
+                    agent.name.clone(),
+                    agent.department.clone(),
+                )],
+            )
+            .expect("meeting notes");
+
+        assert!(!pages.is_empty());
+        let project_page = pages
+            .iter()
+            .find(|page| page.folder_id == "folder-projects")
+            .expect("project transcript");
+        assert!(project_page.title.contains("Daily Standup"));
+        assert!(project_page
+            .linked_entities
+            .iter()
+            .any(|link| link.entity_type == "meeting" && link.id == "meet-42"));
+
+        let again = service
+            .write_meeting_notes(3, "meet-42", "Daily Standup", &[], &[])
+            .expect("idempotent");
+        assert_eq!(again.len(), 1);
+        assert_eq!(again[0].id, project_page.id);
     }
 
     #[test]

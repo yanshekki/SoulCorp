@@ -5070,6 +5070,17 @@ body.workspace-resizing {
   margin-top: var(--space-3);
 }
 
+.meeting-workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.meeting-workspace-link {
+  font-size: 0.82rem;
+}
+
 .settings-panel--page {
   max-width: 72rem;
   margin: 0 auto;

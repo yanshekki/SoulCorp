@@ -510,6 +510,7 @@ fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
             project_progress_delta: 0.02,
             revenue_delta: 0.0,
             notes_generated: false,
+            notes_page_id: None,
         },
     );
 

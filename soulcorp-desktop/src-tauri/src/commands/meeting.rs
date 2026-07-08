@@ -29,6 +29,8 @@ pub struct MeetingSnapshot {
     pub revenue_delta: f64,
     pub active_provider: String,
     pub turns_per_agent: u32,
+    #[serde(default)]
+    pub notes_page_id: Option<String>,
 }
 
 #[tauri::command]
@@ -89,6 +91,7 @@ pub fn start_meeting(
         project_progress_delta: 0.0,
         revenue_delta: 0.0,
         notes_generated: false,
+        notes_page_id: None,
     };
 
     for agent_id in &participant_ids {
@@ -618,6 +621,7 @@ fn snapshot_from_meeting(
         revenue_delta: meeting.revenue_delta,
         active_provider: ai_status.active_provider.clone(),
         turns_per_agent,
+        notes_page_id: meeting.notes_page_id.clone(),
     }
 }
 
@@ -642,6 +646,7 @@ mod tests {
             project_progress_delta: 0.0,
             revenue_delta: 0.0,
             notes_generated: false,
+            notes_page_id: None,
         };
 
         let plan = prepare_meeting_turn(&state, &meeting).expect("meeting turn");

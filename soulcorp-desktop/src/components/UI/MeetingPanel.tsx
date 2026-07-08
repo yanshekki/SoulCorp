@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
+import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
 import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
 import { formatAgentOptionLabel } from "../../utils/agentLabel";
@@ -366,6 +367,22 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
             )}
             {activeMeeting.completed && activeMeeting.outcome_summary ? (
               <p className="meeting-outcome">{activeMeeting.outcome_summary}</p>
+            ) : null}
+            {activeMeeting.completed && activeMeeting.notes_page_id ? (
+              <div className="meeting-workspace-actions">
+                <button
+                  type="button"
+                  className="secondary-action meeting-workspace-link"
+                  onClick={() =>
+                    void openWorkspacePage(
+                      activeMeeting.notes_page_id!,
+                      `${activeMeeting.meeting_type} notes`,
+                    )
+                  }
+                >
+                  Open meeting notes in Workspace
+                </button>
+              </div>
             ) : null}
           </div>
         ) : (

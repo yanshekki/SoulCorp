@@ -872,6 +872,7 @@ export interface MeetingSnapshot {
   revenue_delta: number;
   active_provider: string;
   turns_per_agent: number;
+  notes_page_id?: string | null;
 }
 
 export interface SimulationTickResult {

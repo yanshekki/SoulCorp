@@ -774,126 +774,25 @@ impl WorkspaceStorage {
     }
 
     pub fn find_page_linked_to_meeting(&self, meeting_id: &str) -> Result<Option<WorkspacePage>, String> {
-        Ok(self
+        let matches: Vec<WorkspacePage> = self
             .read_all_pages()?
             .into_iter()
-            .find(|page| {
+            .filter(|page| {
                 page.linked_entities.iter().any(|link| {
                     link.entity_type == "meeting" && link.id == meeting_id
                 })
-            }))
-    }
+            })
+            .collect();
 
-    pub fn append_meeting_notes(
-        &self,
-        meeting_id: &str,
-        meeting_type: &str,
-        messages: &[(String, String)],
-        participants: &[(String, String, String)],
-    ) -> Result<Vec<WorkspacePage>, String> {
-        if let Some(existing) = self.find_page_linked_to_meeting(meeting_id)? {
-            return Ok(vec![existing]);
+        if matches.is_empty() {
+            return Ok(None);
         }
 
-        let mut created = Vec::new();
-
-        let company_page = self.create_page(
-            &CreatePageRequest {
-                folder_id: "folder-projects".to_string(),
-                title: format!("Meeting Notes — {meeting_type}"),
-            },
-            "system",
-        )?;
-
-        let mut blocks = vec![
-            Block {
-                id: Uuid::new_v4().to_string(),
-                block_type: "heading".to_string(),
-                content: format!("{meeting_type} Summary"),
-                checked: None,
-            },
-            Block {
-                id: Uuid::new_v4().to_string(),
-                block_type: "text".to_string(),
-                content: format!(
-                    "Participants: {}",
-                    participants
-                        .iter()
-                        .map(|(_, name, _)| name.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-                checked: None,
-            },
-        ];
-
-        for (speaker, content) in messages {
-            blocks.push(Block {
-                id: Uuid::new_v4().to_string(),
-                block_type: "text".to_string(),
-                content: format!("{speaker}: {content}"),
-                checked: None,
-            });
-        }
-
-        let mut company_links = vec![LinkedEntity {
-            entity_type: "meeting".to_string(),
-            id: meeting_id.to_string(),
-            title: format!("{meeting_type} meeting"),
-        }];
-        for (agent_id, name, _) in participants {
-            company_links.push(LinkedEntity {
-                entity_type: "agent".to_string(),
-                id: agent_id.clone(),
-                title: name.clone(),
-            });
-        }
-
-        let company_updated = self.update_page(&UpdatePageRequest {
-            page_id: company_page.id.clone(),
-            title: None,
-            blocks: Some(blocks),
-            rich_doc: None,
-            linked_entities: Some(company_links),
-            last_edited_by: Some("meeting-system".to_string()),
-        })?;
-        created.push(company_updated);
-
-        for (agent_id, name, department) in participants {
-            let folder_id = self
-                .ensure_agent_folder(agent_id, name, department)
-                .unwrap_or_else(|_| format!("folder-{agent_id}"));
-            if self.read_folders()?.iter().any(|f| f.id == folder_id) {
-                let personal = self.create_page(
-                    &CreatePageRequest {
-                        folder_id,
-                        title: format!("{name} — {meeting_type} Reflection"),
-                    },
-                    name,
-                )?;
-                let linked = self.link_entity_to_page(
-                    &personal.id,
-                    LinkedEntity {
-                        entity_type: "meeting".to_string(),
-                        id: meeting_id.to_string(),
-                        title: format!("{meeting_type} meeting"),
-                    },
-                    name,
-                )?;
-                let linked = self.link_entity_to_page(
-                    &linked.id,
-                    LinkedEntity {
-                        entity_type: "agent".to_string(),
-                        id: agent_id.clone(),
-                        title: name.clone(),
-                    },
-                    name,
-                )?;
-                created.push(linked);
-            }
-        }
-
-        Ok(created)
+        Ok(matches
+            .iter()
+            .find(|page| page.folder_id == "folder-projects")
+            .or_else(|| matches.first())
+            .cloned())
     }
 
     pub fn write_agent_soul_file(&self, agent_id: &str, content: &str) -> Result<(), String> {

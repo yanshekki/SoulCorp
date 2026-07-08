@@ -42,6 +42,7 @@ pub fn run_automated_meeting(
         project_progress_delta: 0.0,
         revenue_delta: 0.0,
         notes_generated: false,
+        notes_page_id: None,
     };
 
     for agent_id in &participant_ids {

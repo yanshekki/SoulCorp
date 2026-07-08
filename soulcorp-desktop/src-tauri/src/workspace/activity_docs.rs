@@ -192,9 +192,21 @@ pub fn write_meeting_notes_from_state(
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
     storage.ensure_seed()?;
-    let pages = storage.append_meeting_notes(meeting_id, &meeting_type, &messages, &participants)?;
+    let day_number = state.day_number;
+    let service = AgentWorkspaceService::new(&storage);
+    let pages = service.write_meeting_notes(
+        day_number,
+        meeting_id,
+        &meeting_type,
+        &messages,
+        &participants,
+    )?;
     if let Some(meeting) = state.meetings.get_mut(meeting_id) {
         meeting.notes_generated = true;
+        meeting.notes_page_id = pages
+            .iter()
+            .find(|page| page.folder_id == "folder-projects")
+            .map(|page| page.id.clone());
     }
     state.stats.pages_created += pages.len() as u32;
     Ok(pages)
