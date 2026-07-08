@@ -13,9 +13,11 @@ import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
 import { SoulMdEditor } from "./SoulMdEditor";
 import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
+import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
+  { id: "workspaces", label: "Workspaces" },
   { id: "activity", label: "Activity" },
   { id: "departments", label: "Departments" },
   { id: "employees", label: "Employees" },
@@ -36,6 +38,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const [soulDrafts, setSoulDrafts] = useState<Record<string, string>>({});
   const [soulSavingId, setSoulSavingId] = useState<string | null>(null);
   const [expandedSoulId, setExpandedSoulId] = useState<string | null>(null);
+  const [workspaceAgentId, setWorkspaceAgentId] = useState<string | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   const departmentProviderMap = useMemo(
@@ -259,6 +262,12 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
         )}
       </section>
 
+      <AgentWorkspaceBrowser
+        agents={agentRecords}
+        selectedAgentId={workspaceAgentId}
+        onSelectAgent={setWorkspaceAgentId}
+      />
+
       <AgentWorkspaceActivityFeed />
 
       <section
@@ -417,6 +426,21 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       ))}
                     </select>
                   </label>
+                  {agent.agent_kind !== "fate" ? (
+                    <button
+                      type="button"
+                      className="agents-workspace-jump"
+                      onClick={() => {
+                        setWorkspaceAgentId(agent.id);
+                        setActivePanel("agents");
+                        document
+                          .getElementById("workspaces")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    >
+                      Browse workspace
+                    </button>
+                  ) : null}
                 </article>
               );
             })}
