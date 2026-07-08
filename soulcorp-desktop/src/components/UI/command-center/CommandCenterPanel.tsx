@@ -16,6 +16,7 @@ import type {
 } from "../../../types/game";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { filterByQuery } from "../../../utils/listSearch";
 import { paginateItems } from "../../../utils/pagination";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
@@ -667,33 +668,43 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
             <div className="command-automation-log command-panel-block">
               <h4 className="command-panel-heading">Automation activity</h4>
               <dl className="command-automation-meta">
-                <div>
-                  <dt>Worker tick</dt>
-                  <dd>{automation?.scrum_worker_last_tick_at ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Orchestrator</dt>
-                  <dd>{automation?.orchestrator_last_tick_at ?? "—"}</dd>
-                </div>
-                <div>
+                <div className="command-automation-meta-item">
                   <dt>Directives issued</dt>
                   <dd>{automation?.orchestrator_directives_total ?? 0}</dd>
                 </div>
-                <div>
+                <div className="command-automation-meta-item">
                   <dt>Hub queue</dt>
                   <dd>{automation?.sync_queue_pending ?? 0}</dd>
                 </div>
-                <div>
-                  <dt>Hub pull</dt>
-                  <dd>{automation?.hub_last_pull_at ?? "—"}</dd>
-                </div>
-                <div>
+                <div className="command-automation-meta-item">
                   <dt>Parallel LLM</dt>
                   <dd>{automation?.parallel_llm_enabled ? "On" : "Off"}</dd>
                 </div>
-                <div className="command-automation-meta--wide">
+                <div className="command-automation-meta-item command-automation-meta-item--time">
+                  <dt>Worker tick</dt>
+                  <dd title={automation?.scrum_worker_last_tick_at ?? undefined}>
+                    {formatTimestamp(automation?.scrum_worker_last_tick_at, "compact")}
+                  </dd>
+                </div>
+                <div className="command-automation-meta-item command-automation-meta-item--time">
+                  <dt>Orchestrator</dt>
+                  <dd title={automation?.orchestrator_last_tick_at ?? undefined}>
+                    {formatTimestamp(automation?.orchestrator_last_tick_at, "compact")}
+                  </dd>
+                </div>
+                <div className="command-automation-meta-item command-automation-meta-item--time">
+                  <dt>Hub pull</dt>
+                  <dd title={automation?.hub_last_pull_at ?? undefined}>
+                    {formatTimestamp(automation?.hub_last_pull_at, "compact")}
+                  </dd>
+                </div>
+                <div className="command-automation-meta-item command-automation-meta-item--wide">
                   <dt>OpenClaw</dt>
-                  <dd>
+                  <dd title={
+                    automation?.openclaw_available
+                      ? automation.openclaw_version ?? "Ready"
+                      : automation?.openclaw_message ?? undefined
+                  }>
                     {automation?.openclaw_available
                       ? automation.openclaw_version ?? "Ready"
                       : automation?.openclaw_message ?? "—"}

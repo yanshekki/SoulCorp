@@ -4720,14 +4720,29 @@ body.workspace-resizing {
 
 .command-automation-meta {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2) var(--space-3);
   margin: 0 0 var(--space-3);
 }
 
-.command-automation-meta > div {
+@media (max-width: 640px) {
+  .command-automation-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.command-automation-meta-item {
   display: grid;
   gap: 0.1rem;
+  min-width: 0;
+}
+
+.command-automation-meta-item--time {
+  grid-column: span 1;
+}
+
+.command-automation-meta-item--wide {
+  grid-column: 1 / -1;
 }
 
 .command-automation-meta dt {
@@ -4744,10 +4759,10 @@ body.workspace-resizing {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-primary);
-}
-
-.command-automation-meta--wide {
-  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-activity-list {
