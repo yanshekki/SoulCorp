@@ -143,6 +143,13 @@ case "${PHASE}" in
     grep -q "fetch_soul_balance" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "hub-sync-status" "${DESKTOP_DIR}/src/components/UI/MarketplacePanel.tsx"
     grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/hub/client.rs"
+    test -f "${REPO_ROOT}/scripts/run-hub-security-tests.sh"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/tests/integration/gate_integration_test.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/tests/integration/api_security_test.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/tests/integration/helpers/test_runner.php"
+    grep -q "evaluateNonNftSoulAccess" "${REPO_ROOT}/hub/soulmd-hub/private/includes/token-gate.php"
+    grep -q "csrfTokensMatch" "${REPO_ROOT}/hub/soulmd-hub/private/src/ApiSecurity.php"
+    bash "${REPO_ROOT}/scripts/run-hub-security-tests.sh"
     echo "Phase 5 hub integration checks passed."
     ;;
   6)
