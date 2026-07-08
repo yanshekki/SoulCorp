@@ -15,6 +15,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect } from "react";
 import { EditorBubbleMenu } from "./EditorBubbleMenu";
 import { EditorToolbar } from "./EditorToolbar";
+import { SlashCommandExtension } from "./slashCommandExtension";
 
 interface TipTapEditorProps {
   value: JSONContent;
@@ -50,6 +51,7 @@ export function TipTapEditor({
       TableHeader,
       TableCell,
       Placeholder.configure({ placeholder }),
+      ...(editable ? [SlashCommandExtension] : []),
     ],
     content: value,
     editable,
@@ -106,7 +108,7 @@ export function TipTapEditor({
       </div>
       {editable ? (
         <footer className="ws-editor-footer-hint">
-          <span>Markdown-style shortcuts supported</span>
+          <span>Type / for blocks · Markdown shortcuts supported</span>
           <span>Ctrl+B bold · Ctrl+I italic · Tab in lists</span>
         </footer>
       ) : null}

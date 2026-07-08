@@ -349,6 +349,10 @@ case "${PHASE}" in
     grep -q "setCommandPaletteOpen" "${DESKTOP_DIR}/src/stores/workspaceStore.ts"
     grep -q "WORKSPACE_NAV_VIEWS" "${DESKTOP_DIR}/src/types/workspaceNav.ts"
     grep -q "ws-navigator" "${DESKTOP_DIR}/src/styles/workspace-editor.css"
+    test -f "${DESKTOP_DIR}/src/components/workspace/slashCommandExtension.ts"
+    test -f "${DESKTOP_DIR}/src/components/workspace/SlashCommandMenu.tsx"
+    grep -q "SlashCommandExtension" "${DESKTOP_DIR}/src/components/workspace/TipTapEditor.tsx"
+    grep -q "filterSlashCommands" "${DESKTOP_DIR}/src/components/workspace/slashCommands.ts"
     echo "Phase 20 workspace UX checks passed."
     ;;
   21)
