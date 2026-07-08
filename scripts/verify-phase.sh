@@ -337,6 +337,49 @@ case "${PHASE}" in
     grep -q "completeGig" "${REPO_ROOT}/hub/soulmd-hub/private/src/SoulCorpHub.php"
     echo "Phase 10 gig lifecycle checks passed."
     ;;
+  20)
+    test -f "${DESKTOP_DIR}/src/components/workspace/WorkspaceNavigator.tsx"
+    test -f "${DESKTOP_DIR}/src/components/workspace/WorkspaceCommandPalette.tsx"
+    test -f "${DESKTOP_DIR}/src/components/workspace/WorkspaceContextMenu.tsx"
+    test -f "${DESKTOP_DIR}/src/components/workspace/WorkspaceItemList.tsx"
+    test -f "${DESKTOP_DIR}/src/hooks/useWorkspacePreferences.ts"
+    test -f "${DESKTOP_DIR}/src/types/workspaceNav.ts"
+    grep -q "WorkspaceNavigator" "${DESKTOP_DIR}/src/components/workspace/WorkspaceShell.tsx"
+    grep -q "WorkspaceCommandPalette" "${DESKTOP_DIR}/src/components/workspace/WorkspaceShell.tsx"
+    grep -q "setCommandPaletteOpen" "${DESKTOP_DIR}/src/stores/workspaceStore.ts"
+    grep -q "WORKSPACE_NAV_VIEWS" "${DESKTOP_DIR}/src/types/workspaceNav.ts"
+    grep -q "ws-navigator" "${DESKTOP_DIR}/src/styles/workspace-editor.css"
+    echo "Phase 20 workspace UX checks passed."
+    ;;
+  21)
+    test -f "${DESKTOP_DIR}/src-tauri/src/workspace/index.rs"
+    grep -q "workspace_fts" "${DESKTOP_DIR}/src-tauri/src/workspace/index.rs"
+    grep -q "list_workspace_snapshot" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "list_workspace_summaries" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "list_workspace_folder_children" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "resolve_workspace_items" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "listWorkspaceSnapshot" "${DESKTOP_DIR}/src/services/workspaceClient.ts"
+    grep -q "@tanstack/react-virtual" "${DESKTOP_DIR}/package.json"
+    grep -q "useVirtualizer" "${DESKTOP_DIR}/src/components/workspace/WorkspaceItemList.tsx"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/workspace/index.rs"
+    echo "Phase 21 workspace FTS and lazy loading checks passed."
+    ;;
+  22)
+    test -f "${DESKTOP_DIR}/src-tauri/src/workspace/agent_service.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/agent_workspace.rs"
+    test -f "${DESKTOP_DIR}/src/services/agentWorkspaceClient.ts"
+    test -f "${DESKTOP_DIR}/src/components/UI/AgentWorkspaceActivityFeed.tsx"
+    test -f "${DESKTOP_DIR}/src/utils/openWorkspacePage.ts"
+    grep -q "agent_workspace_list_activity" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "agent_workspace_write_deliverable" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "format_workspace_context_for_prompt" "${DESKTOP_DIR}/src-tauri/src/scrum/agent_tools.rs"
+    grep -q "AgentWorkspaceActivityFeed" "${DESKTOP_DIR}/src/components/UI/AgentsPanel.tsx"
+    grep -q "openWorkspacePage" "${DESKTOP_DIR}/src/components/UI/ProjectsPanel.tsx"
+    grep -q "linked_workspace_page_id" "${DESKTOP_DIR}/src/components/UI/backlog/BacklogTreePanel.tsx"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/workspace/agent_service.rs"
+    grep -q '"22"' "${REPO_ROOT}/.automation/phase-state.json"
+    echo "Phase 22 agent workspace API checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

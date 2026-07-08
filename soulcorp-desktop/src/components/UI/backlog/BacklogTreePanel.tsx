@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react";
 import type { AgentRecord, InternalProject, WorkNode, WorkTreeSnapshot } from "../../../types/game";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { openWorkspacePage } from "../../../utils/openWorkspacePage";
 import {
   backlogStats,
   canRunTask,
@@ -85,6 +86,15 @@ function TaskRow({
         {task.status === "in_review" ? (
           <button type="button" disabled={busy} onClick={() => void onApprove(task.id)}>
             Approve
+          </button>
+        ) : null}
+        {task.linked_workspace_page_id ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void openWorkspacePage(task.linked_workspace_page_id!, task.title)}
+          >
+            Workspace
           </button>
         ) : null}
       </td>

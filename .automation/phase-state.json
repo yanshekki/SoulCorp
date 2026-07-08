@@ -1,5 +1,5 @@
 {
-  "current_phase": 19,
+  "current_phase": 22,
   "repo_root": "/home/ki/文件/SoulCorp",
   "phases": {
     "0": {
@@ -140,6 +140,27 @@
       "status": "merged",
       "description": "V1 automation persistence, readiness checklist, observability, auto-recruit",
       "merged_at": "2026-07-07T15:30:00.000000+00:00",
+      "completion": 100
+    },
+    "20": {
+      "branch": "phase-20/workspace-ux",
+      "status": "merged",
+      "description": "Workspace UX 2.0: six-view navigator, command palette, context menu, pinned/recent, organize mode",
+      "merged_at": "2026-07-08T03:30:00.000000+00:00",
+      "completion": 100
+    },
+    "21": {
+      "branch": "phase-21/workspace-fts-lazy",
+      "status": "merged",
+      "description": "SQLite FTS5 index, lazy snapshot APIs, virtualized workspace lists",
+      "merged_at": "2026-07-08T03:30:00.000000+00:00",
+      "completion": 100
+    },
+    "22": {
+      "branch": "phase-22/agent-workspace-api",
+      "status": "merged",
+      "description": "AgentWorkspaceService, Tauri commands, agent tools context, activity feed, deliverable deep links",
+      "merged_at": "2026-07-08T03:40:00.000000+00:00",
       "completion": 100
     }
   }

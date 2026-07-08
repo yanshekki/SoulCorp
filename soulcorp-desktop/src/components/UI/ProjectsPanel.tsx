@@ -19,6 +19,7 @@ import type {
   WorkNode,
 } from "../../types/game";
 import { agentLabelById } from "../../utils/agentLabel";
+import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { notifyScrumChanged } from "../../utils/scrumSync";
 
 export const PROJECTS_SECTIONS = [
@@ -70,7 +71,6 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
   const scrumRevision = useGameStore((s) => s.scrumRevision);
   const agentRecords = useGameStore((s) => s.agentRecords);
   const setStatusMessage = useGameStore((s) => s.setStatusMessage);
-  const setActivePanel = useGameStore((s) => s.setActivePanel);
 
   const [snapshot, setSnapshot] = useState<ScrumSnapshot | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
@@ -395,7 +395,12 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
                   tokens
                   {run.summary ? <p className="muted">{run.summary}</p> : null}
                   {run.deliverable_page_id ? (
-                    <button type="button" onClick={() => setActivePanel("workspace")}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openWorkspacePage(run.deliverable_page_id!, run.summary || run.work_node_id)
+                      }
+                    >
                       Open in Workspace
                     </button>
                   ) : null}
