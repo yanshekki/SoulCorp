@@ -13,7 +13,7 @@ export function AgentsPage() {
   return (
     <AppPageShell
       title="Agent Brains"
-      subtitle="LLM config per agent & department"
+      subtitle="LLM brains, execution runtime & soul.md"
       navItems={AGENTS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}

@@ -390,6 +390,8 @@ case "${PHASE}" in
     grep -q "probe_all_agent_runtimes" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "test_agent_runtime" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
     grep -q "AgentRuntimeSection" "${DESKTOP_DIR}/src/components/UI/command-center/CommandCenterPanel.tsx"
+    grep -q "AgentRuntimeSection" "${DESKTOP_DIR}/src/components/UI/AgentsPanel.tsx"
+    grep -q 'id: "runtime"' "${DESKTOP_DIR}/src/components/UI/AgentsPanel.tsx"
     grep -q "command-runtime-status-card" "${DESKTOP_DIR}/src/styles/design-system.css"
     grep -q "agent_runtime_fallback_to_llm" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
     grep -q "MAX_CAPTURE_BYTES" "${DESKTOP_DIR}/src-tauri/src/agent_runtime/security.rs"

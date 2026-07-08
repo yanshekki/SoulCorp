@@ -262,7 +262,7 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
       <MeetingCard
         id="overview"
         title="LLM readiness"
-        description="Active provider routing for meeting turns. Configure department and per-agent brains in Agent Brains."
+        description="Active provider routing for meeting turns. Configure LLM brains and execution runtime in Agent Brains."
       >
         {aiStatus ? (
           <div className="meeting-ai-status">

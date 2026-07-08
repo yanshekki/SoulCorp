@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
+import type { GameSettings } from "../../types/game";
 import {
   AGENT_AI_PROVIDER_OPTIONS,
   AI_PROVIDER_DEFAULT,
@@ -17,9 +18,12 @@ import { SoulMdEditor } from "./SoulMdEditor";
 import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
 import { SearchableListToolbar } from "./SearchableListToolbar";
+import { AgentRuntimeSection } from "./command-center/AgentRuntimeSection";
+import { isSubprocessRuntime, runtimeModeLabel } from "../../utils/agentRuntimeCatalog";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
+  { id: "runtime", label: "Execution runtime" },
   { id: "workspaces", label: "Workspaces" },
   { id: "activity", label: "Activity" },
   { id: "departments", label: "Departments" },
@@ -32,6 +36,7 @@ interface AgentsPanelProps {
 
 export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const settings = useGameStore((state) => state.settings);
+  const setSettings = useGameStore((state) => state.setSettings);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
@@ -205,6 +210,30 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
 
   const overrideCount = agentRecords.filter((agent) => agent.ai_provider).length;
   const departmentOverrideCount = departmentConfigs.filter((entry) => entry.ai_provider).length;
+  const subprocessRuntime = isSubprocessRuntime(settings.agent_runtime_mode);
+
+  const persistRuntimeSettings = async (patch: Partial<GameSettings>) => {
+    try {
+      const next = await invoke<GameSettings>("update_game_settings", {
+        update: {
+          agent_runtime_mode: patch.agent_runtime_mode,
+          openclaw_binary_path: patch.openclaw_binary_path,
+          openclaw_use_local: patch.openclaw_use_local,
+          openclaw_prefer_gateway: patch.openclaw_prefer_gateway,
+          openclaw_default_agent_id: patch.openclaw_default_agent_id,
+          openclaw_timeout_secs: patch.openclaw_timeout_secs,
+          agent_runtime_fallback_to_llm: patch.agent_runtime_fallback_to_llm,
+          agent_runtime_custom_binary: patch.agent_runtime_custom_binary,
+          agent_runtime_custom_adapter: patch.agent_runtime_custom_adapter,
+          agent_runtime_allow_cli_env_keys: patch.agent_runtime_allow_cli_env_keys,
+        },
+      });
+      setSettings(next);
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   return (
     <div className="agents-panel agents-panel--page" ref={scrollRootRef}>
       <section
@@ -215,8 +244,9 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
         <header className="agents-card-header agents-card-header--stacked">
           <h3>Brain resolution</h3>
           <p className="muted">
-            Pick the LLM per department or employee, and edit soul.md personas after hire. Token
-            allocation and period caps live in the Tokens panel.
+            Configure meeting LLM brains per department or employee, pick the subprocess runtime
+            for sprint execution, and edit soul.md personas after hire. Token allocation lives in
+            the Tokens panel.
           </p>
         </header>
 
@@ -258,6 +288,10 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
             <strong>{overrideCount}</strong>
             <span>Agent overrides</span>
           </article>
+          <article>
+            <strong>{subprocessRuntime ? "CLI" : "LLM"}</strong>
+            <span>{runtimeModeLabel(settings.agent_runtime_mode)}</span>
+          </article>
         </div>
 
         {settings.pure_local_mode ? (
@@ -277,6 +311,25 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
             .
           </p>
         )}
+      </section>
+
+      <section
+        id="runtime"
+        className="agents-card agents-card--wide"
+        data-agents-section="runtime"
+      >
+        <header className="agents-card-header agents-card-header--stacked">
+          <h3>Execution runtime</h3>
+          <p className="muted">
+            Company-wide subprocess for sprint task execution. When set to in-app LLM only, tasks
+            use the meeting brain chain below (agent → department → company default).
+          </p>
+        </header>
+        <AgentRuntimeSection
+          settings={settings}
+          onPersist={persistRuntimeSettings}
+          onStatusMessage={setStatusMessage}
+        />
       </section>
 
       <AgentWorkspaceBrowser
