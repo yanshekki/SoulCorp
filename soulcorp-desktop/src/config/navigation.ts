@@ -4,6 +4,7 @@ import {
   showDesignStudio,
   showGodMode,
   showOffice3D,
+  showTierPanel,
 } from "./features";
 
 export interface NavPanel {
@@ -56,10 +57,6 @@ const V1_NAV_GROUPS: NavGroup[] = [
     panels: [
       { id: "marketplace", label: "Marketplace", workflowStep: 7, workflowHint: "Earn revenue" },
     ],
-  },
-  {
-    label: "Account",
-    panels: [{ id: "tier", label: "Pro / VIP" }],
   },
   {
     label: "System",
@@ -158,6 +155,8 @@ export function isPanelVisibleInEdition(panel: SidebarPanel): boolean {
       return showGodMode;
     case "achievements":
       return showAchievements;
+    case "tier":
+      return showTierPanel;
     case "executive":
       return false;
     default:

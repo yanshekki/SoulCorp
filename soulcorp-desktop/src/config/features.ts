@@ -10,6 +10,8 @@ export const showDesignStudio = IS_V2;
 export const showGodMode = IS_V2;
 /** Achievements and alternate endings */
 export const showAchievements = IS_V2;
+/** Pro / VIP tier upgrades panel */
+export const showTierPanel = IS_V2;
 /** Play mode (game/work), random events, god mode settings */
 export const showPlayModeSettings = IS_V2;
 /** Scene-linked BGM and SFX */

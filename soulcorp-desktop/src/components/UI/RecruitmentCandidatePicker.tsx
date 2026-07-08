@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { quickTagsForPreset } from "../../data/recruitmentSearchTags";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { RecruitmentCandidate } from "../../types/game";
 import { hubFileTypeLabel } from "../../utils/candidateSoul";
+import { SearchField } from "./SearchField";
 
 const PAGE_SIZE = 4;
-const SEARCH_DEBOUNCE_MS = 320;
 
 interface RecruitmentCandidatePickerProps {
   presetId: string;
@@ -19,7 +20,7 @@ export function RecruitmentCandidatePicker({
   onSelect,
 }: RecruitmentCandidatePickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(searchQuery);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [candidates, setCandidates] = useState<RecruitmentCandidate[]>([]);
@@ -27,13 +28,6 @@ export function RecruitmentCandidatePicker({
   const [message, setMessage] = useState<string | null>(null);
 
   const quickTags = useMemo(() => quickTagsForPreset(presetId), [presetId]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(searchQuery.trim());
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [searchQuery]);
 
   useEffect(() => {
     setPage(0);
@@ -49,7 +43,7 @@ export function RecruitmentCandidatePicker({
           from_cache: boolean;
           message?: string | null;
         }>("list_recruitment_candidates", {
-          query: debouncedQuery || null,
+          query: debouncedQuery.trim() || null,
         });
         if (cancelled) {
           return;
@@ -82,7 +76,8 @@ export function RecruitmentCandidatePicker({
 
   const filteredCandidates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query || query === debouncedQuery.toLowerCase()) {
+    const debounced = debouncedQuery.trim().toLowerCase();
+    if (!query || query === debounced) {
       return candidates;
     }
     return candidates.filter(
@@ -110,22 +105,18 @@ export function RecruitmentCandidatePicker({
   return (
     <div className="recruitment-candidate-picker">
       <div className="recruitment-candidate-picker-toolbar">
-        <label className="field-label recruitment-candidate-picker-search">
-          Search hub souls
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => {
-              setActiveTag(null);
-              setSearchQuery(event.target.value);
-            }}
-            placeholder="Name, skill, description…"
-            autoComplete="off"
-          />
-        </label>
-        <span className="recruitment-candidate-picker-count">
-          {filteredCandidates.length} results
-        </span>
+        <SearchField
+          className="recruitment-candidate-picker-search"
+          value={searchQuery}
+          onChange={(value) => {
+            setActiveTag(null);
+            setSearchQuery(value);
+          }}
+          placeholder="Name, skill, description…"
+          ariaLabel="Search hub souls"
+          loading={loading}
+          matchCount={searchQuery.trim() || loading ? filteredCandidates.length : undefined}
+        />
       </div>
 
       <div className="recruitment-candidate-picker-tags">

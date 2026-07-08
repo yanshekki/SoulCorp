@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceSearchResult } from "../../types/workspace";
+import { SearchField } from "../UI/SearchField";
 
 interface WorkspaceSearchProps {
   onOpenResult: (pageId: string) => void;
@@ -45,19 +46,14 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
 
   return (
     <div className="ws-search">
-      <div className="ws-search-input-wrap">
-        <span className="ws-search-icon" aria-hidden="true">
-          ⌕
-        </span>
-        <input
-          className="ws-search-input"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search pages & files…"
-          aria-label="Search workspace"
-        />
-        {searching ? <span className="ws-search-spinner" aria-hidden="true" /> : null}
-      </div>
+      <SearchField
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search pages & files…"
+        ariaLabel="Search workspace"
+        loading={searching}
+        matchCount={searchQuery.trim() ? searchResults.length : undefined}
+      />
       {searchResults.length > 0 ? (
         <div className="ws-search-results">
           {searchResults.map((result) => (

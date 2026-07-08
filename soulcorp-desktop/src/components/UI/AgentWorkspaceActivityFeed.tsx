@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { listAgentWorkspaceActivity } from "../../services/agentWorkspaceClient";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { AgentWorkspaceActivityEntry } from "../../types/workspace";
+import { filterByQuery } from "../../utils/listSearch";
+import { paginateItems } from "../../utils/pagination";
+import { PaginationBar } from "./PaginationBar";
+import { SearchableListToolbar } from "./SearchableListToolbar";
+
+const ACTIVITY_PAGE_SIZE = 10;
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso);
@@ -30,6 +37,9 @@ export function AgentWorkspaceActivityFeed() {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [entries, setEntries] = useState<AgentWorkspaceActivityEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(0);
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
   const refresh = useCallback(async () => {
     if (!activeCompanyId) {
@@ -50,6 +60,25 @@ export function AgentWorkspaceActivityFeed() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const filteredEntries = useMemo(
+    () =>
+      filterByQuery(entries, debouncedQuery, (entry) => [
+        entry.title,
+        entry.agent_name,
+        entry.page_id,
+      ]),
+    [entries, debouncedQuery],
+  );
+
+  const { pageItems, totalPages, safePage } = useMemo(
+    () => paginateItems(filteredEntries, listPage, ACTIVITY_PAGE_SIZE),
+    [filteredEntries, listPage],
+  );
+
+  useEffect(() => {
+    setListPage(0);
+  }, [debouncedQuery, entries.length]);
 
   const openPage = async (entry: AgentWorkspaceActivityEntry) => {
     try {
@@ -82,29 +111,51 @@ export function AgentWorkspaceActivityFeed() {
         Recent pages edited by agents. Click an entry to open it in Workspace.
       </p>
 
+      {entries.length > 0 ? (
+        <SearchableListToolbar
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          placeholder="Search activity by title, agent…"
+          ariaLabel="Search workspace activity"
+          matchCount={debouncedQuery.trim() ? filteredEntries.length : undefined}
+          totalCount={entries.length}
+          loading={loading}
+        />
+      ) : null}
+
       {entries.length === 0 ? (
         <p className="muted">
           {loading
             ? "Loading agent workspace activity…"
             : "No agent workspace edits yet. Run a scrum task with agent tools enabled."}
         </p>
+      ) : debouncedQuery.trim() && filteredEntries.length === 0 ? (
+        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
       ) : (
-        <ul className="agents-activity-feed">
-          {entries.map((entry) => (
-            <li key={`${entry.page_id}-${entry.last_edited_at}`}>
-              <button
-                type="button"
-                className="agents-activity-item"
-                onClick={() => void openPage(entry)}
-              >
-                <span className="agents-activity-title">{entry.title}</span>
-                <span className="agents-activity-meta">
-                  {entry.agent_name} · {formatRelativeTime(entry.last_edited_at)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="agents-activity-feed">
+            {pageItems.map((entry) => (
+              <li key={`${entry.page_id}-${entry.last_edited_at}`}>
+                <button
+                  type="button"
+                  className="agents-activity-item"
+                  onClick={() => void openPage(entry)}
+                >
+                  <span className="agents-activity-title">{entry.title}</span>
+                  <span className="agents-activity-meta">
+                    {entry.agent_name} · {formatRelativeTime(entry.last_edited_at)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <PaginationBar
+            page={safePage}
+            totalPages={totalPages}
+            label="Activity"
+            onPageChange={setListPage}
+          />
+        </>
       )}
     </section>
   );

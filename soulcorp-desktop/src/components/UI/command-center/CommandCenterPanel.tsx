@@ -14,9 +14,14 @@ import type {
   InternalProject,
   ScrumSnapshot,
 } from "../../../types/game";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { filterByQuery } from "../../../utils/listSearch";
+import { paginateItems } from "../../../utils/pagination";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
+import { PaginationBar } from "../PaginationBar";
+import { SearchableListToolbar } from "../SearchableListToolbar";
 import { CoCeoPanel } from "./CoCeoPanel";
 import {
   cancelDirective,
@@ -109,6 +114,9 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const [preview, setPreview] = useState<DirectivePreviewNode[] | null>(null);
   const [selectedDirectiveId, setSelectedDirectiveId] = useState<string | null>(null);
   const [directiveFilter, setDirectiveFilter] = useState<string>("all");
+  const [directiveSearchQuery, setDirectiveSearchQuery] = useState("");
+  const [directiveListPage, setDirectiveListPage] = useState(0);
+  const debouncedDirectiveQuery = useDebouncedValue(directiveSearchQuery);
 
   const [newProjectTitle, setNewProjectTitle] = useState("");
   const [newProjectDept, setNewProjectDept] = useState(departments[0] ?? "Engineering");
@@ -267,10 +275,38 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     }
   }, [project?.id, targetType]);
 
-  const filteredDirectives = useMemo(() => {
+  const statusFilteredDirectives = useMemo(() => {
     if (directiveFilter === "all") return directives;
     return directives.filter((d) => d.status === directiveFilter || d.source === directiveFilter);
   }, [directives, directiveFilter]);
+
+  const filteredDirectives = useMemo(
+    () =>
+      filterByQuery(statusFilteredDirectives, debouncedDirectiveQuery, (directive) => [
+        directive.title,
+        directive.description ?? "",
+        directive.status,
+        directive.source,
+        sourceLabel(directive.source),
+        directive.target,
+        directive.target_ref,
+        directive.id,
+      ]),
+    [statusFilteredDirectives, debouncedDirectiveQuery],
+  );
+
+  const {
+    pageItems: directivePageItems,
+    totalPages: directiveTotalPages,
+    safePage: directiveSafePage,
+  } = useMemo(
+    () => paginateItems(filteredDirectives, directiveListPage, 15),
+    [filteredDirectives, directiveListPage],
+  );
+
+  useEffect(() => {
+    setDirectiveListPage(0);
+  }, [debouncedDirectiveQuery, directiveFilter, directives.length]);
 
   const selectedDirective = directives.find((d) => d.id === selectedDirectiveId) ?? null;
 
@@ -743,6 +779,17 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
             <div className="command-inbox">
               <div className="command-inbox-header">
                 <h4>Directive Inbox</h4>
+              </div>
+              <SearchableListToolbar
+                query={directiveSearchQuery}
+                onQueryChange={setDirectiveSearchQuery}
+                placeholder="Search directives…"
+                ariaLabel="Search directives"
+                matchCount={
+                  debouncedDirectiveQuery.trim() ? filteredDirectives.length : undefined
+                }
+                totalCount={statusFilteredDirectives.length}
+              >
                 <select value={directiveFilter} onChange={(e) => setDirectiveFilter(e.target.value)}>
                   <option value="all">All</option>
                   <option value="open">Open</option>
@@ -753,9 +800,14 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   <option value="co_ceo">Co-CEO</option>
                   <option value="marketplace">Marketplace</option>
                 </select>
-              </div>
+              </SearchableListToolbar>
+              {debouncedDirectiveQuery.trim() && filteredDirectives.length === 0 ? (
+                <p className="search-empty-hint muted">
+                  No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.
+                </p>
+              ) : null}
               <ul className="command-directive-list">
-                {filteredDirectives.map((d: Directive) => (
+                {directivePageItems.map((d: Directive) => (
                   <li key={d.id}>
                     <button
                       type="button"
@@ -775,6 +827,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   </li>
                 ))}
               </ul>
+              <PaginationBar
+                page={directiveSafePage}
+                totalPages={directiveTotalPages}
+                label="Directives"
+                onPageChange={setDirectiveListPage}
+              />
               {selectedDirective ? (
                 <div className="command-directive-detail">
                   <p className="muted">{selectedDirective.description || "No details."}</p>

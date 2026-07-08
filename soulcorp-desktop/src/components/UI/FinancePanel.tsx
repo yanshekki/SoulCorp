@@ -10,9 +10,16 @@ import type {
   TokenEconomySnapshot,
   TokenUsageEntry,
 } from "../../types/game";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { showAgentMorale } from "../../config/features";
 import { AgentTokenBudgetEditor } from "./AgentTokenBudgetEditor";
 import { agentLabelById } from "../../utils/agentLabel";
+import { filterByQuery } from "../../utils/listSearch";
+import { paginateItems } from "../../utils/pagination";
+import { PaginationBar } from "./PaginationBar";
+import { SearchableListToolbar } from "./SearchableListToolbar";
+
+const LEDGER_PAGE_SIZE = 25;
 
 export const TOKENS_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -46,6 +53,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
   const [deptAllocDrafts, setDeptAllocDrafts] = useState<Record<string, number>>({});
   const [agentAllocDrafts, setAgentAllocDrafts] = useState<Record<string, number>>({});
   const [rebalancing, setRebalancing] = useState(false);
+  const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
+  const [ledgerPage, setLedgerPage] = useState(0);
+  const debouncedLedgerQuery = useDebouncedValue(ledgerSearchQuery);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   const net = finance.monthly_inflow_tokens - finance.monthly_burn_tokens;
@@ -58,6 +68,38 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
       Object.entries(finance.departments).sort(([left], [right]) => left.localeCompare(right)),
     [finance.departments],
   );
+
+  const filteredLedger = useMemo(
+    () =>
+      filterByQuery(ledger, debouncedLedgerQuery, (entry) => {
+        const agentName = entry.agent_id
+          ? (agentNameById.get(entry.agent_id) ?? entry.agent_id)
+          : "";
+        return [
+          entry.source,
+          entry.provider ?? "",
+          entry.department,
+          agentName,
+          entry.agent_id ?? "",
+          new Date(entry.at).toLocaleString(),
+          String(entry.total_tokens),
+        ];
+      }),
+    [ledger, debouncedLedgerQuery, agentNameById],
+  );
+
+  const {
+    pageItems: ledgerPageItems,
+    totalPages: ledgerTotalPages,
+    safePage: ledgerSafePage,
+  } = useMemo(
+    () => paginateItems(filteredLedger, ledgerPage, LEDGER_PAGE_SIZE),
+    [filteredLedger, ledgerPage],
+  );
+
+  useEffect(() => {
+    setLedgerPage(0);
+  }, [debouncedLedgerQuery, ledger.length]);
 
   const agentWalletRows = useMemo(
     () =>
@@ -497,13 +539,31 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
               Recent token charges by source, department, and agent.
             </p>
           </div>
-          <span className="tokens-count-pill">{ledger.length} entries</span>
+          <span className="tokens-count-pill">
+            {debouncedLedgerQuery.trim()
+              ? `${filteredLedger.length} matches`
+              : `${ledger.length} entries`}
+          </span>
         </header>
 
         {ledger.length === 0 ? (
           <p className="muted">No token charges recorded yet.</p>
         ) : (
-          <div className="tokens-ledger-wrap">
+          <>
+            <SearchableListToolbar
+              query={ledgerSearchQuery}
+              onQueryChange={setLedgerSearchQuery}
+              placeholder="Search ledger by source, dept, agent…"
+              ariaLabel="Search usage ledger"
+              matchCount={debouncedLedgerQuery.trim() ? filteredLedger.length : undefined}
+              totalCount={ledger.length}
+            />
+            {debouncedLedgerQuery.trim() && filteredLedger.length === 0 ? (
+              <p className="search-empty-hint muted">
+                No matches for &ldquo;{debouncedLedgerQuery}&rdquo;.
+              </p>
+            ) : null}
+            <div className="tokens-ledger-wrap">
             <table className="candidate-scores-table token-ledger-table tokens-ledger-table">
               <thead>
                 <tr>
@@ -515,7 +575,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
                 </tr>
               </thead>
               <tbody>
-                {ledger.map((entry) => (
+                {ledgerPageItems.map((entry) => (
                   <tr key={entry.id}>
                     <td>{new Date(entry.at).toLocaleString()}</td>
                     <td>
@@ -534,6 +594,13 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
               </tbody>
             </table>
           </div>
+            <PaginationBar
+              page={ledgerSafePage}
+              totalPages={ledgerTotalPages}
+              label="Ledger"
+              onPageChange={setLedgerPage}
+            />
+          </>
         )}
       </section>
 

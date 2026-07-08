@@ -11,9 +11,9 @@ import {
 } from "../../services/scrumClient";
 import { BacklogTreePanel } from "./backlog/BacklogTreePanel";
 import { CommandCenterPanel } from "./command-center/CommandCenterPanel";
+import { ExecutionLogSection } from "./execution/ExecutionLogSection";
 import type {
   AgentInboxEntry,
-  ExecutionRun,
   ScrumBoardSnapshot,
   ScrumSnapshot,
   WorkNode,
@@ -194,7 +194,23 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
   const board: ScrumBoardSnapshot | null = snapshot?.board ?? null;
   const tree = snapshot?.tree;
   const inboxes: AgentInboxEntry[] = snapshot?.inboxes ?? [];
-  const runs: ExecutionRun[] = snapshot?.execution_runs ?? [];
+  const runs = snapshot?.execution_runs ?? [];
+
+  const allWorkNodes = useMemo(() => {
+    if (tree?.flat?.length) {
+      return tree.flat;
+    }
+    if (!board) {
+      return [];
+    }
+    return [
+      ...board.backlog,
+      ...board.sprint_items,
+      ...board.in_progress,
+      ...board.in_review,
+      ...board.done,
+    ];
+  }, [tree, board]);
 
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -418,39 +434,12 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
         </div>
       </section>
 
-      <section id="execution" className="projects-card" data-projects-section="execution">
-        <header className="projects-card-header">
-          <p className="workflow-step-badge">5 · Execute</p>
-          <h3>Execution Log</h3>
-          <p className="muted">LLM runs, token usage, and deliverable links — approve then open in Workspace.</p>
-        </header>
-        <div className="projects-card-body">
-          {runs.length === 0 ? <p className="muted">No executions yet.</p> : null}
-          <ul className="projects-execution-list">
-            {runs
-              .slice()
-              .reverse()
-              .slice(0, 20)
-              .map((run) => (
-                <li key={run.id}>
-                  <strong>{run.status}</strong> · {run.work_node_id} · ~{run.actual_tokens || run.estimated_tokens}{" "}
-                  tokens
-                  {run.summary ? <p className="muted">{run.summary}</p> : null}
-                  {run.deliverable_page_id ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void openWorkspacePage(run.deliverable_page_id!, run.summary || run.work_node_id)
-                      }
-                    >
-                      Open in Workspace
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-          </ul>
-        </div>
-      </section>
+      <ExecutionLogSection
+        runs={runs}
+        workNodes={allWorkNodes}
+        agentLabels={agentLabels}
+        onApprove={handleApprove}
+      />
     </div>
   );
 }

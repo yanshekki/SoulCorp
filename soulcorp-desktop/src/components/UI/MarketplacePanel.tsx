@@ -12,9 +12,16 @@ import {
   syncWithHub,
 } from "../../services/hubClient";
 import { simulationAutoRun } from "../../config/features";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
+import { filterByQuery } from "../../utils/listSearch";
+import { paginateItems } from "../../utils/pagination";
 import { invoke } from "@tauri-apps/api/core";
+import { PaginationBar } from "./PaginationBar";
+import { SearchableListToolbar } from "./SearchableListToolbar";
+
+const MARKETPLACE_PAGE_SIZE = 12;
 
 export const MARKETPLACE_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -63,6 +70,11 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
   const setFinance = useGameStore((state) => state.setFinance);
 
   const [executiveLoungeOnly, setExecutiveLoungeOnly] = useState(false);
+  const [marketplaceSearchQuery, setMarketplaceSearchQuery] = useState("");
+  const [browsePage, setBrowsePage] = useState(0);
+  const [contractsPage, setContractsPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const debouncedMarketplaceQuery = useDebouncedValue(marketplaceSearchQuery);
   const [gigs, setGigs] = useState<HubGig[]>([]);
   const [contracts, setContracts] = useState<GigContract[]>([]);
   const [loading, setLoading] = useState(false);
@@ -167,6 +179,59 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
         .sort((left, right) => (right.completed_at ?? "").localeCompare(left.completed_at ?? "")),
     [contracts],
   );
+
+  const gigSearchFields = (item: { title: string; description: string; required_skills?: string[]; gig_id?: number; status?: string }) => [
+    item.title,
+    item.description,
+    ...(item.required_skills ?? []),
+    item.gig_id != null ? String(item.gig_id) : "",
+    item.status ?? "",
+  ];
+
+  const contractSearchFields = (contract: GigContract) => [
+    contract.title,
+    contract.description,
+    contract.contract_id,
+    String(contract.gig_id),
+    contract.status,
+    ...(contract.required_skills ?? []),
+  ];
+
+  const searchedBrowseGigs = useMemo(
+    () => filterByQuery(browseGigs, debouncedMarketplaceQuery, gigSearchFields),
+    [browseGigs, debouncedMarketplaceQuery],
+  );
+
+  const searchedActiveContracts = useMemo(
+    () => filterByQuery(activeContracts, debouncedMarketplaceQuery, contractSearchFields),
+    [activeContracts, debouncedMarketplaceQuery],
+  );
+
+  const searchedHistoryContracts = useMemo(
+    () => filterByQuery(historyContracts, debouncedMarketplaceQuery, contractSearchFields),
+    [historyContracts, debouncedMarketplaceQuery],
+  );
+
+  const browsePagination = useMemo(
+    () => paginateItems(searchedBrowseGigs, browsePage, MARKETPLACE_PAGE_SIZE),
+    [searchedBrowseGigs, browsePage],
+  );
+
+  const contractsPagination = useMemo(
+    () => paginateItems(searchedActiveContracts, contractsPage, MARKETPLACE_PAGE_SIZE),
+    [searchedActiveContracts, contractsPage],
+  );
+
+  const historyPagination = useMemo(
+    () => paginateItems(searchedHistoryContracts, historyPage, MARKETPLACE_PAGE_SIZE),
+    [searchedHistoryContracts, historyPage],
+  );
+
+  useEffect(() => {
+    setBrowsePage(0);
+    setContractsPage(0);
+    setHistoryPage(0);
+  }, [debouncedMarketplaceQuery]);
 
   const handleSync = async () => {
     try {
@@ -397,8 +462,19 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
                 : " Progress advances when backlog deliverables complete."}
             </p>
           </div>
-          <span className="marketplace-count-pill">{browseGigs.length} available</span>
+          <span className="marketplace-count-pill">
+            {debouncedMarketplaceQuery.trim()
+              ? `${searchedBrowseGigs.length} matches`
+              : `${browseGigs.length} available`}
+          </span>
         </header>
+
+        <SearchableListToolbar
+          query={marketplaceSearchQuery}
+          onQueryChange={setMarketplaceSearchQuery}
+          placeholder="Search gigs and contracts…"
+          ariaLabel="Search marketplace"
+        />
 
         <label className="checkbox-row executive-lounge-filter">
           <input
@@ -413,9 +489,14 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           <p className="muted">
             {loading ? "Loading gigs from hub…" : "No open gigs available. Sync with hub or post your own."}
           </p>
+        ) : debouncedMarketplaceQuery.trim() && searchedBrowseGigs.length === 0 ? (
+          <p className="search-empty-hint muted">
+            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+          </p>
         ) : (
+          <>
           <div className="gig-list marketplace-gig-grid">
-            {browseGigs.map((gig) => (
+            {browsePagination.pageItems.map((gig) => (
               <article key={gig.gig_id} className="gig-card marketplace-gig-card">
                 <header>
                   <strong>{gig.title}</strong>
@@ -442,6 +523,13 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
               </article>
             ))}
           </div>
+          <PaginationBar
+            page={browsePagination.safePage}
+            totalPages={browsePagination.totalPages}
+            label="Browse"
+            onPageChange={setBrowsePage}
+          />
+          </>
         )}
       </section>
 
@@ -457,14 +545,23 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
               Active work — start delivery, submit for QC, approve payouts, or open disputes.
             </p>
           </div>
-          <span className="marketplace-count-pill">{activeContracts.length} active</span>
+          <span className="marketplace-count-pill">
+            {debouncedMarketplaceQuery.trim()
+              ? `${searchedActiveContracts.length} matches`
+              : `${activeContracts.length} active`}
+          </span>
         </header>
 
         {activeContracts.length === 0 ? (
           <p className="muted">No active contracts. Accept a gig from Browse.</p>
+        ) : debouncedMarketplaceQuery.trim() && searchedActiveContracts.length === 0 ? (
+          <p className="search-empty-hint muted">
+            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+          </p>
         ) : (
+          <>
           <div className="gig-list marketplace-gig-grid">
-            {activeContracts.map((contract) => (
+            {contractsPagination.pageItems.map((contract) => (
               <article key={contract.contract_id} className="gig-card marketplace-gig-card">
                 <header>
                   <strong>{contract.title}</strong>
@@ -539,6 +636,13 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
               </article>
             ))}
           </div>
+          <PaginationBar
+            page={contractsPagination.safePage}
+            totalPages={contractsPagination.totalPages}
+            label="Contracts"
+            onPageChange={setContractsPage}
+          />
+          </>
         )}
       </section>
 
@@ -554,14 +658,23 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
               Payout history after QC approval — budget, platform fee, and net USDT received.
             </p>
           </div>
-          <span className="marketplace-count-pill">{historyContracts.length} completed</span>
+          <span className="marketplace-count-pill">
+            {debouncedMarketplaceQuery.trim()
+              ? `${searchedHistoryContracts.length} matches`
+              : `${historyContracts.length} completed`}
+          </span>
         </header>
 
         {historyContracts.length === 0 ? (
           <p className="muted">Completed gigs will appear here with payout details.</p>
+        ) : debouncedMarketplaceQuery.trim() && searchedHistoryContracts.length === 0 ? (
+          <p className="search-empty-hint muted">
+            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+          </p>
         ) : (
+          <>
           <div className="gig-list marketplace-gig-grid marketplace-history-grid">
-            {historyContracts.map((contract) => (
+            {historyPagination.pageItems.map((contract) => (
               <article key={contract.contract_id} className="gig-card gig-card-history marketplace-gig-card">
                 <header>
                   <strong>{contract.title}</strong>
@@ -577,6 +690,13 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
               </article>
             ))}
           </div>
+          <PaginationBar
+            page={historyPagination.safePage}
+            totalPages={historyPagination.totalPages}
+            label="History"
+            onPageChange={setHistoryPage}
+          />
+          </>
         )}
       </section>
 

@@ -1,8 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyScope } from "../../hooks/useCompanyScope";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { Achievement, AchievementSnapshot, Ending } from "../../types/game";
+import { filterByQuery } from "../../utils/listSearch";
+import { SearchableListToolbar } from "./SearchableListToolbar";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   growth: "Growth",
@@ -102,6 +105,8 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
   const setEndings = useGameStore((state) => state.setEndings);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
   useEffect(() => {
     if (!activeCompanyId) {
@@ -149,7 +154,31 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
     () => achievements.filter((achievement) => achievement.unlocked).length,
     [achievements],
   );
-  const groupedAchievements = useMemo(() => groupByCategory(achievements), [achievements]);
+  const filteredAchievements = useMemo(
+    () =>
+      filterByQuery(achievements, debouncedQuery, (achievement) => [
+        achievement.title,
+        achievement.description,
+        achievement.category,
+        CATEGORY_LABELS[achievement.category] ?? achievement.category,
+      ]),
+    [achievements, debouncedQuery],
+  );
+
+  const filteredEndings = useMemo(
+    () =>
+      filterByQuery(endings, debouncedQuery, (ending) => [
+        ending.title,
+        ending.description,
+        ending.id,
+      ]),
+    [endings, debouncedQuery],
+  );
+
+  const groupedAchievements = useMemo(
+    () => groupByCategory(filteredAchievements),
+    [filteredAchievements],
+  );
   const unlockedEndings = useMemo(
     () => endings.filter((ending) => ending.unlocked).length,
     [endings],
@@ -183,6 +212,25 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
           </p>
         </div>
       </div>
+
+      <SearchableListToolbar
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        placeholder="Search achievements and endings…"
+        ariaLabel="Search achievements"
+        matchCount={
+          debouncedQuery.trim()
+            ? filteredAchievements.length + filteredEndings.length
+            : undefined
+        }
+        totalCount={achievements.length + endings.length}
+      />
+
+      {debouncedQuery.trim() &&
+      filteredAchievements.length === 0 &&
+      filteredEndings.length === 0 ? (
+        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+      ) : null}
 
       <div className="achievements-category-progress">
         {categoryProgress.map((entry) => (
@@ -233,7 +281,7 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
           </span>
         </header>
         <div className="achievements-grid achievements-endings-grid">
-          {endings.map((ending) => (
+          {filteredEndings.map((ending) => (
             <EndingCard key={ending.id} ending={ending} />
           ))}
         </div>

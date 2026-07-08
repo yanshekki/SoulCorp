@@ -14,6 +14,7 @@ import type {
   WorkspacePageSummary,
   WorkspaceSearchResult,
 } from "../../types/workspace";
+import { SearchField } from "./SearchField";
 
 interface AgentWorkspaceBrowserProps {
   agents: AgentRecord[];
@@ -275,15 +276,13 @@ export function AgentWorkspaceBrowser({
             </p>
           ) : null}
 
-          <label className="field-label">
-            Search workspace
-            <input
-              type="search"
-              value={searchQuery}
-              placeholder="Search this agent's pages…"
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          </label>
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search this agent's pages…"
+            ariaLabel="Search agent workspace"
+            matchCount={searchQuery.trim() ? listedPages.length : undefined}
+          />
 
           <div className="agents-workspace-page-list" role="listbox" aria-label="Agent pages">
             {loadingContext ? (

@@ -1,13 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
-import type { ForesightEvent } from "../../types/game";
+import type { ForesightEvent, GameEvent } from "../../types/game";
+import { filterByQuery } from "../../utils/listSearch";
+import { paginateItems } from "../../utils/pagination";
+import { PaginationBar } from "./PaginationBar";
+import { SearchableListToolbar } from "./SearchableListToolbar";
+
+const EVENT_PAGE_SIZE = 5;
 
 export function EventFeed() {
   const events = useGameStore((state) => state.events);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
   const settings = useGameStore((state) => state.settings);
   const [foresight, setForesight] = useState<ForesightEvent[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(0);
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
   useEffect(() => {
     if (
@@ -28,6 +38,26 @@ export function EventFeed() {
     tierBenefits.event_foresight_days,
     events.length,
   ]);
+
+  const filteredEvents = useMemo(
+    () =>
+      filterByQuery(events, debouncedQuery, (event: GameEvent) => [
+        event.title,
+        event.description,
+        event.narrator ?? "",
+        event.tone,
+      ]),
+    [events, debouncedQuery],
+  );
+
+  const { pageItems, totalPages, safePage } = useMemo(
+    () => paginateItems(filteredEvents, listPage, EVENT_PAGE_SIZE),
+    [filteredEvents, listPage],
+  );
+
+  useEffect(() => {
+    setListPage(0);
+  }, [debouncedQuery, events.length]);
 
   if (settings.play_mode === "work") {
     return null;
@@ -60,15 +90,35 @@ export function EventFeed() {
       {events.length > 0 ? (
         <>
           <h3>Recent Events</h3>
-          {events.slice(0, 3).map((event) => (
-            <article key={event.id} className={`event-card tone-${event.tone}`}>
-              <strong>
-                {event.narrator ? `${event.narrator} · ` : ""}
-                {event.title}
-              </strong>
-              <p>{event.description}</p>
-            </article>
-          ))}
+          <SearchableListToolbar
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            placeholder="Search events…"
+            ariaLabel="Search events"
+            matchCount={debouncedQuery.trim() ? filteredEvents.length : undefined}
+            totalCount={events.length}
+          />
+          {debouncedQuery.trim() && filteredEvents.length === 0 ? (
+            <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+          ) : (
+            <>
+              {pageItems.map((event) => (
+                <article key={event.id} className={`event-card tone-${event.tone}`}>
+                  <strong>
+                    {event.narrator ? `${event.narrator} · ` : ""}
+                    {event.title}
+                  </strong>
+                  <p>{event.description}</p>
+                </article>
+              ))}
+              <PaginationBar
+                page={safePage}
+                totalPages={totalPages}
+                label="Events"
+                onPageChange={setListPage}
+              />
+            </>
+          )}
         </>
       ) : null}
     </section>

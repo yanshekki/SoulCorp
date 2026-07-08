@@ -7,6 +7,7 @@ import {
 } from "../../services/workspaceClient";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspacePage, WorkspacePresenceEntry } from "../../types/workspace";
+import { useWorkspaceEditorViewport } from "../../hooks/useWorkspaceEditorViewport";
 import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
 import { PageEditorSidebar } from "./PageEditorSidebar";
 import { TipTapEditor } from "./TipTapEditor";
@@ -55,6 +56,7 @@ export function PageEditor() {
   const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
   const [presence, setPresence] = useState<WorkspacePresenceEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const viewportMode = useWorkspaceEditorViewport();
   const lastSavedSnapshotRef = useRef("");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -249,7 +251,9 @@ export function PageEditor() {
         : "Saved";
 
   return (
-    <div className={`ws-editor-root${sidebarOpen ? "" : " ws-editor-root--sidebar-collapsed"}`}>
+    <div
+      className={`ws-editor-root${sidebarOpen ? "" : " ws-editor-root--sidebar-collapsed"}${viewportMode === "expanded" ? " ws-editor-root--viewport-expanded" : ""}`}
+    >
       <div className="ws-editor-main">
         <header className="ws-editor-topbar">
           <div className="ws-editor-topbar-left">

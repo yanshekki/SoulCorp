@@ -1,8 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCompanyScope } from "../../hooks/useCompanyScope";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { GodModeActionResult, GodModeLogEntry, TokenEconomy } from "../../types/game";
+import { filterByQuery } from "../../utils/listSearch";
+import { paginateItems } from "../../utils/pagination";
+import { PaginationBar } from "./PaginationBar";
+import { SearchableListToolbar } from "./SearchableListToolbar";
+
+const GOD_MODE_LOG_PAGE_SIZE = 20;
 
 export type GodModeCategory = "simulation" | "economy" | "agents" | "chaos";
 
@@ -170,6 +177,9 @@ export function GodModePanel() {
   const [selected, setSelected] = useState<string>(GOD_MODE_ACTIONS[0].label);
   const [realityDebt, setRealityDebt] = useState(0);
   const [running, setRunning] = useState<string | null>(null);
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [historyPage, setHistoryPage] = useState(0);
+  const debouncedHistoryQuery = useDebouncedValue(historySearchQuery);
 
   const refreshHistory = async () => {
     const [entries, status] = await Promise.all([
@@ -204,6 +214,30 @@ export function GodModePanel() {
       setRunning(null);
     }
   };
+
+  const filteredHistory = useMemo(
+    () =>
+      filterByQuery(history, debouncedHistoryQuery, (entry) => [
+        entry.action,
+        entry.message,
+        String(entry.day_number),
+        String(entry.reality_cost),
+      ]),
+    [history, debouncedHistoryQuery],
+  );
+
+  const {
+    pageItems: historyPageItems,
+    totalPages: historyTotalPages,
+    safePage: historySafePage,
+  } = useMemo(
+    () => paginateItems(filteredHistory, historyPage, GOD_MODE_LOG_PAGE_SIZE),
+    [filteredHistory, historyPage],
+  );
+
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [debouncedHistoryQuery, history.length]);
 
   const activePreview = GOD_MODE_ACTIONS.find((action) => action.label === selected);
 
@@ -269,18 +303,41 @@ export function GodModePanel() {
           <div className="god-mode-history">
             <h3>Intervention Log</h3>
             {history.length > 0 ? (
-              <ul>
-                {history.map((entry) => (
-                  <li key={entry.id}>
-                    <strong>Day {entry.day_number}</strong> · {entry.action.replace(/_/g, " ")}
-                    <span className="muted"> — {entry.message}</span>
-                    <span className="muted">
-                      {" "}
-                      · reality cost {(entry.reality_cost * 100).toFixed(0)}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <SearchableListToolbar
+                  query={historySearchQuery}
+                  onQueryChange={setHistorySearchQuery}
+                  placeholder="Search interventions…"
+                  ariaLabel="Search intervention log"
+                  matchCount={
+                    debouncedHistoryQuery.trim() ? filteredHistory.length : undefined
+                  }
+                  totalCount={history.length}
+                />
+                {debouncedHistoryQuery.trim() && filteredHistory.length === 0 ? (
+                  <p className="search-empty-hint muted">
+                    No matches for &ldquo;{debouncedHistoryQuery}&rdquo;.
+                  </p>
+                ) : null}
+                <ul>
+                  {historyPageItems.map((entry) => (
+                    <li key={entry.id}>
+                      <strong>Day {entry.day_number}</strong> · {entry.action.replace(/_/g, " ")}
+                      <span className="muted"> — {entry.message}</span>
+                      <span className="muted">
+                        {" "}
+                        · reality cost {(entry.reality_cost * 100).toFixed(0)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <PaginationBar
+                  page={historySafePage}
+                  totalPages={historyTotalPages}
+                  label="Interventions"
+                  onPageChange={setHistoryPage}
+                />
+              </>
             ) : (
               <p className="muted">No interventions yet. Execute a power to begin the log.</p>
             )}

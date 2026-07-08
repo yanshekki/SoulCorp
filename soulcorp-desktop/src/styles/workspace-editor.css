@@ -1,14 +1,22 @@
 /* ── Workspace shell ─────────────────────────────────────────────── */
 
-.ws-shell-header {
+.ws-shell {
+  --ws-pad-inline: var(--space-4);
+  --ws-pad-block: var(--space-3);
+  --ws-panel-gap: var(--space-3);
+  --ws-editor-readable: 720px;
+}
+
+.ws-shell .app-page-header.ws-shell-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
+  padding: var(--ws-pad-block) var(--ws-pad-inline);
 }
 
-.ws-shell-header-search {
+.ws-shell .ws-shell-header-search {
   flex: 1;
   min-width: 200px;
   max-width: 360px;
@@ -56,7 +64,14 @@
 
 .ws-shell-body {
   display: flex;
+  flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+.ws-shell-body > .ws-editor-root {
+  flex: 1;
+  min-width: 0;
 }
 
 .ws-nav {
@@ -75,6 +90,15 @@
   display: grid;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
+}
+
+.ws-search .search-field {
+  gap: 0;
+}
+
+.ws-search .search-field-input {
+  padding: var(--space-2) var(--space-3) var(--space-2) 2rem;
+  font-size: 0.82rem;
 }
 
 .ws-search-input-wrap {
@@ -186,17 +210,19 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
+  container-name: ws-editor-main;
 }
 
 .ws-editor-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
+  gap: var(--space-3);
+  padding: var(--ws-pad-block) var(--ws-pad-inline);
+  min-height: 3rem;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(18, 21, 28, 0.92);
-  backdrop-filter: blur(8px);
+  background: var(--bg-surface);
   position: sticky;
   top: 0;
   z-index: 4;
@@ -308,12 +334,76 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
+  padding: var(--space-5) var(--ws-pad-inline);
 }
 
 .ws-editor-page {
-  max-width: 780px;
+  width: 100%;
+  max-width: min(var(--ws-editor-readable), 100%);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-6) var(--space-8);
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+  transition: max-width 0.2s ease;
+}
+
+@container ws-editor-main (min-width: 880px) {
+  .ws-editor-page {
+    max-width: min(840px, 92cqw);
+  }
+}
+
+@container ws-editor-main (min-width: 1080px) {
+  .ws-editor-page {
+    max-width: min(960px, 94cqw);
+  }
+}
+
+@container ws-editor-main (min-width: 1280px) {
+  .ws-editor-page {
+    max-width: min(1080px, 95cqw);
+  }
+
+  .ws-tiptap-content .ws-prosemirror {
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+}
+
+.ws-editor-root--viewport-expanded {
+  --ws-editor-readable: 960px;
+}
+
+@container ws-editor-main (min-width: 1080px) {
+  .ws-editor-root--viewport-expanded .ws-editor-page {
+    max-width: min(1120px, 96cqw);
+  }
+}
+
+@container ws-editor-main (min-width: 1280px) {
+  .ws-editor-root--viewport-expanded .ws-editor-page {
+    max-width: min(1280px, 97cqw);
+  }
+
+  .ws-editor-root--viewport-expanded .ws-page-title {
+    font-size: 2.5rem;
+  }
+}
+
+.ws-editor-root--sidebar-collapsed {
+  --ws-editor-readable: 840px;
+}
+
+@container ws-editor-main (min-width: 1080px) {
+  .ws-editor-root--sidebar-collapsed .ws-editor-page {
+    max-width: min(1040px, 95cqw);
+  }
+}
+
+@container ws-editor-main (min-width: 1280px) {
+  .ws-editor-root--sidebar-collapsed.ws-editor-root--viewport-expanded .ws-editor-page {
+    max-width: min(1360px, 98cqw);
+  }
 }
 
 .ws-page-title {
@@ -321,12 +411,12 @@
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 2.25rem;
+  font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.15;
+  line-height: 1.2;
   padding: 0;
-  margin: 0 0 var(--space-2);
+  margin: 0;
 }
 
 .ws-page-title:focus {
@@ -343,17 +433,18 @@
   gap: var(--space-2);
   font-size: 0.75rem;
   color: var(--text-muted);
-  margin-bottom: var(--space-5);
+  margin: 0;
 }
 
 /* ── TipTap editor ─────────────────────────────────────────────── */
 
 .ws-tiptap-shell {
+  width: 100%;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .ws-editor-toolbar {
@@ -432,8 +523,8 @@
 
 .ws-tiptap-content .ws-prosemirror {
   outline: none;
-  min-height: 420px;
-  padding: var(--space-5) var(--space-6);
+  min-height: 360px;
+  padding: var(--space-4) var(--space-5);
   line-height: 1.65;
   font-size: 0.95rem;
   color: var(--text-primary);
@@ -718,7 +809,7 @@
 /* ── Page sidebar ────────────────────────────────────────────────── */
 
 .ws-page-sidebar {
-  width: 300px;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -768,7 +859,7 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
-  padding: var(--space-3);
+  padding: var(--ws-panel-gap);
 }
 
 .ws-page-sidebar-panel .page-links,
@@ -778,13 +869,48 @@
   border: none;
   background: transparent;
   padding: 0;
+  border-radius: 0;
+}
+
+.ws-page-sidebar-panel .page-links header,
+.ws-page-sidebar-panel .page-comments > h3,
+.ws-page-sidebar-panel .page-version-history > h3 {
+  margin: 0 0 var(--space-3);
 }
 
 .ws-page-sidebar-panel .page-links header h3,
 .ws-page-sidebar-panel .page-comments h3,
 .ws-page-sidebar-panel .page-version-history h3 {
+  margin: 0 0 var(--space-1);
   font-size: 0.82rem;
-  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+
+.ws-page-sidebar-panel .page-links header .muted,
+.ws-page-sidebar-panel .page-comments .muted,
+.ws-page-sidebar-panel .page-version-history .muted {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.ws-page-sidebar-panel .page-link-form {
+  margin-top: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.ws-page-sidebar-panel .page-link-form button {
+  justify-self: start;
+}
+
+.ws-page-sidebar-panel .page-backlinks {
+  margin-top: var(--space-4);
+}
+
+.ws-page-sidebar-panel .page-backlinks h4 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
 }
 
 /* ── Empty state ─────────────────────────────────────────────────── */
@@ -1424,4 +1550,106 @@
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border-subtle);
   font-size: 0.68rem;
+}
+
+/* ── Workspace layout polish (shell + nav + panels) ─────────────── */
+
+.ws-shell .workspace-sidebar.app-page-nav {
+  width: var(--workspace-sidebar-width, 280px);
+  padding: var(--ws-panel-gap);
+  gap: var(--ws-panel-gap);
+}
+
+.ws-shell .workspace-database {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.ws-shell .workspace-database > h3 {
+  margin: 0;
+  padding: 0 var(--space-1);
+}
+
+.ws-shell .workspace-database-card {
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.ws-shell .workspace-database-card header {
+  margin: 0 0 var(--space-2);
+}
+
+.ws-shell .workspace-database-card header strong {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.ws-shell .workspace-database-card header .muted {
+  margin: var(--space-1) 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.ws-shell .workspace-database-card table {
+  min-width: 0;
+}
+
+.ws-shell .ws-navigator {
+  margin: 0;
+}
+
+.ws-shell .ws-nav-views,
+.ws-shell .ws-nav-toolbar {
+  margin: 0 calc(var(--ws-panel-gap) * -1);
+  padding-inline: var(--ws-panel-gap);
+}
+
+.ws-shell .ws-nav-content {
+  padding: var(--space-1) 0 0;
+}
+
+.ws-shell .ws-item-row-wrap {
+  padding-inline: var(--space-1);
+}
+
+.ws-shell .folder-tree {
+  gap: var(--space-3);
+}
+
+.ws-shell .workspace-tree-section {
+  gap: var(--space-1);
+}
+
+.ws-shell .folder-group {
+  gap: 0;
+}
+
+.ws-shell .folder-row {
+  padding-inline: var(--space-1);
+}
+
+.ws-shell .page-row-wrap {
+  padding-inline: var(--space-1);
+}
+
+.ws-editor-main {
+  background: var(--bg-inset);
+}
+
+.ws-editor-root--empty,
+.ws-editor-root--loading {
+  padding: var(--space-6);
+}
+
+.ws-empty-state {
+  margin: 0;
+}
+
+.ws-file-viewer-page {
+  max-width: min(960px, 100%);
+}
+
+.ws-file-hero {
+  margin-bottom: var(--space-4);
 }

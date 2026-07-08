@@ -7,6 +7,7 @@ import {
   updateDepartment,
 } from "../../../services/departmentsClient";
 import type { DepartmentListEntry } from "../../../types/game";
+import { SearchField } from "../SearchField";
 import { DepartmentEditor } from "./DepartmentEditor";
 import {
   departmentAccentStyle,
@@ -129,15 +130,16 @@ export function DepartmentsTab({
             <h3>Teams</h3>
             <p className="muted">{departments.length} departments · fully editable</p>
           </div>
-          <label className="dept-search">
-            <span className="sr-only">Search departments</span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Search teams…"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
+          <SearchField
+            className="dept-search"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search teams…"
+            ariaLabel="Search departments"
+            matchCount={query.trim() ? filtered.length : undefined}
+            totalCount={departments.length}
+            size="compact"
+          />
         </header>
 
         <ul className="dept-team-list">

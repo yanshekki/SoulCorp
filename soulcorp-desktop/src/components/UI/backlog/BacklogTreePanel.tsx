@@ -1,7 +1,10 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import type { AgentRecord, InternalProject, WorkNode, WorkTreeSnapshot } from "../../../types/game";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { fieldsMatchQuery, tokenizeQuery } from "../../../utils/listSearch";
 import { openDepartmentWorkspace, openWorkspacePage } from "../../../utils/openWorkspacePage";
+import { SearchableListToolbar } from "../SearchableListToolbar";
 import {
   backlogStats,
   canRunTask,
@@ -102,6 +105,17 @@ function TaskRow({
   );
 }
 
+function taskSearchFields(task: WorkNode, agents: AssignableAgent[]): string[] {
+  const assignee = agents.find((agent) => agent.id === task.assignee_agent_id);
+  return [
+    task.title,
+    task.description ?? "",
+    assignee?.name ?? "",
+    assignee?.role ?? "",
+    task.status,
+  ];
+}
+
 function StoryCard({
   group,
   agents,
@@ -112,6 +126,7 @@ function StoryCard({
   onExecute,
   onApprove,
   onAddTask,
+  forceExpanded = false,
 }: {
   group: { story: WorkNode; tasks: WorkNode[] };
   agents: AssignableAgent[];
@@ -122,8 +137,15 @@ function StoryCard({
   onExecute: (nodeId: string) => Promise<void>;
   onApprove: (nodeId: string) => Promise<void>;
   onAddTask: (storyId: string, title: string) => Promise<void>;
+  forceExpanded?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (forceExpanded) {
+      setCollapsed(false);
+    }
+  }, [forceExpanded]);
   const doneCount = group.tasks.filter((task) => task.status === "done").length;
 
   return (
@@ -232,10 +254,57 @@ export function BacklogTreePanel({
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [storyDrafts, setStoryDrafts] = useState<Record<string, string>>({});
   const [newStoryTitle, setNewStoryTitle] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
   const groups = useMemo(() => groupBacklogStories(tree?.flat ?? []), [tree]);
   const orphanTasks = useMemo(() => collectOrphanTasks(tree?.flat ?? []), [tree]);
-  const stats = useMemo(() => backlogStats(groups, orphanTasks), [groups, orphanTasks]);
+  const searchTokens = useMemo(() => tokenizeQuery(debouncedQuery), [debouncedQuery]);
+
+  type FilteredStoryGroup = {
+    story: WorkNode;
+    tasks: WorkNode[];
+    forceExpanded?: boolean;
+  };
+
+  const filteredGroups = useMemo((): FilteredStoryGroup[] => {
+    if (searchTokens.length === 0) {
+      return groups;
+    }
+    return groups
+      .map((group): FilteredStoryGroup | null => {
+        const storyFields = [group.story.title, group.story.description ?? "", group.story.status];
+        const storyMatches = fieldsMatchQuery(storyFields, searchTokens);
+        const matchingTasks = group.tasks.filter((task) =>
+          fieldsMatchQuery(taskSearchFields(task, agents), searchTokens),
+        );
+        if (!storyMatches && matchingTasks.length === 0) {
+          return null;
+        }
+        return {
+          story: group.story,
+          tasks: storyMatches ? group.tasks : matchingTasks,
+          forceExpanded: matchingTasks.length > 0,
+        };
+      })
+      .filter((group): group is FilteredStoryGroup => group !== null);
+  }, [groups, searchTokens, agents]);
+
+  const filteredOrphanTasks = useMemo(() => {
+    if (searchTokens.length === 0) {
+      return orphanTasks;
+    }
+    return orphanTasks.filter((task) =>
+      fieldsMatchQuery(taskSearchFields(task, agents), searchTokens),
+    );
+  }, [orphanTasks, searchTokens, agents]);
+
+  const stats = useMemo(
+    () => backlogStats(filteredGroups, filteredOrphanTasks),
+    [filteredGroups, filteredOrphanTasks],
+  );
+  const totalItemCount = groups.length + orphanTasks.length;
+  const filteredItemCount = filteredGroups.length + filteredOrphanTasks.length;
 
   const wrapBusy = async (taskId: string, action: () => Promise<void>) => {
     setBusyTaskId(taskId);
@@ -315,6 +384,19 @@ export function BacklogTreePanel({
         ) : null}
       </div>
 
+      <SearchableListToolbar
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        placeholder="Search stories and tasks…"
+        ariaLabel="Search backlog"
+        matchCount={debouncedQuery.trim() ? filteredItemCount : undefined}
+        totalCount={totalItemCount}
+      />
+
+      {debouncedQuery.trim() && filteredItemCount === 0 ? (
+        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+      ) : null}
+
       <p className="muted backlog-hint">
         Stories group work from routed directives. Assign an agent to each task, then Run to generate a deliverable.
         {loading ? " Loading project backlog…" : ""}
@@ -340,7 +422,7 @@ export function BacklogTreePanel({
 
       <div className={`backlog-story-list${loading ? " backlog-story-list--loading" : ""}`}>
         {!loading
-          ? groups.map((group) => (
+          ? filteredGroups.map((group) => (
           <StoryCard
             key={group.story.id}
             group={group}
@@ -354,12 +436,13 @@ export function BacklogTreePanel({
             onExecute={handleExecute}
             onApprove={handleApprove}
             onAddTask={handleAddTask}
+            forceExpanded={group.forceExpanded ?? false}
           />
             ))
           : null}
       </div>
 
-      {!loading && orphanTasks.length > 0 ? (
+      {!loading && filteredOrphanTasks.length > 0 ? (
         <section className="backlog-orphans">
           <header>
             <h4>Unassigned to a story</h4>
@@ -376,7 +459,7 @@ export function BacklogTreePanel({
               </tr>
             </thead>
             <tbody>
-              {orphanTasks.map((task) => (
+              {filteredOrphanTasks.map((task) => (
                 <TaskRow
                   key={task.id}
                   task={task}

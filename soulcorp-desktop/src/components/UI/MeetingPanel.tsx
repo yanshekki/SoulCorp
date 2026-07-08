@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
+import { filterByQuery } from "../../utils/listSearch";
+import { SearchableListToolbar } from "./SearchableListToolbar";
 import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
 import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
@@ -73,6 +76,18 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
     () => new Map(),
   );
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const [transcriptSearchQuery, setTranscriptSearchQuery] = useState("");
+  const debouncedTranscriptQuery = useDebouncedValue(transcriptSearchQuery);
+
+  const filteredMessages = useMemo(() => {
+    const messages = activeMeeting?.messages ?? [];
+    return filterByQuery(messages, debouncedTranscriptQuery, (message) => [
+      message.speaker_name,
+      message.content,
+      message.provider ?? "",
+      message.speaker_id,
+    ]);
+  }, [activeMeeting?.messages, debouncedTranscriptQuery]);
 
   const selectableAgents = useMemo(
     () => agentRecords.filter((agent) => agent.agent_kind !== "fate"),
@@ -350,10 +365,26 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
                 {activeMeeting.turns_per_agent} turns/agent
               </span>
             </h4>
+            {activeMeeting.messages.length > 0 ? (
+              <SearchableListToolbar
+                query={transcriptSearchQuery}
+                onQueryChange={setTranscriptSearchQuery}
+                placeholder="Search transcript…"
+                ariaLabel="Search meeting transcript"
+                matchCount={
+                  debouncedTranscriptQuery.trim() ? filteredMessages.length : undefined
+                }
+                totalCount={activeMeeting.messages.length}
+              />
+            ) : null}
             {activeMeeting.messages.length === 0 ? (
               <p className="muted">No messages yet. Press Next Turn.</p>
+            ) : debouncedTranscriptQuery.trim() && filteredMessages.length === 0 ? (
+              <p className="search-empty-hint muted">
+                No matches for &ldquo;{debouncedTranscriptQuery}&rdquo;.
+              </p>
             ) : (
-              activeMeeting.messages.map((message, index) => (
+              filteredMessages.map((message, index) => (
                 <article key={`${message.speaker_id}-${index}`} className="meeting-message">
                   <header className="meeting-message-header">
                     <strong>{message.speaker_name}</strong>

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
-import { appTagline, showPauseMenu } from "../../config/features";
+import { appTagline, showPauseMenu, showTierPanel } from "../../config/features";
 import { getNavGroups, getNextWorkflowPanel, IMMERSIVE_PANELS } from "../../config/navigation";
 import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
@@ -105,7 +105,14 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         </section>
       );
     case "tier":
-      return <TierPanel />;
+      return showTierPanel ? (
+        <TierPanel />
+      ) : (
+        <section className="panel-card">
+          <h2>Pro / VIP</h2>
+          <p className="muted">Available in SoulCorp v2.</p>
+        </section>
+      );
     case "achievements":
       return (
         <section className="panel-card achievements-guide">
