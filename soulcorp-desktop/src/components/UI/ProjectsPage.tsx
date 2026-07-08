@@ -1,11 +1,10 @@
 import { useCallback, useState } from "react";
-import { useGameStore } from "../../stores/gameStore";
-import { getNextWorkflowPanel } from "../../config/navigation";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { ProjectsPanel, PROJECTS_SECTIONS } from "./ProjectsPanel";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function ProjectsPage() {
-  const setActivePanel = useGameStore((s) => s.setActivePanel);
   const [activeSection, setActiveSection] = useState<string>(PROJECTS_SECTIONS[0].id);
 
   const scrollToSection = useCallback((sectionId: string) => {
@@ -13,13 +12,11 @@ export function ProjectsPage() {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const nextPanel = getNextWorkflowPanel("projects");
-
   return (
     <AppPageShell
       title="Projects"
       subtitle="Directive → sprint → execute"
-      badge="Step 1"
+      badge={formatWorkflowStepBadge("projects")}
       navTitle="Pipeline"
       navVariant="pipeline"
       navItems={PROJECTS_SECTIONS.map((section) => ({
@@ -30,13 +27,7 @@ export function ProjectsPage() {
       }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
-      headerAction={
-        nextPanel ? (
-          <button type="button" className="btn btn--workflow" onClick={() => setActivePanel(nextPanel)}>
-            Next: Meeting →
-          </button>
-        ) : null
-      }
+      headerAction={<WorkflowNextButton panel="projects" />}
     >
       <ProjectsPanel onSectionFocus={setActiveSection} />
     </AppPageShell>

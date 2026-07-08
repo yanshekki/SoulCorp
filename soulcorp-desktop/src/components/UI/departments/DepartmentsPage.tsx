@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
 import { useGameStore } from "../../../stores/gameStore";
+import { formatWorkflowStepBadge } from "../../../config/navigation";
 import { applyBuildingsVisualDesign } from "../../../utils/applyVisualDesign";
 import { AppPageShell } from "../AppPageShell";
+import { WorkflowNextButton } from "../WorkflowNextButton";
 import { DepartmentsTab } from "./DepartmentsTab";
 import { OrgChartTab } from "./OrgChartTab";
 import type { DepartmentsTabId } from "./departmentUtils";
@@ -53,22 +55,26 @@ export function DepartmentsPage() {
     <AppPageShell
       title="Departments"
       subtitle="Teams & reporting lines"
+      badge={formatWorkflowStepBadge("departments")}
       navItems={TABS.map((tab) => ({ id: tab.id, label: tab.label, hint: tab.hint }))}
       activeNavId={activeTab}
       onNavSelect={selectTab}
       headerAction={
-        activeTab === "departments" ? (
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => {
-              setCreateMode(true);
-              setActiveTab("departments");
-            }}
-          >
-            Add department
-          </button>
-        ) : null
+        <div className="app-page-header-actions-group">
+          <WorkflowNextButton panel="departments" />
+          {activeTab === "departments" ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => {
+                setCreateMode(true);
+                setActiveTab("departments");
+              }}
+            >
+              Add department
+            </button>
+          ) : null}
+        </div>
       }
       kpiRow={
         <div className="kpi-grid">

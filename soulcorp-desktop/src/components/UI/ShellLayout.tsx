@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
 import { appTagline, showPauseMenu, showTierPanel } from "../../config/features";
-import { getNextWorkflowPanel, IMMERSIVE_PANELS } from "../../config/navigation";
+import { getNextWorkflowPanel, getWorkflowPanelLabel, IMMERSIVE_PANELS } from "../../config/navigation";
 import { AppHeaderNav } from "./AppHeaderNav";
 import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
@@ -37,10 +37,9 @@ function WorkflowNextStep({ panel }: { panel: SidebarPanel }) {
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const next = getNextWorkflowPanel(panel);
   if (!next) return null;
-  const label = next === "meeting" ? "Meeting" : next === "workspace" ? "Workspace" : "Projects";
   return (
     <button type="button" className="workflow-next-btn" onClick={() => setActivePanel(next)}>
-      Next: {label} →
+      Next: {getWorkflowPanelLabel(next)} →
     </button>
   );
 }
@@ -76,6 +75,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card tokens-guide">
           <h2>Tokens</h2>
           <p className="muted">Pool, wallets, usage.</p>
+          <WorkflowNextStep panel="finance" />
         </section>
       );
     case "marketplace":
@@ -90,6 +90,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card departments-guide">
           <h2>Departments</h2>
           <p className="muted">Teams & reporting lines.</p>
+          <WorkflowNextStep panel="departments" />
         </section>
       );
     case "recruitment":
@@ -97,6 +98,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card recruitment-guide">
           <h2>Recruitment</h2>
           <p className="muted">Hire & onboard agents.</p>
+          <WorkflowNextStep panel="recruitment" />
         </section>
       );
     case "agents":
@@ -104,6 +106,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card agents-guide">
           <h2>Agent Brains</h2>
           <p className="muted">LLM config per agent & department.</p>
+          <WorkflowNextStep panel="agents" />
         </section>
       );
     case "observatory":
@@ -111,6 +114,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card observatory-guide">
           <h2>Observatory</h2>
           <p className="muted">Live work & thought streams for every agent.</p>
+          <WorkflowNextStep panel="observatory" />
         </section>
       );
     case "tier":

@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { RecruitmentPanel, RECRUITMENT_SECTIONS } from "./RecruitmentPanel";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function RecruitmentPage() {
   const [activeSection, setActiveSection] = useState<string>(RECRUITMENT_SECTIONS[0].id);
@@ -14,10 +16,11 @@ export function RecruitmentPage() {
     <AppPageShell
       title="Recruitment"
       subtitle="Hire & onboard agents"
-      badge="Step 4"
+      badge={formatWorkflowStepBadge("recruitment")}
       navItems={RECRUITMENT_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
+      headerAction={<WorkflowNextButton panel="recruitment" />}
     >
       <RecruitmentPanel onSectionFocus={setActiveSection} />
     </AppPageShell>

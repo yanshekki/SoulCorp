@@ -10,7 +10,7 @@ import {
 export interface NavPanel {
   id: SidebarPanel;
   label: string;
-  /** Step number within the CEO workflow (1–8). */
+  /** Step number within the CEO workflow — derived from CEO_WORKFLOW_CHAIN. */
   workflowStep?: number;
   /** Short action hint shown in nav tooltips / ribbon. */
   workflowHint?: string;
@@ -30,34 +30,48 @@ export interface WorkflowStep {
   hint: string;
 }
 
-/** Core CEO loop: plan → align → deliver. */
+/**
+ * Full CEO run-company order. Step numbers (1–9) are derived from position here.
+ * Plan → align → deliver → org → hire → configure → monitor → budget → grow.
+ */
+export const CEO_WORKFLOW_CHAIN: SidebarPanel[] = [
+  "projects",
+  "meeting",
+  "workspace",
+  "departments",
+  "recruitment",
+  "agents",
+  "observatory",
+  "finance",
+  "marketplace",
+];
+
+/** Core deliver loop — plan → align → review. */
 export const WORKFLOW_CHAIN: SidebarPanel[] = ["projects", "meeting", "workspace"];
 
-const V1_NAV_GROUPS: NavGroup[] = [
+const BASE_NAV_GROUPS: NavGroup[] = [
   {
     label: "Workflow",
     isWorkflow: true,
     panels: [
-      { id: "projects", label: "Projects", workflowStep: 1, workflowHint: "Plan & execute" },
-      { id: "meeting", label: "Meeting", workflowStep: 2, workflowHint: "Align team" },
-      { id: "workspace", label: "Workspace", workflowStep: 3, workflowHint: "Review output" },
+      { id: "projects", label: "Projects", workflowHint: "Plan & execute" },
+      { id: "meeting", label: "Meeting", workflowHint: "Align team" },
+      { id: "workspace", label: "Workspace", workflowHint: "Review output" },
     ],
   },
   {
     label: "Team & Budget",
     panels: [
       { id: "departments", label: "Departments", workflowHint: "Org structure" },
-      { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
-      { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
-      { id: "observatory", label: "Observatory", workflowStep: 6, workflowHint: "Live agent minds" },
-      { id: "finance", label: "Tokens", workflowStep: 7, workflowHint: "Manage budget" },
+      { id: "recruitment", label: "Recruitment", workflowHint: "Hire agents" },
+      { id: "agents", label: "Agent Brains", workflowHint: "Configure AI" },
+      { id: "observatory", label: "Observatory", workflowHint: "Live agent minds" },
+      { id: "finance", label: "Tokens", workflowHint: "Manage budget" },
     ],
   },
   {
     label: "Growth",
-    panels: [
-      { id: "marketplace", label: "Marketplace", workflowStep: 8, workflowHint: "Earn revenue" },
-    ],
+    panels: [{ id: "marketplace", label: "Marketplace", workflowHint: "Earn revenue" }],
   },
   {
     label: "System",
@@ -65,36 +79,7 @@ const V1_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-const V2_NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Campus",
-    panels: [{ id: "office", label: "Office" }],
-  },
-  {
-    label: "Workflow",
-    isWorkflow: true,
-    panels: [
-      { id: "projects", label: "Projects", workflowStep: 1, workflowHint: "Plan & execute" },
-      { id: "meeting", label: "Meeting", workflowStep: 2, workflowHint: "Align team" },
-      { id: "workspace", label: "Workspace", workflowStep: 3, workflowHint: "Review output" },
-    ],
-  },
-  {
-    label: "Team & Budget",
-    panels: [
-      { id: "departments", label: "Departments", workflowHint: "Org structure" },
-      { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
-      { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
-      { id: "observatory", label: "Observatory", workflowStep: 6, workflowHint: "Live agent minds" },
-      { id: "finance", label: "Tokens", workflowStep: 7, workflowHint: "Manage budget" },
-    ],
-  },
-  {
-    label: "Growth",
-    panels: [
-      { id: "marketplace", label: "Marketplace", workflowStep: 8, workflowHint: "Earn revenue" },
-    ],
-  },
+const V2_NAV_TAIL: NavGroup[] = [
   {
     label: "Creative",
     panels: [{ id: "design_studio", label: "3D Design" }],
@@ -115,36 +100,84 @@ const V2_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+function getBaseNavGroups(): NavGroup[] {
+  if (!showOffice3D) {
+    return BASE_NAV_GROUPS;
+  }
+
+  const [workflow, teamBudget, growth] = BASE_NAV_GROUPS;
+  return [
+    { label: "Campus", panels: [{ id: "office", label: "Office" }] },
+    workflow,
+    teamBudget,
+    growth,
+    ...V2_NAV_TAIL,
+  ];
+}
+
+function findNavPanel(panel: SidebarPanel): NavPanel | null {
+  for (const group of getBaseNavGroups()) {
+    const match = group.panels.find((entry) => entry.id === panel);
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
+
+export function getPanelWorkflowStep(panel: SidebarPanel): number | null {
+  const index = CEO_WORKFLOW_CHAIN.indexOf(panel);
+  return index >= 0 ? index + 1 : null;
+}
+
+export function formatWorkflowStepBadge(panel: SidebarPanel, suffix?: string): string | undefined {
+  const step = getPanelWorkflowStep(panel);
+  if (step == null) {
+    return suffix;
+  }
+  const base = `Step ${step}`;
+  return suffix ? `${base} · ${suffix}` : base;
+}
+
+export function getWorkflowPanelLabel(panel: SidebarPanel): string {
+  return findNavPanel(panel)?.label ?? panel;
+}
+
+export function getWorkflowPanelHint(panel: SidebarPanel): string {
+  return findNavPanel(panel)?.workflowHint ?? "";
+}
+
+function withWorkflowStep(panel: NavPanel): NavPanel {
+  const step = getPanelWorkflowStep(panel.id);
+  return step != null ? { ...panel, workflowStep: step } : panel;
+}
+
 export function getNavGroups(): NavGroup[] {
-  return showOffice3D ? V2_NAV_GROUPS : V1_NAV_GROUPS;
+  return getBaseNavGroups().map((group) => ({
+    ...group,
+    panels: group.panels.map(withWorkflowStep),
+  }));
 }
 
 export function getWorkflowSteps(): WorkflowStep[] {
-  const steps: WorkflowStep[] = [];
-  for (const group of getNavGroups()) {
-    for (const panel of group.panels) {
-      if (panel.workflowStep != null) {
-        steps.push({
-          step: panel.workflowStep,
-          panel: panel.id,
-          label: panel.label,
-          hint: panel.workflowHint ?? "",
-        });
-      }
-    }
-  }
-  return steps.sort((a, b) => a.step - b.step);
+  return CEO_WORKFLOW_CHAIN.map((panel, index) => ({
+    step: index + 1,
+    panel,
+    label: getWorkflowPanelLabel(panel),
+    hint: getWorkflowPanelHint(panel),
+  }));
 }
 
 export function getPrimaryWorkflowSteps(): WorkflowStep[] {
-  return getWorkflowSteps().filter((s) => WORKFLOW_CHAIN.includes(s.panel));
+  return getWorkflowSteps().filter((step) => WORKFLOW_CHAIN.includes(step.panel));
 }
 
 export function getNextWorkflowPanel(panel: SidebarPanel): SidebarPanel | null {
-  const chain = WORKFLOW_CHAIN;
-  const index = chain.indexOf(panel);
-  if (index < 0 || index >= chain.length - 1) return null;
-  return chain[index + 1];
+  const index = CEO_WORKFLOW_CHAIN.indexOf(panel);
+  if (index < 0 || index >= CEO_WORKFLOW_CHAIN.length - 1) {
+    return null;
+  }
+  return CEO_WORKFLOW_CHAIN[index + 1];
 }
 
 export function isPanelVisibleInEdition(panel: SidebarPanel): boolean {

@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { MarketplacePanel, MARKETPLACE_SECTIONS } from "./MarketplacePanel";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function MarketplacePage() {
   const [activeSection, setActiveSection] = useState<string>(MARKETPLACE_SECTIONS[0].id);
@@ -14,10 +16,11 @@ export function MarketplacePage() {
     <AppPageShell
       title="Marketplace"
       subtitle="Gigs, contracts, payouts"
-      badge="Step 8"
+      badge={formatWorkflowStepBadge("marketplace")}
       navItems={MARKETPLACE_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
+      headerAction={<WorkflowNextButton panel="marketplace" />}
     >
       <MarketplacePanel onSectionFocus={setActiveSection} onNavigateSection={scrollToSection} />
     </AppPageShell>

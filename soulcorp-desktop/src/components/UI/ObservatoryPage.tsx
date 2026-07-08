@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { useAgentActivityStore } from "../../stores/agentActivityStore";
 import { AppPageShell } from "./AppPageShell";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 import { ObservatoryPanel, OBSERVATORY_SECTIONS } from "./observatory/ObservatoryPanel";
 
 export function ObservatoryPage() {
@@ -33,7 +35,7 @@ export function ObservatoryPage() {
     <AppPageShell
       title="Observatory"
       subtitle="Watch agents think, plan, and execute in real time"
-      badge={activeCount > 0 ? `Step 6 · ${activeCount} live` : "Step 6"}
+      badge={formatWorkflowStepBadge("observatory", activeCount > 0 ? `${activeCount} live` : undefined)}
       navItems={OBSERVATORY_SECTIONS.map((section) => ({
         id: section.id,
         label: section.label,
@@ -41,6 +43,7 @@ export function ObservatoryPage() {
       }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
+      headerAction={<WorkflowNextButton panel="observatory" />}
       kpiRow={kpiRow}
     >
       <ObservatoryPanel onSectionFocus={setActiveSection} />

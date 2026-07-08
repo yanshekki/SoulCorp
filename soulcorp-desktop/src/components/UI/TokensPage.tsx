@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { FinancePanel, TOKENS_SECTIONS } from "./FinancePanel";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function TokensPage() {
   const [activeSection, setActiveSection] = useState<string>(TOKENS_SECTIONS[0].id);
@@ -14,10 +16,11 @@ export function TokensPage() {
     <AppPageShell
       title="Tokens"
       subtitle="Pool, wallets, usage"
-      badge="Step 7"
+      badge={formatWorkflowStepBadge("finance")}
       navItems={TOKENS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
+      headerAction={<WorkflowNextButton panel="finance" />}
     >
       <FinancePanel onSectionFocus={setActiveSection} onNavigateSection={scrollToSection} />
     </AppPageShell>

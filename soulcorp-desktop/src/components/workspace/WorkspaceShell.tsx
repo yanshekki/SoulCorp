@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { createWorkspacePage, importWorkspaceFiles } from "../../services/workspaceClient";
 import { useWorkspaceBootstrap } from "../../hooks/useWorkspaceBootstrap";
 import { useWorkspaceSidebarResize } from "../../hooks/useWorkspaceSidebarResize";
+import { formatWorkflowStepBadge } from "../../config/navigation";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { WorkflowNextButton } from "../UI/WorkflowNextButton";
 import { WorkspaceCommandPalette } from "./WorkspaceCommandPalette";
 import { WorkspaceDatabase } from "./WorkspaceDatabase";
 import { WorkspaceMainPanel } from "./WorkspaceMainPanel";
@@ -128,6 +130,7 @@ export function WorkspaceShell() {
     >
       <header className="app-page-header workspace-page-header ws-shell-header">
         <div className="app-page-header-main">
+          <p className="workflow-step-badge">{formatWorkflowStepBadge("workspace")}</p>
           <h2>Workspace</h2>
           <p className="muted">Company docs, notes & deliverables</p>
         </div>
@@ -135,6 +138,7 @@ export function WorkspaceShell() {
           <WorkspaceSearch onOpenResult={(itemId) => void openWorkspaceItem(itemId)} />
         </div>
         <div className="ws-shell-header-actions">
+          <WorkflowNextButton panel="workspace" />
           <button
             type="button"
             className="ws-shell-action-btn ws-shell-action-btn--ghost"
