@@ -548,143 +548,166 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     }
   };
 
+  const commandTabs = [
+    ["overview", "Overview"],
+    ["directives", "Directives"],
+    ["co_ceo", "Co-CEO"],
+    ["projects", "Projects"],
+    ["sprint", "Sprint"],
+    ["policies", "Policies"],
+  ] as const;
+
   return (
     <section id="command" className="projects-card command-center" data-projects-section="command">
-      <header className="projects-card-header">
-        <h3>Command Center</h3>
-        <p className="muted">Directives, projects, sprint, policies.</p>
+      <header className="command-center-toolbar">
+        <h3 className="command-center-title">Command Center</h3>
+        <nav className="command-center-tabs" aria-label="Command Center sections">
+          {commandTabs.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`command-center-tab${tab === id ? " is-active" : ""}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <nav className="app-page-nav app-page-nav--inline command-center-tabs" aria-label="Command Center sections">
-        {(
-          [
-            ["overview", "Overview"],
-            ["directives", "Directives"],
-            ["co_ceo", "Co-CEO"],
-            ["projects", "Projects"],
-            ["sprint", "Sprint"],
-            ["policies", "Policies"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={`app-page-nav-btn${tab === id ? " active" : ""}`}
-            onClick={() => setTab(id)}
-          >
-            <span className="app-page-nav-label">{label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="projects-card-body command-center-body">
+      <div className="command-center-body">
         {tab === "overview" && !overview ? (
           <p className="muted">Loading company overview…</p>
         ) : null}
         {tab === "overview" && overview ? (
-          <div className="command-overview-grid">
-            {showSimulationChrome ? (
-              <>
-                <article className="command-stat-card">
-                  <span className="muted">Day</span>
-                  <strong>{overview.day_number}</strong>
-                </article>
-                <article className="command-stat-card">
-                  <span className="muted">Team morale</span>
-                  <strong>{(overview.avg_morale * 100).toFixed(0)}%</strong>
-                </article>
-              </>
-            ) : null}
-            <article className="command-stat-card">
-              <span className="muted">Token pool</span>
-              <strong>{overview.token_pool.toLocaleString()}</strong>
-            </article>
-            <article className="command-stat-card">
-              <span className="muted">Monthly burn</span>
-              <strong>{overview.monthly_burn.toLocaleString()}</strong>
-            </article>
-            <article className="command-stat-card">
-              <span className="muted">Monthly payroll</span>
-              <strong>{overview.monthly_payroll.toLocaleString()}</strong>
-            </article>
-            <article className="command-stat-card">
-              <span className="muted">Open directives</span>
-              <strong>{overview.open_directives}</strong>
-            </article>
-            <article className="command-stat-card">
-              <span className="muted">Sprint</span>
-              <strong>{overview.active_sprint_name ?? "—"}</strong>
-              <span className="muted">
-                {overview.burndown_remaining}/{overview.burndown_total} pts left
-              </span>
-            </article>
-            <div className="command-readiness-checklist">
-              <h4>
-                Automation readiness{" "}
-                {automation?.readiness?.ready ? (
-                  <span className="command-readiness-ok">Ready</span>
-                ) : (
-                  <span className="command-readiness-warn">Setup needed</span>
-                )}
-              </h4>
-              <ul className="command-readiness-list">
-                {(automation?.readiness?.items ?? []).map((item) => (
-                  <li
-                    key={item.id}
-                    className={item.ok ? "command-readiness-item--ok" : "command-readiness-item--warn"}
-                  >
-                    <strong>{item.label}</strong>
-                    <span className="muted">{item.detail}</span>
-                  </li>
-                ))}
-              </ul>
+          <div className="command-overview">
+            <div className="command-kpi-strip">
+              {showSimulationChrome ? (
+                <>
+                  <article className="command-kpi">
+                    <span className="command-kpi-label">Day</span>
+                    <strong className="command-kpi-value">{overview.day_number}</strong>
+                  </article>
+                  <article className="command-kpi">
+                    <span className="command-kpi-label">Team morale</span>
+                    <strong className="command-kpi-value">{(overview.avg_morale * 100).toFixed(0)}%</strong>
+                  </article>
+                </>
+              ) : null}
+              <article className="command-kpi">
+                <span className="command-kpi-label">Token pool</span>
+                <strong className="command-kpi-value">{overview.token_pool.toLocaleString()}</strong>
+              </article>
+              <article className="command-kpi">
+                <span className="command-kpi-label">Monthly burn</span>
+                <strong className="command-kpi-value">{overview.monthly_burn.toLocaleString()}</strong>
+              </article>
+              <article className="command-kpi">
+                <span className="command-kpi-label">Payroll</span>
+                <strong className="command-kpi-value">{overview.monthly_payroll.toLocaleString()}</strong>
+              </article>
+              <article className="command-kpi">
+                <span className="command-kpi-label">Open directives</span>
+                <strong className="command-kpi-value">{overview.open_directives}</strong>
+              </article>
+              <article className="command-kpi command-kpi--wide">
+                <span className="command-kpi-label">Sprint</span>
+                <strong className="command-kpi-value">{overview.active_sprint_name ?? "—"}</strong>
+                <span className="command-kpi-sub">
+                  {overview.burndown_remaining}/{overview.burndown_total} pts left
+                </span>
+              </article>
             </div>
-            <div className="command-automation-log">
-              <h4>Automation activity</h4>
-              <p className="muted">
-                Worker last tick: {automation?.scrum_worker_last_tick_at ?? "—"} · Orchestrator:{" "}
-                {automation?.orchestrator_last_tick_at ?? "—"} · Directives issued:{" "}
-                {automation?.orchestrator_directives_total ?? 0} · Hub queue:{" "}
-                {automation?.sync_queue_pending ?? 0} · Hub pull:{" "}
-                {automation?.hub_last_pull_at ?? "—"}
-                {automation?.parallel_llm_enabled ? " · Parallel LLM: on" : ""}
-                {automation?.openclaw_available
-                  ? ` · OpenClaw: ${automation.openclaw_version ?? "ready"}`
-                  : automation?.openclaw_message
-                    ? ` · OpenClaw: ${automation.openclaw_message}`
-                    : ""}
-              </p>
+            <div className="command-overview-columns">
+              <div className="command-readiness-checklist command-panel-block">
+                <h4 className="command-panel-heading">
+                  Automation readiness{" "}
+                  {automation?.readiness?.ready ? (
+                    <span className="command-readiness-ok">Ready</span>
+                  ) : (
+                    <span className="command-readiness-warn">Setup needed</span>
+                  )}
+                </h4>
+                <ul className="command-readiness-list">
+                  {(automation?.readiness?.items ?? []).map((item) => (
+                    <li
+                      key={item.id}
+                      className={item.ok ? "command-readiness-item--ok" : "command-readiness-item--warn"}
+                    >
+                      <strong>{item.label}</strong>
+                      <span className="command-readiness-detail">{item.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="command-alerts command-panel-block">
+                <h4 className="command-panel-heading">Alerts</h4>
+                {overview.alerts.length === 0 ? (
+                  <p className="command-empty-hint">No alerts — operations nominal.</p>
+                ) : (
+                  <ul className="command-alert-list">
+                    {overview.alerts.map((alert, i) => (
+                      <li key={i} className={`command-alert command-alert--${alert.severity}`}>
+                        <span className="command-alert-text">{alert.message}</span>
+                        {alert.action_ref && onJumpToSection ? (
+                          <button
+                            type="button"
+                            className="command-alert-jump"
+                            onClick={() => onJumpToSection(alert.action_ref!.includes("dir-") ? "directives" : alert.action_ref!)}
+                          >
+                            View
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="command-automation-log command-panel-block">
+              <h4 className="command-panel-heading">Automation activity</h4>
+              <dl className="command-automation-meta">
+                <div>
+                  <dt>Worker tick</dt>
+                  <dd>{automation?.scrum_worker_last_tick_at ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Orchestrator</dt>
+                  <dd>{automation?.orchestrator_last_tick_at ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Directives issued</dt>
+                  <dd>{automation?.orchestrator_directives_total ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Hub queue</dt>
+                  <dd>{automation?.sync_queue_pending ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Hub pull</dt>
+                  <dd>{automation?.hub_last_pull_at ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Parallel LLM</dt>
+                  <dd>{automation?.parallel_llm_enabled ? "On" : "Off"}</dd>
+                </div>
+                <div className="command-automation-meta--wide">
+                  <dt>OpenClaw</dt>
+                  <dd>
+                    {automation?.openclaw_available
+                      ? automation.openclaw_version ?? "Ready"
+                      : automation?.openclaw_message ?? "—"}
+                  </dd>
+                </div>
+              </dl>
               {(automation?.scrum_worker_log.length ?? 0) > 0 ? (
                 <ul className="command-activity-list">
-                  {automation?.scrum_worker_log.slice(-8).map((line) => (
+                  {automation?.scrum_worker_log.slice(-6).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="muted">Background worker has not logged activity yet.</p>
-              )}
-            </div>
-            <div className="command-alerts">
-              <h4>Alerts</h4>
-              {overview.alerts.length === 0 ? (
-                <p className="muted">No alerts — operations nominal.</p>
-              ) : (
-                <ul>
-                  {overview.alerts.map((alert, i) => (
-                    <li key={i} className={`command-alert command-alert--${alert.severity}`}>
-                      {alert.message}
-                      {alert.action_ref && onJumpToSection ? (
-                        <button
-                          type="button"
-                          className="command-alert-jump"
-                          onClick={() => onJumpToSection(alert.action_ref!.includes("dir-") ? "directives" : alert.action_ref!)}
-                        >
-                          View
-                        </button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                <p className="command-empty-hint">Background worker has not logged activity yet.</p>
               )}
             </div>
           </div>
@@ -696,90 +719,8 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
 
         {tab === "directives" ? (
           <div className="command-directives-layout">
-            <div className="command-composer command-form-section">
-              <h4>Directive Composer</h4>
-              <div className="command-form">
-                <div className="command-template-row">
-                {DIRECTIVE_TEMPLATES.map((t) => (
-                  <button
-                    key={t.label}
-                    type="button"
-                    onClick={() => {
-                      setDirectiveTitle(t.title);
-                      setDirectiveBody(t.body);
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-                </div>
-                <label className="field-label">
-                Target type
-                <select value={targetType} onChange={(e) => setTargetType(e.target.value as DirectiveTarget)}>
-                  <option value="project">Project</option>
-                  <option value="department">Department</option>
-                  <option value="agent">Agent</option>
-                </select>
-              </label>
-              <label className="field-label">
-                Target
-                <select value={targetRef} onChange={(e) => setTargetRef(e.target.value)}>
-                  {targetType === "project"
-                    ? (snapshot?.projects ?? []).map((p: InternalProject) => (
-                        <option key={p.id} value={p.id}>{p.title}</option>
-                      ))
-                    : targetType === "department"
-                      ? departments.map((d) => (
-                          <option key={d} value={d}>{d}</option>
-                        ))
-                      : agents.map((a) => (
-                          <option key={a.id} value={a.id}>{formatAgentOptionLabel(a)}</option>
-                        ))}
-                </select>
-              </label>
-              <label className="field-label">
-                Title
-                <input value={directiveTitle} onChange={(e) => setDirectiveTitle(e.target.value)} />
-              </label>
-              <label className="field-label">
-                Details
-                <textarea value={directiveBody} onChange={(e) => setDirectiveBody(e.target.value)} rows={3} />
-              </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)} />
-                <span>LLM decomposition (off = rule-based)</span>
-              </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={planAfterRoute} onChange={(e) => setPlanAfterRoute(e.target.checked)} />
-                <span>Plan sprint after route</span>
-              </label>
-              <div className="panel-actions">
-                <button type="button" disabled={busy} onClick={() => void handleSaveDraft()}>
-                  Save draft
-                </button>
-                <button type="button" disabled={busy} onClick={() => void handlePreview()}>
-                  Preview
-                </button>
-                <button type="button" className="primary-action" disabled={busy} onClick={() => void handleRoute(false)}>
-                  Route
-                </button>
-                <button type="button" disabled={busy} onClick={() => void handleRoute(true)}>
-                  Route + Plan
-                </button>
-              </div>
-              {preview && preview.length > 0 ? (
-                <div className="command-preview-box">
-                  <h5>Preview decomposition</h5>
-                  <PreviewTree nodes={preview} />
-                </div>
-              ) : null}
-              </div>
-            </div>
-
-            <div className="command-inbox">
-              <div className="command-inbox-header">
-                <h4>Directive Inbox</h4>
-              </div>
+            <aside className="command-inbox-sidebar command-panel-block">
+              <h4 className="command-panel-heading">Directive Inbox</h4>
               <SearchableListToolbar
                 query={directiveSearchQuery}
                 onQueryChange={setDirectiveSearchQuery}
@@ -802,7 +743,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 </select>
               </SearchableListToolbar>
               {debouncedDirectiveQuery.trim() && filteredDirectives.length === 0 ? (
-                <p className="search-empty-hint muted">
+                <p className="search-empty-hint command-empty-hint">
                   No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.
                 </p>
               ) : null}
@@ -818,11 +759,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                         setDirectiveBody(d.description);
                       }}
                     >
-                      <span className="command-source-pill">{sourceLabel(d.source)}</span>
-                      <strong>{d.title}</strong>
-                      <span className="muted">
-                        {d.status} · {d.spawned_node_ids.length} nodes
+                      <span className="command-directive-row-top">
+                        <span className="command-source-pill">{sourceLabel(d.source)}</span>
+                        <span className="command-directive-status">{d.status}</span>
                       </span>
+                      <strong className="command-directive-title">{d.title}</strong>
+                      <span className="command-directive-meta">{d.spawned_node_ids.length} nodes</span>
                     </button>
                   </li>
                 ))}
@@ -833,13 +775,104 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 label="Directives"
                 onPageChange={setDirectiveListPage}
               />
+            </aside>
+
+            <div className="command-directives-main">
+              <div className="command-composer command-form-section">
+                <h4 className="command-panel-heading">New directive</h4>
+                <div className="command-form command-form--compact">
+                  <div className="command-template-row">
+                    {DIRECTIVE_TEMPLATES.map((t) => (
+                      <button
+                        key={t.label}
+                        type="button"
+                        onClick={() => {
+                          setDirectiveTitle(t.title);
+                          setDirectiveBody(t.body);
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="command-form-grid">
+                    <label className="field-label">
+                      Target type
+                      <select value={targetType} onChange={(e) => setTargetType(e.target.value as DirectiveTarget)}>
+                        <option value="project">Project</option>
+                        <option value="department">Department</option>
+                        <option value="agent">Agent</option>
+                      </select>
+                    </label>
+                    <label className="field-label">
+                      Target
+                      <select value={targetRef} onChange={(e) => setTargetRef(e.target.value)}>
+                        {targetType === "project"
+                          ? (snapshot?.projects ?? []).map((p: InternalProject) => (
+                              <option key={p.id} value={p.id}>{p.title}</option>
+                            ))
+                          : targetType === "department"
+                            ? departments.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))
+                            : agents.map((a) => (
+                                <option key={a.id} value={a.id}>{formatAgentOptionLabel(a)}</option>
+                              ))}
+                      </select>
+                    </label>
+                    <label className="field-label command-form-grid-span2">
+                      Title
+                      <input value={directiveTitle} onChange={(e) => setDirectiveTitle(e.target.value)} />
+                    </label>
+                    <label className="field-label command-form-grid-span2">
+                      Details
+                      <textarea value={directiveBody} onChange={(e) => setDirectiveBody(e.target.value)} rows={2} />
+                    </label>
+                  </div>
+                  <div className="command-form-options">
+                    <label className="checkbox-row">
+                      <input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)} />
+                      <span>LLM decomposition</span>
+                    </label>
+                    <label className="checkbox-row">
+                      <input type="checkbox" checked={planAfterRoute} onChange={(e) => setPlanAfterRoute(e.target.checked)} />
+                      <span>Plan sprint after route</span>
+                    </label>
+                  </div>
+                  <div className="panel-actions command-panel-actions">
+                    <button type="button" disabled={busy} onClick={() => void handleSaveDraft()}>
+                      Save draft
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => void handlePreview()}>
+                      Preview
+                    </button>
+                    <button type="button" className="primary-action" disabled={busy} onClick={() => void handleRoute(false)}>
+                      Route
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => void handleRoute(true)}>
+                      Route + Plan
+                    </button>
+                  </div>
+                  {preview && preview.length > 0 ? (
+                    <div className="command-preview-box">
+                      <h5>Preview decomposition</h5>
+                      <PreviewTree nodes={preview} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               {selectedDirective ? (
-                <div className="command-directive-detail">
-                  <p className="muted">{selectedDirective.description || "No details."}</p>
-                  <p className="muted">
-                    Target: {selectedDirective.target} · {selectedDirective.target_ref}
+                <div className="command-directive-detail command-panel-block">
+                  <h4 className="command-panel-heading">{selectedDirective.title}</h4>
+                  <p className="command-directive-detail-body">
+                    {selectedDirective.description || "No details."}
                   </p>
-                  <div className="panel-actions">
+                  <p className="command-directive-detail-meta">
+                    {sourceLabel(selectedDirective.source)} · {selectedDirective.status} · Target:{" "}
+                    {selectedDirective.target} / {selectedDirective.target_ref}
+                  </p>
+                  <div className="panel-actions command-panel-actions">
                     {selectedDirective.status === "open" ? (
                       <button type="button" disabled={busy} onClick={() => void handleRoute(planAfterRoute)}>
                         Route
@@ -866,7 +899,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     ) : null}
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <p className="command-empty-hint command-directive-placeholder">
+                  Select a directive from the inbox to view details and actions.
+                </p>
+              )}
             </div>
           </div>
         ) : null}
@@ -981,17 +1018,17 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
             <section className="command-form-section">
               {activeSprint ? (
                 <div className="command-sprint-active">
-                  <h4>
+                  <h4 className="command-panel-heading">
                     {activeSprint.name} · {activeSprint.status}
                   </h4>
-                  <p className="muted">{activeSprint.goal || "No sprint goal set."}</p>
-                  <p className="muted">
+                  <p className="command-sprint-goal">{activeSprint.goal || "No sprint goal set."}</p>
+                  <p className="command-sprint-meta">
                     {showSimulationChrome ? "Day" : "Window"} {activeSprint.start_day}–{activeSprint.end_day} · velocity{" "}
                     {activeSprint.velocity_target}
                   </p>
                 </div>
               ) : (
-                <p className="muted">No active sprint for this project.</p>
+                <p className="command-empty-hint">No active sprint for this project.</p>
               )}
               <div className="command-form">
                 <label className="field-label">
@@ -1032,13 +1069,13 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 </div>
               </div>
             </section>
-            <div className="command-capacity">
-              <h4>Team capacity</h4>
+            <div className="command-capacity command-panel-block">
+              <h4 className="command-panel-heading">Team capacity</h4>
               <div className="command-capacity-grid">
                 {(snapshot?.inboxes ?? []).map((entry) => (
                   <article key={entry.agent_id} className="command-capacity-card">
                     <strong>{entry.agent_name}</strong>
-                    <p className="muted">
+                    <p className="command-capacity-meta">
                       {entry.agent_role} · {entry.department} · {entry.assigned_points} pts
                     </p>
                   </article>
@@ -1049,9 +1086,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         ) : null}
 
         {tab === "policies" ? (
-          <section className="command-form-section command-policies">
-            <h4>Execution policies</h4>
-            <div className="command-form">
+          <section className="command-policies">
+            <h4 className="command-panel-heading">Execution policies</h4>
+            <div className="command-policies-grid">
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Scrum automation</h5>
+              <div className="command-form">
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -1120,7 +1160,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               />
               <span>Multi-step agent tools (plan → draft → refine)</span>
             </label>
-            <h4 className="command-policies-subhead">Company orchestrator</h4>
+              </div>
+            </div>
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Company orchestrator</h5>
+              <div className="command-form">
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -1197,7 +1241,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 }
               />
             </label>
-            <h4 className="command-policies-subhead">Marketplace automation</h4>
+              </div>
+            </div>
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Marketplace automation</h5>
+              <div className="command-form">
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -1272,7 +1320,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 }
               />
             </label>
-            <h4 className="command-policies-subhead">Agent runtime</h4>
+              </div>
+            </div>
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Agent runtime</h5>
+              <div className="command-form">
             <label className="field-label">
               Runtime mode
               <select
@@ -1334,7 +1386,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               <span>Prefer OpenClaw gateway when healthy (omit --local)</span>
             </label>
             {openclawStatus ? (
-              <p className="muted">
+              <p className="command-form-note">
                 OpenClaw: {openclawStatus.binary_available ? "detected" : "missing"} ·{" "}
                 {openclawStatus.agent_command_available ? "agent CLI ok" : "legacy stdin only"} ·{" "}
                 {openclawStatus.gateway_healthy ? "gateway healthy" : "gateway offline"} —{" "}
@@ -1404,13 +1456,15 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 }
               />
             </label>
-            <p className="muted command-form-note">
+            <p className="command-form-note">
               Company tokens: {finance.monthly_inflow_tokens.toLocaleString()} inflow configured
             </p>
-            <div className="panel-actions">
+            <div className="panel-actions command-panel-actions">
               <button type="button" className="primary-action" disabled={busy} onClick={() => void handleBatchRun()}>
                 Run batch executions
               </button>
+            </div>
+              </div>
             </div>
             </div>
           </section>
