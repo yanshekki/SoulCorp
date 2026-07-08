@@ -99,6 +99,7 @@ pub fn execute_openclaw(
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
+    workspace_root: Option<&Path>,
 ) -> Result<String, String> {
     let result = run_openclaw_for_task(
         &state.settings,
@@ -106,7 +107,7 @@ pub fn execute_openclaw(
         task,
         agent,
         project_title,
-        None,
+        workspace_root,
     )?;
     Ok(result.content)
 }
@@ -139,7 +140,7 @@ pub fn run_openclaw_for_task(
     let binary = resolve_openclaw_binary(settings)?;
     let probe = probe_openclaw(settings);
 
-    if probe.agent_command_available {
+    let result = if probe.agent_command_available {
         run_openclaw_agent_cli(
             settings,
             &binary,
@@ -150,8 +151,19 @@ pub fn run_openclaw_for_task(
             workspace_root,
         )
     } else {
-        run_openclaw_legacy_stdin(&binary, task, agent, project_title)
-    }
+        run_openclaw_legacy_stdin(&binary, task, agent, project_title, workspace_root)
+    }?;
+
+    crate::scrum::agent_tools::persist_task_deliverable_note(
+        workspace_root,
+        agent,
+        task,
+        project_title,
+        "OpenClaw deliverable",
+        &result.content,
+    );
+
+    Ok(result)
 }
 
 fn run_openclaw_agent_cli(
@@ -169,7 +181,20 @@ fn run_openclaw_agent_cli(
 
     let message_path = temp_dir.join("task.md");
     let soul_path = materialize_soul_file(&temp_dir, agent, workspace_root)?;
-    let message = build_task_message(task, agent, project_title, soul_path.as_deref());
+    let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
+        workspace_root,
+        agent,
+        project_title,
+        task,
+        true,
+    );
+    let message = build_task_message(
+        task,
+        agent,
+        project_title,
+        soul_path.as_deref(),
+        workspace_addon.as_deref(),
+    );
     fs::write(&message_path, message).map_err(|e| e.to_string())?;
 
     let openclaw_agent_id = resolve_openclaw_agent_id(settings, agent);
@@ -236,10 +261,21 @@ fn run_openclaw_legacy_stdin(
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
+    workspace_root: Option<&Path>,
 ) -> Result<OpenClawRunResult, String> {
     let started = Instant::now();
+    let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
+        workspace_root,
+        agent,
+        project_title,
+        task,
+        true,
+    );
+    let workspace_section = workspace_addon
+        .map(|body| format!("\n\n--- Workspace context ---\n{body}"))
+        .unwrap_or_default();
     let prompt = format!(
-        "Project: {project_title}\nAgent: {} ({})\nDepartment: {}\nTask: {}\nDetails: {}\nAcceptance:\n- {}\n\nReturn the final deliverable as plain text/markdown.",
+        "Project: {project_title}\nAgent: {} ({})\nDepartment: {}\nTask: {}\nDetails: {}\nAcceptance:\n- {}{workspace_section}\n\nReturn the final deliverable as plain text/markdown.",
         agent.name,
         agent.role,
         agent.department,
@@ -349,6 +385,7 @@ fn build_task_message(
     agent: &AgentRecord,
     project_title: &str,
     soul_path: Option<&Path>,
+    workspace_addon: Option<&str>,
 ) -> String {
     let acceptance = if task.acceptance_criteria.is_empty() {
         "- Meet the task objective with clear, actionable output.".to_string()
@@ -368,9 +405,12 @@ fn build_task_message(
     let soul_file_note = soul_path
         .map(|path| format!("\nSoul file path: {}\n", path.display()))
         .unwrap_or_default();
+    let workspace_section = workspace_addon
+        .map(|body| format!("\n\n## Workspace context\n{body}\n"))
+        .unwrap_or_default();
 
     format!(
-        "# SoulCorp task execution\n\n## Agent\n- Name: {name}\n- Role: {role}\n- Department: {department}\n\n## Project\n{project_title}\n\n## Task\n**{title}**\n\n{description}\n\n## Acceptance criteria\n{acceptance}\n\n## Agent soul\n{soul_section}{soul_file_note}\n## Instructions\nComplete this task using your available tools. Return the final deliverable as markdown plain text in your reply. Summarize files created and key decisions.",
+        "# SoulCorp task execution\n\n## Agent\n- Name: {name}\n- Role: {role}\n- Department: {department}\n\n## Project\n{project_title}\n\n## Task\n**{title}**\n\n{description}\n\n## Acceptance criteria\n{acceptance}\n\n## Agent soul\n{soul_section}{soul_file_note}{workspace_section}\n## Instructions\nComplete this task using your available tools. Return the final deliverable as markdown plain text in your reply. Summarize files created and key decisions.",
         name = agent.name,
         role = agent.role,
         department = agent.department,
@@ -484,5 +524,60 @@ mod tests {
         let parsed = parse_openclaw_response(json, Duration::from_millis(10)).unwrap();
         assert_eq!(parsed.content, "Deliverable ready");
         assert_eq!(parsed.transport, "embedded");
+    }
+
+    #[test]
+    fn task_message_includes_workspace_addon() {
+        let task = WorkNode {
+            id: "task-1".into(),
+            parent_id: None,
+            project_id: "proj-1".into(),
+            kind: crate::scrum::types::WorkNodeKind::Task,
+            title: "Ship API".into(),
+            description: "Wire endpoints".into(),
+            status: crate::scrum::types::WorkNodeStatus::Ready,
+            priority: 1,
+            story_points: 1,
+            backlog_rank: 1,
+            assignee_agent_id: None,
+            assigned_by_manager_id: None,
+            owner_pm_agent_id: None,
+            retry_count: 0,
+            department: "Engineering".into(),
+            sprint_id: None,
+            depends_on: vec![],
+            acceptance_criteria: vec!["Tests pass".into()],
+            linked_workspace_page_id: None,
+            linked_gig_contract_id: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+            completed_at: None,
+        };
+        let agent = AgentRecord {
+            id: "agent-1".into(),
+            name: "Mira".into(),
+            role: "Engineer".into(),
+            department: "Engineering".into(),
+            morale: 0.8,
+            energy: 0.8,
+            salary: 5000.0,
+            status: "idle".into(),
+            soul: None,
+            soul_id: None,
+            ai_provider: None,
+            agent_kind: None,
+            skills: vec![],
+            reports_to: None,
+            manages_department: None,
+        };
+        let message = build_task_message(
+            &task,
+            &agent,
+            "Platform",
+            None,
+            Some("Agent workspace folder: folder-agent-1 (2 pages, 0 files)"),
+        );
+        assert!(message.contains("## Workspace context"));
+        assert!(message.contains("folder-agent-1"));
     }
 }

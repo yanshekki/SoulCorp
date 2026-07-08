@@ -175,6 +175,59 @@ fn task_search_query(project_title: &str, task: &WorkNode) -> String {
     format!("{project_title} {}", task.title)
 }
 
+/// Workspace context + optional page research for external runtimes (e.g. OpenClaw).
+pub(crate) fn workspace_prompt_addon(
+    workspace_root: Option<&Path>,
+    agent: &AgentRecord,
+    project_title: &str,
+    task: &WorkNode,
+    include_research: bool,
+) -> Option<String> {
+    let search_query = task_search_query(project_title, task);
+    let mut parts = Vec::new();
+    if let Some(context) = build_workspace_prompt_context(workspace_root, agent, &search_query) {
+        parts.push(context);
+    }
+    if include_research {
+        if let Some(root) = workspace_root {
+            if let Ok(execution) = WorkspaceExecution::open(root) {
+                if let Some(research) = gather_workspace_research(&execution, agent, &search_query) {
+                    parts.push(research);
+                }
+            }
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("\n\n"))
+    }
+}
+
+/// Best-effort journal write-back for a completed task deliverable.
+pub(crate) fn persist_task_deliverable_note(
+    workspace_root: Option<&Path>,
+    agent: &AgentRecord,
+    task: &WorkNode,
+    project_title: &str,
+    heading_label: &str,
+    content: &str,
+) {
+    let Some(root) = workspace_root else {
+        return;
+    };
+    let Ok(execution) = WorkspaceExecution::open(root) else {
+        return;
+    };
+    persist_execution_note(
+        &execution,
+        agent,
+        task,
+        &format!("{heading_label} · {project_title}"),
+        content,
+    );
+}
+
 /// Multi-step agent execution: plan → draft → refine before returning final deliverable.
 pub fn execute_with_tools(
     state: &mut AppState,

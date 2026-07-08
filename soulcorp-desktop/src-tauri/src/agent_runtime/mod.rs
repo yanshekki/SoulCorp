@@ -48,7 +48,13 @@ pub fn execute_for_task(
             }
         }
         AgentRuntimeMode::OpenClaw => {
-            match execute_openclaw(state, task, agent, project_title) {
+            match execute_openclaw(
+                state,
+                task,
+                agent,
+                project_title,
+                workspace_root.as_deref(),
+            ) {
                 Ok(content) => Ok(content),
                 Err(err) => {
                     eprintln!("OpenClaw runtime failed ({err}); falling back to LLM.");
