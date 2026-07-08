@@ -1,33 +1,36 @@
-//! Pluggable agent execution backends (in-process LLM, Claw subprocesses, etc.).
+//! Pluggable agent execution backends (in-app LLM, external CLI runtimes).
 
-pub mod claw_kind;
-pub mod detached;
-mod llm;
+pub mod adapters;
 pub mod openclaw;
+pub mod registry;
+pub mod security;
+pub mod task_prompt;
+pub mod types;
+
+pub use registry::{active_runtime, catalog, is_subprocess_runtime, runtime_by_id};
+pub use types::{RuntimeCatalog, RuntimeProbe, RuntimeProbeSummary, RuntimeResult};
 
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState};
 
-pub use claw_kind::ClawRuntimeKind;
-pub use llm::execute_llm_only;
-pub use openclaw::execute_claw;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentRuntimeMode {
     LlmOnly,
-    Claw(ClawRuntimeKind),
+    Subprocess,
 }
 
 impl AgentRuntimeMode {
     pub fn from_setting(value: &str) -> Self {
-        ClawRuntimeKind::from_setting(value)
-            .map(Self::Claw)
-            .unwrap_or(Self::LlmOnly)
+        if is_subprocess_runtime(value) {
+            Self::Subprocess
+        } else {
+            Self::LlmOnly
+        }
     }
+}
 
-    pub fn is_claw_subprocess(self) -> bool {
-        matches!(self, Self::Claw(_))
-    }
+pub fn probe_active_runtime(settings: &crate::state::GameSettings) -> RuntimeProbe {
+    adapters::probe_runtime(settings)
 }
 
 pub fn execute_for_task(
@@ -49,27 +52,34 @@ pub fn execute_for_task(
                     workspace_root.as_deref(),
                 )
             } else {
-                execute_llm_only(state, task, agent, project_title)
+                llm::execute_llm_only(state, task, agent, project_title)
             }
         }
-        AgentRuntimeMode::Claw(kind) => {
-            match execute_claw(
-                state,
-                kind,
+        AgentRuntimeMode::Subprocess => {
+            match adapters::execute_runtime(
+                &state.settings,
+                &state.company_id,
                 task,
                 agent,
                 project_title,
                 workspace_root.as_deref(),
             ) {
-                Ok(content) => Ok(content),
+                Ok(result) => Ok(result.content),
                 Err(err) => {
-                    eprintln!(
-                        "{} runtime failed ({err}); falling back to LLM.",
-                        kind.display_name()
-                    );
-                    execute_llm_only(state, task, agent, project_title)
+                    let label = registry::effective_label(&state.settings);
+                    if state.settings.agent_runtime_fallback_to_llm {
+                        eprintln!("{label} runtime failed ({err}); falling back to LLM.");
+                        llm::execute_llm_only(state, task, agent, project_title)
+                    } else {
+                        Err(err)
+                    }
                 }
             }
         }
     }
 }
+
+pub mod detached;
+mod llm;
+
+pub use llm::execute_llm_only;

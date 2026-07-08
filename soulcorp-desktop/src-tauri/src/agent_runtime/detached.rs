@@ -37,19 +37,28 @@ pub fn execute_for_task_detached(
                 execute_llm_only_detached(ctx, task, agent, project_title)
             }
         }
-        super::AgentRuntimeMode::Claw(kind) => {
-            match super::openclaw::execute_claw_detached(ctx, kind, task, agent, project_title) {
-                Ok(content) => Ok(DetachedExecutionResult {
-                    content,
-                    provider: kind.id().to_string(),
+        super::AgentRuntimeMode::Subprocess => {
+            match super::adapters::execute_runtime(
+                &ctx.settings,
+                &ctx.company_id,
+                task,
+                agent,
+                project_title,
+                ctx.workspace_root.as_deref(),
+            ) {
+                Ok(result) => Ok(DetachedExecutionResult {
+                    content: result.content,
+                    provider: ctx.settings.agent_runtime_mode.clone(),
                     charge: None,
                 }),
                 Err(err) => {
-                    eprintln!(
-                        "{} runtime failed ({err}); falling back to LLM.",
-                        kind.display_name()
-                    );
-                    execute_llm_only_detached(ctx, task, agent, project_title)
+                    let label = super::registry::effective_label(&ctx.settings);
+                    if ctx.settings.agent_runtime_fallback_to_llm {
+                        eprintln!("{label} runtime failed ({err}); falling back to LLM.");
+                        execute_llm_only_detached(ctx, task, agent, project_title)
+                    } else {
+                        Err(err)
+                    }
                 }
             }
         }
@@ -82,4 +91,3 @@ pub fn execute_llm_only_detached(
         charge,
     })
 }
-

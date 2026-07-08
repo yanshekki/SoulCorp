@@ -4,8 +4,6 @@ import { showSimulationChrome, simulationAutoRun } from "../../../config/feature
 import { useGameStore } from "../../../stores/gameStore";
 import type {
   AutomationStatus,
-  OpenClawStatus,
-  OpenClawTestResult,
   CommandCenterOverview,
   Directive,
   DirectivePreviewNode,
@@ -16,12 +14,7 @@ import type {
 } from "../../../types/game";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
-import {
-  CLAW_RUNTIME_MODES,
-  clawBinaryPlaceholder,
-  clawRuntimeLabel,
-  isClawRuntimeMode,
-} from "../../../utils/clawRuntime";
+import { isSubprocessRuntime, runtimeModeLabel } from "../../../utils/agentRuntimeCatalog";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { filterByQuery } from "../../../utils/listSearch";
 import { paginateItems } from "../../../utils/pagination";
@@ -29,6 +22,7 @@ import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
 import { PaginationBar } from "../PaginationBar";
 import { SearchableListToolbar } from "../SearchableListToolbar";
+import { AgentRuntimeSection } from "./AgentRuntimeSection";
 import { CoCeoPanel } from "./CoCeoPanel";
 import {
   cancelDirective,
@@ -109,8 +103,6 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [busy, setBusy] = useState(false);
   const [automation, setAutomation] = useState<AutomationStatus | null>(null);
-  const [openclawStatus, setOpenclawStatus] = useState<OpenClawStatus | null>(null);
-  const [openclawTesting, setOpenclawTesting] = useState(false);
 
   const [directiveTitle, setDirectiveTitle] = useState("");
   const [directiveBody, setDirectiveBody] = useState("");
@@ -228,32 +220,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
 
   const loadAutomationStatus = useCallback(async () => {
     try {
-      const [status, openclaw] = await Promise.all([
-        invoke<AutomationStatus>("get_automation_status"),
-        invoke<OpenClawStatus>("get_openclaw_status"),
-      ]);
+      const status = await invoke<AutomationStatus>("get_automation_status");
       setAutomation(status);
-      setOpenclawStatus(openclaw);
     } catch {
       setAutomation(null);
-      setOpenclawStatus(null);
     }
   }, []);
-
-  const testOpenclaw = useCallback(async () => {
-    setOpenclawTesting(true);
-    try {
-      const result = await invoke<OpenClawTestResult>("test_openclaw_runtime", {
-        request: {},
-      });
-      setStatusMessage(result.message);
-      await loadAutomationStatus();
-    } catch (error) {
-      setStatusMessage(String(error));
-    } finally {
-      setOpenclawTesting(false);
-    }
-  }, [loadAutomationStatus, setStatusMessage]);
 
   useEffect(() => {
     if (!activeCompanyId) return;
@@ -524,6 +496,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         openclaw_prefer_gateway: patch.openclaw_prefer_gateway,
         openclaw_default_agent_id: patch.openclaw_default_agent_id,
         openclaw_timeout_secs: patch.openclaw_timeout_secs,
+        agent_runtime_fallback_to_llm: patch.agent_runtime_fallback_to_llm,
+        agent_runtime_custom_binary: patch.agent_runtime_custom_binary,
+        agent_runtime_custom_adapter: patch.agent_runtime_custom_adapter,
+        agent_runtime_allow_cli_env_keys: patch.agent_runtime_allow_cli_env_keys,
         orchestrator_auto_accept_gigs: patch.orchestrator_auto_accept_gigs,
         orchestrator_max_active_gigs: patch.orchestrator_max_active_gigs,
         orchestrator_auto_start_gigs: patch.orchestrator_auto_start_gigs,
@@ -564,9 +540,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     ["policies", "Policies"],
   ] as const;
 
-  const activeClawRuntime = settings.agent_runtime_mode;
-  const clawRuntimeName = clawRuntimeLabel(activeClawRuntime);
-  const clawSubprocessSelected = isClawRuntimeMode(activeClawRuntime);
+  const subprocessSelected = isSubprocessRuntime(settings.agent_runtime_mode);
 
   return (
     <section id="command" className="projects-card command-center" data-projects-section="command">
@@ -709,17 +683,19 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   </dd>
                 </div>
                 <div className="command-automation-meta-item command-automation-meta-item--wide">
-                  <dt>{clawSubprocessSelected ? clawRuntimeName : "Agent runtime"}</dt>
+                  <dt>Agent runtime</dt>
                   <dd title={
-                    automation?.openclaw_available
-                      ? automation.openclaw_version ?? "Ready"
-                      : automation?.openclaw_message ?? undefined
-                  }>
-                    {clawSubprocessSelected
+                    subprocessSelected
                       ? automation?.openclaw_available
                         ? automation.openclaw_version ?? "Ready"
-                        : automation?.openclaw_message ?? "—"
-                      : "In-app LLM only"}
+                        : automation?.openclaw_message ?? undefined
+                      : undefined
+                  }>
+                    {subprocessSelected
+                      ? automation?.openclaw_available
+                        ? `${runtimeModeLabel(settings.agent_runtime_mode)} · ${automation.openclaw_version ?? "Ready"}`
+                        : `${runtimeModeLabel(settings.agent_runtime_mode)} · ${automation?.openclaw_message ?? "—"}`
+                      : runtimeModeLabel(settings.agent_runtime_mode)}
                   </dd>
                 </div>
               </dl>
@@ -1347,157 +1323,78 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
             </div>
             <div className="command-policy-group command-panel-block">
               <h5 className="command-policy-group-title">Agent runtime</h5>
+              <AgentRuntimeSection
+                settings={settings}
+                onPersist={persistSettings}
+                onStatusMessage={setStatusMessage}
+              />
+            </div>
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Execution queue</h5>
               <div className="command-form">
-            <label className="field-label">
-              Runtime mode
-              <select
-                value={settings.agent_runtime_mode ?? "llm_only"}
-                onChange={(e) => void persistSettings({ agent_runtime_mode: e.target.value })}
-              >
-                <option value="llm_only">In-app LLM only</option>
-                {CLAW_RUNTIME_MODES.map((runtime) => (
-                  <option key={runtime.id} value={runtime.id}>
-                    {runtime.label} subprocess
-                  </option>
-                ))}
-              </select>
-            </label>
-            {clawSubprocessSelected ? (
-              <>
-                <label className="field-label">
-                  {clawRuntimeName} binary path
+                <label className="checkbox-row">
                   <input
-                    type="text"
-                    value={settings.openclaw_binary_path ?? ""}
-                    placeholder={clawBinaryPlaceholder(activeClawRuntime)}
-                    onChange={(e) => void persistSettings({ openclaw_binary_path: e.target.value })}
+                    type="checkbox"
+                    checked={settings.scrum_execution_paused ?? false}
+                    onChange={(e) => void persistSettings({ scrum_execution_paused: e.target.checked })}
                   />
+                  <span>Pause execution queue</span>
                 </label>
                 <label className="field-label">
-                  {clawRuntimeName} default agent id
-                  <input
-                    type="text"
-                    value={settings.openclaw_default_agent_id ?? "main"}
-                    placeholder="main"
-                    onChange={(e) =>
-                      void persistSettings({ openclaw_default_agent_id: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="field-label">
-                  {clawRuntimeName} timeout (seconds)
+                  Min token guard (block auto-run below)
                   <input
                     type="number"
-                    min={30}
-                    max={3600}
-                    value={settings.openclaw_timeout_secs ?? 600}
+                    min={0}
+                    value={settings.scrum_min_tokens_guard ?? 0}
                     onChange={(e) =>
-                      void persistSettings({ openclaw_timeout_secs: Number(e.target.value) })
+                      void persistSettings({ scrum_min_tokens_guard: Number(e.target.value) })
                     }
                   />
                 </label>
-                <label className="checkbox-row">
+                <label className="field-label">
+                  Max executions per batch
                   <input
-                    type="checkbox"
-                    checked={settings.openclaw_use_local ?? true}
-                    onChange={(e) => void persistSettings({ openclaw_use_local: e.target.checked })}
-                  />
-                  <span>
-                    Run {clawRuntimeName} embedded locally (`{activeClawRuntime} agent --local`)
-                  </span>
-                </label>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={settings.openclaw_prefer_gateway ?? false}
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={settings.scrum_max_executions_per_tick ?? 1}
                     onChange={(e) =>
-                      void persistSettings({ openclaw_prefer_gateway: e.target.checked })
+                      void persistSettings({ scrum_max_executions_per_tick: Number(e.target.value) })
                     }
                   />
-                  <span>Prefer {clawRuntimeName} gateway when healthy (omit --local)</span>
                 </label>
-                {openclawStatus ? (
-                  <p className="command-form-note">
-                    {openclawStatus.runtime_label || clawRuntimeName}:{" "}
-                    {openclawStatus.binary_available ? "detected" : "missing"} ·{" "}
-                    {openclawStatus.agent_command_available ? "agent CLI ok" : "legacy stdin only"} ·{" "}
-                    {openclawStatus.gateway_healthy ? "gateway healthy" : "gateway offline"} —{" "}
-                    {openclawStatus.message}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={openclawTesting}
-                  onClick={() => void testOpenclaw()}
-                >
-                  {openclawTesting ? `Testing ${clawRuntimeName}…` : `Test ${clawRuntimeName} runtime`}
-                </button>
-              </>
-            ) : null}
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={settings.scrum_execution_paused ?? false}
-                onChange={(e) => void persistSettings({ scrum_execution_paused: e.target.checked })}
-              />
-              <span>Pause execution queue</span>
-            </label>
-            <label className="field-label">
-              Min token guard (block auto-run below)
-              <input
-                type="number"
-                min={0}
-                value={settings.scrum_min_tokens_guard ?? 0}
-                onChange={(e) =>
-                  void persistSettings({ scrum_min_tokens_guard: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label className="field-label">
-              Max executions per batch
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={settings.scrum_max_executions_per_tick ?? 1}
-                onChange={(e) =>
-                  void persistSettings({ scrum_max_executions_per_tick: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label className="field-label">
-              Worker interval (seconds)
-              <input
-                type="number"
-                min={5}
-                max={300}
-                value={settings.scrum_worker_interval_secs ?? 30}
-                onChange={(e) =>
-                  void persistSettings({ scrum_worker_interval_secs: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label className="field-label">
-              Max blocked retries
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={settings.scrum_max_blocked_retries ?? 2}
-                onChange={(e) =>
-                  void persistSettings({ scrum_max_blocked_retries: Number(e.target.value) })
-                }
-              />
-            </label>
-            <p className="command-form-note">
-              Company tokens: {finance.monthly_inflow_tokens.toLocaleString()} inflow configured
-            </p>
-            <div className="panel-actions command-panel-actions">
-              <button type="button" className="primary-action" disabled={busy} onClick={() => void handleBatchRun()}>
-                Run batch executions
-              </button>
-            </div>
+                <label className="field-label">
+                  Worker interval (seconds)
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={settings.scrum_worker_interval_secs ?? 30}
+                    onChange={(e) =>
+                      void persistSettings({ scrum_worker_interval_secs: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Max blocked retries
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={settings.scrum_max_blocked_retries ?? 2}
+                    onChange={(e) =>
+                      void persistSettings({ scrum_max_blocked_retries: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <p className="command-form-note">
+                  Company tokens: {finance.monthly_inflow_tokens.toLocaleString()} inflow configured
+                </p>
+                <div className="panel-actions command-panel-actions">
+                  <button type="button" className="primary-action" disabled={busy} onClick={() => void handleBatchRun()}>
+                    Run batch executions
+                  </button>
+                </div>
               </div>
             </div>
             </div>

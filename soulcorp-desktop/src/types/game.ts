@@ -718,6 +718,10 @@ export interface GameSettings {
   openclaw_prefer_gateway?: boolean;
   openclaw_default_agent_id?: string;
   openclaw_timeout_secs?: number;
+  agent_runtime_fallback_to_llm?: boolean;
+  agent_runtime_custom_binary?: string;
+  agent_runtime_custom_adapter?: string;
+  agent_runtime_allow_cli_env_keys?: boolean;
   orchestrator_auto_accept_gigs?: boolean;
   orchestrator_max_active_gigs?: number;
   orchestrator_auto_start_gigs?: boolean;
@@ -756,10 +760,40 @@ export interface AutomationStatus {
   readiness: AutomationReadiness;
 }
 
-export interface OpenClawStatus {
+export interface RuntimeCatalogEntry {
+  id: string;
+  label: string;
+  category: string;
+  adapter: string;
+  default_binary: string;
+  docs_url: string;
+  capabilities: string[];
+}
+
+export interface AdapterCatalogEntry {
+  id: string;
+  label: string;
+}
+
+export interface RuntimeCatalog {
+  version: number;
+  adapters: AdapterCatalogEntry[];
+  runtimes: RuntimeCatalogEntry[];
+}
+
+export interface RuntimeProbeSummary {
+  runtime_id: string;
+  runtime_label: string;
+  category: string;
+  binary_available: boolean;
+  message: string;
+}
+
+export interface AgentRuntimeStatus {
   runtime_mode: string;
   runtime_id: string;
   runtime_label: string;
+  adapter: string;
   binary_path: string;
   binary_available: boolean;
   version?: string | null;
@@ -772,12 +806,15 @@ export interface OpenClawStatus {
   message: string;
 }
 
-export interface OpenClawTestResult {
+export interface AgentRuntimeTestResult {
   ok: boolean;
   transport?: string | null;
   preview: string;
   message: string;
 }
+
+export type OpenClawStatus = AgentRuntimeStatus;
+export type OpenClawTestResult = AgentRuntimeTestResult;
 
 export interface Achievement {
   id: string;

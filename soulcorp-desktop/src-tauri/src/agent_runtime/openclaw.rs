@@ -1,232 +1,72 @@
-use crate::agent_runtime::claw_kind::ClawRuntimeKind;
-use crate::agent_runtime::detached::DetachedRuntimeContext;
-use crate::scrum::types::WorkNode;
-use crate::state::{AgentRecord, AppState, GameSettings};
-use serde::Deserialize;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
-use uuid::Uuid;
+//! Backward-compatible re-exports for legacy OpenClaw integration points.
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ClawProbe {
-    pub runtime_id: String,
-    pub runtime_label: String,
-    pub binary_path: String,
-    pub binary_available: bool,
-    pub version: Option<String>,
-    pub agent_command_available: bool,
-    pub gateway_healthy: bool,
-    pub message: String,
+pub use crate::agent_runtime::adapters::claw;
+pub use crate::agent_runtime::registry::{active_runtime, is_subprocess_runtime};
+pub use crate::agent_runtime::types::{ClawProbe, ClawRunResult, OpenClawProbe, RuntimeProbe, RuntimeResult};
+
+pub fn probe_openclaw(settings: &crate::state::GameSettings) -> RuntimeProbe {
+    crate::agent_runtime::probe_active_runtime(settings)
 }
 
-pub type OpenClawProbe = ClawProbe;
-
-#[derive(Debug, Clone)]
-pub struct ClawRunResult {
-    pub content: String,
-    pub transport: String,
-    #[allow(dead_code)]
-    pub session_id: Option<String>,
-    pub duration_ms: u64,
+pub fn probe_claw(settings: &crate::state::GameSettings, entry: &crate::agent_runtime::types::RuntimeCatalogEntry) -> RuntimeProbe {
+    claw::probe(entry, settings)
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenClawJsonResponse {
-    #[serde(default)]
-    payloads: Vec<OpenClawJsonPayload>,
-    meta: Option<OpenClawJsonMeta>,
-    #[serde(default)]
-    error: Option<String>,
-    text: Option<String>,
-    response: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenClawJsonPayload {
-    text: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenClawJsonMeta {
-    transport: Option<String>,
-    session_id: Option<String>,
-    duration_ms: Option<u64>,
-}
-
-pub fn claw_kind_from_settings(settings: &GameSettings) -> Option<ClawRuntimeKind> {
-    ClawRuntimeKind::from_setting(&settings.agent_runtime_mode)
-}
-
-pub fn probe_claw(settings: &GameSettings, kind: ClawRuntimeKind) -> ClawProbe {
-    let label = kind.display_name();
-    let binary_path = match resolve_claw_binary(settings, kind) {
-        Ok(path) => path,
-        Err(message) => {
-            return ClawProbe {
-                runtime_id: kind.id().to_string(),
-                runtime_label: label.to_string(),
-                binary_path: settings.openclaw_binary_path.clone(),
-                binary_available: false,
-                version: None,
-                agent_command_available: false,
-                gateway_healthy: false,
-                message,
-            };
-        }
-    };
-
-    let version = command_stdout(&binary_path, &["--version"]).ok();
-    let agent_command_available = command_succeeds(&binary_path, &["agent", "--help"]);
-    let gateway_healthy = if settings.openclaw_prefer_gateway && agent_command_available {
-        command_succeeds(&binary_path, &["gateway", "health"])
-    } else {
-        false
-    };
-
-    let cli_name = kind.default_binary();
-    let message = if !agent_command_available {
-        format!(
-            "{label} binary found, but `{cli_name} agent` is unavailable. Legacy stdin mode may still work."
-        )
-    } else if settings.openclaw_prefer_gateway && gateway_healthy {
-        format!("{label} ready — gateway healthy.")
-    } else if settings.openclaw_use_local {
-        format!("{label} ready — local embedded agent mode.")
-    } else {
-        format!("{label} ready.")
-    };
-
-    ClawProbe {
-        runtime_id: kind.id().to_string(),
-        runtime_label: label.to_string(),
-        binary_path,
-        binary_available: true,
-        version,
-        agent_command_available,
-        gateway_healthy,
-        message,
-    }
-}
-
-pub fn probe_openclaw(settings: &GameSettings) -> ClawProbe {
-    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
-    probe_claw(settings, kind)
-}
-
-pub fn execute_claw(
-    state: &AppState,
-    kind: ClawRuntimeKind,
-    task: &WorkNode,
-    agent: &AgentRecord,
+pub fn execute_openclaw(
+    state: &crate::state::AppState,
+    task: &crate::scrum::types::WorkNode,
+    agent: &crate::state::AgentRecord,
     project_title: &str,
-    workspace_root: Option<&Path>,
+    workspace_root: Option<&std::path::Path>,
 ) -> Result<String, String> {
-    let result = run_claw_for_task(
-        kind,
+    crate::agent_runtime::adapters::execute_runtime(
         &state.settings,
         &state.company_id,
         task,
         agent,
         project_title,
         workspace_root,
-    )?;
-    Ok(result.content)
+    )
+    .map(|result| result.content)
 }
 
-pub fn execute_openclaw(
-    state: &AppState,
-    task: &WorkNode,
-    agent: &AgentRecord,
+pub fn execute_claw(
+    state: &crate::state::AppState,
+    _kind: (),
+    task: &crate::scrum::types::WorkNode,
+    agent: &crate::state::AgentRecord,
     project_title: &str,
-    workspace_root: Option<&Path>,
+    workspace_root: Option<&std::path::Path>,
 ) -> Result<String, String> {
-    let kind = claw_kind_from_settings(&state.settings).unwrap_or(ClawRuntimeKind::OpenClaw);
-    execute_claw(state, kind, task, agent, project_title, workspace_root)
+    execute_openclaw(state, task, agent, project_title, workspace_root)
 }
 
-pub fn execute_claw_detached(
-    ctx: &DetachedRuntimeContext,
-    kind: ClawRuntimeKind,
-    task: &WorkNode,
-    agent: &AgentRecord,
+pub fn execute_openclaw_detached(
+    ctx: &crate::agent_runtime::detached::DetachedRuntimeContext,
+    task: &crate::scrum::types::WorkNode,
+    agent: &crate::state::AgentRecord,
     project_title: &str,
 ) -> Result<String, String> {
-    let result = run_claw_for_task(
-        kind,
+    crate::agent_runtime::adapters::execute_runtime(
         &ctx.settings,
         &ctx.company_id,
         task,
         agent,
         project_title,
         ctx.workspace_root.as_deref(),
-    )?;
-    Ok(result.content)
-}
-
-pub fn execute_openclaw_detached(
-    ctx: &DetachedRuntimeContext,
-    task: &WorkNode,
-    agent: &AgentRecord,
-    project_title: &str,
-) -> Result<String, String> {
-    let kind = claw_kind_from_settings(&ctx.settings).unwrap_or(ClawRuntimeKind::OpenClaw);
-    execute_claw_detached(ctx, kind, task, agent, project_title)
-}
-
-pub fn run_claw_for_task(
-    kind: ClawRuntimeKind,
-    settings: &GameSettings,
-    company_id: &str,
-    task: &WorkNode,
-    agent: &AgentRecord,
-    project_title: &str,
-    workspace_root: Option<&Path>,
-) -> Result<ClawRunResult, String> {
-    let binary = resolve_claw_binary(settings, kind)?;
-    let probe = probe_claw(settings, kind);
-    let label = kind.display_name();
-
-    let result = if probe.agent_command_available {
-        run_claw_agent_cli(
-            kind,
-            settings,
-            &binary,
-            company_id,
-            task,
-            agent,
-            project_title,
-            workspace_root,
-        )
-    } else {
-        run_claw_legacy_stdin(kind, &binary, task, agent, project_title, workspace_root)
-    }?;
-
-    crate::scrum::agent_tools::persist_task_deliverable_note(
-        workspace_root,
-        agent,
-        task,
-        project_title,
-        &format!("{label} deliverable"),
-        &result.content,
-    );
-
-    Ok(result)
+    )
+    .map(|result| result.content)
 }
 
 pub fn run_openclaw_for_task(
-    settings: &GameSettings,
+    settings: &crate::state::GameSettings,
     company_id: &str,
-    task: &WorkNode,
-    agent: &AgentRecord,
+    task: &crate::scrum::types::WorkNode,
+    agent: &crate::state::AgentRecord,
     project_title: &str,
-    workspace_root: Option<&Path>,
-) -> Result<ClawRunResult, String> {
-    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
-    run_claw_for_task(
-        kind,
+    workspace_root: Option<&std::path::Path>,
+) -> Result<RuntimeResult, String> {
+    crate::agent_runtime::adapters::execute_runtime(
         settings,
         company_id,
         task,
@@ -236,431 +76,18 @@ pub fn run_openclaw_for_task(
     )
 }
 
-fn run_claw_agent_cli(
-    kind: ClawRuntimeKind,
-    settings: &GameSettings,
-    binary: &str,
-    company_id: &str,
-    task: &WorkNode,
-    agent: &AgentRecord,
-    project_title: &str,
-    workspace_root: Option<&Path>,
-) -> Result<ClawRunResult, String> {
-    let label = kind.display_name();
-    let started = Instant::now();
-    let temp_dir = std::env::temp_dir().join(format!("soulcorp-{}-{}", kind.id(), Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-
-    let message_path = temp_dir.join("task.md");
-    let soul_path = materialize_soul_file(&temp_dir, agent, workspace_root)?;
-    let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
-        workspace_root,
-        agent,
-        project_title,
-        task,
-        true,
-    );
-    let message = build_task_message(
-        task,
-        agent,
-        project_title,
-        soul_path.as_deref(),
-        workspace_addon.as_deref(),
-    );
-    fs::write(&message_path, message).map_err(|e| e.to_string())?;
-
-    let openclaw_agent_id = resolve_openclaw_agent_id(settings, agent);
-    let session_key = if company_id.is_empty() {
-        None
+pub fn resolve_openclaw_binary(settings: &crate::state::GameSettings) -> Result<String, String> {
+    let entry = active_runtime(settings).ok_or_else(|| {
+        "No subprocess runtime selected.".to_string()
+    })?;
+    let binary = if entry.id == "custom" {
+        settings.agent_runtime_custom_binary.as_str()
     } else {
-        Some(format!(
-            "agent:{openclaw_agent_id}:soulcorp-{company_id}-{}",
-            task.id
-        ))
+        entry.default_binary.as_str()
     };
-
-    let timeout_secs = settings.openclaw_timeout_secs.max(30);
-    let mut args = vec![
-        "agent".to_string(),
-        "--agent".to_string(),
-        openclaw_agent_id,
-        "--message-file".to_string(),
-        message_path.display().to_string(),
-        "--json".to_string(),
-        "--timeout".to_string(),
-        timeout_secs.to_string(),
-        "--no-color".to_string(),
-    ];
-
-    if let Some(session_key) = session_key {
-        args.push("--session-key".to_string());
-        args.push(session_key);
-    }
-
-    if settings.openclaw_use_local || !settings.openclaw_prefer_gateway {
-        args.push("--local".to_string());
-    }
-
-    let output = Command::new(binary)
-        .args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to spawn {label} ({binary}): {e}"))?;
-
-    let _ = fs::remove_dir_all(&temp_dir);
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        return Err(format!(
-            "{label} agent exited with {}: {stderr}{}",
-            output.status,
-            if stdout.trim().is_empty() {
-                String::new()
-            } else {
-                format!("\nstdout: {stdout}")
-            }
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_openclaw_response(&stdout, started.elapsed())
-}
-
-fn run_claw_legacy_stdin(
-    kind: ClawRuntimeKind,
-    binary: &str,
-    task: &WorkNode,
-    agent: &AgentRecord,
-    project_title: &str,
-    workspace_root: Option<&Path>,
-) -> Result<ClawRunResult, String> {
-    let label = kind.display_name();
-    let started = Instant::now();
-    let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
-        workspace_root,
-        agent,
-        project_title,
-        task,
-        true,
-    );
-    let workspace_section = workspace_addon
-        .map(|body| format!("\n\n--- Workspace context ---\n{body}"))
-        .unwrap_or_default();
-    let prompt = format!(
-        "Project: {project_title}\nAgent: {} ({})\nDepartment: {}\nTask: {}\nDetails: {}\nAcceptance:\n- {}{workspace_section}\n\nReturn the final deliverable as plain text/markdown.",
-        agent.name,
-        agent.role,
-        agent.department,
-        task.title,
-        task.description,
-        task.acceptance_criteria.join("\n- ")
-    );
-
-    let mut child = Command::new(binary)
-        .arg("--stdin-task")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn {label} legacy mode ({binary}): {e}"))?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(prompt.as_bytes())
-            .map_err(|e| format!("{label} stdin write failed: {e}"))?;
-    }
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("{label} wait failed: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "{label} legacy mode exited with {}: {stderr}",
-            output.status
-        ));
-    }
-
-    let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if content.is_empty() {
-        return Err(format!("{label} returned empty output."));
-    }
-
-    Ok(ClawRunResult {
-        content,
-        transport: "legacy-stdin".to_string(),
-        session_id: None,
-        duration_ms: started.elapsed().as_millis() as u64,
-    })
-}
-
-fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<ClawRunResult, String> {
-    let trimmed = stdout.trim();
-    if let Ok(parsed) = serde_json::from_str::<OpenClawJsonResponse>(trimmed) {
-        if let Some(error) = parsed.error.filter(|value| !value.trim().is_empty()) {
-            return Err(format!("Claw agent error: {error}"));
-        }
-
-        let mut chunks: Vec<String> = parsed
-            .payloads
-            .into_iter()
-            .filter_map(|payload| payload.text)
-            .map(|text| text.trim().to_string())
-            .filter(|text| !text.is_empty())
-            .collect();
-
-        if chunks.is_empty() {
-            if let Some(text) = parsed.text.or(parsed.response) {
-                chunks.push(text);
-            }
-        }
-
-        let content = chunks.join("\n\n").trim().to_string();
-        if content.is_empty() {
-            return Err("Claw JSON response contained no deliverable text.".to_string());
-        }
-
-        let meta = parsed.meta;
-        let transport = meta
-            .as_ref()
-            .and_then(|value| value.transport.clone())
-            .unwrap_or_else(|| "openclaw-agent".to_string());
-        let session_id = meta
-            .as_ref()
-            .and_then(|value| value.session_id.clone());
-        let duration_ms = meta
-            .and_then(|value| value.duration_ms)
-            .unwrap_or(elapsed.as_millis() as u64);
-        return Ok(ClawRunResult {
-            content,
-            transport,
-            session_id,
-            duration_ms,
-        });
-    }
-
-    if trimmed.is_empty() {
-        return Err("Claw agent returned empty output.".to_string());
-    }
-
-    Ok(ClawRunResult {
-        content: trimmed.to_string(),
-        transport: "claw-text".to_string(),
-        session_id: None,
-        duration_ms: elapsed.as_millis() as u64,
-    })
-}
-
-fn build_task_message(
-    task: &WorkNode,
-    agent: &AgentRecord,
-    project_title: &str,
-    soul_path: Option<&Path>,
-    workspace_addon: Option<&str>,
-) -> String {
-    let acceptance = if task.acceptance_criteria.is_empty() {
-        "- Meet the task objective with clear, actionable output.".to_string()
-    } else {
-        task.acceptance_criteria
-            .iter()
-            .map(|item| format!("- {item}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-
-    let soul_section = match agent.soul.as_ref() {
-        Some(soul) if !soul.raw_content.trim().is_empty() => soul.raw_content.trim().to_string(),
-        _ => "No soul profile defined.".to_string(),
-    };
-
-    let soul_file_note = soul_path
-        .map(|path| format!("\nSoul file path: {}\n", path.display()))
-        .unwrap_or_default();
-    let workspace_section = workspace_addon
-        .map(|body| format!("\n\n## Workspace context\n{body}\n"))
-        .unwrap_or_default();
-
-    format!(
-        "# SoulCorp task execution\n\n## Agent\n- Name: {name}\n- Role: {role}\n- Department: {department}\n\n## Project\n{project_title}\n\n## Task\n**{title}**\n\n{description}\n\n## Acceptance criteria\n{acceptance}\n\n## Agent soul\n{soul_section}{soul_file_note}{workspace_section}\n## Instructions\nComplete this task using your available tools. Return the final deliverable as markdown plain text in your reply. Summarize files created and key decisions.",
-        name = agent.name,
-        role = agent.role,
-        department = agent.department,
-        title = task.title,
-        description = if task.description.trim().is_empty() {
-            "No additional details.".to_string()
-        } else {
-            task.description.clone()
-        },
+    crate::agent_runtime::security::resolve_binary(
+        &settings.openclaw_binary_path,
+        binary,
+        &entry.label,
     )
-}
-
-fn materialize_soul_file(
-    temp_dir: &Path,
-    agent: &AgentRecord,
-    workspace_root: Option<&Path>,
-) -> Result<Option<PathBuf>, String> {
-    let Some(soul) = agent.soul.as_ref() else {
-        return Ok(None);
-    };
-    if soul.raw_content.trim().is_empty() {
-        return Ok(None);
-    }
-
-    if let Some(root) = workspace_root {
-        let company_soul = root
-            .join("agent-souls")
-            .join(format!("{}.md", agent.id));
-        if company_soul.exists() {
-            return Ok(Some(company_soul));
-        }
-    }
-
-    let path = temp_dir.join(format!("{}.soul.md", agent.id));
-    fs::write(&path, &soul.raw_content).map_err(|e| e.to_string())?;
-    Ok(Some(path))
-}
-
-fn resolve_openclaw_agent_id(settings: &GameSettings, agent: &AgentRecord) -> String {
-    if !settings.openclaw_default_agent_id.trim().is_empty() {
-        return settings.openclaw_default_agent_id.trim().to_string();
-    }
-
-    let slug = agent
-        .id
-        .trim_start_matches("agent-")
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-
-    if slug.is_empty() {
-        "main".to_string()
-    } else {
-        slug
-    }
-}
-
-pub fn resolve_claw_binary(settings: &GameSettings, kind: ClawRuntimeKind) -> Result<String, String> {
-    let label = kind.display_name();
-    let default_binary = kind.default_binary();
-    let configured = settings.openclaw_binary_path.trim();
-    if !configured.is_empty() {
-        if Path::new(configured).exists() || command_succeeds(configured, &["--version"]) {
-            return Ok(configured.to_string());
-        }
-        return Err(format!(
-            "Configured {label} binary not found or not executable: {configured}"
-        ));
-    }
-
-    if command_succeeds(default_binary, &["--version"]) {
-        return Ok(default_binary.to_string());
-    }
-
-    Err(format!(
-        "{label} binary not configured. Set the path in Command Center → Policies, or install `{default_binary}` on PATH."
-    ))
-}
-
-pub fn resolve_openclaw_binary(settings: &GameSettings) -> Result<String, String> {
-    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
-    resolve_claw_binary(settings, kind)
-}
-
-fn command_succeeds(cmd: &str, args: &[&str]) -> bool {
-    Command::new(cmd)
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
-}
-
-fn command_stdout(cmd: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(cmd)
-        .args(args)
-        .output()
-        .map_err(|e| format!("Failed to run {cmd}: {e}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(stderr.trim().to_string());
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_json_payload_text() {
-        let json = r#"{"payloads":[{"text":"Deliverable ready"}],"meta":{"transport":"embedded"}}"#;
-        let parsed = parse_openclaw_response(json, Duration::from_millis(10)).unwrap();
-        assert_eq!(parsed.content, "Deliverable ready");
-        assert_eq!(parsed.transport, "embedded");
-    }
-
-    #[test]
-    fn task_message_includes_workspace_addon() {
-        let task = WorkNode {
-            id: "task-1".into(),
-            parent_id: None,
-            project_id: "proj-1".into(),
-            kind: crate::scrum::types::WorkNodeKind::Task,
-            title: "Ship API".into(),
-            description: "Wire endpoints".into(),
-            status: crate::scrum::types::WorkNodeStatus::Ready,
-            priority: 1,
-            story_points: 1,
-            backlog_rank: 1,
-            assignee_agent_id: None,
-            assigned_by_manager_id: None,
-            owner_pm_agent_id: None,
-            retry_count: 0,
-            department: "Engineering".into(),
-            sprint_id: None,
-            depends_on: vec![],
-            acceptance_criteria: vec!["Tests pass".into()],
-            linked_workspace_page_id: None,
-            linked_gig_contract_id: None,
-            created_at: "2026-01-01T00:00:00Z".into(),
-            updated_at: "2026-01-01T00:00:00Z".into(),
-            completed_at: None,
-        };
-        let agent = AgentRecord {
-            id: "agent-1".into(),
-            name: "Mira".into(),
-            role: "Engineer".into(),
-            department: "Engineering".into(),
-            morale: 0.8,
-            energy: 0.8,
-            salary: 5000.0,
-            status: "idle".into(),
-            soul: None,
-            soul_id: None,
-            ai_provider: None,
-            agent_kind: None,
-            skills: vec![],
-            reports_to: None,
-            manages_department: None,
-        };
-        let message = build_task_message(
-            &task,
-            &agent,
-            "Platform",
-            None,
-            Some("Agent workspace folder: folder-agent-1 (2 pages, 0 files)"),
-        );
-        assert!(message.contains("## Workspace context"));
-        assert!(message.contains("folder-agent-1"));
-    }
 }

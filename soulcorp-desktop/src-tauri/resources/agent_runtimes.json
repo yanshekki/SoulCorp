@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "adapters": [
+    { "id": "claw_agent_cli", "label": "Claw agent CLI" },
+    { "id": "grok_headless", "label": "Grok headless" },
+    { "id": "prompt_flag", "label": "Prompt flag (-p)" },
+    { "id": "codex_noninteractive", "label": "Codex non-interactive" },
+    { "id": "aider_message", "label": "Message file" },
+    { "id": "legacy_stdin", "label": "Legacy stdin" }
+  ],
+  "runtimes": [
+    {
+      "id": "llm_only",
+      "label": "In-app LLM only",
+      "category": "builtin",
+      "adapter": "builtin",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": []
+    },
+    {
+      "id": "openclaw",
+      "label": "OpenClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "openclaw",
+      "docs_url": "https://openclaw.ai",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "hermes",
+      "label": "Hermes",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "hermes",
+      "docs_url": "https://github.com/NousResearch/hermes-agent",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "ironclaw",
+      "label": "IronClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "ironclaw",
+      "docs_url": "https://github.com/nearai/ironclaw",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "nanoclaw",
+      "label": "NanoClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "nanoclaw",
+      "docs_url": "https://nanoclaw.dev",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "zeroclaw",
+      "label": "ZeroClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "zeroclaw",
+      "docs_url": "https://github.com/zeroclaw-labs/zeroclaw",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "nullclaw",
+      "label": "NullClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "nullclaw",
+      "docs_url": "https://github.com/nullclaw/nullclaw",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "picoclaw",
+      "label": "PicoClaw",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "picoclaw",
+      "docs_url": "https://github.com/sipeed/picoclaw",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "nanobot",
+      "label": "nanobot",
+      "category": "claw",
+      "adapter": "claw_agent_cli",
+      "default_binary": "nanobot",
+      "docs_url": "https://github.com/HKUDS/nanobot",
+      "capabilities": ["gateway", "local_embed", "agent_cli"]
+    },
+    {
+      "id": "grok",
+      "label": "Grok CLI",
+      "category": "platform",
+      "adapter": "grok_headless",
+      "default_binary": "grok",
+      "docs_url": "https://docs.x.ai/build/cli/headless-scripting",
+      "capabilities": ["headless_json"]
+    },
+    {
+      "id": "claude",
+      "label": "Claude Code",
+      "category": "platform",
+      "adapter": "prompt_flag",
+      "default_binary": "claude",
+      "docs_url": "https://docs.anthropic.com/en/docs/claude-code",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "codex",
+      "label": "Codex CLI",
+      "category": "platform",
+      "adapter": "codex_noninteractive",
+      "default_binary": "codex",
+      "docs_url": "https://github.com/openai/codex",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "gemini",
+      "label": "Gemini CLI",
+      "category": "platform",
+      "adapter": "prompt_flag",
+      "default_binary": "gemini",
+      "docs_url": "https://github.com/google-gemini/gemini-cli",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "amazon_q",
+      "label": "Amazon Q Developer",
+      "category": "platform",
+      "adapter": "aider_message",
+      "default_binary": "q",
+      "docs_url": "https://github.com/aws/amazon-q-developer-cli",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "kimi",
+      "label": "Kimi CLI",
+      "category": "platform",
+      "adapter": "prompt_flag",
+      "default_binary": "kimi",
+      "docs_url": "https://github.com/MoonshotAI/kimi-cli",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "qwen",
+      "label": "Qwen Code",
+      "category": "platform",
+      "adapter": "prompt_flag",
+      "default_binary": "qwen",
+      "docs_url": "https://github.com/QwenLM/qwen-code",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "mistral_vibe",
+      "label": "Mistral Vibe",
+      "category": "platform",
+      "adapter": "prompt_flag",
+      "default_binary": "vibe",
+      "docs_url": "https://github.com/mistralai/mistral-vibe",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "opencode",
+      "label": "OpenCode",
+      "category": "opensource",
+      "adapter": "aider_message",
+      "default_binary": "opencode",
+      "docs_url": "https://opencode.ai",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "aider",
+      "label": "Aider",
+      "category": "opensource",
+      "adapter": "aider_message",
+      "default_binary": "aider",
+      "docs_url": "https://aider.chat",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "goose",
+      "label": "Goose",
+      "category": "opensource",
+      "adapter": "aider_message",
+      "default_binary": "goose",
+      "docs_url": "https://github.com/block/goose",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "pi",
+      "label": "Pi",
+      "category": "opensource",
+      "adapter": "aider_message",
+      "default_binary": "pi",
+      "docs_url": "https://github.com/badlogic/pi-mono",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "cline",
+      "label": "Cline CLI",
+      "category": "opensource",
+      "adapter": "prompt_flag",
+      "default_binary": "cline",
+      "docs_url": "https://github.com/cline/cline",
+      "capabilities": ["headless"]
+    },
+    {
+      "id": "custom",
+      "label": "Custom CLI",
+      "category": "custom",
+      "adapter": "custom",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": ["custom"]
+    }
+  ]
+}

@@ -5118,6 +5118,92 @@ body.workspace-resizing {
   color: var(--text-primary);
 }
 
+.command-runtime-status-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+}
+
+.command-runtime-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.command-runtime-status-line strong {
+  font-size: 0.875rem;
+}
+
+.command-runtime-badge--ok,
+.command-runtime-badge--warn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.command-runtime-badge--ok {
+  color: #8fd9a8;
+  background: rgba(72, 160, 104, 0.18);
+  border: 1px solid rgba(72, 160, 104, 0.35);
+}
+
+.command-runtime-badge--warn {
+  color: #f0c27a;
+  background: rgba(200, 140, 48, 0.16);
+  border: 1px solid rgba(200, 140, 48, 0.35);
+}
+
+.command-runtime-installed {
+  margin-top: var(--space-2);
+}
+
+.command-runtime-installed summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.command-runtime-installed-list {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.command-runtime-installed-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+}
+
+.command-runtime-installed-list li.is-available {
+  color: var(--text-primary);
+}
+
+.command-runtime-installed-list li.is-available span {
+  color: #8fd9a8;
+}
+
 .projects-panel--page {
   max-width: 76rem;
   margin: 0 auto;

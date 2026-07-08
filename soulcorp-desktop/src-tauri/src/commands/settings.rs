@@ -58,6 +58,10 @@ pub struct SettingsUpdate {
     pub openclaw_prefer_gateway: Option<bool>,
     pub openclaw_default_agent_id: Option<String>,
     pub openclaw_timeout_secs: Option<u32>,
+    pub agent_runtime_fallback_to_llm: Option<bool>,
+    pub agent_runtime_custom_binary: Option<String>,
+    pub agent_runtime_custom_adapter: Option<String>,
+    pub agent_runtime_allow_cli_env_keys: Option<bool>,
     pub orchestrator_auto_accept_gigs: Option<bool>,
     pub orchestrator_max_active_gigs: Option<u32>,
     pub orchestrator_auto_start_gigs: Option<bool>,
@@ -254,6 +258,18 @@ pub fn update_game_settings(
     }
     if let Some(timeout) = update.openclaw_timeout_secs {
         state.settings.openclaw_timeout_secs = timeout.max(30);
+    }
+    if let Some(enabled) = update.agent_runtime_fallback_to_llm {
+        state.settings.agent_runtime_fallback_to_llm = enabled;
+    }
+    if let Some(path) = update.agent_runtime_custom_binary {
+        state.settings.agent_runtime_custom_binary = path;
+    }
+    if let Some(adapter) = update.agent_runtime_custom_adapter {
+        state.settings.agent_runtime_custom_adapter = adapter;
+    }
+    if let Some(enabled) = update.agent_runtime_allow_cli_env_keys {
+        state.settings.agent_runtime_allow_cli_env_keys = enabled;
     }
     if let Some(enabled) = update.orchestrator_auto_accept_gigs {
         state.settings.orchestrator_auto_accept_gigs = enabled;

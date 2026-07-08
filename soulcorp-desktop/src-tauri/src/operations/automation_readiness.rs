@@ -34,6 +34,17 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
     let orchestrator_on = state.settings.orchestrator_enabled;
     let token_pool = total_company_tokens(&state.token_economy);
     let tokens_ok = token_pool >= state.settings.scrum_min_tokens_guard;
+    let subprocess_runtime = crate::agent_runtime::is_subprocess_runtime(&state.settings.agent_runtime_mode);
+    let runtime_probe = if subprocess_runtime {
+        Some(crate::agent_runtime::probe_active_runtime(&state.settings))
+    } else {
+        None
+    };
+    let runtime_ok = !subprocess_runtime
+        || runtime_probe
+            .as_ref()
+            .map(|probe| probe.binary_available)
+            .unwrap_or(false);
 
     let items = vec![
         AutomationReadinessItem {
@@ -112,9 +123,21 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
                 )
             },
         },
+        AutomationReadinessItem {
+            id: "agent_runtime".into(),
+            label: "Agent runtime".into(),
+            ok: runtime_ok,
+            detail: if !subprocess_runtime {
+                "Using in-app LLM execution.".into()
+            } else if let Some(probe) = runtime_probe.as_ref() {
+                probe.message.clone()
+            } else {
+                "External runtime selected but probe unavailable.".into()
+            },
+        },
     ];
 
-    let ready = items.iter().take(6).all(|item| item.ok) && tokens_ok;
+    let ready = items.iter().take(7).all(|item| item.ok) && tokens_ok && runtime_ok;
 
     AutomationReadiness { items, ready }
 }

@@ -145,6 +145,14 @@ pub struct GameSettings {
     #[serde(default = "default_openclaw_timeout_secs")]
     pub openclaw_timeout_secs: u32,
     #[serde(default = "default_true")]
+    pub agent_runtime_fallback_to_llm: bool,
+    #[serde(default)]
+    pub agent_runtime_custom_binary: String,
+    #[serde(default)]
+    pub agent_runtime_custom_adapter: String,
+    #[serde(default)]
+    pub agent_runtime_allow_cli_env_keys: bool,
+    #[serde(default = "default_true")]
     pub orchestrator_auto_accept_gigs: bool,
     #[serde(default = "default_max_active_gigs")]
     pub orchestrator_max_active_gigs: u32,
@@ -400,6 +408,14 @@ impl<'de> Deserialize<'de> for GameSettings {
             #[serde(default = "default_openclaw_timeout_secs")]
             openclaw_timeout_secs: u32,
             #[serde(default = "default_true")]
+            agent_runtime_fallback_to_llm: bool,
+            #[serde(default)]
+            agent_runtime_custom_binary: String,
+            #[serde(default)]
+            agent_runtime_custom_adapter: String,
+            #[serde(default)]
+            agent_runtime_allow_cli_env_keys: bool,
+            #[serde(default = "default_true")]
             orchestrator_auto_accept_gigs: bool,
             #[serde(default = "default_max_active_gigs")]
             orchestrator_max_active_gigs: u32,
@@ -477,6 +493,10 @@ impl<'de> Deserialize<'de> for GameSettings {
             openclaw_prefer_gateway: helper.openclaw_prefer_gateway,
             openclaw_default_agent_id: helper.openclaw_default_agent_id,
             openclaw_timeout_secs: helper.openclaw_timeout_secs.max(30),
+            agent_runtime_fallback_to_llm: helper.agent_runtime_fallback_to_llm,
+            agent_runtime_custom_binary: helper.agent_runtime_custom_binary,
+            agent_runtime_custom_adapter: helper.agent_runtime_custom_adapter,
+            agent_runtime_allow_cli_env_keys: helper.agent_runtime_allow_cli_env_keys,
             orchestrator_auto_accept_gigs: helper.orchestrator_auto_accept_gigs,
             orchestrator_max_active_gigs: helper.orchestrator_max_active_gigs.max(1),
             orchestrator_auto_start_gigs: helper.orchestrator_auto_start_gigs,
@@ -556,6 +576,10 @@ impl Default for GameSettings {
             openclaw_prefer_gateway: false,
             openclaw_default_agent_id: "main".to_string(),
             openclaw_timeout_secs: 600,
+            agent_runtime_fallback_to_llm: true,
+            agent_runtime_custom_binary: String::new(),
+            agent_runtime_custom_adapter: String::new(),
+            agent_runtime_allow_cli_env_keys: false,
             orchestrator_auto_accept_gigs: true,
             orchestrator_max_active_gigs: 3,
             orchestrator_auto_start_gigs: true,

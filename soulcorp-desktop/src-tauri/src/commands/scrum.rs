@@ -848,16 +848,7 @@ pub struct AutomationStatus {
 #[tauri::command]
 pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<AutomationStatus, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    let openclaw = if let Some(kind) =
-        crate::agent_runtime::claw_kind::ClawRuntimeKind::from_setting(&state.settings.agent_runtime_mode)
-    {
-        crate::agent_runtime::openclaw::probe_claw(&state.settings, kind)
-    } else {
-        crate::agent_runtime::openclaw::probe_claw(
-            &state.settings,
-            crate::agent_runtime::claw_kind::ClawRuntimeKind::OpenClaw,
-        )
-    };
+    let openclaw = crate::agent_runtime::probe_active_runtime(&state.settings);
     Ok(AutomationStatus {
         scrum_worker_last_tick_at: state.scrum_worker.last_tick_at.clone(),
         scrum_worker_log: state.scrum_worker.recent_log.clone(),

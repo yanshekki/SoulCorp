@@ -6,6 +6,7 @@ import { runPhase5ArtAcceptanceTests } from "./phase5ArtAcceptance";
 import { runPhase6StretchAcceptanceTests } from "./phase6StretchAcceptance";
 import { runHkOfficeAcceptanceTests } from "./hkOfficeAcceptance";
 import { runSearchAcceptanceTests } from "./searchAcceptance";
+import { runRuntimeAcceptanceTests } from "./runtimeAcceptance";
 import { runPlacementParityTests } from "./placementParity";
 import {
   bindAgentToDesk,
@@ -70,6 +71,7 @@ export function runAcceptanceTests(): AcceptanceResult[] {
   results.push(...runPhase6StretchAcceptanceTests());
   results.push(...runHkOfficeAcceptanceTests());
   results.push(...runSearchAcceptanceTests());
+  results.push(...runRuntimeAcceptanceTests());
 
   const automated = GAME_DESIGN_CHECKLIST.filter((item) => item.automated).length;
   results.push(
