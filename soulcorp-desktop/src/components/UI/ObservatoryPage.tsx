@@ -33,7 +33,7 @@ export function ObservatoryPage() {
     <AppPageShell
       title="Observatory"
       subtitle="Watch agents think, plan, and execute in real time"
-      badge={activeCount > 0 ? `${activeCount} live` : undefined}
+      badge={activeCount > 0 ? `Step 6 · ${activeCount} live` : "Step 6"}
       navItems={OBSERVATORY_SECTIONS.map((section) => ({
         id: section.id,
         label: section.label,

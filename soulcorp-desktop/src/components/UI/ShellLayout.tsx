@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
 import { appTagline, showPauseMenu, showTierPanel } from "../../config/features";
-import { getNavGroups, getNextWorkflowPanel, IMMERSIVE_PANELS } from "../../config/navigation";
+import { getNextWorkflowPanel, IMMERSIVE_PANELS } from "../../config/navigation";
+import { AppHeaderNav } from "./AppHeaderNav";
 import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Dashboard } from "./Dashboard";
@@ -159,12 +160,9 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
   const togglePause = useGameStore((state) => state.togglePause);
   const isPaused = useGameStore((state) => state.isPaused);
   const activePanel = useGameStore((state) => state.activePanel);
-  const setActivePanel = useGameStore((state) => state.setActivePanel);
   const worldView = useGameStore((state) => state.worldView);
   const inspectorExpanded = useGameStore((state) => state.inspectorExpanded);
   const setInspectorExpanded = useGameStore((state) => state.setInspectorExpanded);
-  const navGroups = getNavGroups();
-
   const immersiveInterior = worldView === "interior" && activePanel === "office";
   const immersiveStage = IMMERSIVE_PANELS.has(activePanel) || immersiveInterior;
   const inspectorDrawerOpen = immersiveInterior && inspectorExpanded;
@@ -193,38 +191,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
           </div>
         </div>
         <div className="app-topbar-row app-topbar-row-nav">
-          <nav className="app-nav" aria-label="Main navigation">
-            {navGroups.map((group) => (
-              <div
-                key={group.label}
-                className={`nav-group${group.isWorkflow ? " nav-group--workflow" : ""}`}
-                role="group"
-                aria-label={group.label}
-              >
-                <span className="nav-group-label">{group.label}</span>
-                {group.panels.map((panel, panelIndex) => (
-                  <span key={panel.id} className="nav-item-wrap">
-                    {group.isWorkflow && panelIndex > 0 ? (
-                      <span className="nav-flow-connector" aria-hidden="true">
-                        →
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      className={`nav-btn${activePanel === panel.id ? " active" : ""}${panel.workflowStep != null ? " nav-btn--workflow" : ""}`}
-                      onClick={() => setActivePanel(panel.id)}
-                      title={panel.workflowHint}
-                    >
-                      {panel.workflowStep != null ? (
-                        <span className="nav-btn-step">{panel.workflowStep}</span>
-                      ) : null}
-                      {panel.label}
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ))}
-          </nav>
+          <AppHeaderNav />
         </div>
       </header>
 

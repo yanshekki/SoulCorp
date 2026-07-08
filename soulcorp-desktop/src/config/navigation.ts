@@ -10,7 +10,7 @@ import {
 export interface NavPanel {
   id: SidebarPanel;
   label: string;
-  /** Step number within the CEO workflow (1–7). */
+  /** Step number within the CEO workflow (1–8). */
   workflowStep?: number;
   /** Short action hint shown in nav tooltips / ribbon. */
   workflowHint?: string;
@@ -49,14 +49,14 @@ const V1_NAV_GROUPS: NavGroup[] = [
       { id: "departments", label: "Departments", workflowHint: "Org structure" },
       { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
       { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
-      { id: "observatory", label: "Observatory", workflowHint: "Live agent minds" },
-      { id: "finance", label: "Tokens", workflowStep: 6, workflowHint: "Manage budget" },
+      { id: "observatory", label: "Observatory", workflowStep: 6, workflowHint: "Live agent minds" },
+      { id: "finance", label: "Tokens", workflowStep: 7, workflowHint: "Manage budget" },
     ],
   },
   {
     label: "Growth",
     panels: [
-      { id: "marketplace", label: "Marketplace", workflowStep: 7, workflowHint: "Earn revenue" },
+      { id: "marketplace", label: "Marketplace", workflowStep: 8, workflowHint: "Earn revenue" },
     ],
   },
   {
@@ -85,14 +85,14 @@ const V2_NAV_GROUPS: NavGroup[] = [
       { id: "departments", label: "Departments", workflowHint: "Org structure" },
       { id: "recruitment", label: "Recruitment", workflowStep: 4, workflowHint: "Hire agents" },
       { id: "agents", label: "Agent Brains", workflowStep: 5, workflowHint: "Configure AI" },
-      { id: "observatory", label: "Observatory", workflowHint: "Live agent minds" },
-      { id: "finance", label: "Tokens", workflowStep: 6, workflowHint: "Manage budget" },
+      { id: "observatory", label: "Observatory", workflowStep: 6, workflowHint: "Live agent minds" },
+      { id: "finance", label: "Tokens", workflowStep: 7, workflowHint: "Manage budget" },
     ],
   },
   {
     label: "Growth",
     panels: [
-      { id: "marketplace", label: "Marketplace", workflowStep: 7, workflowHint: "Earn revenue" },
+      { id: "marketplace", label: "Marketplace", workflowStep: 8, workflowHint: "Earn revenue" },
     ],
   },
   {

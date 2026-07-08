@@ -154,8 +154,9 @@ select optgroup {
 }
 
 .app-topbar-row-nav {
-  padding: 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
   overflow: hidden;
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-inset) 100%);
 }
 
 .app-brand {
@@ -211,14 +212,14 @@ select optgroup {
 
 .app-nav {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  align-items: stretch;
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  padding: var(--space-2) var(--space-2);
+  padding: 0;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
 }
@@ -235,39 +236,48 @@ select optgroup {
 .nav-group {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   flex-shrink: 0;
-  padding-right: var(--space-2);
-  border-right: 1px solid var(--border-subtle);
-}
-
-.nav-group:last-child {
-  border-right: none;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
 }
 
 .nav-group-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
   flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.nav-group-items {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: nowrap;
 }
 
 .nav-btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
-  padding: var(--space-2) var(--space-3);
+  padding: 0.35rem 0.55rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .nav-btn:hover {
@@ -279,24 +289,23 @@ select optgroup {
   background: var(--accent-muted);
   border-color: var(--accent-border);
   color: var(--accent-hover);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
-.nav-btn--workflow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+.nav-btn--workflow .nav-btn-label {
+  font-weight: 600;
 }
 
 .nav-btn-step {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.2rem;
+  height: 1.2rem;
   border-radius: var(--radius-pill);
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   font-weight: 700;
   color: var(--text-muted);
   flex-shrink: 0;
@@ -308,23 +317,51 @@ select optgroup {
   color: var(--bg-root);
 }
 
+.nav-btn-label {
+  line-height: 1.1;
+}
+
+.nav-btn-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.1rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(125, 255, 178, 0.12);
+  border: 1px solid rgba(125, 255, 178, 0.3);
+  color: #7dffb2;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nav-btn-live-dot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: #7dffb2;
+  animation: observatory-pulse 1.2s ease-in-out infinite;
+}
+
 .nav-group--workflow {
-  padding-right: var(--space-3);
+  border-color: var(--accent-border);
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--accent-muted) 140%);
 }
 
 .nav-item-wrap {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 0.15rem;
   flex-shrink: 0;
 }
 
 .nav-flow-connector {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  opacity: 0.55;
+  opacity: 0.45;
   user-select: none;
-  padding: 0 1px;
+  padding: 0 0.05rem;
 }
 
 .workflow-step-badge {
@@ -2488,12 +2525,20 @@ body.workspace-resizing {
     display: none;
   }
 
+  .nav-group {
+    padding: var(--space-1);
+  }
+
   .nav-group-label {
     display: none;
   }
 
   .nav-flow-connector {
     display: none;
+  }
+
+  .nav-btn-label {
+    font-size: 0.72rem;
   }
 }
 

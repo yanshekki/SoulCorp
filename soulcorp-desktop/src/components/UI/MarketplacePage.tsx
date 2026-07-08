@@ -14,7 +14,7 @@ export function MarketplacePage() {
     <AppPageShell
       title="Marketplace"
       subtitle="Gigs, contracts, payouts"
-      badge="Step 7"
+      badge="Step 8"
       navItems={MARKETPLACE_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}

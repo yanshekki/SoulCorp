@@ -14,7 +14,7 @@ export function TokensPage() {
     <AppPageShell
       title="Tokens"
       subtitle="Pool, wallets, usage"
-      badge="Step 6"
+      badge="Step 7"
       navItems={TOKENS_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
       onNavSelect={scrollToSection}
