@@ -6,6 +6,8 @@ import { EXECUTION_LOG_PAGE_SIZE, paginateItems } from "../../../utils/paginatio
 import { openWorkspacePage } from "../../../utils/openWorkspacePage";
 import { PaginationBar } from "../PaginationBar";
 import { SearchableListToolbar } from "../SearchableListToolbar";
+import { useGameStore } from "../../../stores/gameStore";
+import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { ExecutionRunDetailModal } from "./ExecutionRunDetailModal";
 
 interface ExecutionLogSectionProps {
@@ -30,6 +32,11 @@ export function ExecutionLogSection({
   agentLabels,
   onApprove,
 }: ExecutionLogSectionProps) {
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
+  const selectSession = useAgentActivityStore((state) => state.selectSession);
+  const selectAgent = useAgentActivityStore((state) => state.selectAgent);
+  const setFilterAgent = useAgentActivityStore((state) => state.setFilterAgent);
+  const sessions = useAgentActivityStore((state) => state.sessions);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [listPage, setListPage] = useState(0);
@@ -138,6 +145,9 @@ export function ExecutionLogSection({
             const agentName = agentLabels.get(run.agent_id) ?? run.agent_id;
             const title = workNode?.title ?? run.work_node_id;
             const preview = run.summary || run.error || "No summary recorded.";
+            const liveSession = sessions.find(
+              (session) => session.run_id === run.id && session.status === "active",
+            );
             return (
               <li key={run.id}>
                 <button
@@ -149,6 +159,9 @@ export function ExecutionLogSection({
                     <span className={`execution-run-status execution-run-status--${run.status}`}>
                       {run.status}
                     </span>
+                    {run.status === "running" || liveSession ? (
+                      <span className="observatory-live-pill inline">LIVE</span>
+                    ) : null}
                     <strong>{title}</strong>
                     <span className="muted">
                       {agentName} · ~{run.actual_tokens || run.estimated_tokens} tokens
@@ -156,6 +169,22 @@ export function ExecutionLogSection({
                   </div>
                   <p className="projects-execution-preview muted">{preview}</p>
                   <span className="projects-execution-meta muted">{formatRunWhen(run)}</span>
+                  {liveSession ? (
+                    <span
+                      className="projects-execution-watch"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectAgent(run.agent_id);
+                        setFilterAgent(run.agent_id);
+                        selectSession(liveSession.id);
+                        setActivePanel("observatory");
+                      }}
+                      onKeyDown={() => undefined}
+                      role="presentation"
+                    >
+                      Watch stream →
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );

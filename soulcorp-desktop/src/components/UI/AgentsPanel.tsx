@@ -18,6 +18,7 @@ import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 import { AgentRuntimeSection } from "./command-center/AgentRuntimeSection";
 import { EffectiveBrainPill } from "./brain/EffectiveBrainPill";
+import { AgentActivityPill } from "./observatory/AgentActivityPill";
 import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
 import { MeetingBrainPicker } from "./brain/MeetingBrainPicker";
 import {
@@ -603,6 +604,16 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                         {agent.agent_kind === "fate" ? (
                           <span className="fate-agent-badge"> · Fate</span>
                         ) : null}
+                        <AgentActivityPill
+                          agentId={agent.id}
+                          onClick={() => {
+                            setActivePanel("observatory");
+                            document.getElementById("observatory")?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            });
+                          }}
+                        />
                       </strong>
                       <div className="agents-effective-pill-row">
                         <EffectiveBrainPill

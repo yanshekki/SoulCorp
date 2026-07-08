@@ -1,9 +1,11 @@
+use super::run_subprocess_for_agent;
+use crate::agent_activity::ActivityRunContext;
 use crate::agent_runtime::security::{self, SubprocessRequest};
 use crate::agent_runtime::task_prompt::build_compact_prompt;
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
 use crate::scrum::types::WorkNode;
-use crate::state::{AgentRecord, GameSettings};
+use crate::state::{AgentRecord, AppState, GameSettings};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -14,12 +16,14 @@ pub fn probe_prompt_flag(entry: &RuntimeCatalogEntry, settings: &GameSettings) -
 }
 
 pub fn execute_prompt_flag(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let binary = security::resolve_binary(
         &settings.openclaw_binary_path,
@@ -36,7 +40,7 @@ pub fn execute_prompt_flag(
     let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary,
         args: vec![
             "-p".to_string(),
@@ -48,7 +52,8 @@ pub fn execute_prompt_flag(
         stdin: None,
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     finish_plain_output(entry, output)
 }
@@ -58,12 +63,14 @@ pub fn probe_codex(entry: &RuntimeCatalogEntry, settings: &GameSettings) -> Runt
 }
 
 pub fn execute_codex(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let binary = security::resolve_binary(
         &settings.openclaw_binary_path,
@@ -80,14 +87,15 @@ pub fn execute_codex(
     let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary,
         args: vec!["exec".to_string(), prompt],
         cwd: workspace_root.map(|p| p.to_path_buf()),
         stdin: None,
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     finish_plain_output(entry, output)
 }
@@ -97,12 +105,14 @@ pub fn probe_message_file(entry: &RuntimeCatalogEntry, settings: &GameSettings) 
 }
 
 pub fn execute_message_file(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let binary = security::resolve_binary(
         &settings.openclaw_binary_path,
@@ -123,7 +133,7 @@ pub fn execute_message_file(
     fs::write(&message_path, prompt).map_err(|e| e.to_string())?;
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary,
         args: vec![
             "--message-file".to_string(),
@@ -134,7 +144,8 @@ pub fn execute_message_file(
         stdin: None,
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     let _ = fs::remove_dir_all(&temp_dir);
     finish_plain_output(entry, output)
@@ -145,15 +156,25 @@ pub fn probe_legacy_stdin(entry: &RuntimeCatalogEntry, settings: &GameSettings) 
 }
 
 pub fn execute_legacy_stdin(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     crate::agent_runtime::adapters::claw::execute(
-        entry, settings, "", task, agent, project_title, workspace_root,
+        state,
+        entry,
+        settings,
+        "",
+        task,
+        agent,
+        project_title,
+        workspace_root,
+        activity,
     )
 }
 

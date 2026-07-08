@@ -71,6 +71,9 @@ pub struct SettingsUpdate {
     pub hub_auto_pull_interval_secs: Option<u32>,
     pub orchestrator_auto_complete_gigs: Option<bool>,
     pub orchestrator_auto_recruit: Option<bool>,
+    pub agent_activity_stream_enabled: Option<bool>,
+    pub agent_activity_persist_stream: Option<bool>,
+    pub agent_activity_max_events: Option<u32>,
 }
 
 #[tauri::command]
@@ -297,6 +300,15 @@ pub fn update_game_settings(
     }
     if let Some(enabled) = update.orchestrator_auto_recruit {
         state.settings.orchestrator_auto_recruit = enabled;
+    }
+    if let Some(enabled) = update.agent_activity_stream_enabled {
+        state.settings.agent_activity_stream_enabled = enabled;
+    }
+    if let Some(enabled) = update.agent_activity_persist_stream {
+        state.settings.agent_activity_persist_stream = enabled;
+    }
+    if let Some(max) = update.agent_activity_max_events {
+        state.settings.agent_activity_max_events = max.clamp(100, 1000);
     }
 
     let settings = state.settings.clone();

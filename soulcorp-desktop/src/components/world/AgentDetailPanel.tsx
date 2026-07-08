@@ -1,4 +1,5 @@
 import { useGameStore } from "../../stores/gameStore";
+import { useAgentActivityStore } from "../../stores/agentActivityStore";
 import { openAgentWorkspace } from "../../utils/openWorkspacePage";
 import { hasMoraleDecorNearby } from "../../utils/furnitureInteractions";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
@@ -81,6 +82,16 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
           onClick={() => void openAgentWorkspace(record.id, record.name)}
         >
           Open Workspace
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            useAgentActivityStore.getState().selectAgent(record.id);
+            useAgentActivityStore.getState().setFilterAgent(record.id);
+            useGameStore.getState().setActivePanel("observatory");
+          }}
+        >
+          View mind stream
         </button>
       </div>
 

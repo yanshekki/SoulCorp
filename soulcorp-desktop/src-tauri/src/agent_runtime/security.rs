@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -66,7 +66,21 @@ pub fn resolve_binary(
     ))
 }
 
+pub fn run_subprocess_observed(
+    request: &SubprocessRequest,
+    on_line: &mut dyn FnMut(&str, &str),
+) -> Result<SubprocessOutput, String> {
+    run_subprocess_inner(request, Some(on_line))
+}
+
 pub fn run_subprocess(request: &SubprocessRequest) -> Result<SubprocessOutput, String> {
+    run_subprocess_inner(request, None)
+}
+
+fn run_subprocess_inner(
+    request: &SubprocessRequest,
+    mut on_line: Option<&mut dyn FnMut(&str, &str)>,
+) -> Result<SubprocessOutput, String> {
     let binary = validate_binary_path(&request.binary)?;
     let started = Instant::now();
 
@@ -86,7 +100,73 @@ pub fn run_subprocess(request: &SubprocessRequest) -> Result<SubprocessOutput, S
         command.env(key, value);
     }
 
-    let output = if let Some(stdin_body) = &request.stdin {
+    let output = if let Some(callback) = on_line.as_mut() {
+        let mut child = command
+            .stdin(if request.stdin.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
+            .spawn()
+            .map_err(|e| format!("Failed to spawn {binary}: {e}"))?;
+
+        if let Some(stdin_body) = &request.stdin {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(stdin_body.as_bytes())
+                    .map_err(|e| format!("Stdin write failed for {binary}: {e}"))?;
+            }
+        }
+
+        let mut stdout_text = String::new();
+        let mut stderr_text = String::new();
+
+        if let Some(stdout_pipe) = child.stdout.take() {
+            let mut reader = BufReader::new(stdout_pipe);
+            let mut line = String::new();
+            loop {
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        callback("stdout", line.trim_end());
+                        stdout_text.push_str(&line);
+                    }
+                    Err(error) => {
+                        return Err(format!("Failed reading {binary} stdout: {error}"));
+                    }
+                }
+            }
+        }
+
+        if let Some(stderr_pipe) = child.stderr.take() {
+            let mut reader = BufReader::new(stderr_pipe);
+            let mut line = String::new();
+            loop {
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        callback("stderr", line.trim_end());
+                        stderr_text.push_str(&line);
+                    }
+                    Err(error) => {
+                        return Err(format!("Failed reading {binary} stderr: {error}"));
+                    }
+                }
+            }
+        }
+
+        let status = child
+            .wait()
+            .map_err(|e| format!("Failed waiting for {binary}: {e}"))?;
+
+        std::process::Output {
+            status,
+            stdout: stdout_text.into_bytes(),
+            stderr: stderr_text.into_bytes(),
+        }
+    } else if let Some(stdin_body) = &request.stdin {
         let mut child = command
             .stdin(Stdio::piped())
             .spawn()

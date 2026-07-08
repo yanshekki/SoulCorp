@@ -9,6 +9,7 @@ import { Dashboard } from "./Dashboard";
 import { PauseMenu } from "./PauseMenu";
 import { TierPanel } from "./TierPanel";
 import { TestModeButton } from "./TestModeButton";
+import { ObservatoryGlobalPill } from "./observatory/ObservatoryGlobalPill";
 
 interface ShellLayoutProps {
   children: ReactNode;
@@ -102,6 +103,13 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
         <section className="panel-card agents-guide">
           <h2>Agent Brains</h2>
           <p className="muted">LLM config per agent & department.</p>
+        </section>
+      );
+    case "observatory":
+      return (
+        <section className="panel-card observatory-guide">
+          <h2>Observatory</h2>
+          <p className="muted">Live work & thought streams for every agent.</p>
         </section>
       );
     case "tier":
@@ -268,6 +276,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
 
       <footer className="app-statusbar">
         <TestModeButton />
+        <ObservatoryGlobalPill />
         <span className="status-message">{statusMessage}</span>
       </footer>
 

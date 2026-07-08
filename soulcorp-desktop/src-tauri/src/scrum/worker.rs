@@ -68,15 +68,15 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
     };
 
     if state.company_id.is_empty() {
-        push_worker_log(state, &["Worker tick skipped: no active company.".into()]);
+        push_worker_log(state, app, &["Worker tick skipped: no active company.".into()]);
         return report;
     }
     if !state.settings.scrum_worker_enabled {
-        push_worker_log(state, &["Worker tick skipped: scrum worker disabled.".into()]);
+        push_worker_log(state, app, &["Worker tick skipped: scrum worker disabled.".into()]);
         return report;
     }
     if state.settings.scrum_execution_paused {
-        push_worker_log(state, &["Worker tick skipped: execution paused.".into()]);
+        push_worker_log(state, app, &["Worker tick skipped: execution paused.".into()]);
         return report;
     }
 
@@ -94,12 +94,12 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
             state.settings.scrum_min_tokens_guard
         );
         report.messages.push(msg.clone());
-        push_worker_log(state, &[msg]);
+        push_worker_log(state, app, &[msg]);
     }
     if state.token_economy.company_starved {
         let msg = "Finance alert: company starved — agents may be throttled.".to_string();
         report.messages.push(msg.clone());
-        push_worker_log(state, &[msg]);
+        push_worker_log(state, app, &[msg]);
     }
 
     seed_default_org_links(state);
@@ -235,14 +235,15 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
 
     update_directive_lifecycle(state);
     crate::operations::sync_agent_visual_state(state);
-    push_worker_log(state, &report.messages);
+    push_worker_log(state, app, &report.messages);
     state.scrum_worker.last_tick_at = Some(report.timestamp.clone());
     report
 }
 
-fn push_worker_log(state: &mut AppState, messages: &[String]) {
+fn push_worker_log(state: &mut AppState, app: &AppHandle, messages: &[String]) {
     for msg in messages {
         state.scrum_worker.recent_log.push(msg.clone());
+        crate::agent_activity::emit_worker_message(state, Some(app), msg);
     }
     while state.scrum_worker.recent_log.len() > 30 {
         state.scrum_worker.recent_log.remove(0);

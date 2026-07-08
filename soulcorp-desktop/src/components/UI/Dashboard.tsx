@@ -3,8 +3,10 @@ import { useGameStore } from "../../stores/gameStore";
 import { totalCompanyTokens } from "../../utils/companyState";
 import { agentInnovationScore, agentSkillLevel } from "../../utils/agentStats";
 import { EventFeed } from "./EventFeed";
+import { AgentActivityPill } from "./observatory/AgentActivityPill";
 
 export function Dashboard() {
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
   const agents = useGameStore((state) => state.agents);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const simulation = useGameStore((state) => state.simulation);
@@ -55,6 +57,10 @@ export function Dashboard() {
                 {agentSkillLevel(agent)} · innovation {agentInnovationScore(agent)}
               </p>
             </div>
+            <AgentActivityPill
+              agentId={agent.id}
+              onClick={() => setActivePanel("observatory")}
+            />
             <span className="agent-state">{agent.status}</span>
           </div>
         ))}
@@ -68,6 +74,10 @@ export function Dashboard() {
                   {agent.department} · {agent.statusLabel}
                 </p>
               </div>
+              <AgentActivityPill
+                agentId={agent.id}
+                onClick={() => setActivePanel("observatory")}
+              />
             </div>
           ))}
       </div>

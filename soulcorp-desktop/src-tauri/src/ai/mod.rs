@@ -5,6 +5,7 @@ pub mod ollama;
 pub mod openai_compatible;
 pub mod provider;
 pub mod selection;
+pub mod streaming;
 pub mod token_estimate;
 
 pub use health::{probe_agent_ai, probe_meeting_ai, MeetingAiStatus};

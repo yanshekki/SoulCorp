@@ -650,7 +650,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               </div>
             </div>
             <div className="command-automation-log command-panel-block">
-              <h4 className="command-panel-heading">Automation activity</h4>
+              <div className="command-panel-heading-row">
+                <h4 className="command-panel-heading">Automation activity</h4>
+                <button
+                  type="button"
+                  className="command-inline-link"
+                  onClick={() => useGameStore.getState().setActivePanel("observatory")}
+                >
+                  Open Observatory
+                </button>
+              </div>
               <dl className="command-automation-meta">
                 <div className="command-automation-meta-item">
                   <dt>Directives issued</dt>

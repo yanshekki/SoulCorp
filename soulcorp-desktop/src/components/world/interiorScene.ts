@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agentActivityRuntimeRef } from "../../stores/agentActivityStore";
 import { getCatalogEntry } from "../../data/furnitureCatalog";
 import type { Agent, Building } from "../../types/world";
 import type { AgentRecord } from "../../types/game";
@@ -991,7 +992,10 @@ export function createInteriorScene(
     },
     tick(_delta, agents) {
       const phase = performance.now() * 0.004;
-      const working = agents.filter((agent) => agent.status === "working");
+      const working = agents.filter(
+        (agent) =>
+          agent.status === "working" || agentActivityRuntimeRef.activeAgentIds.has(agent.id),
+      );
       const worldPos = new THREE.Vector3();
 
       if (!visualStyle.clarityMode && shellMeta && interiorWalls.length > 0) {
@@ -1052,13 +1056,14 @@ export function createInteriorScene(
           applyStylizedAgentAnimation(visual.mesh, agent, phase, true);
         }
 
-        const bob =
-          agent.status === "working"
-            ? Math.sin(phase * 2.2) * 0.03
-            : Math.sin(phase * 1.5) * 0.018;
+        const thinking =
+          agent.status === "working" || agentActivityRuntimeRef.activeAgentIds.has(agent.id);
+        const bob = thinking
+          ? Math.sin(phase * 2.2) * 0.03
+          : Math.sin(phase * 1.5) * 0.018;
         visual.group.position.y = baseY + bob;
 
-        if (agent.status === "working") {
+        if (thinking) {
           const lastBurst = (visual.group.userData.lastBurstAt as number | undefined) ?? 0;
           if (now - lastBurst > 2400) {
             const burstColor = agent.department === "Engineering" ? "#9be7ff" : "#ffd98a";

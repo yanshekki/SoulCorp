@@ -10,6 +10,7 @@ pub mod types;
 pub use registry::{active_runtime, catalog, is_subprocess_runtime, runtime_by_id};
 pub use types::{RuntimeCatalog, RuntimeProbe, RuntimeProbeSummary, RuntimeResult};
 
+use crate::agent_activity::ActivityRunContext;
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState};
 
@@ -39,6 +40,7 @@ pub fn execute_for_task(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<std::path::PathBuf>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<String, String> {
     let runtime_id = crate::brain::resolve_execution_runtime(
         &state.settings,
@@ -56,27 +58,33 @@ pub fn execute_for_task(
                     agent,
                     project_title,
                     workspace_root.as_deref(),
+                    activity,
                 )
             } else {
-                llm::execute_llm_only(state, task, agent, project_title)
+                llm::execute_llm_only(state, task, agent, project_title, activity)
             }
         }
         AgentRuntimeMode::Subprocess => {
+            let settings = state.settings.clone();
+            let company_id = state.company_id.clone();
+            let activity_for_fallback = activity.clone();
             match adapters::execute_runtime_for_id(
+                Some(state),
                 &runtime_id,
-                &state.settings,
-                &state.company_id,
+                &settings,
+                &company_id,
                 task,
                 agent,
                 project_title,
                 workspace_root.as_deref(),
+                activity,
             ) {
                 Ok(result) => Ok(result.content),
                 Err(err) => {
                     let label = crate::brain::effective_execution_label(&runtime_id);
-                    if state.settings.agent_runtime_fallback_to_llm {
+                    if settings.agent_runtime_fallback_to_llm {
                         eprintln!("{label} runtime failed ({err}); falling back to LLM.");
-                        llm::execute_llm_only(state, task, agent, project_title)
+                        llm::execute_llm_only(state, task, agent, project_title, activity_for_fallback)
                     } else {
                         Err(err)
                     }

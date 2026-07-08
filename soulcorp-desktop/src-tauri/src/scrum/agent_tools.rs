@@ -1,9 +1,15 @@
 use super::types::WorkNode;
+use crate::agent_activity::{
+    emit_step_complete, emit_step_start, ActivityRunContext,
+};
 use crate::agent_runtime::detached::{DetachedExecutionResult, DetachedRuntimeContext};
 use crate::ai::provider::ChatRequest;
+use crate::ai::streaming::{chat_stream_billed, StreamContext};
 use crate::ai::{self, BilledChatRequest};
 use crate::soul::build_chat_parts_for_agent;
 use crate::state::{AgentRecord, AppState};
+use std::sync::Mutex;
+use tauri::Manager;
 use crate::workspace::{
     agent_service::{format_workspace_context_for_prompt, AgentContext, AgentWorkspaceService},
     WorkspaceStorage,
@@ -229,12 +235,15 @@ pub(crate) fn persist_task_deliverable_note(
 }
 
 /// Multi-step agent execution: plan → draft → refine before returning final deliverable.
+const STEP_NAMES: [&str; 3] = ["plan", "draft", "refine"];
+
 pub fn execute_with_tools(
     state: &mut AppState,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<String, String> {
     let ac = if task.acceptance_criteria.is_empty() {
         "Meet the task objective with clear, actionable output.".to_string()
@@ -298,17 +307,47 @@ pub fn execute_with_tools(
         };
 
         let dept_providers = state.department_ai_providers.clone();
-        let response = ai::chat_with_fallback_billed(
-            state,
-            BilledChatRequest {
-                request,
-                agent_id: agent.id.clone(),
-                department: agent.department.clone(),
-                source: format!("work_execution_tool_{}", index + 1),
-            },
-            &dept_providers,
-            agent.ai_provider.as_deref(),
-        )?;
+        let step_name = STEP_NAMES.get(index).copied().unwrap_or("step");
+        let billed = BilledChatRequest {
+            request,
+            agent_id: agent.id.clone(),
+            department: agent.department.clone(),
+            source: format!("work_execution_tool_{}", index + 1),
+        };
+
+        let response = if let Some(ref ctx) = activity {
+            emit_step_start(state, Some(&ctx.app), &ctx.session_id, &agent.id, step_name);
+            let session_id = ctx.session_id.as_str();
+            let mut stream_ctx = StreamContext {
+                state,
+                app: Some(&ctx.app),
+                session_id,
+                agent_id: &agent.id,
+                step: Some(step_name),
+            };
+            let response = chat_stream_billed(
+                &mut stream_ctx,
+                billed,
+                &dept_providers,
+                agent.ai_provider.as_deref(),
+            )?;
+            emit_step_complete(
+                stream_ctx.state,
+                Some(&ctx.app),
+                session_id,
+                &agent.id,
+                step_name,
+                &response.content,
+            );
+            response
+        } else {
+            ai::chat_with_fallback_billed(
+                state,
+                billed,
+                &dept_providers,
+                agent.ai_provider.as_deref(),
+            )?
+        };
 
         transcript.push_str(&response.content);
         transcript.push_str("\n---\n");
@@ -351,6 +390,7 @@ pub fn execute_with_tools_detached(
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
+    activity: Option<ActivityRunContext>,
 ) -> Result<DetachedExecutionResult, String> {
     let ac = if task.acceptance_criteria.is_empty() {
         "Meet the task objective with clear, actionable output.".to_string()
@@ -395,6 +435,19 @@ pub fn execute_with_tools_detached(
     let mut charges = Vec::new();
 
     for (index, step_template) in steps.iter().enumerate().take(MAX_TOOL_STEPS) {
+        let step_name = STEP_NAMES.get(index).copied().unwrap_or("step");
+        if let Some(ref act) = activity {
+            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock() {
+                emit_step_start(
+                    &mut state,
+                    Some(&act.app),
+                    &act.session_id,
+                    &agent.id,
+                    step_name,
+                );
+            }
+        }
+
         let user_prompt = match index {
             0 => step_template.clone(),
             1 => {
@@ -436,9 +489,23 @@ pub fn execute_with_tools_detached(
             charges.push(charge);
         }
 
+        let step_content = response.content.clone();
+        if let Some(ref act) = activity {
+            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock() {
+                emit_step_complete(
+                    &mut state,
+                    Some(&act.app),
+                    &act.session_id,
+                    &agent.id,
+                    step_name,
+                    &step_content,
+                );
+            }
+        }
+
         match index {
             0 => {
-                plan = response.content.clone();
+                plan = step_content;
                 if let Some(execution) = workspace_exec.as_ref() {
                     persist_execution_note(
                         execution,
@@ -450,7 +517,7 @@ pub fn execute_with_tools_detached(
                 }
             }
             1 => {
-                draft = response.content.clone();
+                draft = step_content;
                 if let Some(execution) = workspace_exec.as_ref() {
                     persist_execution_note(
                         execution,
@@ -463,7 +530,7 @@ pub fn execute_with_tools_detached(
             }
             2 => {
                 return Ok(DetachedExecutionResult {
-                    content: response.content,
+                    content: step_content,
                     provider: last_provider,
                     charge: charges.last().cloned(),
                 });

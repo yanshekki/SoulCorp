@@ -10,6 +10,7 @@ export type SidebarPanel =
   | "departments"
   | "recruitment"
   | "agents"
+  | "observatory"
   | "tier"
   | "executive"
   | "achievements"
@@ -741,6 +742,9 @@ export interface GameSettings {
   hub_auto_pull_interval_secs?: number;
   orchestrator_auto_complete_gigs?: boolean;
   orchestrator_auto_recruit?: boolean;
+  agent_activity_stream_enabled?: boolean;
+  agent_activity_persist_stream?: boolean;
+  agent_activity_max_events?: number;
 }
 
 export interface AutomationReadinessItem {

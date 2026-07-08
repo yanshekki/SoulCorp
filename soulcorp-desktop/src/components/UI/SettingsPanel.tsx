@@ -714,6 +714,47 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
           )}
         </SettingsCard>
 
+        <SettingsCard
+          id="observatory"
+          title="Observatory"
+          description="Live thought streams and activity history for agent work."
+        >
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={settings.agent_activity_stream_enabled ?? true}
+              onChange={(event) =>
+                void updateSettings({ agent_activity_stream_enabled: event.target.checked })
+              }
+            />
+            <span>Enable live thought stream (token-level when supported)</span>
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={settings.agent_activity_persist_stream ?? true}
+              onChange={(event) =>
+                void updateSettings({ agent_activity_persist_stream: event.target.checked })
+              }
+            />
+            <span>Persist stream events to company history</span>
+          </label>
+          <label className="field-label">
+            Max activity events retained
+            <input
+              type="number"
+              min={100}
+              max={1000}
+              value={settings.agent_activity_max_events ?? 500}
+              onChange={(event) =>
+                void updateSettings({
+                  agent_activity_max_events: Number(event.target.value),
+                })
+              }
+            />
+          </label>
+        </SettingsCard>
+
         <SettingsCard id="meetings" title="Meetings" description="Turn limits and LLM fallback behavior.">
           <label className="field-label">
             Meeting turns per agent

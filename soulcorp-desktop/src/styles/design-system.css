@@ -7888,3 +7888,251 @@ body.workspace-resizing {
   }
 }
 
+/* ── Observatory (agent thought & work visualization) ── */
+
+.observatory-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.observatory-kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.observatory-kpi-strip article {
+  flex: 1 1 7rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.observatory-kpi-strip article span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.observatory-kpi-strip article strong {
+  font-size: 1.35rem;
+}
+
+.observatory-clear-filter {
+  align-self: center;
+  margin-left: auto;
+}
+
+.observatory-columns {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.9fr) minmax(14rem, 1.1fr) minmax(16rem, 1.4fr);
+  gap: var(--space-4);
+  min-height: 28rem;
+}
+
+.observatory-grid,
+.observatory-timeline,
+.observatory-stream {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  padding: var(--space-3);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.observatory-grid-list,
+.observatory-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.observatory-grid-card,
+.observatory-timeline-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.observatory-grid-card.is-selected,
+.observatory-timeline-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.observatory-grid-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.observatory-status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.observatory-status-dot--working,
+.observatory-status-dot--meeting {
+  background: var(--accent);
+  animation: observatory-pulse 1.4s ease-in-out infinite;
+}
+
+.observatory-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7dffb2;
+  border: 1px solid rgba(125, 255, 178, 0.35);
+  background: rgba(125, 255, 178, 0.08);
+  border-radius: var(--radius-pill);
+  padding: 0.1rem 0.45rem;
+}
+
+.observatory-live-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #7dffb2;
+  animation: observatory-pulse 1.2s ease-in-out infinite;
+}
+
+.observatory-stream-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.observatory-stream-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.observatory-stream-tabs button {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-control);
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+}
+
+.observatory-stream-tabs button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.observatory-stream-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.observatory-stream-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.observatory-stream-text--terminal {
+  color: #b8e0ff;
+}
+
+.observatory-cursor {
+  animation: observatory-blink 1s step-end infinite;
+}
+
+.observatory-step-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.observatory-timeline-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-right: var(--space-2);
+}
+
+.observatory-timeline-preview {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.observatory-stream--compact .observatory-stream-text {
+  max-height: 12rem;
+}
+
+.meeting-thought-stream {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.meeting-thought-stream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.meeting-live-pill {
+  pointer-events: none;
+}
+
+.observatory-global-pill {
+  margin-left: var(--space-2);
+}
+
+@keyframes observatory-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes observatory-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .observatory-columns {
+    grid-template-columns: 1fr;
+  }
+}
+

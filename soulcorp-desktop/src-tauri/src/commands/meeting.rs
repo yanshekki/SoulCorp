@@ -168,25 +168,74 @@ pub async fn advance_meeting(
     let department_providers = turn_plan.department_ai_providers.clone();
     let speaker_department = turn_plan.speaker_department.clone();
     let speaker_ai_provider = turn_plan.speaker_ai_provider.clone();
-    let speaker_id_for_call = turn_plan.speaker_id.clone();
+    let _speaker_id_for_call = turn_plan.speaker_id.clone();
     let speaker_name = turn_plan.speaker_name.clone();
     let provider_label = speaker_ai_provider
         .clone()
         .unwrap_or_else(|| turn_plan.settings.ai_provider.clone());
+    let turn_step = format!("turn_{expected_turn}");
+    let session_id = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let speaker = guard
+            .agents
+            .get(&turn_plan.speaker_id)
+            .cloned()
+            .ok_or_else(|| "Speaker not found.".to_string())?;
+        let (brain_label, transport) = crate::agent_activity::resolve_brain_labels(
+            &guard,
+            &speaker,
+            crate::agent_activity::BrainLayer::Meeting,
+        );
+        let session_id = crate::agent_activity::start_session(
+            &mut guard,
+            Some(&app),
+            crate::agent_activity::NewSessionParams {
+                agent_id: speaker.id.clone(),
+                agent_name: speaker.name.clone(),
+                source: crate::agent_activity::ActivitySource::Meeting,
+                brain_layer: crate::agent_activity::BrainLayer::Meeting,
+                brain_label,
+                transport,
+                work_node_id: None,
+                work_node_title: None,
+                meeting_id: Some(meeting_id.clone()),
+                run_id: None,
+            },
+        );
+        crate::agent_activity::emit_step_start(
+            &mut guard,
+            Some(&app),
+            &session_id,
+            &turn_plan.speaker_id,
+            &turn_step,
+        );
+        session_id
+    };
+
     let progress = ProgressReporter::new(app.clone(), "meeting_advance");
     progress.emit_indeterminate(
         format!("Waiting for {speaker_name} · {provider_label}"),
         Some("llm"),
     );
     let app_for_blocking = app.clone();
+    let session_for_blocking = session_id.clone();
+    let speaker_for_blocking = turn_plan.speaker_id.clone();
+    let turn_step_for_blocking = turn_step.clone();
     let response = tokio::task::spawn_blocking(move || {
         let state_mutex = app_for_blocking.state::<Mutex<AppState>>();
         let mut guard = state_mutex.lock().map_err(|e| e.to_string())?;
-        ai::chat_with_fallback_billed(
-            &mut guard,
+        let mut stream_ctx = crate::ai::streaming::StreamContext {
+            state: &mut guard,
+            app: Some(&app_for_blocking),
+            session_id: &session_for_blocking,
+            agent_id: &speaker_for_blocking,
+            step: Some(&turn_step_for_blocking),
+        };
+        crate::ai::streaming::chat_stream_billed(
+            &mut stream_ctx,
             BilledChatRequest {
                 request: chat_request,
-                agent_id: speaker_id_for_call,
+                agent_id: speaker_for_blocking.clone(),
                 department: speaker_department,
                 source: "meeting_advance".into(),
             },
@@ -209,15 +258,33 @@ pub async fn advance_meeting(
                 "Meeting advanced elsewhere while waiting for AI. Refresh and try again.".to_string(),
             );
         }
+        let content = response.content.clone();
         meeting.messages.push(MeetingMessage {
             speaker_id: turn_plan.speaker_id,
             speaker_name: turn_plan.speaker_name,
-            content: response.content,
+            content: content.clone(),
             provider: Some(response.provider),
         });
         meeting.turn += 1;
-        meeting.clone()
+        (meeting.clone(), content)
     };
+    crate::agent_activity::emit_step_complete(
+        &mut state,
+        Some(&app),
+        &session_id,
+        &speaker_id,
+        &turn_step,
+        &meeting_snapshot.1,
+    );
+    let response_content = meeting_snapshot.1.clone();
+    let meeting_snapshot = meeting_snapshot.0;
+    crate::agent_activity::end_session(
+        &mut state,
+        Some(&app),
+        &session_id,
+        crate::agent_activity::SessionStatus::Completed,
+        Some(response_content),
+    );
     if let Some(agent) = state.agents.get_mut(&speaker_id) {
         agent.status = "meeting".to_string();
     }

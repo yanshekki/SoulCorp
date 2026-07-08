@@ -1,9 +1,11 @@
+use super::run_subprocess_for_agent;
+use crate::agent_activity::ActivityRunContext;
 use crate::agent_runtime::security::{self, SubprocessRequest};
 use crate::agent_runtime::task_prompt::{build_task_message, materialize_soul_file, resolve_agent_id};
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
 use crate::scrum::types::WorkNode;
-use crate::state::{AgentRecord, GameSettings};
+use crate::state::{AgentRecord, AppState, GameSettings};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -91,6 +93,7 @@ pub fn probe(entry: &RuntimeCatalogEntry, settings: &GameSettings) -> RuntimePro
 }
 
 pub fn execute(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     company_id: &str,
@@ -98,6 +101,7 @@ pub fn execute(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let binary = security::resolve_binary(
         &settings.openclaw_binary_path,
@@ -107,6 +111,7 @@ pub fn execute(
     let probe = probe(entry, settings);
     if probe.agent_command_available {
         run_agent_cli(
+            state,
             entry,
             settings,
             &binary,
@@ -115,13 +120,24 @@ pub fn execute(
             agent,
             project_title,
             workspace_root,
+            activity,
         )
     } else {
-        run_legacy_stdin(entry, &binary, task, agent, project_title, workspace_root)
+        run_legacy_stdin(
+            state,
+            entry,
+            &binary,
+            task,
+            agent,
+            project_title,
+            workspace_root,
+            activity,
+        )
     }
 }
 
 fn run_agent_cli(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     binary: &str,
@@ -130,6 +146,7 @@ fn run_agent_cli(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let started = Instant::now();
     let temp_dir = std::env::temp_dir().join(format!("soulcorp-{}-{}", entry.id, Uuid::new_v4()));
@@ -185,14 +202,15 @@ fn run_agent_cli(
         args.push("--local".to_string());
     }
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary: binary.to_string(),
         args,
         cwd: workspace_root.map(|p| p.to_path_buf()),
         stdin: None,
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     let _ = fs::remove_dir_all(&temp_dir);
 
@@ -214,12 +232,14 @@ fn run_agent_cli(
 }
 
 fn run_legacy_stdin(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     binary: &str,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let started = Instant::now();
     let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
@@ -236,14 +256,15 @@ fn run_legacy_stdin(
         workspace_addon.as_deref(),
     );
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary: binary.to_string(),
         args: vec!["--stdin-task".to_string()],
         cwd: workspace_root.map(|p| p.to_path_buf()),
         stdin: Some(prompt),
         timeout: Duration::from_secs(600),
         env_keys: vec![],
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     if output.exit_code.unwrap_or(1) != 0 {
         return Err(format!(

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agentActivityRuntimeRef } from "../../stores/agentActivityStore";
 import type { Agent } from "../../types/world";
 import {
   getAgentPixelTexture,
@@ -255,7 +256,9 @@ export class AgentRenderSystem {
   private syncWorkEffectSprites(agents: Agent[], seen: Set<string>) {
     this.effectPhase += 0.08;
     const working = agents.filter(
-      (agent) => agent.status === "working" && agent.behavior.intent === "working",
+      (agent) =>
+        (agent.status === "working" && agent.behavior.intent === "working")
+        || agentActivityRuntimeRef.activeAgentIds.has(agent.id),
     );
 
     for (const agent of working) {

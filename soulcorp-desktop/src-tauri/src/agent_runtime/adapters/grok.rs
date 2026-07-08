@@ -1,9 +1,11 @@
+use super::run_subprocess_for_agent;
+use crate::agent_activity::ActivityRunContext;
 use crate::agent_runtime::security::{self, SubprocessRequest};
 use crate::agent_runtime::task_prompt::build_compact_prompt;
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
 use crate::scrum::types::WorkNode;
-use crate::state::{AgentRecord, GameSettings};
+use crate::state::{AgentRecord, AppState, GameSettings};
 use serde_json::Value;
 use std::path::Path;
 use std::time::Duration;
@@ -13,12 +15,14 @@ pub fn probe(entry: &RuntimeCatalogEntry, settings: &GameSettings) -> RuntimePro
 }
 
 pub fn execute(
+    state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
     settings: &GameSettings,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let binary = security::resolve_binary(
         &settings.openclaw_binary_path,
@@ -35,7 +39,7 @@ pub fn execute(
     let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
 
-    let output = security::run_subprocess(&SubprocessRequest {
+    let request = SubprocessRequest {
         binary,
         args: vec![
             "--no-auto-update".to_string(),
@@ -49,7 +53,8 @@ pub fn execute(
         stdin: None,
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: grok_env(settings),
-    })?;
+    };
+    let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
 
     if output.exit_code.unwrap_or(1) != 0 {
         return Err(format!(

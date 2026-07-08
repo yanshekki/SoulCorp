@@ -3,6 +3,10 @@ use super::tree::{mark_story_done_if_tasks_complete, now_iso, recompute_project_
 use super::types::{
     ExecutionRun, ExecutionStatus, WorkNode, WorkNodeKind, WorkNodeStatus,
 };
+use crate::agent_activity::{
+    emit_deliverable_ready, emit_error, end_session, resolve_brain_labels, start_session,
+    ActivityRunContext, ActivitySource, BrainLayer, NewSessionParams, SessionStatus,
+};
 use crate::agent_runtime::detached::{DetachedRuntimeContext, execute_for_task_detached};
 use crate::operations;
 use crate::state::{AgentRecord, AppState};
@@ -16,6 +20,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 struct ParallelExecutionJob {
     run_id: String,
+    session_id: String,
     work_node_id: String,
     agent: AgentRecord,
     task: WorkNode,
@@ -45,6 +50,7 @@ enum ParallelLlmOutcome {
 #[derive(Debug, Clone)]
 struct ParallelLlmResult {
     run_id: String,
+    session_id: String,
     work_node_id: String,
     agent_id: String,
     outcome: ParallelLlmOutcome,
@@ -73,7 +79,7 @@ pub fn run_detached_parallel_tick(app: &AppHandle) -> Option<ParallelBatchReport
 
     let results: Vec<ParallelLlmResult> = jobs
         .par_iter()
-        .map(run_parallel_llm)
+        .map(|job| run_parallel_llm(app, job))
         .collect();
 
     let mut report = ParallelBatchReport {
@@ -186,6 +192,23 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
             .unwrap_or_else(|| "Company project".to_string());
 
         let run_id = format!("exec-{}", Uuid::new_v4());
+        let (brain_label, transport) = resolve_brain_labels(state, &agent, BrainLayer::Execution);
+        let session_id = start_session(
+            state,
+            Some(app),
+            NewSessionParams {
+                agent_id: agent_id.clone(),
+                agent_name: agent.name.clone(),
+                source: ActivitySource::Execution,
+                brain_layer: BrainLayer::Execution,
+                brain_label,
+                transport,
+                work_node_id: Some(task.id.clone()),
+                work_node_title: Some(task.title.clone()),
+                meeting_id: None,
+                run_id: Some(run_id.clone()),
+            },
+        );
 
         if !estimate.affordable {
             state.execution_runs.push(ExecutionRun {
@@ -204,6 +227,7 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
             });
             jobs.push(ParallelExecutionJob {
                 run_id,
+                session_id,
                 work_node_id: task.id.clone(),
                 agent,
                 task,
@@ -242,6 +266,7 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
 
         jobs.push(ParallelExecutionJob {
             run_id,
+            session_id,
             work_node_id: task.id.clone(),
             agent,
             task,
@@ -261,10 +286,11 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
     }
 }
 
-fn run_parallel_llm(job: &ParallelExecutionJob) -> ParallelLlmResult {
+fn run_parallel_llm(app: &AppHandle, job: &ParallelExecutionJob) -> ParallelLlmResult {
     if job.throttled {
         return ParallelLlmResult {
             run_id: job.run_id.clone(),
+            session_id: job.session_id.clone(),
             work_node_id: job.work_node_id.clone(),
             agent_id: job.agent.id.clone(),
             outcome: ParallelLlmOutcome::Throttled {
@@ -273,9 +299,21 @@ fn run_parallel_llm(job: &ParallelExecutionJob) -> ParallelLlmResult {
         };
     }
 
-    match execute_for_task_detached(&job.runtime, &job.task, &job.agent, &job.project_title) {
+    let activity = ActivityRunContext {
+        session_id: job.session_id.clone(),
+        app: app.clone(),
+    };
+
+    match execute_for_task_detached(
+        &job.runtime,
+        &job.task,
+        &job.agent,
+        &job.project_title,
+        Some(activity),
+    ) {
         Ok(result) => ParallelLlmResult {
             run_id: job.run_id.clone(),
+            session_id: job.session_id.clone(),
             work_node_id: job.work_node_id.clone(),
             agent_id: job.agent.id.clone(),
             outcome: ParallelLlmOutcome::Succeeded {
@@ -287,6 +325,7 @@ fn run_parallel_llm(job: &ParallelExecutionJob) -> ParallelLlmResult {
         },
         Err(error) => ParallelLlmResult {
             run_id: job.run_id.clone(),
+            session_id: job.session_id.clone(),
             work_node_id: job.work_node_id.clone(),
             agent_id: job.agent.id.clone(),
             outcome: ParallelLlmOutcome::Failed { error },
@@ -300,11 +339,41 @@ fn apply_parallel_llm_result(
     result: ParallelLlmResult,
 ) -> Option<String> {
     match result.outcome {
-        ParallelLlmOutcome::Throttled { message } => Some(format!(
-            "Parallel work execution throttled (tokens) for task {}: {message}",
-            result.work_node_id
-        )),
+        ParallelLlmOutcome::Throttled { message } => {
+            emit_error(
+                state,
+                Some(app),
+                &result.session_id,
+                &result.agent_id,
+                &message,
+            );
+            end_session(
+                state,
+                Some(app),
+                &result.session_id,
+                SessionStatus::Failed,
+                Some(message.clone()),
+            );
+            Some(format!(
+                "Parallel work execution throttled (tokens) for task {}: {message}",
+                result.work_node_id
+            ))
+        }
         ParallelLlmOutcome::Failed { error } => {
+            emit_error(
+                state,
+                Some(app),
+                &result.session_id,
+                &result.agent_id,
+                &error,
+            );
+            end_session(
+                state,
+                Some(app),
+                &result.session_id,
+                SessionStatus::Failed,
+                Some(error.clone()),
+            );
             if let Some(node) = state
                 .work_nodes
                 .iter_mut()
@@ -349,9 +418,24 @@ fn apply_parallel_llm_result(
                 .cloned()?;
             let agent = state.agents.get(&result.agent_id)?.clone();
 
+            let summary = truncate_summary(&content);
             let page_id = match write_deliverable(app, state, &task, &agent, &content) {
                 Ok(page_id) => page_id,
                 Err(error) => {
+                    emit_error(
+                        state,
+                        Some(app),
+                        &result.session_id,
+                        &result.agent_id,
+                        &error,
+                    );
+                    end_session(
+                        state,
+                        Some(app),
+                        &result.session_id,
+                        SessionStatus::Failed,
+                        Some(error.clone()),
+                    );
                     if let Some(node) = state
                         .work_nodes
                         .iter_mut()
@@ -400,6 +484,22 @@ fn apply_parallel_llm_result(
             if let Some(agent_mut) = state.agents.get_mut(&result.agent_id) {
                 agent_mut.status = "idle".to_string();
             }
+            emit_deliverable_ready(
+                state,
+                Some(app),
+                &result.session_id,
+                &result.agent_id,
+                &page_id,
+                &summary,
+            );
+            end_session(
+                state,
+                Some(app),
+                &result.session_id,
+                SessionStatus::Completed,
+                Some(summary.clone()),
+            );
+
             if let Some(run) = state
                 .execution_runs
                 .iter_mut()
@@ -409,7 +509,7 @@ fn apply_parallel_llm_result(
                 run.provider = provider;
                 run.actual_tokens = estimated_tokens;
                 run.deliverable_page_id = Some(page_id);
-                run.summary = truncate_summary(&content);
+                run.summary = summary;
                 run.finished_at = Some(now_iso());
             }
 

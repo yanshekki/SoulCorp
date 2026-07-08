@@ -9,6 +9,7 @@ import { ShellLayout } from "./components/UI/ShellLayout";
 import { DesignStudioPage } from "./components/design/DesignStudioPage";
 import { AchievementsPage } from "./components/UI/AchievementsPage";
 import { AgentsPage } from "./components/UI/AgentsPage";
+import { ObservatoryPage } from "./components/UI/ObservatoryPage";
 import { DepartmentsPage } from "./components/UI/departments/DepartmentsPage";
 import { MarketplacePage } from "./components/UI/MarketplacePage";
 import { TokensPage } from "./components/UI/TokensPage";
@@ -32,6 +33,7 @@ import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useScrumWorkerSync } from "./hooks/useScrumWorkerSync";
+import { useAgentActivity } from "./hooks/useAgentActivity";
 import { useGameStore } from "./stores/gameStore";
 import type { SidebarPanel } from "./types/game";
 import { hasActiveCompany } from "./utils/companyState";
@@ -80,6 +82,7 @@ function App() {
   useOperationProgress();
   useSimulationLoop();
   useScrumWorkerSync();
+  useAgentActivity();
 
   useEffect(() => {
     invoke<string>("get_app_status")
@@ -123,6 +126,8 @@ function App() {
             <DepartmentsPage />
           ) : activePanel === "agents" ? (
             <AgentsPage />
+          ) : activePanel === "observatory" ? (
+            <ObservatoryPage />
           ) : activePanel === "recruitment" ? (
             <RecruitmentPage />
           ) : activePanel === "marketplace" ? (

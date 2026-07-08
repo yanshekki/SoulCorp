@@ -1,4 +1,5 @@
 mod achievements;
+mod agent_activity;
 mod agent_runtime;
 mod brain;
 mod ai;
@@ -256,6 +257,8 @@ pub fn run() {
             commands::agent_workspace_append_journal,
             commands::agent_workspace_write_deliverable,
             commands::agent_workspace_list_activity,
+            commands::list_agent_activity,
+            commands::get_agent_session,
             commands::get_achievements,
             commands::export_company_backup,
             commands::export_company_report_markdown,

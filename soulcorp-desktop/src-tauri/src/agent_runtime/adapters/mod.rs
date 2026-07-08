@@ -2,10 +2,12 @@ pub mod claw;
 pub mod generic;
 pub mod grok;
 
+use crate::agent_activity::{emit_terminal_line, ActivityRunContext};
 use crate::agent_runtime::registry::{active_runtime, active_runtime_for_id, effective_adapter_id};
+use crate::agent_runtime::security::{self, SubprocessRequest, SubprocessOutput};
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::scrum::types::WorkNode;
-use crate::state::{AgentRecord, GameSettings};
+use crate::state::{AgentRecord, AppState, GameSettings};
 use std::path::Path;
 
 pub fn probe_runtime_for_id(runtime_id: &str, settings: &GameSettings) -> RuntimeProbe {
@@ -31,7 +33,30 @@ pub fn probe_runtime(settings: &GameSettings) -> RuntimeProbe {
     probe_runtime_for_id(&settings.agent_runtime_mode, settings)
 }
 
+pub fn run_subprocess_for_agent(
+    state: Option<&mut AppState>,
+    request: &SubprocessRequest,
+    activity: Option<ActivityRunContext>,
+    agent_id: &str,
+) -> Result<SubprocessOutput, String> {
+    if let (Some(state), Some(act)) = (state, activity) {
+        security::run_subprocess_observed(request, &mut |stream, line| {
+            emit_terminal_line(
+                state,
+                Some(&act.app),
+                &act.session_id,
+                agent_id,
+                line,
+                stream,
+            );
+        })
+    } else {
+        security::run_subprocess(request)
+    }
+}
+
 pub fn execute_runtime_for_id(
+    state: Option<&mut AppState>,
     runtime_id: &str,
     settings: &GameSettings,
     company_id: &str,
@@ -39,12 +64,14 @@ pub fn execute_runtime_for_id(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let entry = active_runtime_for_id(runtime_id).ok_or_else(|| {
         format!("No subprocess runtime selected for '{runtime_id}'.")
     })?;
     let custom_entry = custom_runtime_entry(settings, entry);
     let result = dispatch_execute(
+        state,
         &custom_entry,
         settings,
         company_id,
@@ -52,6 +79,7 @@ pub fn execute_runtime_for_id(
         agent,
         project_title,
         workspace_root,
+        activity,
     )?;
 
     crate::scrum::agent_tools::persist_task_deliverable_note(
@@ -75,6 +103,7 @@ pub fn execute_runtime(
     workspace_root: Option<&Path>,
 ) -> Result<RuntimeResult, String> {
     execute_runtime_for_id(
+        None,
         &settings.agent_runtime_mode,
         settings,
         company_id,
@@ -82,6 +111,7 @@ pub fn execute_runtime(
         agent,
         project_title,
         workspace_root,
+        None,
     )
 }
 
@@ -121,6 +151,7 @@ fn dispatch_probe(
 }
 
 fn dispatch_execute(
+    state: Option<&mut AppState>,
     entry: &crate::agent_runtime::types::RuntimeCatalogEntry,
     settings: &GameSettings,
     company_id: &str,
@@ -128,13 +159,26 @@ fn dispatch_execute(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     match entry.adapter.as_str() {
-        "claw_agent_cli" => claw::execute(entry, settings, company_id, task, agent, project_title, workspace_root),
-        "grok_headless" => grok::execute(entry, settings, task, agent, project_title, workspace_root),
-        "prompt_flag" => generic::execute_prompt_flag(entry, settings, task, agent, project_title, workspace_root),
-        "codex_noninteractive" => generic::execute_codex(entry, settings, task, agent, project_title, workspace_root),
-        "aider_message" => generic::execute_message_file(entry, settings, task, agent, project_title, workspace_root),
-        _ => generic::execute_legacy_stdin(entry, settings, task, agent, project_title, workspace_root),
+        "claw_agent_cli" => {
+            claw::execute(state, entry, settings, company_id, task, agent, project_title, workspace_root, activity)
+        }
+        "grok_headless" => {
+            grok::execute(state, entry, settings, task, agent, project_title, workspace_root, activity)
+        }
+        "prompt_flag" => generic::execute_prompt_flag(
+            state, entry, settings, task, agent, project_title, workspace_root, activity,
+        ),
+        "codex_noninteractive" => generic::execute_codex(
+            state, entry, settings, task, agent, project_title, workspace_root, activity,
+        ),
+        "aider_message" => generic::execute_message_file(
+            state, entry, settings, task, agent, project_title, workspace_root, activity,
+        ),
+        _ => generic::execute_legacy_stdin(
+            state, entry, settings, task, agent, project_title, workspace_root, activity,
+        ),
     }
 }

@@ -1,3 +1,7 @@
+use crate::agent_activity::{
+    emit_deliverable_ready, emit_error, end_session, resolve_brain_labels, start_session,
+    ActivityRunContext, ActivitySource, BrainLayer, NewSessionParams, SessionStatus,
+};
 use crate::agent_runtime::execute_for_task;
 use super::org::resolve_pm_agent_id;
 use super::tree::{mark_story_done_if_tasks_complete, now_iso, recompute_project_progress};
@@ -129,6 +133,28 @@ pub fn execute_task(
         agent_mut.status = "working".to_string();
     }
 
+    let (brain_label, transport) = resolve_brain_labels(state, &agent, BrainLayer::Execution);
+    let session_id = start_session(
+        state,
+        Some(app),
+        NewSessionParams {
+            agent_id: agent_id.clone(),
+            agent_name: agent.name.clone(),
+            source: ActivitySource::Execution,
+            brain_layer: BrainLayer::Execution,
+            brain_label,
+            transport,
+            work_node_id: Some(work_node_id.to_string()),
+            work_node_title: Some(task.title.clone()),
+            meeting_id: None,
+            run_id: Some(run_id.clone()),
+        },
+    );
+    let activity = ActivityRunContext {
+        session_id: session_id.clone(),
+        app: app.clone(),
+    };
+
     let project_title = state
         .projects
         .iter()
@@ -145,12 +171,34 @@ pub fn execute_task(
             .map(|dir| company_workspace_root(&dir, &state.company_id))
     };
 
-    let response_content =
-        execute_for_task(state, &task, &agent, &project_title, workspace_root);
+    let response_content = execute_for_task(
+        state,
+        &task,
+        &agent,
+        &project_title,
+        workspace_root,
+        Some(activity),
+    );
 
     let result = match response_content {
         Ok(content) => {
             let page_id = write_deliverable(app, state, &task, &agent, &content)?;
+            let summary = truncate_summary(&content);
+            emit_deliverable_ready(
+                state,
+                Some(app),
+                &session_id,
+                &agent_id,
+                &page_id,
+                &summary,
+            );
+            end_session(
+                state,
+                Some(app),
+                &session_id,
+                SessionStatus::Completed,
+                Some(summary.clone()),
+            );
             let tokens = estimate.estimated_tokens;
             if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == work_node_id) {
                 node.status = WorkNodeStatus::InReview;
@@ -176,7 +224,7 @@ pub fn execute_task(
                 };
                 run.actual_tokens = tokens;
                 run.deliverable_page_id = Some(page_id);
-                run.summary = truncate_summary(&content);
+                run.summary = summary;
                 run.finished_at = Some(now_iso());
             }
             state
@@ -187,6 +235,14 @@ pub fn execute_task(
                 .ok_or_else(|| "Execution run missing.".to_string())
         }
         Err(error) => {
+            emit_error(state, Some(app), &session_id, &agent_id, &error);
+            end_session(
+                state,
+                Some(app),
+                &session_id,
+                SessionStatus::Failed,
+                Some(error.clone()),
+            );
             if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == work_node_id) {
                 node.status = WorkNodeStatus::Blocked;
                 node.updated_at = now_iso();

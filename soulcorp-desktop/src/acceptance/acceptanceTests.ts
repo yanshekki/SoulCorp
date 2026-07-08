@@ -8,6 +8,7 @@ import { runHkOfficeAcceptanceTests } from "./hkOfficeAcceptance";
 import { runSearchAcceptanceTests } from "./searchAcceptance";
 import { runRuntimeAcceptanceTests } from "./runtimeAcceptance";
 import { runBrainAcceptanceTests } from "./brainAcceptance";
+import { runObservatoryAcceptanceTests } from "./observatoryAcceptance";
 import { runPlacementParityTests } from "./placementParity";
 import {
   bindAgentToDesk,
@@ -74,6 +75,7 @@ export function runAcceptanceTests(): AcceptanceResult[] {
   results.push(...runSearchAcceptanceTests());
   results.push(...runRuntimeAcceptanceTests());
   results.push(...runBrainAcceptanceTests());
+  results.push(...runObservatoryAcceptanceTests());
 
   const automated = GAME_DESIGN_CHECKLIST.filter((item) => item.automated).length;
   results.push(

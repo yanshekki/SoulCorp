@@ -166,6 +166,16 @@ pub struct GameSettings {
     pub orchestrator_auto_complete_gigs: bool,
     #[serde(default)]
     pub orchestrator_auto_recruit: bool,
+    #[serde(default = "default_true")]
+    pub agent_activity_stream_enabled: bool,
+    #[serde(default = "default_true")]
+    pub agent_activity_persist_stream: bool,
+    #[serde(default = "default_agent_activity_max_events")]
+    pub agent_activity_max_events: u32,
+}
+
+fn default_agent_activity_max_events() -> u32 {
+    500
 }
 
 fn default_worker_interval() -> u32 {
@@ -429,6 +439,12 @@ impl<'de> Deserialize<'de> for GameSettings {
             orchestrator_auto_complete_gigs: bool,
             #[serde(default)]
             orchestrator_auto_recruit: bool,
+            #[serde(default = "default_true")]
+            agent_activity_stream_enabled: bool,
+            #[serde(default = "default_true")]
+            agent_activity_persist_stream: bool,
+            #[serde(default = "default_agent_activity_max_events")]
+            agent_activity_max_events: u32,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -504,6 +520,9 @@ impl<'de> Deserialize<'de> for GameSettings {
             hub_auto_pull_interval_secs: helper.hub_auto_pull_interval_secs.max(60),
             orchestrator_auto_complete_gigs: helper.orchestrator_auto_complete_gigs,
             orchestrator_auto_recruit: helper.orchestrator_auto_recruit,
+            agent_activity_stream_enabled: helper.agent_activity_stream_enabled,
+            agent_activity_persist_stream: helper.agent_activity_persist_stream,
+            agent_activity_max_events: helper.agent_activity_max_events.clamp(100, 1000),
         })
     }
 }
@@ -587,6 +606,9 @@ impl Default for GameSettings {
             hub_auto_pull_interval_secs: 300,
             orchestrator_auto_complete_gigs: true,
             orchestrator_auto_recruit: false,
+            agent_activity_stream_enabled: true,
+            agent_activity_persist_stream: true,
+            agent_activity_max_events: default_agent_activity_max_events(),
         }
     }
 }
@@ -1103,6 +1125,8 @@ pub struct AppState {
     #[serde(default)]
     pub execution_runs: Vec<crate::scrum::ExecutionRun>,
     #[serde(default)]
+    pub agent_activity: crate::agent_activity::AgentActivityStore,
+    #[serde(default)]
     pub default_pm_agent_id: Option<String>,
     pub day_number: u32,
     pub tick: u64,
@@ -1155,6 +1179,7 @@ impl Default for AppState {
             sprints: Vec::new(),
             directives: Vec::new(),
             execution_runs: Vec::new(),
+            agent_activity: crate::agent_activity::AgentActivityStore::default(),
             default_pm_agent_id: None,
             day_number: 1,
             tick: 0,

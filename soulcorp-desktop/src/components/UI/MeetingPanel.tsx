@@ -8,6 +8,8 @@ import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
 import { formatAgentOptionLabel } from "../../utils/agentLabel";
 import { EffectiveBrainPill } from "./brain/EffectiveBrainPill";
+import { ThoughtStreamPane } from "./observatory/ThoughtStreamPane";
+import { useAgentActivityStore } from "../../stores/agentActivityStore";
 import { transportForEntry } from "../../utils/agentRuntimeCatalog";
 import type {
   BrainResolutionPreview,
@@ -66,7 +68,10 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
   const agentRecords = useGameStore((state) => state.agentRecords);
   const activeMeeting = useGameStore((state) => state.activeMeeting);
   const setActiveMeeting = useGameStore((state) => state.setActiveMeeting);
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
+  const activitySessions = useAgentActivityStore((state) => state.sessions);
+  const activityEvents = useAgentActivityStore((state) => state.events);
   const [meetingType, setMeetingType] = useState(MEETING_TYPES[0]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [autoAdvance, setAutoAdvance] = useState(false);
@@ -100,6 +105,20 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
   );
 
   const meetingBrainForAgent = (agentId: string) => brainPreviewByAgentId.get(agentId);
+
+  const liveMeetingSession = useMemo(() => {
+    if (!activeMeeting || activeMeeting.completed) {
+      return null;
+    }
+    return (
+      activitySessions.find(
+        (session) =>
+          session.status === "active"
+          && session.source === "meeting"
+          && session.meeting_id === activeMeeting.id,
+      ) ?? null
+    );
+  }, [activitySessions, activeMeeting]);
 
   useEffect(() => {
     const load = async () => {
@@ -334,6 +353,33 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
             {turnCost.message}
             {turnCost.estimated_tokens > 0 ? ` (~${turnCost.estimated_tokens} tokens)` : ""}
           </p>
+        ) : null}
+
+        {advancing && liveMeetingSession ? (
+          <div className="meeting-thought-stream">
+            <div className="meeting-thought-stream-header">
+              <span className="observatory-live-pill meeting-live-pill">
+                <span className="observatory-live-dot" aria-hidden="true" />
+                LIVE
+              </span>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  useAgentActivityStore.getState().selectAgent(liveMeetingSession.agent_id);
+                  useAgentActivityStore.getState().selectSession(liveMeetingSession.id);
+                  setActivePanel("observatory");
+                }}
+              >
+                Open Observatory
+              </button>
+            </div>
+            <ThoughtStreamPane
+              session={liveMeetingSession}
+              events={activityEvents}
+              compact
+            />
+          </div>
         ) : null}
 
         <div className="panel-actions">
