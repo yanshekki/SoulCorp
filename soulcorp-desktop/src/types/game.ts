@@ -758,6 +758,8 @@ export interface AutomationStatus {
 
 export interface OpenClawStatus {
   runtime_mode: string;
+  runtime_id: string;
+  runtime_label: string;
   binary_path: string;
   binary_available: boolean;
   version?: string | null;

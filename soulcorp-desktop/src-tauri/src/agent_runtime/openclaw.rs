@@ -1,3 +1,4 @@
+use crate::agent_runtime::claw_kind::ClawRuntimeKind;
 use crate::agent_runtime::detached::DetachedRuntimeContext;
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState, GameSettings};
@@ -10,7 +11,9 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct OpenClawProbe {
+pub struct ClawProbe {
+    pub runtime_id: String,
+    pub runtime_label: String,
     pub binary_path: String,
     pub binary_available: bool,
     pub version: Option<String>,
@@ -19,8 +22,10 @@ pub struct OpenClawProbe {
     pub message: String,
 }
 
+pub type OpenClawProbe = ClawProbe;
+
 #[derive(Debug, Clone)]
-pub struct OpenClawRunResult {
+pub struct ClawRunResult {
     pub content: String,
     pub transport: String,
     #[allow(dead_code)]
@@ -51,11 +56,18 @@ struct OpenClawJsonMeta {
     duration_ms: Option<u64>,
 }
 
-pub fn probe_openclaw(settings: &GameSettings) -> OpenClawProbe {
-    let binary_path = match resolve_openclaw_binary(settings) {
+pub fn claw_kind_from_settings(settings: &GameSettings) -> Option<ClawRuntimeKind> {
+    ClawRuntimeKind::from_setting(&settings.agent_runtime_mode)
+}
+
+pub fn probe_claw(settings: &GameSettings, kind: ClawRuntimeKind) -> ClawProbe {
+    let label = kind.display_name();
+    let binary_path = match resolve_claw_binary(settings, kind) {
         Ok(path) => path,
         Err(message) => {
-            return OpenClawProbe {
+            return ClawProbe {
+                runtime_id: kind.id().to_string(),
+                runtime_label: label.to_string(),
                 binary_path: settings.openclaw_binary_path.clone(),
                 binary_available: false,
                 version: None,
@@ -74,17 +86,22 @@ pub fn probe_openclaw(settings: &GameSettings) -> OpenClawProbe {
         false
     };
 
+    let cli_name = kind.default_binary();
     let message = if !agent_command_available {
-        "OpenClaw binary found, but `openclaw agent` is unavailable. Legacy stdin mode may still work.".into()
+        format!(
+            "{label} binary found, but `{cli_name} agent` is unavailable. Legacy stdin mode may still work."
+        )
     } else if settings.openclaw_prefer_gateway && gateway_healthy {
-        "OpenClaw ready — gateway healthy.".into()
+        format!("{label} ready — gateway healthy.")
     } else if settings.openclaw_use_local {
-        "OpenClaw ready — local embedded agent mode.".into()
+        format!("{label} ready — local embedded agent mode.")
     } else {
-        "OpenClaw ready.".into()
+        format!("{label} ready.")
     };
 
-    OpenClawProbe {
+    ClawProbe {
+        runtime_id: kind.id().to_string(),
+        runtime_label: label.to_string(),
         binary_path,
         binary_available: true,
         version,
@@ -94,14 +111,21 @@ pub fn probe_openclaw(settings: &GameSettings) -> OpenClawProbe {
     }
 }
 
-pub fn execute_openclaw(
+pub fn probe_openclaw(settings: &GameSettings) -> ClawProbe {
+    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    probe_claw(settings, kind)
+}
+
+pub fn execute_claw(
     state: &AppState,
+    kind: ClawRuntimeKind,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
 ) -> Result<String, String> {
-    let result = run_openclaw_for_task(
+    let result = run_claw_for_task(
+        kind,
         &state.settings,
         &state.company_id,
         task,
@@ -112,13 +136,26 @@ pub fn execute_openclaw(
     Ok(result.content)
 }
 
-pub fn execute_openclaw_detached(
+pub fn execute_openclaw(
+    state: &AppState,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&Path>,
+) -> Result<String, String> {
+    let kind = claw_kind_from_settings(&state.settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    execute_claw(state, kind, task, agent, project_title, workspace_root)
+}
+
+pub fn execute_claw_detached(
     ctx: &DetachedRuntimeContext,
+    kind: ClawRuntimeKind,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
 ) -> Result<String, String> {
-    let result = run_openclaw_for_task(
+    let result = run_claw_for_task(
+        kind,
         &ctx.settings,
         &ctx.company_id,
         task,
@@ -129,19 +166,32 @@ pub fn execute_openclaw_detached(
     Ok(result.content)
 }
 
-pub fn run_openclaw_for_task(
+pub fn execute_openclaw_detached(
+    ctx: &DetachedRuntimeContext,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+) -> Result<String, String> {
+    let kind = claw_kind_from_settings(&ctx.settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    execute_claw_detached(ctx, kind, task, agent, project_title)
+}
+
+pub fn run_claw_for_task(
+    kind: ClawRuntimeKind,
     settings: &GameSettings,
     company_id: &str,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
-) -> Result<OpenClawRunResult, String> {
-    let binary = resolve_openclaw_binary(settings)?;
-    let probe = probe_openclaw(settings);
+) -> Result<ClawRunResult, String> {
+    let binary = resolve_claw_binary(settings, kind)?;
+    let probe = probe_claw(settings, kind);
+    let label = kind.display_name();
 
     let result = if probe.agent_command_available {
-        run_openclaw_agent_cli(
+        run_claw_agent_cli(
+            kind,
             settings,
             &binary,
             company_id,
@@ -151,7 +201,7 @@ pub fn run_openclaw_for_task(
             workspace_root,
         )
     } else {
-        run_openclaw_legacy_stdin(&binary, task, agent, project_title, workspace_root)
+        run_claw_legacy_stdin(kind, &binary, task, agent, project_title, workspace_root)
     }?;
 
     crate::scrum::agent_tools::persist_task_deliverable_note(
@@ -159,14 +209,35 @@ pub fn run_openclaw_for_task(
         agent,
         task,
         project_title,
-        "OpenClaw deliverable",
+        &format!("{label} deliverable"),
         &result.content,
     );
 
     Ok(result)
 }
 
-fn run_openclaw_agent_cli(
+pub fn run_openclaw_for_task(
+    settings: &GameSettings,
+    company_id: &str,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&Path>,
+) -> Result<ClawRunResult, String> {
+    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    run_claw_for_task(
+        kind,
+        settings,
+        company_id,
+        task,
+        agent,
+        project_title,
+        workspace_root,
+    )
+}
+
+fn run_claw_agent_cli(
+    kind: ClawRuntimeKind,
     settings: &GameSettings,
     binary: &str,
     company_id: &str,
@@ -174,9 +245,10 @@ fn run_openclaw_agent_cli(
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
-) -> Result<OpenClawRunResult, String> {
+) -> Result<ClawRunResult, String> {
+    let label = kind.display_name();
     let started = Instant::now();
-    let temp_dir = std::env::temp_dir().join(format!("soulcorp-openclaw-{}", Uuid::new_v4()));
+    let temp_dir = std::env::temp_dir().join(format!("soulcorp-{}-{}", kind.id(), Uuid::new_v4()));
     fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
 
     let message_path = temp_dir.join("task.md");
@@ -234,7 +306,7 @@ fn run_openclaw_agent_cli(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("Failed to spawn OpenClaw ({binary}): {e}"))?;
+        .map_err(|e| format!("Failed to spawn {label} ({binary}): {e}"))?;
 
     let _ = fs::remove_dir_all(&temp_dir);
 
@@ -242,7 +314,7 @@ fn run_openclaw_agent_cli(
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(format!(
-            "OpenClaw agent exited with {}: {stderr}{}",
+            "{label} agent exited with {}: {stderr}{}",
             output.status,
             if stdout.trim().is_empty() {
                 String::new()
@@ -256,13 +328,15 @@ fn run_openclaw_agent_cli(
     parse_openclaw_response(&stdout, started.elapsed())
 }
 
-fn run_openclaw_legacy_stdin(
+fn run_claw_legacy_stdin(
+    kind: ClawRuntimeKind,
     binary: &str,
     task: &WorkNode,
     agent: &AgentRecord,
     project_title: &str,
     workspace_root: Option<&Path>,
-) -> Result<OpenClawRunResult, String> {
+) -> Result<ClawRunResult, String> {
+    let label = kind.display_name();
     let started = Instant::now();
     let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
         workspace_root,
@@ -290,32 +364,32 @@ fn run_openclaw_legacy_stdin(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Failed to spawn OpenClaw legacy mode ({binary}): {e}"))?;
+        .map_err(|e| format!("Failed to spawn {label} legacy mode ({binary}): {e}"))?;
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(prompt.as_bytes())
-            .map_err(|e| format!("OpenClaw stdin write failed: {e}"))?;
+            .map_err(|e| format!("{label} stdin write failed: {e}"))?;
     }
 
     let output = child
         .wait_with_output()
-        .map_err(|e| format!("OpenClaw wait failed: {e}"))?;
+        .map_err(|e| format!("{label} wait failed: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "OpenClaw legacy mode exited with {}: {stderr}",
+            "{label} legacy mode exited with {}: {stderr}",
             output.status
         ));
     }
 
     let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if content.is_empty() {
-        return Err("OpenClaw returned empty output.".to_string());
+        return Err(format!("{label} returned empty output."));
     }
 
-    Ok(OpenClawRunResult {
+    Ok(ClawRunResult {
         content,
         transport: "legacy-stdin".to_string(),
         session_id: None,
@@ -323,11 +397,11 @@ fn run_openclaw_legacy_stdin(
     })
 }
 
-fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<OpenClawRunResult, String> {
+fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<ClawRunResult, String> {
     let trimmed = stdout.trim();
     if let Ok(parsed) = serde_json::from_str::<OpenClawJsonResponse>(trimmed) {
         if let Some(error) = parsed.error.filter(|value| !value.trim().is_empty()) {
-            return Err(format!("OpenClaw agent error: {error}"));
+            return Err(format!("Claw agent error: {error}"));
         }
 
         let mut chunks: Vec<String> = parsed
@@ -346,7 +420,7 @@ fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<OpenClawRu
 
         let content = chunks.join("\n\n").trim().to_string();
         if content.is_empty() {
-            return Err("OpenClaw JSON response contained no deliverable text.".to_string());
+            return Err("Claw JSON response contained no deliverable text.".to_string());
         }
 
         let meta = parsed.meta;
@@ -360,7 +434,7 @@ fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<OpenClawRu
         let duration_ms = meta
             .and_then(|value| value.duration_ms)
             .unwrap_or(elapsed.as_millis() as u64);
-        return Ok(OpenClawRunResult {
+        return Ok(ClawRunResult {
             content,
             transport,
             session_id,
@@ -369,12 +443,12 @@ fn parse_openclaw_response(stdout: &str, elapsed: Duration) -> Result<OpenClawRu
     }
 
     if trimmed.is_empty() {
-        return Err("OpenClaw returned empty output.".to_string());
+        return Err("Claw agent returned empty output.".to_string());
     }
 
-    Ok(OpenClawRunResult {
+    Ok(ClawRunResult {
         content: trimmed.to_string(),
-        transport: "openclaw-text".to_string(),
+        transport: "claw-text".to_string(),
         session_id: None,
         duration_ms: elapsed.as_millis() as u64,
     })
@@ -474,22 +548,31 @@ fn resolve_openclaw_agent_id(settings: &GameSettings, agent: &AgentRecord) -> St
     }
 }
 
-pub fn resolve_openclaw_binary(settings: &GameSettings) -> Result<String, String> {
+pub fn resolve_claw_binary(settings: &GameSettings, kind: ClawRuntimeKind) -> Result<String, String> {
+    let label = kind.display_name();
+    let default_binary = kind.default_binary();
     let configured = settings.openclaw_binary_path.trim();
     if !configured.is_empty() {
         if Path::new(configured).exists() || command_succeeds(configured, &["--version"]) {
             return Ok(configured.to_string());
         }
         return Err(format!(
-            "Configured OpenClaw binary not found or not executable: {configured}"
+            "Configured {label} binary not found or not executable: {configured}"
         ));
     }
 
-    if command_succeeds("openclaw", &["--version"]) {
-        return Ok("openclaw".to_string());
+    if command_succeeds(default_binary, &["--version"]) {
+        return Ok(default_binary.to_string());
     }
 
-    Err("OpenClaw binary not configured. Set the path in Command Center → Policies, or install `openclaw` on PATH.".to_string())
+    Err(format!(
+        "{label} binary not configured. Set the path in Command Center → Policies, or install `{default_binary}` on PATH."
+    ))
+}
+
+pub fn resolve_openclaw_binary(settings: &GameSettings) -> Result<String, String> {
+    let kind = claw_kind_from_settings(settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    resolve_claw_binary(settings, kind)
 }
 
 fn command_succeeds(cmd: &str, args: &[&str]) -> bool {

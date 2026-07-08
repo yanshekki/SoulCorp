@@ -37,20 +37,18 @@ pub fn execute_for_task_detached(
                 execute_llm_only_detached(ctx, task, agent, project_title)
             }
         }
-        super::AgentRuntimeMode::OpenClaw => {
-            match super::openclaw::execute_openclaw_detached(
-                ctx,
-                task,
-                agent,
-                project_title,
-            ) {
+        super::AgentRuntimeMode::Claw(kind) => {
+            match super::openclaw::execute_claw_detached(ctx, kind, task, agent, project_title) {
                 Ok(content) => Ok(DetachedExecutionResult {
                     content,
-                    provider: "openclaw".to_string(),
+                    provider: kind.id().to_string(),
                     charge: None,
                 }),
                 Err(err) => {
-                    eprintln!("OpenClaw runtime failed ({err}); falling back to LLM.");
+                    eprintln!(
+                        "{} runtime failed ({err}); falling back to LLM.",
+                        kind.display_name()
+                    );
                     execute_llm_only_detached(ctx, task, agent, project_title)
                 }
             }

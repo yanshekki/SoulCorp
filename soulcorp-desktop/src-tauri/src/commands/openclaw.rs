@@ -1,4 +1,7 @@
-use crate::agent_runtime::openclaw::{probe_openclaw, resolve_openclaw_binary, run_openclaw_for_task};
+use crate::agent_runtime::claw_kind::ClawRuntimeKind;
+use crate::agent_runtime::openclaw::{
+    claw_kind_from_settings, probe_claw, resolve_claw_binary, run_claw_for_task,
+};
 use crate::scrum::types::WorkNode;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -8,6 +11,8 @@ use tauri::{AppHandle, Manager, State};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenClawStatus {
     pub runtime_mode: String,
+    pub runtime_id: String,
+    pub runtime_label: String,
     pub binary_path: String,
     pub binary_available: bool,
     pub version: Option<String>,
@@ -36,9 +41,12 @@ pub struct OpenClawTestResult {
 #[tauri::command]
 pub fn get_openclaw_status(state: State<'_, Mutex<AppState>>) -> Result<OpenClawStatus, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    let probe = probe_openclaw(&state.settings);
+    let kind = claw_kind_from_settings(&state.settings).unwrap_or(ClawRuntimeKind::OpenClaw);
+    let probe = probe_claw(&state.settings, kind);
     Ok(OpenClawStatus {
         runtime_mode: state.settings.agent_runtime_mode.clone(),
+        runtime_id: probe.runtime_id.clone(),
+        runtime_label: probe.runtime_label.clone(),
         binary_path: probe.binary_path,
         binary_available: probe.binary_available,
         version: probe.version,
@@ -58,17 +66,18 @@ pub fn test_openclaw_runtime(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<OpenClawTestResult, String> {
-    let (settings, company_id, task, agent, project_title, workspace_root) = {
+    let (settings, company_id, kind, task, agent, project_title, workspace_root) = {
         let state = state.lock().map_err(|e| e.to_string())?;
-        if state.settings.agent_runtime_mode != "openclaw" {
+        let Some(kind) = claw_kind_from_settings(&state.settings) else {
             return Ok(OpenClawTestResult {
                 ok: false,
                 transport: None,
                 preview: String::new(),
-                message: "Set runtime mode to OpenClaw subprocess first.".into(),
+                message: "Set runtime mode to a Claw subprocess (OpenClaw, Hermes, IronClaw, or NanoClaw) first.".into(),
             });
-        }
-        let _ = resolve_openclaw_binary(&state.settings)?;
+        };
+        let _ = resolve_claw_binary(&state.settings, kind)?;
+        let runtime_label = kind.display_name();
 
         let (task, agent, project_title) = if let Some(work_node_id) = request.work_node_id {
             let task = state
@@ -80,7 +89,7 @@ pub fn test_openclaw_runtime(
             let agent_id = task
                 .assignee_agent_id
                 .clone()
-                .ok_or_else(|| "Assign an agent before testing OpenClaw.".to_string())?;
+                .ok_or_else(|| format!("Assign an agent before testing {runtime_label}."))?;
             let agent = state
                 .agents
                 .get(&agent_id)
@@ -99,9 +108,9 @@ pub fn test_openclaw_runtime(
                 .values()
                 .find(|record| !crate::fate::is_system_agent(record))
                 .cloned()
-                .ok_or_else(|| "No agents available for OpenClaw smoke test.".to_string())?;
+                .ok_or_else(|| format!("No agents available for {runtime_label} smoke test."))?;
             let task = WorkNode {
-                id: "openclaw-smoke-test".into(),
+                id: format!("{}-smoke-test", kind.id()),
                 parent_id: None,
                 project_id: state
                     .projects
@@ -109,8 +118,10 @@ pub fn test_openclaw_runtime(
                     .map(|project| project.id.clone())
                     .unwrap_or_else(|| "project-smoke".into()),
                 kind: crate::scrum::WorkNodeKind::Task,
-                title: "OpenClaw connectivity check".into(),
-                description: "Reply with a one-line confirmation that OpenClaw can execute SoulCorp tasks.".into(),
+                title: format!("{runtime_label} connectivity check"),
+                description: format!(
+                    "Reply with a one-line confirmation that {runtime_label} can execute SoulCorp tasks."
+                ),
                 status: crate::scrum::WorkNodeStatus::Ready,
                 priority: 3,
                 story_points: 1,
@@ -150,6 +161,7 @@ pub fn test_openclaw_runtime(
         (
             state.settings.clone(),
             state.company_id.clone(),
+            kind,
             task,
             agent,
             project_title,
@@ -157,7 +169,9 @@ pub fn test_openclaw_runtime(
         )
     };
 
-    match run_openclaw_for_task(
+    let runtime_label = kind.display_name();
+    match run_claw_for_task(
+        kind,
         &settings,
         &company_id,
         &task,
@@ -180,7 +194,7 @@ pub fn test_openclaw_runtime(
                 transport: Some(transport.clone()),
                 preview,
                 message: format!(
-                    "OpenClaw test succeeded via {transport} in {} ms.",
+                    "{runtime_label} test succeeded via {transport} in {} ms.",
                     result.duration_ms
                 ),
             })

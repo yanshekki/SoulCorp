@@ -16,6 +16,12 @@ import type {
 } from "../../../types/game";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import {
+  CLAW_RUNTIME_MODES,
+  clawBinaryPlaceholder,
+  clawRuntimeLabel,
+  isClawRuntimeMode,
+} from "../../../utils/clawRuntime";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
 import { filterByQuery } from "../../../utils/listSearch";
 import { paginateItems } from "../../../utils/pagination";
@@ -558,6 +564,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     ["policies", "Policies"],
   ] as const;
 
+  const activeClawRuntime = settings.agent_runtime_mode;
+  const clawRuntimeName = clawRuntimeLabel(activeClawRuntime);
+  const clawSubprocessSelected = isClawRuntimeMode(activeClawRuntime);
+
   return (
     <section id="command" className="projects-card command-center" data-projects-section="command">
       <header className="command-center-toolbar">
@@ -699,15 +709,17 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   </dd>
                 </div>
                 <div className="command-automation-meta-item command-automation-meta-item--wide">
-                  <dt>OpenClaw</dt>
+                  <dt>{clawSubprocessSelected ? clawRuntimeName : "Agent runtime"}</dt>
                   <dd title={
                     automation?.openclaw_available
                       ? automation.openclaw_version ?? "Ready"
                       : automation?.openclaw_message ?? undefined
                   }>
-                    {automation?.openclaw_available
-                      ? automation.openclaw_version ?? "Ready"
-                      : automation?.openclaw_message ?? "—"}
+                    {clawSubprocessSelected
+                      ? automation?.openclaw_available
+                        ? automation.openclaw_version ?? "Ready"
+                        : automation?.openclaw_message ?? "—"
+                      : "In-app LLM only"}
                   </dd>
                 </div>
               </dl>
@@ -1343,75 +1355,86 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 onChange={(e) => void persistSettings({ agent_runtime_mode: e.target.value })}
               >
                 <option value="llm_only">In-app LLM only</option>
-                <option value="openclaw">OpenClaw subprocess</option>
+                {CLAW_RUNTIME_MODES.map((runtime) => (
+                  <option key={runtime.id} value={runtime.id}>
+                    {runtime.label} subprocess
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="field-label">
-              OpenClaw binary path
-              <input
-                type="text"
-                value={settings.openclaw_binary_path ?? ""}
-                placeholder="openclaw (PATH) or /usr/local/bin/openclaw"
-                onChange={(e) => void persistSettings({ openclaw_binary_path: e.target.value })}
-              />
-            </label>
-            <label className="field-label">
-              OpenClaw default agent id
-              <input
-                type="text"
-                value={settings.openclaw_default_agent_id ?? "main"}
-                placeholder="main"
-                onChange={(e) =>
-                  void persistSettings({ openclaw_default_agent_id: e.target.value })
-                }
-              />
-            </label>
-            <label className="field-label">
-              OpenClaw timeout (seconds)
-              <input
-                type="number"
-                min={30}
-                max={3600}
-                value={settings.openclaw_timeout_secs ?? 600}
-                onChange={(e) =>
-                  void persistSettings({ openclaw_timeout_secs: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={settings.openclaw_use_local ?? true}
-                onChange={(e) => void persistSettings({ openclaw_use_local: e.target.checked })}
-              />
-              <span>Run OpenClaw embedded locally (`openclaw agent --local`)</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={settings.openclaw_prefer_gateway ?? false}
-                onChange={(e) =>
-                  void persistSettings({ openclaw_prefer_gateway: e.target.checked })
-                }
-              />
-              <span>Prefer OpenClaw gateway when healthy (omit --local)</span>
-            </label>
-            {openclawStatus ? (
-              <p className="command-form-note">
-                OpenClaw: {openclawStatus.binary_available ? "detected" : "missing"} ·{" "}
-                {openclawStatus.agent_command_available ? "agent CLI ok" : "legacy stdin only"} ·{" "}
-                {openclawStatus.gateway_healthy ? "gateway healthy" : "gateway offline"} —{" "}
-                {openclawStatus.message}
-              </p>
+            {clawSubprocessSelected ? (
+              <>
+                <label className="field-label">
+                  {clawRuntimeName} binary path
+                  <input
+                    type="text"
+                    value={settings.openclaw_binary_path ?? ""}
+                    placeholder={clawBinaryPlaceholder(activeClawRuntime)}
+                    onChange={(e) => void persistSettings({ openclaw_binary_path: e.target.value })}
+                  />
+                </label>
+                <label className="field-label">
+                  {clawRuntimeName} default agent id
+                  <input
+                    type="text"
+                    value={settings.openclaw_default_agent_id ?? "main"}
+                    placeholder="main"
+                    onChange={(e) =>
+                      void persistSettings({ openclaw_default_agent_id: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  {clawRuntimeName} timeout (seconds)
+                  <input
+                    type="number"
+                    min={30}
+                    max={3600}
+                    value={settings.openclaw_timeout_secs ?? 600}
+                    onChange={(e) =>
+                      void persistSettings({ openclaw_timeout_secs: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.openclaw_use_local ?? true}
+                    onChange={(e) => void persistSettings({ openclaw_use_local: e.target.checked })}
+                  />
+                  <span>
+                    Run {clawRuntimeName} embedded locally (`{activeClawRuntime} agent --local`)
+                  </span>
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.openclaw_prefer_gateway ?? false}
+                    onChange={(e) =>
+                      void persistSettings({ openclaw_prefer_gateway: e.target.checked })
+                    }
+                  />
+                  <span>Prefer {clawRuntimeName} gateway when healthy (omit --local)</span>
+                </label>
+                {openclawStatus ? (
+                  <p className="command-form-note">
+                    {openclawStatus.runtime_label || clawRuntimeName}:{" "}
+                    {openclawStatus.binary_available ? "detected" : "missing"} ·{" "}
+                    {openclawStatus.agent_command_available ? "agent CLI ok" : "legacy stdin only"} ·{" "}
+                    {openclawStatus.gateway_healthy ? "gateway healthy" : "gateway offline"} —{" "}
+                    {openclawStatus.message}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={openclawTesting}
+                  onClick={() => void testOpenclaw()}
+                >
+                  {openclawTesting ? `Testing ${clawRuntimeName}…` : `Test ${clawRuntimeName} runtime`}
+                </button>
+              </>
             ) : null}
-            <button
-              type="button"
-              className="btn"
-              disabled={openclawTesting || settings.agent_runtime_mode !== "openclaw"}
-              onClick={() => void testOpenclaw()}
-            >
-              {openclawTesting ? "Testing OpenClaw…" : "Test OpenClaw runtime"}
-            </button>
             <label className="checkbox-row">
               <input
                 type="checkbox"
