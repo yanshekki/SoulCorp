@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { SearchTypeFilter, type SearchTypeFilterProps } from "./SearchTypeFilter";
 
 interface SearchFieldProps {
   value: string;
@@ -11,6 +12,7 @@ interface SearchFieldProps {
   size?: "compact" | "default";
   className?: string;
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  typeFilter?: Omit<SearchTypeFilterProps, "className">;
 }
 
 export function SearchField({
@@ -24,6 +26,7 @@ export function SearchField({
   size = "default",
   className = "",
   onKeyDown,
+  typeFilter,
 }: SearchFieldProps) {
   const inputId = useId();
   const hasQuery = value.trim().length > 0;
@@ -41,8 +44,9 @@ export function SearchField({
 
   return (
     <div
-      className={`search-field search-field--${size}${className ? ` ${className}` : ""}`}
+      className={`search-field search-field--${size}${typeFilter ? " search-field--with-type" : ""}${className ? ` ${className}` : ""}`}
     >
+      <div className="search-field-row">
       <div className="search-field-input-wrap">
         <span className="search-field-icon" aria-hidden="true">
           ⌕
@@ -68,6 +72,8 @@ export function SearchField({
             ×
           </button>
         ) : null}
+      </div>
+      {typeFilter ? <SearchTypeFilter {...typeFilter} /> : null}
       </div>
       {showMeta && metaText ? (
         <span className="search-field-meta muted">{metaText}</span>

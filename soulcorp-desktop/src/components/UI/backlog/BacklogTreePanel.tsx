@@ -2,7 +2,9 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import type { AgentRecord, InternalProject, WorkNode, WorkTreeSnapshot } from "../../../types/game";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { BACKLOG_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { fieldsMatchQuery, tokenizeQuery } from "../../../utils/listSearch";
+import { SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { openDepartmentWorkspace, openWorkspacePage } from "../../../utils/openWorkspacePage";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 import {
@@ -105,15 +107,35 @@ function TaskRow({
   );
 }
 
-function taskSearchFields(task: WorkNode, agents: AssignableAgent[]): string[] {
+function storySearchFields(story: WorkNode): string[] {
+  return [story.title, story.description ?? "", story.status];
+}
+
+function taskSearchFields(
+  task: WorkNode,
+  agents: AssignableAgent[],
+  searchType: string,
+): string[] {
   const assignee = agents.find((agent) => agent.id === task.assignee_agent_id);
-  return [
-    task.title,
-    task.description ?? "",
-    assignee?.name ?? "",
-    assignee?.role ?? "",
-    task.status,
-  ];
+  switch (searchType) {
+    case "story":
+      return [];
+    case "assignee":
+      return [assignee?.name ?? "", assignee?.role ?? ""];
+    case "department":
+      return [assignee?.department ?? ""];
+    case "task":
+      return [task.title, task.description ?? "", task.status];
+    default:
+      return [
+        task.title,
+        task.description ?? "",
+        assignee?.name ?? "",
+        assignee?.role ?? "",
+        assignee?.department ?? "",
+        task.status,
+      ];
+  }
 }
 
 function StoryCard({
@@ -255,6 +277,7 @@ export function BacklogTreePanel({
   const [storyDrafts, setStoryDrafts] = useState<Record<string, string>>({});
   const [newStoryTitle, setNewStoryTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
   const groups = useMemo(() => groupBacklogStories(tree?.flat ?? []), [tree]);
@@ -271,13 +294,24 @@ export function BacklogTreePanel({
     if (searchTokens.length === 0) {
       return groups;
     }
+    const storySearchEnabled =
+      searchType === SEARCH_TYPE_ALL || searchType === "story";
+    const taskSearchEnabled =
+      searchType === SEARCH_TYPE_ALL ||
+      searchType === "task" ||
+      searchType === "assignee" ||
+      searchType === "department";
+
     return groups
       .map((group): FilteredStoryGroup | null => {
-        const storyFields = [group.story.title, group.story.description ?? "", group.story.status];
-        const storyMatches = fieldsMatchQuery(storyFields, searchTokens);
-        const matchingTasks = group.tasks.filter((task) =>
-          fieldsMatchQuery(taskSearchFields(task, agents), searchTokens),
-        );
+        const storyMatches =
+          storySearchEnabled &&
+          fieldsMatchQuery(storySearchFields(group.story), searchTokens);
+        const matchingTasks = taskSearchEnabled
+          ? group.tasks.filter((task) =>
+              fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
+            )
+          : [];
         if (!storyMatches && matchingTasks.length === 0) {
           return null;
         }
@@ -288,16 +322,19 @@ export function BacklogTreePanel({
         };
       })
       .filter((group): group is FilteredStoryGroup => group !== null);
-  }, [groups, searchTokens, agents]);
+  }, [groups, searchTokens, agents, searchType]);
 
   const filteredOrphanTasks = useMemo(() => {
     if (searchTokens.length === 0) {
       return orphanTasks;
     }
+    if (searchType === "story") {
+      return [];
+    }
     return orphanTasks.filter((task) =>
-      fieldsMatchQuery(taskSearchFields(task, agents), searchTokens),
+      fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
     );
-  }, [orphanTasks, searchTokens, agents]);
+  }, [orphanTasks, searchTokens, agents, searchType]);
 
   const stats = useMemo(
     () => backlogStats(filteredGroups, filteredOrphanTasks),
@@ -389,8 +426,19 @@ export function BacklogTreePanel({
         onQueryChange={setSearchQuery}
         placeholder="Search stories and tasks…"
         ariaLabel="Search backlog"
-        matchCount={debouncedQuery.trim() ? filteredItemCount : undefined}
+        matchCount={
+          debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+            ? filteredItemCount
+            : undefined
+        }
         totalCount={totalItemCount}
+        typeFilter={{
+          value: searchType,
+          onChange: setSearchType,
+          options: BACKLOG_SEARCH_TYPES,
+          ariaLabel: "Filter backlog search field",
+          label: "Field",
+        }}
       />
 
       {debouncedQuery.trim() && filteredItemCount === 0 ? (

@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { PageComment } from "../../types/workspace";
-import { filterByQuery } from "../../utils/listSearch";
+import { COMMENT_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "../UI/PaginationBar";
 import { SearchableListToolbar } from "../UI/SearchableListToolbar";
@@ -18,6 +19,7 @@ export function PageComments({ pageId }: PageCommentsProps) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
@@ -26,17 +28,18 @@ export function PageComments({ pageId }: PageCommentsProps) {
       .then(setComments)
       .catch(() => setComments([]));
     setSearchQuery("");
+    setSearchType(SEARCH_TYPE_ALL);
     setListPage(0);
   }, [pageId]);
 
   const filteredComments = useMemo(
     () =>
-      filterByQuery(comments, debouncedQuery, (comment) => [
-        comment.author,
-        comment.content,
-        ...comment.mentions,
-      ]),
-    [comments, debouncedQuery],
+      filterByScopedQuery(comments, debouncedQuery, searchType, {
+        all: (comment) => [comment.author, comment.content, ...comment.mentions],
+        author: (comment) => [comment.author, ...comment.mentions],
+        content: (comment) => [comment.content],
+      }),
+    [comments, debouncedQuery, searchType],
   );
 
   const { pageItems, totalPages, safePage } = useMemo(
@@ -46,7 +49,7 @@ export function PageComments({ pageId }: PageCommentsProps) {
 
   useEffect(() => {
     setListPage(0);
-  }, [debouncedQuery, comments.length]);
+  }, [debouncedQuery, searchType, comments.length]);
 
   const submit = async () => {
     if (!draft.trim()) {
@@ -77,8 +80,19 @@ export function PageComments({ pageId }: PageCommentsProps) {
           onQueryChange={setSearchQuery}
           placeholder="Search comments…"
           ariaLabel="Search comments"
-          matchCount={debouncedQuery.trim() ? filteredComments.length : undefined}
+          matchCount={
+            debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+              ? filteredComments.length
+              : undefined
+          }
           totalCount={comments.length}
+          typeFilter={{
+            value: searchType,
+            onChange: setSearchType,
+            options: COMMENT_SEARCH_TYPES,
+            ariaLabel: "Filter comment search field",
+            label: "Field",
+          }}
         />
       ) : null}
       {comments.length === 0 ? (

@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
-import { filterByQuery } from "../../utils/listSearch";
+import { TRANSCRIPT_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
@@ -82,17 +83,23 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
   const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const [transcriptSearchQuery, setTranscriptSearchQuery] = useState("");
+  const [transcriptSearchType, setTranscriptSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedTranscriptQuery = useDebouncedValue(transcriptSearchQuery);
 
   const filteredMessages = useMemo(() => {
     const messages = activeMeeting?.messages ?? [];
-    return filterByQuery(messages, debouncedTranscriptQuery, (message) => [
-      message.speaker_name,
-      message.content,
-      message.provider ?? "",
-      message.speaker_id,
-    ]);
-  }, [activeMeeting?.messages, debouncedTranscriptQuery]);
+    return filterByScopedQuery(messages, debouncedTranscriptQuery, transcriptSearchType, {
+      all: (message) => [
+        message.speaker_name,
+        message.content,
+        message.provider ?? "",
+        message.speaker_id,
+      ],
+      speaker: (message) => [message.speaker_name, message.speaker_id],
+      content: (message) => [message.content],
+      provider: (message) => [message.provider ?? ""],
+    });
+  }, [activeMeeting?.messages, debouncedTranscriptQuery, transcriptSearchType]);
 
   const selectableAgents = useMemo(
     () => agentRecords.filter((agent) => agent.agent_kind !== "fate"),
@@ -429,6 +436,13 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
                   debouncedTranscriptQuery.trim() ? filteredMessages.length : undefined
                 }
                 totalCount={activeMeeting.messages.length}
+                typeFilter={{
+                  value: transcriptSearchType,
+                  onChange: setTranscriptSearchType,
+                  options: TRANSCRIPT_SEARCH_TYPES,
+                  ariaLabel: "Filter transcript search field",
+                  label: "Field",
+                }}
               />
             ) : null}
             {activeMeeting.messages.length === 0 ? (

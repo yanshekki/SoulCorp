@@ -4,7 +4,8 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { AgentWorkspaceActivityEntry } from "../../types/workspace";
-import { filterByQuery } from "../../utils/listSearch";
+import { WORKSPACE_ACTIVITY_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
@@ -38,6 +39,7 @@ export function AgentWorkspaceActivityFeed() {
   const [entries, setEntries] = useState<AgentWorkspaceActivityEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
@@ -63,12 +65,13 @@ export function AgentWorkspaceActivityFeed() {
 
   const filteredEntries = useMemo(
     () =>
-      filterByQuery(entries, debouncedQuery, (entry) => [
-        entry.title,
-        entry.agent_name,
-        entry.page_id,
-      ]),
-    [entries, debouncedQuery],
+      filterByScopedQuery(entries, debouncedQuery, searchType, {
+        all: (entry) => [entry.title, entry.agent_name, entry.action, entry.page_id],
+        title: (entry) => [entry.title],
+        agent: (entry) => [entry.agent_name, entry.agent_id],
+        action: (entry) => [entry.action],
+      }),
+    [entries, debouncedQuery, searchType],
   );
 
   const { pageItems, totalPages, safePage } = useMemo(
@@ -78,7 +81,7 @@ export function AgentWorkspaceActivityFeed() {
 
   useEffect(() => {
     setListPage(0);
-  }, [debouncedQuery, entries.length]);
+  }, [debouncedQuery, searchType, entries.length]);
 
   const openPage = async (entry: AgentWorkspaceActivityEntry) => {
     try {
@@ -117,9 +120,20 @@ export function AgentWorkspaceActivityFeed() {
           onQueryChange={setSearchQuery}
           placeholder="Search activity by title, agent…"
           ariaLabel="Search workspace activity"
-          matchCount={debouncedQuery.trim() ? filteredEntries.length : undefined}
+          matchCount={
+            debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+              ? filteredEntries.length
+              : undefined
+          }
           totalCount={entries.length}
           loading={loading}
+          typeFilter={{
+            value: searchType,
+            onChange: setSearchType,
+            options: WORKSPACE_ACTIVITY_SEARCH_TYPES,
+            ariaLabel: "Filter workspace activity search field",
+            label: "Field",
+          }}
         />
       ) : null}
 

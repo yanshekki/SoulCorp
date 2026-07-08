@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { WORKSPACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceSearchResult } from "../../types/workspace";
+import { SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchField } from "../UI/SearchField";
 
 interface WorkspaceSearchProps {
@@ -14,6 +16,7 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
   const setSearchQuery = useWorkspaceStore((state) => state.setSearchQuery);
   const setSearchResults = useWorkspaceStore((state) => state.setSearchResults);
   const [searching, setSearching] = useState(false);
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = async (query: string) => {
@@ -44,6 +47,13 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
     };
   }, [searchQuery]);
 
+  const filteredResults = useMemo(() => {
+    if (searchType === "file") {
+      return [];
+    }
+    return searchResults;
+  }, [searchResults, searchType]);
+
   return (
     <div className="ws-search">
       <SearchField
@@ -52,11 +62,22 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
         placeholder="Search pages & files…"
         ariaLabel="Search workspace"
         loading={searching}
-        matchCount={searchQuery.trim() ? searchResults.length : undefined}
+        matchCount={
+          searchQuery.trim() || searchType !== SEARCH_TYPE_ALL
+            ? filteredResults.length
+            : undefined
+        }
+        typeFilter={{
+          value: searchType,
+          onChange: setSearchType,
+          options: WORKSPACE_SEARCH_TYPES,
+          ariaLabel: "Filter workspace search item type",
+          label: "Type",
+        }}
       />
-      {searchResults.length > 0 ? (
+      {filteredResults.length > 0 ? (
         <div className="ws-search-results">
-          {searchResults.map((result) => (
+          {filteredResults.map((result) => (
             <button
               key={result.page_id}
               type="button"

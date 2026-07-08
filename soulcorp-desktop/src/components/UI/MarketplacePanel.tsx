@@ -15,7 +15,8 @@ import { simulationAutoRun } from "../../config/features";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
-import { filterByQuery } from "../../utils/listSearch";
+import { MARKETPLACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { invoke } from "@tauri-apps/api/core";
 import { PaginationBar } from "./PaginationBar";
@@ -71,6 +72,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
 
   const [executiveLoungeOnly, setExecutiveLoungeOnly] = useState(false);
   const [marketplaceSearchQuery, setMarketplaceSearchQuery] = useState("");
+  const [marketplaceSearchType, setMarketplaceSearchType] = useState(SEARCH_TYPE_ALL);
   const [browsePage, setBrowsePage] = useState(0);
   const [contractsPage, setContractsPage] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
@@ -180,36 +182,59 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
     [contracts],
   );
 
-  const gigSearchFields = (item: { title: string; description: string; required_skills?: string[]; gig_id?: number; status?: string }) => [
-    item.title,
-    item.description,
-    ...(item.required_skills ?? []),
-    item.gig_id != null ? String(item.gig_id) : "",
-    item.status ?? "",
-  ];
-
-  const contractSearchFields = (contract: GigContract) => [
-    contract.title,
-    contract.description,
-    contract.contract_id,
-    String(contract.gig_id),
-    contract.status,
-    ...(contract.required_skills ?? []),
-  ];
+  const marketplaceResolvers = {
+    all: (item: {
+      title: string;
+      description: string;
+      required_skills?: string[];
+      gig_id?: number;
+      status?: string;
+      contract_id?: string;
+    }) => [
+      item.title,
+      item.description,
+      ...(item.required_skills ?? []),
+      item.gig_id != null ? String(item.gig_id) : "",
+      item.contract_id ?? "",
+      item.status ?? "",
+    ],
+    title: (item: { title: string }) => [item.title],
+    description: (item: { description: string }) => [item.description],
+    skills: (item: { required_skills?: string[] }) => item.required_skills ?? [],
+    status: (item: { status?: string }) => [item.status ?? ""],
+  };
 
   const searchedBrowseGigs = useMemo(
-    () => filterByQuery(browseGigs, debouncedMarketplaceQuery, gigSearchFields),
-    [browseGigs, debouncedMarketplaceQuery],
+    () =>
+      filterByScopedQuery(
+        browseGigs,
+        debouncedMarketplaceQuery,
+        marketplaceSearchType,
+        marketplaceResolvers,
+      ),
+    [browseGigs, debouncedMarketplaceQuery, marketplaceSearchType],
   );
 
   const searchedActiveContracts = useMemo(
-    () => filterByQuery(activeContracts, debouncedMarketplaceQuery, contractSearchFields),
-    [activeContracts, debouncedMarketplaceQuery],
+    () =>
+      filterByScopedQuery(
+        activeContracts,
+        debouncedMarketplaceQuery,
+        marketplaceSearchType,
+        marketplaceResolvers,
+      ),
+    [activeContracts, debouncedMarketplaceQuery, marketplaceSearchType],
   );
 
   const searchedHistoryContracts = useMemo(
-    () => filterByQuery(historyContracts, debouncedMarketplaceQuery, contractSearchFields),
-    [historyContracts, debouncedMarketplaceQuery],
+    () =>
+      filterByScopedQuery(
+        historyContracts,
+        debouncedMarketplaceQuery,
+        marketplaceSearchType,
+        marketplaceResolvers,
+      ),
+    [historyContracts, debouncedMarketplaceQuery, marketplaceSearchType],
   );
 
   const browsePagination = useMemo(
@@ -231,7 +256,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
     setBrowsePage(0);
     setContractsPage(0);
     setHistoryPage(0);
-  }, [debouncedMarketplaceQuery]);
+  }, [debouncedMarketplaceQuery, marketplaceSearchType]);
 
   const handleSync = async () => {
     try {
@@ -474,6 +499,13 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           onQueryChange={setMarketplaceSearchQuery}
           placeholder="Search gigs and contracts…"
           ariaLabel="Search marketplace"
+          typeFilter={{
+            value: marketplaceSearchType,
+            onChange: setMarketplaceSearchType,
+            options: MARKETPLACE_SEARCH_TYPES,
+            ariaLabel: "Filter marketplace search field",
+            label: "Field",
+          }}
         />
 
         <label className="checkbox-row executive-lounge-filter">

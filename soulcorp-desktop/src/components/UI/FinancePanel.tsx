@@ -14,7 +14,8 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { showAgentMorale } from "../../config/features";
 import { AgentTokenBudgetEditor } from "./AgentTokenBudgetEditor";
 import { agentLabelById } from "../../utils/agentLabel";
-import { filterByQuery } from "../../utils/listSearch";
+import { LEDGER_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
@@ -54,6 +55,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
   const [agentAllocDrafts, setAgentAllocDrafts] = useState<Record<string, number>>({});
   const [rebalancing, setRebalancing] = useState(false);
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
+  const [ledgerSearchType, setLedgerSearchType] = useState(SEARCH_TYPE_ALL);
   const [ledgerPage, setLedgerPage] = useState(0);
   const debouncedLedgerQuery = useDebouncedValue(ledgerSearchQuery);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
@@ -71,21 +73,31 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
 
   const filteredLedger = useMemo(
     () =>
-      filterByQuery(ledger, debouncedLedgerQuery, (entry) => {
-        const agentName = entry.agent_id
-          ? (agentNameById.get(entry.agent_id) ?? entry.agent_id)
-          : "";
-        return [
-          entry.source,
-          entry.provider ?? "",
-          entry.department,
-          agentName,
-          entry.agent_id ?? "",
-          new Date(entry.at).toLocaleString(),
-          String(entry.total_tokens),
-        ];
+      filterByScopedQuery(ledger, debouncedLedgerQuery, ledgerSearchType, {
+        all: (entry) => {
+          const agentName = entry.agent_id
+            ? (agentNameById.get(entry.agent_id) ?? entry.agent_id)
+            : "";
+          return [
+            entry.source,
+            entry.provider ?? "",
+            entry.department,
+            agentName,
+            entry.agent_id ?? "",
+            new Date(entry.at).toLocaleString(),
+            String(entry.total_tokens),
+          ];
+        },
+        source: (entry) => [entry.source, entry.provider ?? ""],
+        department: (entry) => [entry.department],
+        agent: (entry) => {
+          const agentName = entry.agent_id
+            ? (agentNameById.get(entry.agent_id) ?? entry.agent_id)
+            : "";
+          return [agentName, entry.agent_id ?? ""];
+        },
       }),
-    [ledger, debouncedLedgerQuery, agentNameById],
+    [ledger, debouncedLedgerQuery, ledgerSearchType, agentNameById],
   );
 
   const {
@@ -99,7 +111,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
 
   useEffect(() => {
     setLedgerPage(0);
-  }, [debouncedLedgerQuery, ledger.length]);
+  }, [debouncedLedgerQuery, ledgerSearchType, ledger.length]);
 
   const agentWalletRows = useMemo(
     () =>
@@ -555,8 +567,19 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
               onQueryChange={setLedgerSearchQuery}
               placeholder="Search ledger by source, dept, agent…"
               ariaLabel="Search usage ledger"
-              matchCount={debouncedLedgerQuery.trim() ? filteredLedger.length : undefined}
+              matchCount={
+                debouncedLedgerQuery.trim() || ledgerSearchType !== SEARCH_TYPE_ALL
+                  ? filteredLedger.length
+                  : undefined
+              }
               totalCount={ledger.length}
+              typeFilter={{
+                value: ledgerSearchType,
+                onChange: setLedgerSearchType,
+                options: LEDGER_SEARCH_TYPES,
+                ariaLabel: "Filter ledger search field",
+                label: "Field",
+              }}
             />
             {debouncedLedgerQuery.trim() && filteredLedger.length === 0 ? (
               <p className="search-empty-hint muted">

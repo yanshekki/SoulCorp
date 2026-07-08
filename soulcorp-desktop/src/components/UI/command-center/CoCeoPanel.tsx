@@ -5,7 +5,8 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { useGameStore } from "../../../stores/gameStore";
 import type { AgentRecord, CoCeoBriefing, CoCeoStatus } from "../../../types/game";
 import { sendCoCeoDirectiveToStae } from "../../../services/scrumClient";
-import { filterByQuery } from "../../../utils/listSearch";
+import { DIRECTIVE_TEXT_SEARCH_TYPES } from "../../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 
@@ -24,19 +25,30 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
   const [companyVision, setCompanyVision] = useState("");
   const [savingVision, setSavingVision] = useState(false);
   const [directiveSearchQuery, setDirectiveSearchQuery] = useState("");
+  const [directiveSearchType, setDirectiveSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedDirectiveQuery = useDebouncedValue(directiveSearchQuery);
 
   const filteredBriefingDirectives = useMemo(() => {
     if (!briefing) {
       return [];
     }
-    return filterByQuery(briefing.directives, debouncedDirectiveQuery, (directive) => [
-      directive.title,
-      directive.description,
-      directive.target_department,
-      directive.id,
-    ]);
-  }, [briefing, debouncedDirectiveQuery]);
+    return filterByScopedQuery(
+      briefing.directives,
+      debouncedDirectiveQuery,
+      directiveSearchType,
+      {
+        all: (directive) => [
+          directive.title,
+          directive.description,
+          directive.target_department,
+          directive.id,
+        ],
+        title: (directive) => [directive.title],
+        body: (directive) => [directive.description],
+        source: (directive) => [directive.target_department, directive.id],
+      },
+    );
+  }, [briefing, debouncedDirectiveQuery, directiveSearchType]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -242,9 +254,18 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
             placeholder="Search briefing directives…"
             ariaLabel="Search Co-CEO briefing directives"
             matchCount={
-              debouncedDirectiveQuery.trim() ? filteredBriefingDirectives.length : undefined
+              debouncedDirectiveQuery.trim() || directiveSearchType !== SEARCH_TYPE_ALL
+                ? filteredBriefingDirectives.length
+                : undefined
             }
             totalCount={briefing.directives.length}
+            typeFilter={{
+              value: directiveSearchType,
+              onChange: setDirectiveSearchType,
+              options: DIRECTIVE_TEXT_SEARCH_TYPES,
+              ariaLabel: "Filter briefing directive search field",
+              label: "Field",
+            }}
           />
           {debouncedDirectiveQuery.trim() && filteredBriefingDirectives.length === 0 ? (
             <p className="search-empty-hint muted">

@@ -4,6 +4,8 @@ import { quickTagsForPreset } from "../../data/recruitmentSearchTags";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { RecruitmentCandidate } from "../../types/game";
 import { hubFileTypeLabel } from "../../utils/candidateSoul";
+import { RECRUITMENT_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchField } from "./SearchField";
 
 const PAGE_SIZE = 4;
@@ -20,6 +22,7 @@ export function RecruitmentCandidatePicker({
   onSelect,
 }: RecruitmentCandidatePickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -31,7 +34,7 @@ export function RecruitmentCandidatePicker({
 
   useEffect(() => {
     setPage(0);
-  }, [debouncedQuery, presetId]);
+  }, [debouncedQuery, searchType, presetId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,18 +80,31 @@ export function RecruitmentCandidatePicker({
   const filteredCandidates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const debounced = debouncedQuery.trim().toLowerCase();
-    if (!query || query === debounced) {
-      return candidates;
-    }
-    return candidates.filter(
-      (candidate) =>
-        candidate.name.toLowerCase().includes(query) ||
-        candidate.headline.toLowerCase().includes(query) ||
-        candidate.job_role.toLowerCase().includes(query) ||
-        candidate.vibe.toLowerCase().includes(query) ||
-        candidate.skills.some((skill) => skill.toLowerCase().includes(query)),
-    );
-  }, [candidates, debouncedQuery, searchQuery]);
+    const baseCandidates =
+      !query || query === debounced
+        ? candidates
+        : candidates.filter(
+            (candidate) =>
+              candidate.name.toLowerCase().includes(query) ||
+              candidate.headline.toLowerCase().includes(query) ||
+              candidate.job_role.toLowerCase().includes(query) ||
+              candidate.vibe.toLowerCase().includes(query) ||
+              candidate.skills.some((skill) => skill.toLowerCase().includes(query)),
+          );
+
+    return filterByScopedQuery(baseCandidates, debouncedQuery, searchType, {
+      all: (candidate) => [
+        candidate.name,
+        candidate.headline,
+        candidate.job_role,
+        candidate.vibe,
+        ...candidate.skills,
+      ],
+      name: (candidate) => [candidate.name, candidate.vibe],
+      role: (candidate) => [candidate.job_role, candidate.headline],
+      skills: (candidate) => candidate.skills,
+    });
+  }, [candidates, debouncedQuery, searchQuery, searchType]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCandidates.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -115,7 +131,18 @@ export function RecruitmentCandidatePicker({
           placeholder="Name, skill, description…"
           ariaLabel="Search hub souls"
           loading={loading}
-          matchCount={searchQuery.trim() || loading ? filteredCandidates.length : undefined}
+          matchCount={
+            searchQuery.trim() || loading || searchType !== SEARCH_TYPE_ALL
+              ? filteredCandidates.length
+              : undefined
+          }
+          typeFilter={{
+            value: searchType,
+            onChange: setSearchType,
+            options: RECRUITMENT_SEARCH_TYPES,
+            ariaLabel: "Filter recruitment search field",
+            label: "Field",
+          }}
         />
       </div>
 

@@ -14,6 +14,8 @@ import type {
   WorkspacePageSummary,
   WorkspaceSearchResult,
 } from "../../types/workspace";
+import { AGENT_WORKSPACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchField } from "./SearchField";
 
 interface AgentWorkspaceBrowserProps {
@@ -58,6 +60,7 @@ export function AgentWorkspaceBrowser({
   const [agentId, setAgentId] = useState<string>("");
   const [context, setContext] = useState<AgentWorkspaceContext | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [searchResults, setSearchResults] = useState<WorkspaceSearchResult[] | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [pagePreview, setPagePreview] = useState<AgentWorkspacePageView | null>(null);
@@ -158,12 +161,24 @@ export function AgentWorkspaceBrowser({
     setAgentId(nextAgentId);
     onSelectAgent?.(nextAgentId);
     setSearchQuery("");
+    setSearchType(SEARCH_TYPE_ALL);
     setSearchResults(null);
   };
 
+  const filteredSearchResults = useMemo(() => {
+    if (!searchResults) {
+      return null;
+    }
+    return filterByScopedQuery(searchResults, searchQuery, searchType, {
+      all: (result) => [result.title, result.snippet],
+      title: (result) => [result.title],
+      content: (result) => [result.snippet],
+    });
+  }, [searchResults, searchQuery, searchType]);
+
   const listedPages: WorkspacePageSummary[] = useMemo(() => {
-    if (searchResults) {
-      return searchResults.map((result) => ({
+    if (filteredSearchResults) {
+      return filteredSearchResults.map((result) => ({
         id: result.page_id,
         title: result.title,
         folder_id: result.folder_id,
@@ -172,7 +187,7 @@ export function AgentWorkspaceBrowser({
       }));
     }
     return context?.pages ?? [];
-  }, [context?.pages, searchResults]);
+  }, [context?.pages, filteredSearchResults]);
 
   const activeAgent = selectableAgents.find((agent) => agent.id === activeAgentId);
 
@@ -281,7 +296,18 @@ export function AgentWorkspaceBrowser({
             onChange={setSearchQuery}
             placeholder="Search this agent's pages…"
             ariaLabel="Search agent workspace"
-            matchCount={searchQuery.trim() ? listedPages.length : undefined}
+            matchCount={
+              searchQuery.trim() || searchType !== SEARCH_TYPE_ALL
+                ? listedPages.length
+                : undefined
+            }
+            typeFilter={{
+              value: searchType,
+              onChange: setSearchType,
+              options: AGENT_WORKSPACE_SEARCH_TYPES,
+              ariaLabel: "Filter agent workspace search field",
+              label: "Field",
+            }}
           />
 
           <div className="agents-workspace-page-list" role="listbox" aria-label="Agent pages">
@@ -295,7 +321,9 @@ export function AgentWorkspaceBrowser({
               </p>
             ) : (
               listedPages.map((page) => {
-                const snippet = searchResults?.find((result) => result.page_id === page.id)?.snippet;
+                const snippet = filteredSearchResults?.find(
+                  (result) => result.page_id === page.id,
+                )?.snippet;
                 return (
                   <button
                     key={page.id}

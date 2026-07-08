@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { ForesightEvent, GameEvent } from "../../types/game";
-import { filterByQuery } from "../../utils/listSearch";
+import { EVENT_FEED_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
@@ -16,6 +17,7 @@ export function EventFeed() {
   const settings = useGameStore((state) => state.settings);
   const [foresight, setForesight] = useState<ForesightEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
@@ -41,13 +43,18 @@ export function EventFeed() {
 
   const filteredEvents = useMemo(
     () =>
-      filterByQuery(events, debouncedQuery, (event: GameEvent) => [
-        event.title,
-        event.description,
-        event.narrator ?? "",
-        event.tone,
-      ]),
-    [events, debouncedQuery],
+      filterByScopedQuery(events, debouncedQuery, searchType, {
+        all: (event: GameEvent) => [
+          event.title,
+          event.description,
+          event.narrator ?? "",
+          event.tone,
+        ],
+        title: (event: GameEvent) => [event.title, event.narrator ?? ""],
+        body: (event: GameEvent) => [event.description],
+        kind: (event: GameEvent) => [event.tone],
+      }),
+    [events, debouncedQuery, searchType],
   );
 
   const { pageItems, totalPages, safePage } = useMemo(
@@ -57,7 +64,7 @@ export function EventFeed() {
 
   useEffect(() => {
     setListPage(0);
-  }, [debouncedQuery, events.length]);
+  }, [debouncedQuery, searchType, events.length]);
 
   if (settings.play_mode === "work") {
     return null;
@@ -95,8 +102,19 @@ export function EventFeed() {
             onQueryChange={setSearchQuery}
             placeholder="Search events…"
             ariaLabel="Search events"
-            matchCount={debouncedQuery.trim() ? filteredEvents.length : undefined}
+            matchCount={
+              debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+                ? filteredEvents.length
+                : undefined
+            }
             totalCount={events.length}
+            typeFilter={{
+              value: searchType,
+              onChange: setSearchType,
+              options: EVENT_FEED_SEARCH_TYPES,
+              ariaLabel: "Filter event search field",
+              label: "Field",
+            }}
           />
           {debouncedQuery.trim() && filteredEvents.length === 0 ? (
             <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>

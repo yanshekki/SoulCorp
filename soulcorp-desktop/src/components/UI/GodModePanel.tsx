@@ -4,7 +4,8 @@ import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { GodModeActionResult, GodModeLogEntry, TokenEconomy } from "../../types/game";
-import { filterByQuery } from "../../utils/listSearch";
+import { GOD_MODE_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, prefilterItems, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
@@ -178,6 +179,7 @@ export function GodModePanel() {
   const [realityDebt, setRealityDebt] = useState(0);
   const [running, setRunning] = useState<string | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [historySearchType, setHistorySearchType] = useState(SEARCH_TYPE_ALL);
   const [historyPage, setHistoryPage] = useState(0);
   const debouncedHistoryQuery = useDebouncedValue(historySearchQuery);
 
@@ -215,15 +217,37 @@ export function GodModePanel() {
     }
   };
 
+  const actionCategoryByCommand = useMemo(
+    () => new Map(GOD_MODE_ACTIONS.map((action) => [action.command, action.category])),
+    [],
+  );
+
+  const scopedHistory = useMemo(
+    () =>
+      prefilterItems(history, historySearchType, (entry, type) => {
+        if (type === SEARCH_TYPE_ALL) {
+          return true;
+        }
+        return actionCategoryByCommand.get(entry.action) === type;
+      }),
+    [history, historySearchType, actionCategoryByCommand],
+  );
+
   const filteredHistory = useMemo(
     () =>
-      filterByQuery(history, debouncedHistoryQuery, (entry) => [
-        entry.action,
-        entry.message,
-        String(entry.day_number),
-        String(entry.reality_cost),
-      ]),
-    [history, debouncedHistoryQuery],
+      filterByScopedQuery(scopedHistory, debouncedHistoryQuery, historySearchType, {
+        all: (entry) => [
+          entry.action,
+          entry.message,
+          String(entry.day_number),
+          String(entry.reality_cost),
+        ],
+        simulation: (entry) => [entry.action, entry.message],
+        economy: (entry) => [entry.action, entry.message],
+        agents: (entry) => [entry.action, entry.message],
+        chaos: (entry) => [entry.action, entry.message],
+      }),
+    [scopedHistory, debouncedHistoryQuery, historySearchType],
   );
 
   const {
@@ -237,7 +261,7 @@ export function GodModePanel() {
 
   useEffect(() => {
     setHistoryPage(0);
-  }, [debouncedHistoryQuery, history.length]);
+  }, [debouncedHistoryQuery, historySearchType, history.length]);
 
   const activePreview = GOD_MODE_ACTIONS.find((action) => action.label === selected);
 
@@ -310,9 +334,18 @@ export function GodModePanel() {
                   placeholder="Search interventions…"
                   ariaLabel="Search intervention log"
                   matchCount={
-                    debouncedHistoryQuery.trim() ? filteredHistory.length : undefined
+                    debouncedHistoryQuery.trim() || historySearchType !== SEARCH_TYPE_ALL
+                      ? filteredHistory.length
+                      : undefined
                   }
-                  totalCount={history.length}
+                  totalCount={scopedHistory.length}
+                  typeFilter={{
+                    value: historySearchType,
+                    onChange: setHistorySearchType,
+                    options: GOD_MODE_SEARCH_TYPES,
+                    ariaLabel: "Filter intervention type",
+                    label: "Type",
+                  }}
                 />
                 {debouncedHistoryQuery.trim() && filteredHistory.length === 0 ? (
                   <p className="search-empty-hint muted">

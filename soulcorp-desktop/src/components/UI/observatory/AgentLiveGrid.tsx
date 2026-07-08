@@ -4,7 +4,8 @@ import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { EffectiveBrainPill } from "../brain/EffectiveBrainPill";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
-import { filterByQuery } from "../../../utils/listSearch";
+import { EMPLOYEE_SEARCH_TYPES } from "../../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import type { AgentActivitySession } from "../../../types/agentActivity";
 
 interface AgentLiveGridProps {
@@ -48,6 +49,7 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
   const selectedSessionId = useAgentActivityStore((state) => state.selectedSessionId);
   const [showIdle, setShowIdle] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
   const activeSessions = useMemo(
@@ -70,13 +72,13 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
 
   const filteredIdleAgents = useMemo(
     () =>
-      filterByQuery(idleAgents, debouncedQuery, (agent) => [
-        agent.name,
-        agent.role,
-        agent.department,
-        agent.id,
-      ]),
-    [idleAgents, debouncedQuery],
+      filterByScopedQuery(idleAgents, debouncedQuery, searchType, {
+        all: (agent) => [agent.name, agent.role, agent.department, agent.id],
+        name: (agent) => [agent.name],
+        role: (agent) => [agent.role],
+        department: (agent) => [agent.department],
+      }),
+    [idleAgents, debouncedQuery, searchType],
   );
 
   if (activeSessions.length === 0) {
@@ -152,6 +154,13 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
                 ariaLabel="Search idle employees"
                 matchCount={debouncedQuery.trim() ? filteredIdleAgents.length : undefined}
                 totalCount={idleAgents.length}
+                typeFilter={{
+                  value: searchType,
+                  onChange: setSearchType,
+                  options: EMPLOYEE_SEARCH_TYPES,
+                  ariaLabel: "Filter idle employee search field",
+                  label: "Field",
+                }}
               />
               <ul className="observatory-idle-list">
                 {filteredIdleAgents.map((agent) => (

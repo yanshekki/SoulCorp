@@ -7,6 +7,8 @@ import {
   updateDepartment,
 } from "../../../services/departmentsClient";
 import type { DepartmentListEntry } from "../../../types/game";
+import { DEPARTMENT_SEARCH_TYPES } from "../../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { SearchField } from "../SearchField";
 import { DepartmentEditor } from "./DepartmentEditor";
 import {
@@ -31,22 +33,27 @@ export function DepartmentsTab({
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [busy, setBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [transferTo, setTransferTo] = useState("");
   const [createForm, setCreateForm] = useState<DepartmentFormState>(EMPTY_DEPARTMENT_FORM);
   const [editForm, setEditForm] = useState<DepartmentFormState>(EMPTY_DEPARTMENT_FORM);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return departments;
-    return departments.filter(
-      (department) =>
-        department.name.toLowerCase().includes(needle) ||
-        department.display_name.toLowerCase().includes(needle) ||
-        department.sop.toLowerCase().includes(needle),
-    );
-  }, [departments, query]);
+  const filtered = useMemo(
+    () =>
+      filterByScopedQuery(departments, query, searchType, {
+        all: (department) => [
+          department.name,
+          department.display_name,
+          department.sop,
+          department.head_agent_name ?? "",
+        ],
+        department: (department) => [department.name, department.display_name, department.sop],
+        agent: (department) => [department.head_agent_name ?? ""],
+      }),
+    [departments, query, searchType],
+  );
 
   const selected = departments.find((department) => department.id === selectedId) ?? null;
 
@@ -136,9 +143,18 @@ export function DepartmentsTab({
             onChange={setQuery}
             placeholder="Search teams…"
             ariaLabel="Search departments"
-            matchCount={query.trim() ? filtered.length : undefined}
+            matchCount={
+              query.trim() || searchType !== SEARCH_TYPE_ALL ? filtered.length : undefined
+            }
             totalCount={departments.length}
             size="compact"
+            typeFilter={{
+              value: searchType,
+              onChange: setSearchType,
+              options: DEPARTMENT_SEARCH_TYPES,
+              ariaLabel: "Filter department search field",
+              label: "Field",
+            }}
           />
         </header>
 

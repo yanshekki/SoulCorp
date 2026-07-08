@@ -10,6 +10,8 @@ import {
 } from "../../../utils/multiSectionTextSearch";
 import { sectionsNeedSearch } from "../../../utils/pagination";
 import { workspacePagePlainText } from "../../../utils/workspacePageText";
+import { EXECUTION_TEXT_SEARCH_TYPES } from "../../../data/searchFilterOptions";
+import { SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { SearchField } from "../SearchField";
 import { SearchableTextSection } from "../SearchableTextSection";
 
@@ -58,6 +60,7 @@ export function ExecutionRunDetailModal({
   const [summaryPage, setSummaryPage] = useState(0);
   const [deliverablePage, setDeliverablePage] = useState(0);
   const [globalQuery, setGlobalQuery] = useState("");
+  const [globalSearchType, setGlobalSearchType] = useState(SEARCH_TYPE_ALL);
   const [globalMatchIndex, setGlobalMatchIndex] = useState(0);
   const debouncedGlobalQuery = useDebouncedValue(globalQuery);
 
@@ -75,14 +78,23 @@ export function ExecutionRunDetailModal({
     return sections;
   }, [run.error, run.summary, deliverableBody]);
 
+  const scopedSearchableSections = useMemo(() => {
+    if (globalSearchType === SEARCH_TYPE_ALL) {
+      return searchableSections;
+    }
+    const sectionId =
+      globalSearchType === "output" ? "deliverable" : globalSearchType;
+    return searchableSections.filter((section) => section.id === sectionId);
+  }, [searchableSections, globalSearchType]);
+
   const globalMatches = useMemo(
-    () => findGlobalTextMatches(searchableSections, debouncedGlobalQuery),
-    [searchableSections, debouncedGlobalQuery],
+    () => findGlobalTextMatches(scopedSearchableSections, debouncedGlobalQuery),
+    [scopedSearchableSections, debouncedGlobalQuery],
   );
 
   const matchSummary = useMemo(
-    () => sectionMatchSummary(searchableSections, debouncedGlobalQuery),
-    [searchableSections, debouncedGlobalQuery],
+    () => sectionMatchSummary(scopedSearchableSections, debouncedGlobalQuery),
+    [scopedSearchableSections, debouncedGlobalQuery],
   );
 
   const activeGlobalMatch = globalMatches[globalMatchIndex] ?? null;
@@ -99,19 +111,20 @@ export function ExecutionRunDetailModal({
     setSummaryPage(0);
     setDeliverablePage(0);
     setGlobalQuery("");
+    setGlobalSearchType(SEARCH_TYPE_ALL);
     setGlobalMatchIndex(0);
   }, [run.id]);
 
   useEffect(() => {
     setGlobalMatchIndex(0);
-  }, [debouncedGlobalQuery]);
+  }, [debouncedGlobalQuery, globalSearchType]);
 
   useEffect(() => {
     if (!activeGlobalMatch || !debouncedGlobalQuery.trim()) {
       return;
     }
     const page = pageForGlobalMatch(
-      searchableSections,
+      scopedSearchableSections,
       debouncedGlobalQuery,
       activeGlobalMatch,
     );
@@ -129,7 +142,7 @@ export function ExecutionRunDetailModal({
     activeGlobalMatch?.globalIndex,
     activeGlobalMatch?.sectionId,
     debouncedGlobalQuery,
-    searchableSections,
+    scopedSearchableSections,
   ]);
 
   useEffect(() => {
@@ -242,8 +255,19 @@ export function ExecutionRunDetailModal({
               onChange={setGlobalQuery}
               placeholder="Search error, summary, and deliverable…"
               ariaLabel="Search entire execution run"
-              matchCount={usingGlobalSearch ? globalMatches.length : undefined}
+              matchCount={
+                usingGlobalSearch || globalSearchType !== SEARCH_TYPE_ALL
+                  ? globalMatches.length
+                  : undefined
+              }
               onKeyDown={handleGlobalSearchKeyDown}
+              typeFilter={{
+                value: globalSearchType,
+                onChange: setGlobalSearchType,
+                options: EXECUTION_TEXT_SEARCH_TYPES,
+                ariaLabel: "Filter execution run search section",
+                label: "Section",
+              }}
             />
             {usingGlobalSearch && matchSummary.length > 0 ? (
               <p className="execution-run-global-search-summary muted">

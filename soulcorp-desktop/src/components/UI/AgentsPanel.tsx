@@ -11,7 +11,8 @@ import type { AgentRecord, CompanyDepartmentsSnapshot, RuntimeCatalog } from "..
 import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import { filterByQuery } from "../../utils/listSearch";
+import { EMPLOYEE_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SoulMdEditor } from "./SoulMdEditor";
 import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
@@ -57,19 +58,19 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const [expandedSoulId, setExpandedSoulId] = useState<string | null>(null);
   const [workspaceAgentId, setWorkspaceAgentId] = useState<string | null>(null);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
+  const [employeeSearchType, setEmployeeSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedEmployeeQuery = useDebouncedValue(employeeSearchQuery);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   const filteredAgentRecords = useMemo(
     () =>
-      filterByQuery(agentRecords, debouncedEmployeeQuery, (agent) => [
-        agent.name,
-        agent.role,
-        agent.department,
-        agent.id,
-        agent.agent_kind ?? "",
-      ]),
-    [agentRecords, debouncedEmployeeQuery],
+      filterByScopedQuery(agentRecords, debouncedEmployeeQuery, employeeSearchType, {
+        all: (agent) => [agent.name, agent.role, agent.department, agent.id, agent.agent_kind ?? ""],
+        name: (agent) => [agent.name],
+        role: (agent) => [agent.role],
+        department: (agent) => [agent.department],
+      }),
+    [agentRecords, debouncedEmployeeQuery, employeeSearchType],
   );
 
   const departmentProviderMap = useMemo(
@@ -556,6 +557,13 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                 debouncedEmployeeQuery.trim() ? filteredAgentRecords.length : undefined
               }
               totalCount={agentRecords.length}
+              typeFilter={{
+                value: employeeSearchType,
+                onChange: setEmployeeSearchType,
+                options: EMPLOYEE_SEARCH_TYPES,
+                ariaLabel: "Filter employee search field",
+                label: "Field",
+              }}
             />
             {debouncedEmployeeQuery.trim() && filteredAgentRecords.length === 0 ? (
               <p className="search-empty-hint muted">

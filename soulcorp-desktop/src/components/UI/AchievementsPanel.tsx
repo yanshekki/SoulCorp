@@ -4,7 +4,8 @@ import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
 import type { Achievement, AchievementSnapshot, Ending } from "../../types/game";
-import { filterByQuery } from "../../utils/listSearch";
+import { ACHIEVEMENT_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, prefilterItems, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -106,7 +107,30 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
+
+  const scopedAchievements = useMemo(
+    () =>
+      prefilterItems(achievements, searchType, (achievement, type) => {
+        if (type === "ending") {
+          return false;
+        }
+        if (type === "achievement" || type === SEARCH_TYPE_ALL) {
+          return true;
+        }
+        return achievement.category === type;
+      }),
+    [achievements, searchType],
+  );
+
+  const scopedEndings = useMemo(
+    () =>
+      searchType === SEARCH_TYPE_ALL || searchType === "ending"
+        ? endings
+        : [],
+    [endings, searchType],
+  );
 
   useEffect(() => {
     if (!activeCompanyId) {
@@ -156,23 +180,50 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
   );
   const filteredAchievements = useMemo(
     () =>
-      filterByQuery(achievements, debouncedQuery, (achievement) => [
-        achievement.title,
-        achievement.description,
-        achievement.category,
-        CATEGORY_LABELS[achievement.category] ?? achievement.category,
-      ]),
-    [achievements, debouncedQuery],
+      filterByScopedQuery(scopedAchievements, debouncedQuery, searchType, {
+        all: (achievement) => [
+          achievement.title,
+          achievement.description,
+          achievement.category,
+          CATEGORY_LABELS[achievement.category] ?? achievement.category,
+        ],
+        achievement: (achievement) => [
+          achievement.title,
+          achievement.description,
+          achievement.category,
+          CATEGORY_LABELS[achievement.category] ?? achievement.category,
+        ],
+        ending: () => [],
+        growth: (achievement) => [
+          achievement.title,
+          achievement.description,
+          CATEGORY_LABELS[achievement.category] ?? achievement.category,
+        ],
+        culture: (achievement) => [
+          achievement.title,
+          achievement.description,
+          CATEGORY_LABELS[achievement.category] ?? achievement.category,
+        ],
+        productivity: (achievement) => [
+          achievement.title,
+          achievement.description,
+          CATEGORY_LABELS[achievement.category] ?? achievement.category,
+        ],
+      }),
+    [scopedAchievements, debouncedQuery, searchType],
   );
 
   const filteredEndings = useMemo(
     () =>
-      filterByQuery(endings, debouncedQuery, (ending) => [
-        ending.title,
-        ending.description,
-        ending.id,
-      ]),
-    [endings, debouncedQuery],
+      filterByScopedQuery(scopedEndings, debouncedQuery, searchType, {
+        all: (ending) => [ending.title, ending.description, ending.id],
+        achievement: () => [],
+        ending: (ending) => [ending.title, ending.description, ending.id],
+        growth: () => [],
+        culture: () => [],
+        productivity: () => [],
+      }),
+    [scopedEndings, debouncedQuery, searchType],
   );
 
   const groupedAchievements = useMemo(
@@ -219,11 +270,18 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
         placeholder="Search achievements and endings…"
         ariaLabel="Search achievements"
         matchCount={
-          debouncedQuery.trim()
+          debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
             ? filteredAchievements.length + filteredEndings.length
             : undefined
         }
-        totalCount={achievements.length + endings.length}
+        totalCount={scopedAchievements.length + scopedEndings.length}
+        typeFilter={{
+          value: searchType,
+          onChange: setSearchType,
+          options: ACHIEVEMENT_SEARCH_TYPES,
+          ariaLabel: "Filter achievement type",
+          label: "Type",
+        }}
       />
 
       {debouncedQuery.trim() &&

@@ -16,7 +16,9 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
 import { isSubprocessRuntime, runtimeModeLabel } from "../../../utils/agentRuntimeCatalog";
 import { formatTimestamp } from "../../../utils/formatTimestamp";
+import { DIRECTIVE_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { filterByQuery } from "../../../utils/listSearch";
+import { SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { paginateItems } from "../../../utils/pagination";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
@@ -112,7 +114,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const [planAfterRoute, setPlanAfterRoute] = useState(false);
   const [preview, setPreview] = useState<DirectivePreviewNode[] | null>(null);
   const [selectedDirectiveId, setSelectedDirectiveId] = useState<string | null>(null);
-  const [directiveFilter, setDirectiveFilter] = useState<string>("all");
+  const [directiveFilter, setDirectiveFilter] = useState<string>(SEARCH_TYPE_ALL);
   const [directiveSearchQuery, setDirectiveSearchQuery] = useState("");
   const [directiveListPage, setDirectiveListPage] = useState(0);
   const debouncedDirectiveQuery = useDebouncedValue(directiveSearchQuery);
@@ -255,7 +257,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   }, [project?.id, targetType]);
 
   const statusFilteredDirectives = useMemo(() => {
-    if (directiveFilter === "all") return directives;
+    if (directiveFilter === SEARCH_TYPE_ALL) return directives;
     return directives.filter((d) => d.status === directiveFilter || d.source === directiveFilter);
   }, [directives, directiveFilter]);
 
@@ -735,21 +737,19 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 placeholder="Search directives…"
                 ariaLabel="Search directives"
                 matchCount={
-                  debouncedDirectiveQuery.trim() ? filteredDirectives.length : undefined
+                  debouncedDirectiveQuery.trim() || directiveFilter !== SEARCH_TYPE_ALL
+                    ? filteredDirectives.length
+                    : undefined
                 }
                 totalCount={statusFilteredDirectives.length}
-              >
-                <select value={directiveFilter} onChange={(e) => setDirectiveFilter(e.target.value)}>
-                  <option value="all">All</option>
-                  <option value="open">Open</option>
-                  <option value="routed">Routed</option>
-                  <option value="executing">Executing</option>
-                  <option value="done">Done</option>
-                  <option value="meeting">Meeting</option>
-                  <option value="co_ceo">Co-CEO</option>
-                  <option value="marketplace">Marketplace</option>
-                </select>
-              </SearchableListToolbar>
+                typeFilter={{
+                  value: directiveFilter,
+                  onChange: setDirectiveFilter,
+                  options: DIRECTIVE_SEARCH_TYPES,
+                  ariaLabel: "Filter directive status",
+                  label: "Status",
+                }}
+              />
               {debouncedDirectiveQuery.trim() && filteredDirectives.length === 0 ? (
                 <p className="search-empty-hint command-empty-hint">
                   No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.

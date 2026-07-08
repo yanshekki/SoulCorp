@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import type { ExecutionRun, WorkNode } from "../../../types/game";
-import { filterByQuery } from "../../../utils/listSearch";
+import { EXECUTION_RUN_SEARCH_TYPES } from "../../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { EXECUTION_LOG_PAGE_SIZE, paginateItems } from "../../../utils/pagination";
 import { openWorkspacePage } from "../../../utils/openWorkspacePage";
 import { PaginationBar } from "../PaginationBar";
@@ -41,6 +42,7 @@ export function ExecutionLogSection({
   const [approving, setApproving] = useState(false);
   const [listPage, setListPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
   const workNodeById = useMemo(() => {
@@ -58,22 +60,28 @@ export function ExecutionLogSection({
 
   const filteredRuns = useMemo(
     () =>
-      filterByQuery(orderedRuns, debouncedQuery, (run) => {
-        const workNode = workNodeById.get(run.work_node_id);
-        const agentName = agentLabels.get(run.agent_id) ?? run.agent_id;
-        return [
-          workNode?.title ?? "",
-          run.work_node_id,
-          run.status,
-          agentName,
-          run.agent_id,
-          run.summary ?? "",
-          run.error ?? "",
-          run.id,
-          run.provider ?? "",
-        ];
+      filterByScopedQuery(orderedRuns, debouncedQuery, searchType, {
+        all: (run) => {
+          const workNode = workNodeById.get(run.work_node_id);
+          const agentName = agentLabels.get(run.agent_id) ?? run.agent_id;
+          return [
+            workNode?.title ?? "",
+            run.work_node_id,
+            run.status,
+            agentName,
+            run.agent_id,
+            run.summary ?? "",
+            run.error ?? "",
+            run.id,
+            run.provider ?? "",
+          ];
+        },
+        task: (run) => [workNodeById.get(run.work_node_id)?.title ?? "", run.work_node_id],
+        agent: (run) => [agentLabels.get(run.agent_id) ?? "", run.agent_id],
+        status: (run) => [run.status],
+        summary: (run) => [run.summary ?? "", run.error ?? ""],
       }),
-    [orderedRuns, debouncedQuery, workNodeById, agentLabels],
+    [orderedRuns, debouncedQuery, searchType, workNodeById, agentLabels],
   );
 
   const { pageItems, totalPages, safePage } = useMemo(
@@ -83,7 +91,7 @@ export function ExecutionLogSection({
 
   useEffect(() => {
     setListPage(0);
-  }, [runs.length, debouncedQuery]);
+  }, [runs.length, debouncedQuery, searchType]);
 
   useEffect(() => {
     if (listPage !== safePage) {
@@ -133,6 +141,13 @@ export function ExecutionLogSection({
             ariaLabel="Search execution runs"
             matchCount={debouncedQuery.trim() ? filteredRuns.length : undefined}
             totalCount={orderedRuns.length}
+            typeFilter={{
+              value: searchType,
+              onChange: setSearchType,
+              options: EXECUTION_RUN_SEARCH_TYPES,
+              ariaLabel: "Filter execution run search field",
+              label: "Field",
+            }}
           />
         ) : null}
         {orderedRuns.length === 0 ? <p className="muted">No executions yet.</p> : null}

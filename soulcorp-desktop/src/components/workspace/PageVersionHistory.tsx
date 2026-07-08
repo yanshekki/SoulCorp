@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { PageVersionSummary, WorkspacePage } from "../../types/workspace";
-import { filterByQuery } from "../../utils/listSearch";
+import { VERSION_SEARCH_TYPES } from "../../data/searchFilterOptions";
+import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "../UI/PaginationBar";
 import { SearchableListToolbar } from "../UI/SearchableListToolbar";
@@ -18,6 +19,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
   const [versions, setVersions] = useState<PageVersionSummary[]>([]);
   const [restoring, setRestoring] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
@@ -26,18 +28,23 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
       .then(setVersions)
       .catch(() => setVersions([]));
     setSearchQuery("");
+    setSearchType(SEARCH_TYPE_ALL);
     setListPage(0);
   }, [pageId]);
 
   const filteredVersions = useMemo(
     () =>
-      filterByQuery(versions, debouncedQuery, (entry) => [
-        entry.title,
-        entry.editor,
-        String(entry.version),
-        new Date(entry.saved_at).toLocaleString(),
-      ]),
-    [versions, debouncedQuery],
+      filterByScopedQuery(versions, debouncedQuery, searchType, {
+        all: (entry) => [
+          entry.title,
+          entry.editor,
+          String(entry.version),
+          new Date(entry.saved_at).toLocaleString(),
+        ],
+        author: (entry) => [entry.editor],
+        summary: (entry) => [entry.title],
+      }),
+    [versions, debouncedQuery, searchType],
   );
 
   const { pageItems, totalPages, safePage } = useMemo(
@@ -47,7 +54,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
 
   useEffect(() => {
     setListPage(0);
-  }, [debouncedQuery, versions.length]);
+  }, [debouncedQuery, searchType, versions.length]);
 
   const restore = async (version: number) => {
     setRestoring(version);
@@ -75,8 +82,19 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
         onQueryChange={setSearchQuery}
         placeholder="Search versions…"
         ariaLabel="Search version history"
-        matchCount={debouncedQuery.trim() ? filteredVersions.length : undefined}
+        matchCount={
+          debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+            ? filteredVersions.length
+            : undefined
+        }
         totalCount={versions.length}
+        typeFilter={{
+          value: searchType,
+          onChange: setSearchType,
+          options: VERSION_SEARCH_TYPES,
+          ariaLabel: "Filter version search field",
+          label: "Field",
+        }}
       />
       {debouncedQuery.trim() && filteredVersions.length === 0 ? (
         <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
