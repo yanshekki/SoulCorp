@@ -5652,6 +5652,18 @@ body.workspace-resizing {
   font-size: 0.78rem;
 }
 
+.execution-run-global-search {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.execution-run-global-search-summary {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
 .execution-run-deliverable-title {
   margin: 0;
   font-size: 0.82rem;

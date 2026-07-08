@@ -11,9 +11,12 @@ import {
 import type { AgentRecord, CompanyDepartmentsSnapshot } from "../../types/game";
 import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { filterByQuery } from "../../utils/listSearch";
 import { SoulMdEditor } from "./SoulMdEditor";
 import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
+import { SearchableListToolbar } from "./SearchableListToolbar";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -39,7 +42,21 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const [soulSavingId, setSoulSavingId] = useState<string | null>(null);
   const [expandedSoulId, setExpandedSoulId] = useState<string | null>(null);
   const [workspaceAgentId, setWorkspaceAgentId] = useState<string | null>(null);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
+  const debouncedEmployeeQuery = useDebouncedValue(employeeSearchQuery);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+
+  const filteredAgentRecords = useMemo(
+    () =>
+      filterByQuery(agentRecords, debouncedEmployeeQuery, (agent) => [
+        agent.name,
+        agent.role,
+        agent.department,
+        agent.id,
+        agent.agent_kind ?? "",
+      ]),
+    [agentRecords, debouncedEmployeeQuery],
+  );
 
   const departmentProviderMap = useMemo(
     () =>
@@ -331,14 +348,34 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
       >
         <header className="agents-card-header">
           <h3>Employee overrides</h3>
-          <span className="muted">{agentRecords.length} agents</span>
+          <span className="muted">
+            {debouncedEmployeeQuery.trim()
+              ? `${filteredAgentRecords.length} matches`
+              : `${agentRecords.length} agents`}
+          </span>
         </header>
 
         {agentRecords.length === 0 ? (
           <p className="muted">Hire or onboard agents before assigning individual LLM brains.</p>
         ) : (
+          <>
+            <SearchableListToolbar
+              query={employeeSearchQuery}
+              onQueryChange={setEmployeeSearchQuery}
+              placeholder="Search employees by name, role, department…"
+              ariaLabel="Search employees"
+              matchCount={
+                debouncedEmployeeQuery.trim() ? filteredAgentRecords.length : undefined
+              }
+              totalCount={agentRecords.length}
+            />
+            {debouncedEmployeeQuery.trim() && filteredAgentRecords.length === 0 ? (
+              <p className="search-empty-hint muted">
+                No matches for &ldquo;{debouncedEmployeeQuery}&rdquo;.
+              </p>
+            ) : null}
           <div className="agents-brain-grid agents-employee-grid">
-            {agentRecords.map((agent) => {
+            {filteredAgentRecords.map((agent) => {
               const selected = agent.ai_provider ?? AI_PROVIDER_DEFAULT;
               const departmentProvider = departmentProviderMap.get(agent.department) ?? null;
               const soulDraft = soulDraftForAgent(agent);
@@ -445,6 +482,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
               );
             })}
           </div>
+          </>
         )}
       </section>
     </div>

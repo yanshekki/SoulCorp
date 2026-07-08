@@ -1,7 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getWorkspacePage } from "../../../services/workspaceClient";
 import type { ExecutionRun, WorkNode, WorkNodeStatus } from "../../../types/game";
+import {
+  findGlobalTextMatches,
+  pageForGlobalMatch,
+  sectionMatchSummary,
+  type ExecutionTextSection,
+} from "../../../utils/multiSectionTextSearch";
 import { workspacePagePlainText } from "../../../utils/workspacePageText";
+import { SearchField } from "../SearchField";
 import { SearchableTextSection } from "../SearchableTextSection";
 
 interface ExecutionRunDetailModalProps {
@@ -48,12 +56,80 @@ export function ExecutionRunDetailModal({
   const [errorPage, setErrorPage] = useState(0);
   const [summaryPage, setSummaryPage] = useState(0);
   const [deliverablePage, setDeliverablePage] = useState(0);
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [globalMatchIndex, setGlobalMatchIndex] = useState(0);
+  const debouncedGlobalQuery = useDebouncedValue(globalQuery);
+
+  const searchableSections = useMemo((): ExecutionTextSection[] => {
+    const sections: ExecutionTextSection[] = [];
+    if (run.error) {
+      sections.push({ id: "error", label: "Error", text: run.error });
+    }
+    if (run.summary) {
+      sections.push({ id: "summary", label: "Summary", text: run.summary });
+    }
+    if (deliverableBody) {
+      sections.push({ id: "deliverable", label: "Deliverable", text: deliverableBody });
+    }
+    return sections;
+  }, [run.error, run.summary, deliverableBody]);
+
+  const globalMatches = useMemo(
+    () => findGlobalTextMatches(searchableSections, debouncedGlobalQuery),
+    [searchableSections, debouncedGlobalQuery],
+  );
+
+  const matchSummary = useMemo(
+    () => sectionMatchSummary(searchableSections, debouncedGlobalQuery),
+    [searchableSections, debouncedGlobalQuery],
+  );
+
+  const activeGlobalMatch = globalMatches[globalMatchIndex] ?? null;
+
+  const sectionActiveMatchIndex = (sectionId: ExecutionTextSection["id"]): number | null => {
+    if (!activeGlobalMatch || activeGlobalMatch.sectionId !== sectionId) {
+      return null;
+    }
+    return activeGlobalMatch.sectionMatchIndex;
+  };
 
   useEffect(() => {
     setErrorPage(0);
     setSummaryPage(0);
     setDeliverablePage(0);
+    setGlobalQuery("");
+    setGlobalMatchIndex(0);
   }, [run.id]);
+
+  useEffect(() => {
+    setGlobalMatchIndex(0);
+  }, [debouncedGlobalQuery]);
+
+  useEffect(() => {
+    if (!activeGlobalMatch || !debouncedGlobalQuery.trim()) {
+      return;
+    }
+    const page = pageForGlobalMatch(
+      searchableSections,
+      debouncedGlobalQuery,
+      activeGlobalMatch,
+    );
+    if (activeGlobalMatch.sectionId === "error") {
+      setErrorPage(page);
+    } else if (activeGlobalMatch.sectionId === "summary") {
+      setSummaryPage(page);
+    } else {
+      setDeliverablePage(page);
+    }
+    document
+      .getElementById(`execution-section-${activeGlobalMatch.sectionId}`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [
+    activeGlobalMatch?.globalIndex,
+    activeGlobalMatch?.sectionId,
+    debouncedGlobalQuery,
+    searchableSections,
+  ]);
 
   useEffect(() => {
     if (!run.deliverable_page_id) {
@@ -106,8 +182,27 @@ export function ExecutionRunDetailModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const goToGlobalMatch = (direction: 1 | -1) => {
+    if (globalMatches.length === 0) {
+      return;
+    }
+    setGlobalMatchIndex((current) =>
+      direction === 1
+        ? (current + 1) % globalMatches.length
+        : (current - 1 + globalMatches.length) % globalMatches.length,
+    );
+  };
+
+  const handleGlobalSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      goToGlobalMatch(event.shiftKey ? -1 : 1);
+    }
+  };
+
   const taskTitle = workNode?.title ?? run.work_node_id;
   const canApprove = workNode?.status === "in_review" && Boolean(onApprove);
+  const usingGlobalSearch = debouncedGlobalQuery.trim().length > 0;
 
   return (
     <div
@@ -130,6 +225,42 @@ export function ExecutionRunDetailModal({
             ×
           </button>
         </header>
+
+        {searchableSections.length > 0 ? (
+          <div className="execution-run-global-search">
+            <SearchField
+              value={globalQuery}
+              onChange={setGlobalQuery}
+              placeholder="Search error, summary, and deliverable…"
+              ariaLabel="Search entire execution run"
+              matchCount={usingGlobalSearch ? globalMatches.length : undefined}
+              onKeyDown={handleGlobalSearchKeyDown}
+            />
+            {usingGlobalSearch && matchSummary.length > 0 ? (
+              <p className="execution-run-global-search-summary muted">
+                {matchSummary.map((entry) => `${entry.label} · ${entry.count}`).join(" · ")}
+                {globalMatches.length > 1
+                  ? ` · match ${globalMatchIndex + 1}/${globalMatches.length}`
+                  : ""}
+              </p>
+            ) : null}
+            {usingGlobalSearch && globalMatches.length > 1 ? (
+              <div className="searchable-text-match-nav">
+                <button type="button" onClick={() => goToGlobalMatch(-1)}>
+                  Prev match
+                </button>
+                <button type="button" onClick={() => goToGlobalMatch(1)}>
+                  Next match
+                </button>
+              </div>
+            ) : null}
+            {usingGlobalSearch && globalMatches.length === 0 ? (
+              <p className="search-empty-hint muted">
+                No matches for &ldquo;{debouncedGlobalQuery}&rdquo;.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="execution-run-modal-body">
           <section className="execution-run-meta-grid" aria-label="Run metadata">
@@ -180,26 +311,36 @@ export function ExecutionRunDetailModal({
 
           {run.error ? (
             <SearchableTextSection
+              sectionId="execution-section-error"
               title="Error"
               text={run.error}
               page={errorPage}
               onPageChange={setErrorPage}
               label="Error"
               variant="error"
+              query={usingGlobalSearch ? globalQuery : undefined}
+              onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
+              showSearchToolbar={!usingGlobalSearch}
+              activeMatchIndex={sectionActiveMatchIndex("error")}
             />
           ) : null}
 
           {run.summary ? (
             <SearchableTextSection
+              sectionId="execution-section-summary"
               title="Run summary"
               text={run.summary}
               page={summaryPage}
               onPageChange={setSummaryPage}
               label="Summary"
+              query={usingGlobalSearch ? globalQuery : undefined}
+              onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
+              showSearchToolbar={!usingGlobalSearch}
+              activeMatchIndex={sectionActiveMatchIndex("summary")}
             />
           ) : null}
 
-          <section className="execution-run-section">
+          <section className="execution-run-section" id="execution-section-deliverable">
             <div className="execution-run-section-header">
               <h3>Deliverable</h3>
               {run.deliverable_page_id ? (
@@ -231,6 +372,10 @@ export function ExecutionRunDetailModal({
                   onPageChange={setDeliverablePage}
                   label="Deliverable"
                   variant="deliverable"
+                  query={usingGlobalSearch ? globalQuery : undefined}
+                  onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
+                  showSearchToolbar={!usingGlobalSearch}
+                  activeMatchIndex={sectionActiveMatchIndex("deliverable")}
                 />
               </>
             ) : null}

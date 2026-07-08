@@ -1,10 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IS_V1, IS_V2 } from "../../../config/features";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { useGameStore } from "../../../stores/gameStore";
 import type { AgentRecord, CoCeoBriefing, CoCeoStatus } from "../../../types/game";
 import { sendCoCeoDirectiveToStae } from "../../../services/scrumClient";
+import { filterByQuery } from "../../../utils/listSearch";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
+import { SearchableListToolbar } from "../SearchableListToolbar";
 
 interface CoCeoPanelProps {
   onChanged?: () => void;
@@ -20,6 +23,20 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
   const [loadingBriefing, setLoadingBriefing] = useState(false);
   const [companyVision, setCompanyVision] = useState("");
   const [savingVision, setSavingVision] = useState(false);
+  const [directiveSearchQuery, setDirectiveSearchQuery] = useState("");
+  const debouncedDirectiveQuery = useDebouncedValue(directiveSearchQuery);
+
+  const filteredBriefingDirectives = useMemo(() => {
+    if (!briefing) {
+      return [];
+    }
+    return filterByQuery(briefing.directives, debouncedDirectiveQuery, (directive) => [
+      directive.title,
+      directive.description,
+      directive.target_department,
+      directive.id,
+    ]);
+  }, [briefing, debouncedDirectiveQuery]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -219,8 +236,23 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
         <div className="co-ceo-briefing vip-executive-briefing">
           <p>{briefing.summary}</p>
           <p className="muted">Provider: {briefing.provider}</p>
+          <SearchableListToolbar
+            query={directiveSearchQuery}
+            onQueryChange={setDirectiveSearchQuery}
+            placeholder="Search briefing directives…"
+            ariaLabel="Search Co-CEO briefing directives"
+            matchCount={
+              debouncedDirectiveQuery.trim() ? filteredBriefingDirectives.length : undefined
+            }
+            totalCount={briefing.directives.length}
+          />
+          {debouncedDirectiveQuery.trim() && filteredBriefingDirectives.length === 0 ? (
+            <p className="search-empty-hint muted">
+              No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.
+            </p>
+          ) : null}
           <div className="directive-list vip-executive-directive-grid">
-            {briefing.directives.map((directive) => (
+            {filteredBriefingDirectives.map((directive) => (
               <article key={directive.id} className="directive-card">
                 <header>
                   <strong>{directive.title}</strong>

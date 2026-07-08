@@ -17,6 +17,11 @@ interface SearchableTextSectionProps {
   label: string;
   variant?: "default" | "error" | "deliverable";
   searchPlaceholder?: string;
+  sectionId?: string;
+  query?: string;
+  onQueryChange?: (value: string) => void;
+  showSearchToolbar?: boolean;
+  activeMatchIndex?: number | null;
 }
 
 export function SearchableTextSection({
@@ -27,10 +32,22 @@ export function SearchableTextSection({
   label,
   variant = "default",
   searchPlaceholder,
+  sectionId,
+  query: controlledQuery,
+  onQueryChange,
+  showSearchToolbar = true,
+  activeMatchIndex: controlledActiveMatchIndex,
 }: SearchableTextSectionProps) {
-  const [query, setQuery] = useState("");
-  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const [localQuery, setLocalQuery] = useState("");
+  const [localActiveMatchIndex, setLocalActiveMatchIndex] = useState(0);
+  const isControlled = controlledQuery !== undefined;
+  const query = isControlled ? controlledQuery : localQuery;
+  const setQuery = isControlled ? (onQueryChange ?? (() => undefined)) : setLocalQuery;
   const debouncedQuery = useDebouncedValue(query);
+  const activeMatchIndex =
+    controlledActiveMatchIndex !== undefined
+      ? controlledActiveMatchIndex
+      : localActiveMatchIndex;
 
   const pages = useMemo(() => paginateText(text), [text]);
   const totalPages = Math.max(1, pages.length);
@@ -49,7 +66,10 @@ export function SearchableTextSection({
   }, [page, safePage, onPageChange]);
 
   useEffect(() => {
-    setActiveMatchIndex(0);
+    if (isControlled || controlledActiveMatchIndex !== undefined) {
+      return;
+    }
+    setLocalActiveMatchIndex(0);
     if (!debouncedQuery.trim()) {
       return;
     }
@@ -57,17 +77,17 @@ export function SearchableTextSection({
     if (nextPage !== page) {
       onPageChange(nextPage);
     }
-  }, [debouncedQuery, text]);
+  }, [debouncedQuery, text, isControlled, controlledActiveMatchIndex, page, onPageChange]);
 
   const goToMatch = (direction: 1 | -1) => {
-    if (matches.length === 0) {
+    if (matches.length === 0 || controlledActiveMatchIndex !== undefined) {
       return;
     }
     const nextIndex =
       direction === 1
-        ? (activeMatchIndex + 1) % matches.length
-        : (activeMatchIndex - 1 + matches.length) % matches.length;
-    setActiveMatchIndex(nextIndex);
+        ? (localActiveMatchIndex + 1) % matches.length
+        : (localActiveMatchIndex - 1 + matches.length) % matches.length;
+    setLocalActiveMatchIndex(nextIndex);
     const nextPage = pageIndexForMatchAt(text, debouncedQuery, nextIndex);
     if (nextPage !== page) {
       onPageChange(nextPage);
@@ -75,7 +95,7 @@ export function SearchableTextSection({
   };
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && controlledActiveMatchIndex === undefined) {
       event.preventDefault();
       goToMatch(event.shiftKey ? -1 : 1);
     }
@@ -87,41 +107,44 @@ export function SearchableTextSection({
         text,
         safePage,
         debouncedQuery,
-        matches.length > 0 ? activeMatchIndex : null,
+        matches.length > 0 && activeMatchIndex !== null ? activeMatchIndex : null,
       )
     : currentText;
 
   return (
     <div
+      id={sectionId}
       className={`execution-run-text-block${
         variant === "error" ? " execution-run-text-block--error" : ""
       }`}
     >
       {title ? <h3>{title}</h3> : null}
-      <div className="searchable-text-toolbar">
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}…`}
-          ariaLabel={`Search ${label}`}
-          matchCount={debouncedQuery.trim() ? matches.length : undefined}
-          size="compact"
-          onKeyDown={handleSearchKeyDown}
-        />
-        {matches.length > 1 ? (
-          <div className="searchable-text-match-nav">
-            <button type="button" onClick={() => goToMatch(-1)}>
-              Prev match
-            </button>
-            <span className="muted">
-              {activeMatchIndex + 1} / {matches.length}
-            </span>
-            <button type="button" onClick={() => goToMatch(1)}>
-              Next match
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {showSearchToolbar ? (
+        <div className="searchable-text-toolbar">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}…`}
+            ariaLabel={`Search ${label}`}
+            matchCount={debouncedQuery.trim() ? matches.length : undefined}
+            size="compact"
+            onKeyDown={handleSearchKeyDown}
+          />
+          {matches.length > 1 && controlledActiveMatchIndex === undefined ? (
+            <div className="searchable-text-match-nav">
+              <button type="button" onClick={() => goToMatch(-1)}>
+                Prev match
+              </button>
+              <span className="muted">
+                {localActiveMatchIndex + 1} / {matches.length}
+              </span>
+              <button type="button" onClick={() => goToMatch(1)}>
+                Next match
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <pre
         className={`execution-run-pre${
           variant === "deliverable" ? " execution-run-pre--deliverable" : ""
