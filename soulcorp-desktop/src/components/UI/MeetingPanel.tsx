@@ -369,6 +369,9 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
                   useAgentActivityStore.getState().selectAgent(liveMeetingSession.agent_id);
                   useAgentActivityStore.getState().selectSession(liveMeetingSession.id);
                   setActivePanel("observatory");
+                  window.setTimeout(() => {
+                    document.getElementById("stream")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 120);
                 }}
               >
                 Open Observatory

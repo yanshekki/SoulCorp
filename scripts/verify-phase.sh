@@ -392,7 +392,7 @@ case "${PHASE}" in
     grep -q "observatory" "${DESKTOP_DIR}/src/config/navigation.ts"
     grep -q "ObservatoryPage" "${DESKTOP_DIR}/src/App.tsx"
     grep -q "useAgentActivity" "${DESKTOP_DIR}/src/App.tsx"
-    grep -q "observatory-layout" "${DESKTOP_DIR}/src/styles/design-system.css"
+    grep -q "observatory-panel--page" "${DESKTOP_DIR}/src/styles/design-system.css"
     grep -q "agent_activity_stream_enabled" "${DESKTOP_DIR}/src-tauri/src/state/mod.rs"
     grep -q "runObservatoryAcceptanceTests" "${DESKTOP_DIR}/src/acceptance/acceptanceTests.ts"
     grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/agent_activity/emitter.rs"

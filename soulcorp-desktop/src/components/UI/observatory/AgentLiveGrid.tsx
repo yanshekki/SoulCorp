@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { EffectiveBrainPill } from "../brain/EffectiveBrainPill";
+import { SearchableListToolbar } from "../SearchableListToolbar";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
+import { filterByQuery } from "../../../utils/listSearch";
 import type { AgentActivitySession } from "../../../types/agentActivity";
 
 interface AgentLiveGridProps {
-  onSelectAgent: (agentId: string) => void;
+  onSelectAgent: (agentId: string, sessionId?: string) => void;
 }
 
 function transportForActivity(
@@ -23,77 +26,151 @@ function transportForActivity(
   return undefined;
 }
 
-function activeSessionForAgent(
-  sessions: AgentActivitySession[],
-  agentId: string,
-): AgentActivitySession | undefined {
-  return sessions.find(
-    (session) => session.agent_id === agentId && session.status === "active",
-  );
+function sourceLabel(source: AgentActivitySession["source"]): string {
+  switch (source) {
+    case "meeting":
+      return "Meeting";
+    case "execution":
+      return "Execution";
+    case "worker":
+      return "Worker";
+    case "workspace":
+      return "Workspace";
+    default:
+      return source;
+  }
 }
 
 export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
   const agentRecords = useGameStore((state) => state.agentRecords);
-  const agents = useGameStore((state) => state.agents);
   const sessions = useAgentActivityStore((state) => state.sessions);
-  const selectedAgentId = useAgentActivityStore((state) => state.selectedAgentId);
-  const filterAgentId = useAgentActivityStore((state) => state.filterAgentId);
+  const selectedSessionId = useAgentActivityStore((state) => state.selectedSessionId);
+  const [showIdle, setShowIdle] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
-  const rows = useMemo(
+  const activeSessions = useMemo(
     () =>
-      agentRecords
-        .filter((agent) => agent.agent_kind !== "fate")
-        .filter((agent) => (filterAgentId ? agent.id === filterAgentId : true)),
-    [agentRecords, filterAgentId],
+      sessions
+        .filter((session) => session.status === "active")
+        .sort((left, right) => right.started_at.localeCompare(left.started_at)),
+    [sessions],
   );
 
+  const idleAgents = useMemo(
+    () =>
+      agentRecords.filter(
+        (agent) =>
+          agent.agent_kind !== "fate"
+          && !activeSessions.some((session) => session.agent_id === agent.id),
+      ),
+    [agentRecords, activeSessions],
+  );
+
+  const filteredIdleAgents = useMemo(
+    () =>
+      filterByQuery(idleAgents, debouncedQuery, (agent) => [
+        agent.name,
+        agent.role,
+        agent.department,
+        agent.id,
+      ]),
+    [idleAgents, debouncedQuery],
+  );
+
+  if (activeSessions.length === 0) {
+    return (
+      <div className="observatory-empty-state">
+        <p className="muted">No agents are thinking right now.</p>
+        <p className="muted">
+          Start a meeting turn, run a sprint task, or enable auto-execute in Command Center to
+          populate live sessions.
+        </p>
+        <div className="observatory-quick-links">
+          <button type="button" className="primary-action" onClick={() => setActivePanel("meeting")}>
+            Start Meeting
+          </button>
+          <button type="button" className="secondary-action" onClick={() => setActivePanel("projects")}>
+            Projects & execution
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <section className="observatory-grid">
-      <header className="observatory-grid-header">
-        <h3>Agents</h3>
-        <p className="muted">{rows.length} employees</p>
-      </header>
-      <ul className="observatory-grid-list">
-        {rows.map((record) => {
-          const runtimeAgent = agents.find((agent) => agent.id === record.id);
-          const status = runtimeAgent?.statusLabel ?? record.status;
-          const active = activeSessionForAgent(sessions, record.id);
-          const selected = selectedAgentId === record.id;
+    <div className="observatory-live-section">
+      <ul className="observatory-live-list">
+        {activeSessions.map((session) => {
+          const selected = selectedSessionId === session.id;
           return (
-            <li key={record.id}>
+            <li key={session.id}>
               <button
                 type="button"
-                className={`observatory-grid-card ${selected ? "is-selected" : ""}`}
-                onClick={() => onSelectAgent(record.id)}
+                className={`observatory-live-item${selected ? " is-selected" : ""}`}
+                onClick={() => onSelectAgent(session.agent_id, session.id)}
               >
-                <div className="observatory-grid-card-head">
-                  <span
-                    className={`observatory-status-dot observatory-status-dot--${status}`}
-                    aria-hidden="true"
-                  />
-                  <strong>{record.name}</strong>
-                  {active ? <span className="observatory-live-pill inline">LIVE</span> : null}
+                <div className="observatory-live-item-head">
+                  <span className="observatory-live-pill">
+                    <span className="observatory-live-dot" aria-hidden="true" />
+                    LIVE
+                  </span>
+                  <span className="hub-pill online">{sourceLabel(session.source)}</span>
+                  <strong>{session.agent_name}</strong>
                 </div>
-                <p className="muted">
-                  {record.role} · {record.department}
+                <p className="muted observatory-live-item-meta">
+                  {session.work_node_title ?? session.brain_label}
                 </p>
-                <p className="observatory-grid-status">{status}</p>
-                {active ? (
-                  <>
-                    <p className="observatory-grid-task">
-                      {active.work_node_title ?? active.source}
-                    </p>
-                    <EffectiveBrainPill
-                      label={active.brain_label}
-                      transport={transportForActivity(active.transport)}
-                    />
-                  </>
-                ) : null}
+                <div className="observatory-live-item-pills">
+                  <EffectiveBrainPill
+                    label={session.brain_label}
+                    transport={transportForActivity(session.transport)}
+                  />
+                </div>
               </button>
             </li>
           );
         })}
       </ul>
-    </section>
+
+      {idleAgents.length > 0 ? (
+        <div className="observatory-idle-section">
+          <button
+            type="button"
+            className="observatory-idle-toggle"
+            onClick={() => setShowIdle((current) => !current)}
+          >
+            {showIdle ? "Hide" : "Show"} idle employees ({idleAgents.length})
+          </button>
+          {showIdle ? (
+            <>
+              <SearchableListToolbar
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                placeholder="Search idle employees…"
+                ariaLabel="Search idle employees"
+                matchCount={debouncedQuery.trim() ? filteredIdleAgents.length : undefined}
+                totalCount={idleAgents.length}
+              />
+              <ul className="observatory-idle-list">
+                {filteredIdleAgents.map((agent) => (
+                  <li key={agent.id} className="agent-row observatory-idle-row">
+                    <span className="agent-dot" style={{ backgroundColor: "#5a6a7a" }} />
+                    <div>
+                      <strong>{agent.name}</strong>
+                      <p>
+                        {agent.role} · {agent.department}
+                      </p>
+                    </div>
+                    <span className="agent-state muted">{agent.status}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

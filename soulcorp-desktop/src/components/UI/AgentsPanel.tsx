@@ -608,7 +608,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                           agentId={agent.id}
                           onClick={() => {
                             setActivePanel("observatory");
-                            document.getElementById("observatory")?.scrollIntoView({
+                            document.getElementById("live")?.scrollIntoView({
                               behavior: "smooth",
                               block: "start",
                             });

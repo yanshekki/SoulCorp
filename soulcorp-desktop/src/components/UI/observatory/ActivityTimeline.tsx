@@ -1,6 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
+import { filterByQuery } from "../../../utils/listSearch";
+import { SearchableListToolbar } from "../SearchableListToolbar";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
-import type { AgentActivityEvent } from "../../../types/agentActivity";
+import type { AgentActivityEvent, AgentActivitySession } from "../../../types/agentActivity";
 
 interface ActivityTimelineProps {
   onSelectSession: (sessionId: string, agentId: string) => void;
@@ -11,7 +14,7 @@ function formatWhen(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleTimeString();
+  return date.toLocaleString();
 }
 
 function eventLabel(event: AgentActivityEvent): string {
@@ -21,71 +24,126 @@ function eventLabel(event: AgentActivityEvent): string {
     case "session_end":
       return "Session ended";
     case "step_start":
-      return `Step started · ${event.step ?? ""}`;
+      return `Step · ${event.step ?? "start"}`;
     case "step_complete":
-      return `Step complete · ${event.step ?? ""}`;
-    case "token_delta":
-      return "Streaming…";
-    case "terminal_line":
-      return "Terminal output";
+      return `Step done · ${event.step ?? "complete"}`;
     case "deliverable_ready":
       return "Deliverable ready";
     case "error":
       return "Error";
+    case "status_change":
+      return "Status change";
     default:
       return event.kind.replace(/_/g, " ");
   }
 }
 
+function sessionForEvent(
+  sessions: AgentActivitySession[],
+  event: AgentActivityEvent,
+): AgentActivitySession | undefined {
+  return sessions.find((session) => session.id === event.session_id);
+}
+
+function statusClass(session?: AgentActivitySession): string {
+  if (!session) {
+    return "queued";
+  }
+  if (session.status === "active") {
+    return "running";
+  }
+  if (session.status === "failed") {
+    return "failed";
+  }
+  return "succeeded";
+}
+
 export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
   const events = useAgentActivityStore((state) => state.events);
   const sessions = useAgentActivityStore((state) => state.sessions);
-  const filterAgentId = useAgentActivityStore((state) => state.filterAgentId);
   const selectedSessionId = useAgentActivityStore((state) => state.selectedSessionId);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(searchQuery);
 
   const visibleEvents = useMemo(() => {
-    const filtered = filterAgentId
-      ? events.filter((event) => event.agent_id === filterAgentId)
-      : events;
-    return [...filtered]
-      .filter((event) => event.kind !== "token_delta" && event.kind !== "terminal_line")
-      .slice(-80)
-      .reverse();
-  }, [events, filterAgentId]);
+    const milestoneEvents = events.filter(
+      (event) => event.kind !== "token_delta" && event.kind !== "terminal_line",
+    );
+    const filtered = filterByQuery(milestoneEvents, debouncedQuery, (event) => {
+      const session = sessionForEvent(sessions, event);
+      return [
+        event.kind,
+        event.step ?? "",
+        event.content_full ?? "",
+        session?.agent_name ?? "",
+        session?.work_node_title ?? "",
+        session?.source ?? "",
+        event.agent_id,
+      ];
+    });
+    return [...filtered].slice(-120).reverse();
+  }, [events, sessions, debouncedQuery]);
 
   const agentName = (agentId: string) =>
     sessions.find((session) => session.agent_id === agentId)?.agent_name ?? agentId;
 
   return (
-    <section className="observatory-timeline">
-      <header className="observatory-timeline-header">
-        <h3>Activity</h3>
-        <p className="muted">{visibleEvents.length} events</p>
-      </header>
-      <ul className="observatory-timeline-list">
-        {visibleEvents.length === 0 ? (
-          <li className="muted">No activity yet. Run a task or meeting to populate the stream.</li>
-        ) : (
-          visibleEvents.map((event) => (
-            <li key={event.id}>
-              <button
-                type="button"
-                className={`observatory-timeline-item ${
-                  selectedSessionId === event.session_id ? "is-selected" : ""
-                }`}
-                onClick={() => onSelectSession(event.session_id, event.agent_id)}
-              >
-                <span className="observatory-timeline-time">{formatWhen(event.timestamp)}</span>
-                <strong>{agentName(event.agent_id)}</strong>
-                <span>{eventLabel(event)}</span>
-                {event.content_full ? (
-                  <p className="observatory-timeline-preview muted">{event.content_full}</p>
-                ) : null}
-              </button>
-            </li>
-          ))
-        )}
-      </ul>
-    </section>
+    <div className="observatory-history-section">
+      {events.length > 0 ? (
+        <SearchableListToolbar
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          placeholder="Search history by agent, task, step…"
+          ariaLabel="Search observatory history"
+          matchCount={debouncedQuery.trim() ? visibleEvents.length : undefined}
+          totalCount={events.filter((event) => event.kind !== "token_delta" && event.kind !== "terminal_line").length}
+        />
+      ) : null}
+
+      {visibleEvents.length === 0 ? (
+        <p className="muted">
+          {events.length === 0
+            ? "No activity yet. Run a task or meeting to populate history."
+            : `No matches for “${debouncedQuery}”.`}
+        </p>
+      ) : (
+        <ul className="projects-execution-list observatory-history-list">
+          {visibleEvents.map((event) => {
+            const session = sessionForEvent(sessions, event);
+            const selected = selectedSessionId === event.session_id;
+            return (
+              <li key={event.id}>
+                <button
+                  type="button"
+                  className={`projects-execution-item observatory-history-item${
+                    selected ? " is-selected" : ""
+                  }`}
+                  onClick={() => onSelectSession(event.session_id, event.agent_id)}
+                >
+                  <div className="projects-execution-item-head">
+                    <span
+                      className={`execution-run-status execution-run-status--${statusClass(session)}`}
+                    >
+                      {eventLabel(event)}
+                    </span>
+                    {session?.status === "active" ? (
+                      <span className="observatory-live-pill inline">LIVE</span>
+                    ) : null}
+                    <strong>{agentName(event.agent_id)}</strong>
+                    {session?.source ? (
+                      <span className="muted">{session.source}</span>
+                    ) : null}
+                  </div>
+                  {event.content_full ? (
+                    <p className="projects-execution-preview muted">{event.content_full}</p>
+                  ) : null}
+                  <span className="projects-execution-meta muted">{formatWhen(event.timestamp)}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

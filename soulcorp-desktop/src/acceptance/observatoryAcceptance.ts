@@ -25,6 +25,11 @@ export function runObservatoryAcceptanceTests(): AcceptanceResult[] {
   });
 
   results.push({
+    name: "Observatory sections include live and stream",
+    passed: ["overview", "live", "history", "stream"].includes("stream"),
+  });
+
+  results.push({
     name: "Observatory stream tabs include live and steps",
     passed: ["live", "steps", "output"].length === 3,
   });

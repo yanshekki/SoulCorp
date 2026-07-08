@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
+import { EffectiveBrainPill } from "../brain/EffectiveBrainPill";
 import type { AgentActivityEvent, AgentActivitySession } from "../../../types/agentActivity";
 
 type StreamTab = "live" | "steps" | "terminal" | "output" | "reasoning";
@@ -9,6 +10,29 @@ interface ThoughtStreamPaneProps {
   events: AgentActivityEvent[];
   compact?: boolean;
 }
+
+function transportForActivity(
+  transport: string,
+): "api" | "subprocess" | "builtin" | undefined {
+  if (transport === "api" || transport === "mock") {
+    return "api";
+  }
+  if (transport === "subprocess") {
+    return "subprocess";
+  }
+  if (transport === "llm_only" || transport === "builtin") {
+    return "builtin";
+  }
+  return undefined;
+}
+
+const TAB_LABELS: Record<StreamTab, string> = {
+  live: "Live",
+  steps: "Steps",
+  terminal: "Terminal",
+  output: "Output",
+  reasoning: "Reasoning",
+};
 
 export function ThoughtStreamPane({ session, events, compact = false }: ThoughtStreamPaneProps) {
   const [tab, setTab] = useState<StreamTab>("live");
@@ -43,9 +67,13 @@ export function ThoughtStreamPane({ session, events, compact = false }: ThoughtS
 
   if (!session) {
     return (
-      <section className={`observatory-stream ${compact ? "observatory-stream--compact" : ""}`}>
-        <p className="muted">Select an agent or timeline event to view the thought stream.</p>
-      </section>
+      <div className={`observatory-stream-empty${compact ? " observatory-stream-empty--compact" : ""}`}>
+        <p className="muted">Pick a live agent above or a history event to load the mind stream.</p>
+        <p className="muted">
+          Live tab shows token-by-token output. Steps, terminal, and output appear when the session
+          produces them.
+        </p>
+      </div>
     );
   }
 
@@ -58,43 +86,49 @@ export function ThoughtStreamPane({ session, events, compact = false }: ThoughtS
   }
 
   return (
-    <section className={`observatory-stream ${compact ? "observatory-stream--compact" : ""}`}>
-      <header className="observatory-stream-header">
-        <div>
-          <h3>{session.agent_name}</h3>
+    <div className={`observatory-stream-panel${compact ? " observatory-stream-panel--compact" : ""}`}>
+      <header className="observatory-stream-meta">
+        <div className="observatory-stream-meta-main">
+          <div className="observatory-stream-meta-head">
+            <strong>{session.agent_name}</strong>
+            {session.status === "active" ? (
+              <span className="observatory-live-pill">
+                <span className="observatory-live-dot" aria-hidden="true" />
+                LIVE
+              </span>
+            ) : (
+              <span className="hub-pill tier">{session.status}</span>
+            )}
+          </div>
           <p className="muted">
-            {session.brain_label} · {session.transport}
-            {session.work_node_title ? ` · ${session.work_node_title}` : ""}
+            {session.work_node_title ?? session.source}
+            {session.started_at ? ` · started ${new Date(session.started_at).toLocaleTimeString()}` : ""}
           </p>
+          <EffectiveBrainPill
+            label={session.brain_label}
+            transport={transportForActivity(session.transport)}
+          />
         </div>
-        <div className="observatory-stream-tabs" role="tablist">
+        <nav className="command-center-tabs observatory-stream-tabs" role="tablist" aria-label="Mind stream views">
           {tabs.map((item) => (
             <button
               key={item}
               type="button"
               role="tab"
               aria-selected={tab === item}
-              className={tab === item ? "is-active" : undefined}
+              className={`command-center-tab${tab === item ? " is-active" : ""}`}
               onClick={() => setTab(item)}
             >
-              {item === "live"
-                ? "Live"
-                : item === "steps"
-                  ? "Steps"
-                  : item === "terminal"
-                    ? "Terminal"
-                    : item === "reasoning"
-                      ? "Reasoning"
-                      : "Output"}
+              {TAB_LABELS[item]}
             </button>
           ))}
-        </div>
+        </nav>
       </header>
 
       <div className="observatory-stream-body">
         {tab === "live" ? (
           <pre className="observatory-stream-text">
-            {liveText || "Waiting for tokens…"}
+            {liveText || (session.status === "active" ? "Waiting for tokens…" : "No live text captured.")}
             {session.status === "active" ? <span className="observatory-cursor">▍</span> : null}
           </pre>
         ) : null}
@@ -124,6 +158,6 @@ export function ThoughtStreamPane({ session, events, compact = false }: ThoughtS
           <pre className="observatory-stream-text">{outputText || "No final output yet."}</pre>
         ) : null}
       </div>
-    </section>
+    </div>
   );
 }

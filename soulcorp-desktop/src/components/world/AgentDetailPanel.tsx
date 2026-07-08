@@ -89,6 +89,9 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
             useAgentActivityStore.getState().selectAgent(record.id);
             useAgentActivityStore.getState().setFilterAgent(record.id);
             useGameStore.getState().setActivePanel("observatory");
+            window.setTimeout(() => {
+              document.getElementById("stream")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 120);
           }}
         >
           View mind stream
