@@ -8,6 +8,7 @@ import {
   sectionMatchSummary,
   type ExecutionTextSection,
 } from "../../../utils/multiSectionTextSearch";
+import { sectionsNeedSearch } from "../../../utils/pagination";
 import { workspacePagePlainText } from "../../../utils/workspacePageText";
 import { SearchField } from "../SearchField";
 import { SearchableTextSection } from "../SearchableTextSection";
@@ -202,7 +203,15 @@ export function ExecutionRunDetailModal({
 
   const taskTitle = workNode?.title ?? run.work_node_id;
   const canApprove = workNode?.status === "in_review" && Boolean(onApprove);
-  const usingGlobalSearch = debouncedGlobalQuery.trim().length > 0;
+  const showRunSearch = sectionsNeedSearch(searchableSections);
+  const usingGlobalSearch = showRunSearch && debouncedGlobalQuery.trim().length > 0;
+
+  useEffect(() => {
+    if (!showRunSearch) {
+      setGlobalQuery("");
+      setGlobalMatchIndex(0);
+    }
+  }, [showRunSearch, run.id]);
 
   return (
     <div
@@ -226,7 +235,7 @@ export function ExecutionRunDetailModal({
           </button>
         </header>
 
-        {searchableSections.length > 0 ? (
+        {showRunSearch ? (
           <div className="execution-run-global-search">
             <SearchField
               value={globalQuery}
@@ -320,7 +329,7 @@ export function ExecutionRunDetailModal({
               variant="error"
               query={usingGlobalSearch ? globalQuery : undefined}
               onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
-              showSearchToolbar={!usingGlobalSearch}
+              showSearchToolbar={false}
               activeMatchIndex={sectionActiveMatchIndex("error")}
             />
           ) : null}
@@ -335,7 +344,7 @@ export function ExecutionRunDetailModal({
               label="Summary"
               query={usingGlobalSearch ? globalQuery : undefined}
               onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
-              showSearchToolbar={!usingGlobalSearch}
+              showSearchToolbar={false}
               activeMatchIndex={sectionActiveMatchIndex("summary")}
             />
           ) : null}
@@ -374,7 +383,7 @@ export function ExecutionRunDetailModal({
                   variant="deliverable"
                   query={usingGlobalSearch ? globalQuery : undefined}
                   onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
-                  showSearchToolbar={!usingGlobalSearch}
+                  showSearchToolbar={false}
                   activeMatchIndex={sectionActiveMatchIndex("deliverable")}
                 />
               </>

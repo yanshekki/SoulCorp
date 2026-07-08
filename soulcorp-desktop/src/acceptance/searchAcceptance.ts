@@ -1,5 +1,10 @@
 import { filterByQuery, tokenizeQuery } from "../utils/listSearch";
-import { paginateItems, paginateText } from "../utils/pagination";
+import {
+  paginateItems,
+  paginateText,
+  sectionsNeedSearch,
+  textNeedsSearchToolbar,
+} from "../utils/pagination";
 import {
   findGlobalTextMatches,
   pageForGlobalMatch,
@@ -79,6 +84,18 @@ export function runSearchAcceptanceTests(): AcceptanceResult[] {
   const globalMatches = findGlobalTextMatches(sections, "worker");
   const summary = sectionMatchSummary(sections, "worker");
   const firstPage = pageForGlobalMatch(sections, "worker", globalMatches[0]!);
+  const shortRunText = "mock one-liner response";
+  const longRunText = "x".repeat(500);
+  results.push({
+    name: "Search hides toolbar for short execution text",
+    passed: !textNeedsSearchToolbar(shortRunText) && !sectionsNeedSearch([{ text: shortRunText }]),
+    detail: shortRunText,
+  });
+  results.push({
+    name: "Search shows toolbar for long execution text",
+    passed: textNeedsSearchToolbar(longRunText),
+    detail: String(longRunText.length),
+  });
   results.push({
     name: "Search global matches span all sections",
     passed: globalMatches.length === 3 && summary.length === 3,
