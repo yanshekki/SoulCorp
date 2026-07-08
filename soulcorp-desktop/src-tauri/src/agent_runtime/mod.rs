@@ -40,7 +40,13 @@ pub fn execute_for_task(
     project_title: &str,
     workspace_root: Option<std::path::PathBuf>,
 ) -> Result<String, String> {
-    let mode = AgentRuntimeMode::from_setting(&state.settings.agent_runtime_mode);
+    let runtime_id = crate::brain::resolve_execution_runtime(
+        &state.settings,
+        &state.department_agent_runtimes,
+        &agent.department,
+        agent,
+    );
+    let mode = AgentRuntimeMode::from_setting(&runtime_id);
     match mode {
         AgentRuntimeMode::LlmOnly => {
             if state.settings.scrum_use_agent_tools {
@@ -56,7 +62,8 @@ pub fn execute_for_task(
             }
         }
         AgentRuntimeMode::Subprocess => {
-            match adapters::execute_runtime(
+            match adapters::execute_runtime_for_id(
+                &runtime_id,
                 &state.settings,
                 &state.company_id,
                 task,
@@ -66,7 +73,7 @@ pub fn execute_for_task(
             ) {
                 Ok(result) => Ok(result.content),
                 Err(err) => {
-                    let label = registry::effective_label(&state.settings);
+                    let label = crate::brain::effective_execution_label(&runtime_id);
                     if state.settings.agent_runtime_fallback_to_llm {
                         eprintln!("{label} runtime failed ({err}); falling back to LLM.");
                         llm::execute_llm_only(state, task, agent, project_title)

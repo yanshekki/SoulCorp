@@ -716,6 +716,7 @@ pub async fn hire_candidate(
         soul,
         soul_id,
         ai_provider: None,
+            agent_runtime_mode: None,
         agent_kind: None,
         skills: crate::state::skills_for_role(&role),
         reports_to: None,

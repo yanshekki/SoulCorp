@@ -842,6 +842,8 @@ pub struct AutomationStatus {
     pub openclaw_available: bool,
     pub openclaw_version: Option<String>,
     pub openclaw_message: String,
+    #[serde(default)]
+    pub active_execution_runtimes: Vec<String>,
     pub readiness: crate::operations::AutomationReadiness,
 }
 
@@ -849,6 +851,21 @@ pub struct AutomationStatus {
 pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<AutomationStatus, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
     let openclaw = crate::agent_runtime::probe_active_runtime(&state.settings);
+    let active_execution_runtimes: Vec<String> = state
+        .agents
+        .values()
+        .filter(|agent| !crate::fate::is_system_agent(agent))
+        .map(|agent| {
+            crate::brain::resolve_execution_runtime(
+                &state.settings,
+                &state.department_agent_runtimes,
+                &agent.department,
+                agent,
+            )
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
     Ok(AutomationStatus {
         scrum_worker_last_tick_at: state.scrum_worker.last_tick_at.clone(),
         scrum_worker_log: state.scrum_worker.recent_log.clone(),
@@ -863,6 +880,7 @@ pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<Automa
         openclaw_available: openclaw.binary_available,
         openclaw_version: openclaw.version,
         openclaw_message: openclaw.message,
+        active_execution_runtimes,
         readiness: crate::operations::compute_automation_readiness(&state),
     })
 }

@@ -42,6 +42,8 @@ pub struct CustomDepartmentBuilding {
 pub struct DepartmentAiConfig {
     pub department: String,
     pub ai_provider: Option<String>,
+    #[serde(default)]
+    pub agent_runtime_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,6 +149,7 @@ pub fn update_department_ai_provider(
     let snapshot = DepartmentAiConfig {
         department: department.to_string(),
         ai_provider,
+        agent_runtime_mode: state.department_agent_runtimes.get(department).cloned(),
     };
     commit(app, &state)?;
     Ok(snapshot)
@@ -256,6 +259,7 @@ pub fn spawn_co_ceo(
         soul,
         soul_id: None,
         ai_provider: None,
+        agent_runtime_mode: None,
         agent_kind: None,
         skills: crate::state::skills_for_role("AI Co-CEO"),
         reports_to: None,
@@ -656,6 +660,7 @@ fn list_company_departments_from_state(state: &AppState) -> CompanyDepartmentsSn
         .into_iter()
         .map(|department| DepartmentAiConfig {
             ai_provider: state.department_ai_providers.get(&department).cloned(),
+            agent_runtime_mode: state.department_agent_runtimes.get(&department).cloned(),
             department,
         })
         .collect();

@@ -33,6 +33,11 @@ pub fn rename_department_references(state: &mut AppState, old_name: &str, new_na
             .department_ai_providers
             .insert(new_name.to_string(), provider);
     }
+    if let Some(runtime) = state.department_agent_runtimes.remove(old_name) {
+        state
+            .department_agent_runtimes
+            .insert(new_name.to_string(), runtime);
+    }
 
     if let Some(wallet) = state.token_economy.departments.remove(old_name) {
         state
@@ -77,6 +82,12 @@ pub fn transfer_department_members(state: &mut AppState, from: &str, to: &str) {
             .department_ai_providers
             .entry(to.to_string())
             .or_insert(provider);
+    }
+    if let Some(runtime) = state.department_agent_runtimes.remove(from) {
+        state
+            .department_agent_runtimes
+            .entry(to.to_string())
+            .or_insert(runtime);
     }
 
     let from_wallet = state.token_economy.departments.remove(from);

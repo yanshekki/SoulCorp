@@ -375,6 +375,26 @@ case "${PHASE}" in
     grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/workspace/index.rs"
     echo "Phase 21 workspace FTS and lazy loading checks passed."
     ;;
+  25)
+    test -f "${DESKTOP_DIR}/src-tauri/src/brain/resolver.rs"
+    test -f "${DESKTOP_DIR}/src-tauri/src/commands/brain.rs"
+    test -f "${DESKTOP_DIR}/src/components/UI/brain/MeetingBrainPicker.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/brain/ExecutionRuntimePicker.tsx"
+    test -f "${DESKTOP_DIR}/src/components/UI/brain/EffectiveBrainPill.tsx"
+    test -f "${DESKTOP_DIR}/src/acceptance/brainAcceptance.ts"
+    test -f "${REPO_ROOT}/scripts/run-brain-smoke.sh"
+    grep -q "get_brain_resolution_preview" "${DESKTOP_DIR}/src-tauri/src/lib.rs"
+    grep -q "MeetingBrainPicker" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "ExecutionRuntimePicker" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "MeetingBrainPicker" "${DESKTOP_DIR}/src/components/UI/OnboardingWizard.tsx"
+    grep -q "get_brain_resolution_preview" "${DESKTOP_DIR}/src/components/UI/MeetingPanel.tsx"
+    grep -q "brain-pill-transport" "${DESKTOP_DIR}/src/styles/design-system.css"
+    grep -q "legacyMeetingProviderToRegistryId" "${DESKTOP_DIR}/src/utils/agentRuntimeCatalog.ts"
+    grep -q "runBrainAcceptanceTests" "${DESKTOP_DIR}/src/acceptance/acceptanceTests.ts"
+    grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/brain/resolver.rs"
+    bash "${REPO_ROOT}/scripts/run-brain-smoke.sh"
+    echo "Phase 25 agent brain checks passed."
+    ;;
   24)
     test -f "${DESKTOP_DIR}/src-tauri/resources/agent_runtimes.json"
     test -f "${DESKTOP_DIR}/src-tauri/src/agent_runtime/registry.rs"

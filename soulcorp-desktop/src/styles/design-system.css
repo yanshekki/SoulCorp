@@ -3469,12 +3469,31 @@ body.workspace-resizing {
   white-space: nowrap;
 }
 
+.agents-priority-stack {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.agents-priority-layer-label {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .agents-priority-flow {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
+}
+
+.agents-priority-stack .agents-priority-flow:last-child {
+  margin-bottom: 0;
 }
 
 .agents-priority-flow article {
@@ -3502,9 +3521,15 @@ body.workspace-resizing {
   font-size: 1rem;
 }
 
+.agents-effective-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .agents-overview-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
@@ -3844,6 +3869,34 @@ body.workspace-resizing {
   line-height: 1.25;
   text-align: right;
   color: var(--text-secondary);
+}
+
+.brain-pill-transport {
+  font-weight: 500;
+  color: var(--text-muted, var(--text-secondary));
+  opacity: 0.9;
+}
+
+.meeting-agent-picker-row {
+  align-items: flex-start;
+}
+
+.meeting-agent-picker-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.meeting-agent-picker-label .agents-effective-pill {
+  max-width: none;
+  margin-left: 0;
+  text-align: left;
+}
+
+.meeting-message-header .agents-effective-pill {
+  max-width: none;
+  margin-left: auto;
 }
 
 .agents-employee-meta {

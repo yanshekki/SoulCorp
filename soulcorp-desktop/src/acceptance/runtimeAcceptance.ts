@@ -23,8 +23,8 @@ export function runRuntimeAcceptanceTests(): AcceptanceResult[] {
   const registry = loadRegistry();
 
   results.push({
-    name: "Runtime registry has at least 23 entries",
-    passed: registry.runtimes.length >= 23,
+    name: "Runtime registry v2 has at least 29 entries",
+    passed: registry.version >= 2 && registry.runtimes.length >= 29,
     detail: String(registry.runtimes.length),
   });
 

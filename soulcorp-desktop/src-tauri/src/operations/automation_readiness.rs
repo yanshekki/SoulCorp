@@ -34,17 +34,48 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
     let orchestrator_on = state.settings.orchestrator_enabled;
     let token_pool = total_company_tokens(&state.token_economy);
     let tokens_ok = token_pool >= state.settings.scrum_min_tokens_guard;
-    let subprocess_runtime = crate::agent_runtime::is_subprocess_runtime(&state.settings.agent_runtime_mode);
-    let runtime_probe = if subprocess_runtime {
-        Some(crate::agent_runtime::probe_active_runtime(&state.settings))
+    let execution_runtime_ids: Vec<String> = state
+        .agents
+        .values()
+        .filter(|agent| !crate::fate::is_system_agent(agent))
+        .map(|agent| {
+            crate::brain::resolve_execution_runtime(
+                &state.settings,
+                &state.department_agent_runtimes,
+                &agent.department,
+                agent,
+            )
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    let subprocess_runtime_ids: Vec<String> = execution_runtime_ids
+        .iter()
+        .filter(|runtime_id| crate::agent_runtime::is_subprocess_runtime(runtime_id))
+        .cloned()
+        .collect();
+    let runtime_probes: Vec<_> = subprocess_runtime_ids
+        .iter()
+        .map(|runtime_id| {
+            crate::agent_runtime::adapters::probe_runtime_for_id(runtime_id, &state.settings)
+        })
+        .collect();
+    let runtime_ok = subprocess_runtime_ids.is_empty()
+        || runtime_probes.iter().all(|probe| probe.binary_available);
+    let runtime_detail = if subprocess_runtime_ids.is_empty() {
+        "Using in-app LLM execution.".to_string()
+    } else if runtime_probes.iter().all(|probe| probe.binary_available) {
+        format!(
+            "{} subprocess runtime(s) ready.",
+            subprocess_runtime_ids.len()
+        )
     } else {
-        None
+        runtime_probes
+            .iter()
+            .find(|probe| !probe.binary_available)
+            .map(|probe| probe.message.clone())
+            .unwrap_or_else(|| "Subprocess runtime missing.".to_string())
     };
-    let runtime_ok = !subprocess_runtime
-        || runtime_probe
-            .as_ref()
-            .map(|probe| probe.binary_available)
-            .unwrap_or(false);
 
     let items = vec![
         AutomationReadinessItem {
@@ -74,13 +105,21 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
             detail: format!("{staffed_agents} staffed agent(s)."),
         },
         AutomationReadinessItem {
-            id: "llm".into(),
-            label: "AI provider".into(),
+            id: "meeting_brain".into(),
+            label: "Meeting brain".into(),
             ok: llm_configured,
             detail: if state.settings.pure_local_mode {
                 "Pure local mode — mock dialogue.".into()
             } else if llm_configured {
-                format!("Using {}.", state.settings.ai_provider)
+                format!(
+                    "Default {}.",
+                    crate::brain::effective_meeting_label(
+                        &state.settings,
+                        &state.department_ai_providers,
+                        "Executive",
+                        None,
+                    )
+                )
             } else {
                 "Configure Ollama or an API key in Settings, or enable Pure Local Mode.".into()
             },
@@ -124,16 +163,10 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
             },
         },
         AutomationReadinessItem {
-            id: "agent_runtime".into(),
-            label: "Agent runtime".into(),
+            id: "execution_runtime".into(),
+            label: "Execution runtime".into(),
             ok: runtime_ok,
-            detail: if !subprocess_runtime {
-                "Using in-app LLM execution.".into()
-            } else if let Some(probe) = runtime_probe.as_ref() {
-                probe.message.clone()
-            } else {
-                "External runtime selected but probe unavailable.".into()
-            },
+            detail: runtime_detail,
         },
     ];
 

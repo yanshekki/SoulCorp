@@ -692,6 +692,8 @@ pub struct AgentRecord {
     #[serde(default)]
     pub ai_provider: Option<String>,
     #[serde(default)]
+    pub agent_runtime_mode: Option<String>,
+    #[serde(default)]
     pub agent_kind: Option<String>,
     #[serde(default)]
     pub skills: Vec<String>,
@@ -1083,6 +1085,8 @@ pub struct AppState {
     #[serde(default)]
     pub department_ai_providers: HashMap<String, String>,
     #[serde(default)]
+    pub department_agent_runtimes: HashMap<String, String>,
+    #[serde(default)]
     pub co_ceo: CoCeoState,
     #[serde(default)]
     pub orchestrator: OrchestratorState,
@@ -1142,6 +1146,7 @@ impl Default for AppState {
             agent_relationships: Vec::new(),
             departments: Vec::new(),
             department_ai_providers: HashMap::new(),
+            department_agent_runtimes: HashMap::new(),
             co_ceo: CoCeoState::default(),
             orchestrator: OrchestratorState::default(),
             scrum_worker: ScrumWorkerState::default(),

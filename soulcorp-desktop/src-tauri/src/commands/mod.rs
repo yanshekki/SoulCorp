@@ -1,5 +1,6 @@
 pub mod achievements_cmd;
 pub mod agent;
+pub mod brain;
 pub mod agent_workspace;
 pub mod companies;
 pub mod departments;
@@ -30,6 +31,7 @@ pub mod workspace;
 
 pub use achievements_cmd::*;
 pub use agent::*;
+pub use brain::*;
 pub use agent_workspace::*;
 pub use companies::*;
 pub use departments::*;

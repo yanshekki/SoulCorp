@@ -237,6 +237,7 @@ pub fn delete_department(
     clear_department_head_references(&mut state, &removed.id);
     state.departments.retain(|department| department.id != removed.id);
     state.department_ai_providers.remove(&removed.name);
+    state.department_agent_runtimes.remove(&removed.name);
 
     let snapshot = list_departments_snapshot(&state);
     commit(app, &state)?;

@@ -1,5 +1,6 @@
 mod achievements;
 mod agent_runtime;
+mod brain;
 mod ai;
 mod config;
 mod departments;
@@ -76,6 +77,9 @@ pub fn run() {
             commands::load_agent_soul,
             commands::update_agent_soul,
             commands::update_agent_ai_provider,
+            commands::update_agent_runtime_mode,
+            commands::update_department_runtime_mode,
+            commands::get_brain_resolution_preview,
             commands::list_agents,
             commands::run_simulation_tick,
             commands::get_simulation_snapshot,

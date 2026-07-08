@@ -1,12 +1,30 @@
 {
-  "version": 1,
+  "version": 2,
   "adapters": [
-    { "id": "claw_agent_cli", "label": "Claw agent CLI" },
-    { "id": "grok_headless", "label": "Grok headless" },
-    { "id": "prompt_flag", "label": "Prompt flag (-p)" },
-    { "id": "codex_noninteractive", "label": "Codex non-interactive" },
-    { "id": "aider_message", "label": "Message file" },
-    { "id": "legacy_stdin", "label": "Legacy stdin" }
+    {
+      "id": "claw_agent_cli",
+      "label": "Claw agent CLI"
+    },
+    {
+      "id": "grok_headless",
+      "label": "Grok headless"
+    },
+    {
+      "id": "prompt_flag",
+      "label": "Prompt flag (-p)"
+    },
+    {
+      "id": "codex_noninteractive",
+      "label": "Codex non-interactive"
+    },
+    {
+      "id": "aider_message",
+      "label": "Message file"
+    },
+    {
+      "id": "legacy_stdin",
+      "label": "Legacy stdin"
+    }
   ],
   "runtimes": [
     {
@@ -16,7 +34,96 @@
       "adapter": "builtin",
       "default_binary": "",
       "docs_url": "",
-      "capabilities": []
+      "capabilities": [],
+      "layers": [
+        "execution"
+      ],
+      "transport": "builtin",
+      "api_provider_id": null
+    },
+    {
+      "id": "mock",
+      "label": "Mock (offline)",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "mock"
+    },
+    {
+      "id": "ollama",
+      "label": "Ollama (local)",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "ollama"
+    },
+    {
+      "id": "openai_api",
+      "label": "OpenAI API",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "openai"
+    },
+    {
+      "id": "grok_api",
+      "label": "Grok API (xAI)",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "grok"
+    },
+    {
+      "id": "claude_api",
+      "label": "Claude API",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "claude"
+    },
+    {
+      "id": "soulmd_hub",
+      "label": "soulmd-hub API",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "soulmd-hub"
     },
     {
       "id": "openclaw",
@@ -25,7 +132,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "openclaw",
       "docs_url": "https://openclaw.ai",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "hermes",
@@ -34,7 +150,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "hermes",
       "docs_url": "https://github.com/NousResearch/hermes-agent",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "ironclaw",
@@ -43,7 +168,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "ironclaw",
       "docs_url": "https://github.com/nearai/ironclaw",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "nanoclaw",
@@ -52,7 +186,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "nanoclaw",
       "docs_url": "https://nanoclaw.dev",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "zeroclaw",
@@ -61,7 +204,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "zeroclaw",
       "docs_url": "https://github.com/zeroclaw-labs/zeroclaw",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "nullclaw",
@@ -70,7 +222,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "nullclaw",
       "docs_url": "https://github.com/nullclaw/nullclaw",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "picoclaw",
@@ -79,7 +240,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "picoclaw",
       "docs_url": "https://github.com/sipeed/picoclaw",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "nanobot",
@@ -88,7 +258,16 @@
       "adapter": "claw_agent_cli",
       "default_binary": "nanobot",
       "docs_url": "https://github.com/HKUDS/nanobot",
-      "capabilities": ["gateway", "local_embed", "agent_cli"]
+      "capabilities": [
+        "gateway",
+        "local_embed",
+        "agent_cli"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "grok",
@@ -97,7 +276,14 @@
       "adapter": "grok_headless",
       "default_binary": "grok",
       "docs_url": "https://docs.x.ai/build/cli/headless-scripting",
-      "capabilities": ["headless_json"]
+      "capabilities": [
+        "headless_json"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "claude",
@@ -106,7 +292,14 @@
       "adapter": "prompt_flag",
       "default_binary": "claude",
       "docs_url": "https://docs.anthropic.com/en/docs/claude-code",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "codex",
@@ -115,7 +308,14 @@
       "adapter": "codex_noninteractive",
       "default_binary": "codex",
       "docs_url": "https://github.com/openai/codex",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "gemini",
@@ -124,7 +324,14 @@
       "adapter": "prompt_flag",
       "default_binary": "gemini",
       "docs_url": "https://github.com/google-gemini/gemini-cli",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "amazon_q",
@@ -133,7 +340,14 @@
       "adapter": "aider_message",
       "default_binary": "q",
       "docs_url": "https://github.com/aws/amazon-q-developer-cli",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "kimi",
@@ -142,7 +356,14 @@
       "adapter": "prompt_flag",
       "default_binary": "kimi",
       "docs_url": "https://github.com/MoonshotAI/kimi-cli",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "qwen",
@@ -151,7 +372,14 @@
       "adapter": "prompt_flag",
       "default_binary": "qwen",
       "docs_url": "https://github.com/QwenLM/qwen-code",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "mistral_vibe",
@@ -160,7 +388,14 @@
       "adapter": "prompt_flag",
       "default_binary": "vibe",
       "docs_url": "https://github.com/mistralai/mistral-vibe",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "opencode",
@@ -169,7 +404,14 @@
       "adapter": "aider_message",
       "default_binary": "opencode",
       "docs_url": "https://opencode.ai",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "aider",
@@ -178,7 +420,14 @@
       "adapter": "aider_message",
       "default_binary": "aider",
       "docs_url": "https://aider.chat",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "goose",
@@ -187,7 +436,14 @@
       "adapter": "aider_message",
       "default_binary": "goose",
       "docs_url": "https://github.com/block/goose",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "pi",
@@ -196,7 +452,14 @@
       "adapter": "aider_message",
       "default_binary": "pi",
       "docs_url": "https://github.com/badlogic/pi-mono",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "cline",
@@ -205,7 +468,14 @@
       "adapter": "prompt_flag",
       "default_binary": "cline",
       "docs_url": "https://github.com/cline/cline",
-      "capabilities": ["headless"]
+      "capabilities": [
+        "headless"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     },
     {
       "id": "custom",
@@ -214,7 +484,14 @@
       "adapter": "custom",
       "default_binary": "",
       "docs_url": "",
-      "capabilities": ["custom"]
+      "capabilities": [
+        "custom"
+      ],
+      "layers": [
+        "execution"
+      ],
+      "transport": "subprocess",
+      "api_provider_id": null
     }
   ]
 }

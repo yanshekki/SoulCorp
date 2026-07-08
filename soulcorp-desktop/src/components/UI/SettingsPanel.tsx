@@ -13,13 +13,21 @@ import {
   showPlayModeSettings,
 } from "../../config/features";
 import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
+import { MeetingBrainPicker } from "./brain/MeetingBrainPicker";
+import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
 import type {
   DeployResult,
   DeployStatus,
   ExportResult,
   GameSettings,
   MeetingAiStatus,
+  RuntimeCatalog,
 } from "../../types/game";
+import {
+  apiProviderIdForMeetingRegistry,
+  effectiveApiProviderForSettings,
+  legacyMeetingProviderToRegistryId,
+} from "../../utils/agentRuntimeCatalog";
 
 export const SETTINGS_SECTIONS = [
   { id: "general", label: "General" },
@@ -79,7 +87,11 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [githubRepoName, setGithubRepoName] = useState("");
   const [deployBusy, setDeployBusy] = useState(false);
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const effectiveApiProvider = effectiveApiProviderForSettings(settings.ai_provider, runtimeCatalog);
+  const meetingBrainValue = legacyMeetingProviderToRegistryId(settings.ai_provider);
+  const executionRuntimeValue = settings.agent_runtime_mode ?? "llm_only";
 
   useEffect(() => {
     setHubUrl(hubStatus.base_url);
@@ -93,6 +105,12 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
       .then(setSettings)
       .catch((error) => setStatusMessage(String(error)));
   }, [activeCompanyId, companyRevision, setSettings, setStatusMessage]);
+
+  useEffect(() => {
+    void invoke<RuntimeCatalog>("get_agent_runtime_catalog")
+      .then(setRuntimeCatalog)
+      .catch(() => setRuntimeCatalog(null));
+  }, []);
 
   const deployStatusRequestedRef = useRef(false);
 
@@ -145,6 +163,7 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
           random_event_chance: patch.random_event_chance,
           god_mode_enabled: patch.god_mode_enabled,
           ai_provider: patch.ai_provider,
+          agent_runtime_mode: patch.agent_runtime_mode,
           ollama_base_url: patch.ollama_base_url,
           ollama_model: patch.ollama_model,
           openai_base_url: patch.openai_base_url,
@@ -547,25 +566,35 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
         <SettingsCard
           id="ai"
           title="AI providers"
-          description="Default LLM for company agents and meetings."
+          description="Default meeting brain and execution runtime for company agents."
         >
           <label className="field-label">
-            Default company AI provider
-            <select
-              value={settings.ai_provider}
-              onChange={(event) => void updateSettings({ ai_provider: event.target.value })}
+            Default company meeting brain
+            <MeetingBrainPicker
+              catalog={runtimeCatalog}
+              value={meetingBrainValue}
+              includeInherit={false}
               disabled={settings.pure_local_mode}
-            >
-              <option value="mock">Mock (offline)</option>
-              <option value="ollama">Ollama (local)</option>
-              <option value="openai">OpenAI-compatible</option>
-              <option value="grok">Grok (xAI)</option>
-              <option value="claude">Claude-compatible</option>
-              <option value="soulmd-hub">soulmd-hub API</option>
-            </select>
+              onChange={(registryId) =>
+                void updateSettings({
+                  ai_provider: apiProviderIdForMeetingRegistry(registryId, runtimeCatalog),
+                })
+              }
+            />
           </label>
 
-          {(settings.ai_provider === "ollama" || settings.ai_provider === "mock") && (
+          <label className="field-label">
+            Default company execution runtime
+            <ExecutionRuntimePicker
+              catalog={runtimeCatalog}
+              value={executionRuntimeValue}
+              includeInherit={false}
+              disabled={settings.pure_local_mode}
+              onChange={(runtimeId) => void updateSettings({ agent_runtime_mode: runtimeId })}
+            />
+          </label>
+
+          {(effectiveApiProvider === "ollama" || effectiveApiProvider === "mock") && (
             <>
               <label className="field-label">
                 Ollama base URL
@@ -588,7 +617,7 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
             </>
           )}
 
-          {settings.ai_provider === "openai" && (
+          {effectiveApiProvider === "openai" && (
             <>
               <label className="field-label">
                 OpenAI base URL
@@ -620,7 +649,7 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
             </>
           )}
 
-          {settings.ai_provider === "grok" && (
+          {effectiveApiProvider === "grok" && (
             <>
               <label className="field-label">
                 Grok base URL
@@ -652,7 +681,7 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
             </>
           )}
 
-          {settings.ai_provider === "claude" && (
+          {effectiveApiProvider === "claude" && (
             <>
               <label className="field-label">
                 Claude base URL

@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { presetDesignFor } from "../../data/presetDesigns";
@@ -17,6 +18,10 @@ import {
 } from "./AgentRosterStep";
 import { toAgentRosterPayload } from "../../data/presetAgents";
 import type { AgentRosterSlotState } from "../../data/presetAgents";
+import { MeetingBrainPicker } from "./brain/MeetingBrainPicker";
+import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
+import type { GameSettings, RuntimeCatalog } from "../../types/game";
+import { apiProviderIdForMeetingRegistry } from "../../utils/agentRuntimeCatalog";
 import {
   ProjectSetupStep,
   defaultProjectSetupState,
@@ -79,6 +84,9 @@ export function OnboardingWizard() {
   const [designPresetId, setDesignPresetId] = useState<string | null>(null);
   const [agentRoster, setAgentRoster] = useState<AgentRosterSlotState[]>(defaultAgentRosterState());
   const [projectSetup, setProjectSetup] = useState<ProjectSetupState>(defaultProjectSetupState());
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
+  const [meetingBrainId, setMeetingBrainId] = useState("ollama");
+  const [executionRuntimeId, setExecutionRuntimeId] = useState("llm_only");
   const [submitting, setSubmitting] = useState(false);
 
   const step = steps[stepIndex];
@@ -92,6 +100,12 @@ export function OnboardingWizard() {
       togglePause();
     }
   }, [isPaused, onboardingCompleted, onboardingReady, togglePause]);
+
+  useEffect(() => {
+    void invoke<RuntimeCatalog>("get_agent_runtime_catalog")
+      .then(setRuntimeCatalog)
+      .catch(() => setRuntimeCatalog(null));
+  }, []);
 
   if (!onboardingReady || onboardingCompleted) {
     return null;
@@ -144,14 +158,23 @@ export function OnboardingWizard() {
         agent_roster: toAgentRosterPayload(agentRoster),
         ...toProjectSetupPayload(projectSetup),
       });
+      const nextAiProvider = pureLocalMode
+        ? "mock"
+        : apiProviderIdForMeetingRegistry(meetingBrainId, runtimeCatalog);
+      const nextRuntimeMode = pureLocalMode ? "llm_only" : executionRuntimeId;
+      const updatedSettings = await invoke<GameSettings>("update_game_settings", {
+        update: {
+          ai_provider: nextAiProvider,
+          agent_runtime_mode: nextRuntimeMode,
+        },
+      });
       setSettings({
-        ...useGameStore.getState().settings,
+        ...updatedSettings,
         play_mode: playModeConfig.playMode,
         pure_local_mode: pureLocalMode,
         random_events_enabled:
           playModeConfig.playMode === "game" && playModeConfig.randomEventsEnabled,
         random_event_chance: playModeConfig.randomEventChance,
-        ai_provider: pureLocalMode ? "mock" : useGameStore.getState().settings.ai_provider,
         pixel_filter_enabled: false,
         crt_filter_enabled: false,
       });
@@ -326,6 +349,31 @@ export function OnboardingWizard() {
                 <span>Offline-only play. Marketplace uses your last hub sync cache.</span>
               </button>
             </div>
+            {!pureLocalMode ? (
+              <>
+                <label className="field-label">
+                  Meeting brain (optional)
+                  <MeetingBrainPicker
+                    catalog={runtimeCatalog}
+                    value={meetingBrainId}
+                    includeInherit={false}
+                    onChange={setMeetingBrainId}
+                  />
+                </label>
+                <label className="field-label">
+                  Execution runtime (optional)
+                  <ExecutionRuntimePicker
+                    catalog={runtimeCatalog}
+                    value={executionRuntimeId}
+                    includeInherit={false}
+                    onChange={setExecutionRuntimeId}
+                  />
+                </label>
+                <p className="muted">
+                  Defaults to Ollama meetings and in-app LLM execution. Change anytime in Settings.
+                </p>
+              </>
+            ) : null}
           </section>
         ) : null}
 

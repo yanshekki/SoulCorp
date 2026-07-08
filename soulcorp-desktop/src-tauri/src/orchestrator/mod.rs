@@ -446,6 +446,7 @@ fn ensure_co_ceo_spawned(state: &mut AppState, report: &mut OrchestratorReport) 
         soul,
         soul_id: None,
         ai_provider: None,
+            agent_runtime_mode: None,
         agent_kind: None,
         skills: crate::state::skills_for_role("AI Co-CEO"),
         reports_to: None,

@@ -22,7 +22,23 @@ pub fn runtime_by_id(id: &str) -> Option<&'static RuntimeCatalogEntry> {
 
 pub fn is_subprocess_runtime(id: &str) -> bool {
     let key = id.trim().to_lowercase();
-    key != "llm_only" && runtime_by_id(&key).is_some()
+    if key == "llm_only" {
+        return false;
+    }
+    runtime_by_id(&key)
+        .map(|entry| {
+            entry.layers.iter().any(|layer| layer == "execution")
+                && entry.transport == "subprocess"
+        })
+        .unwrap_or(false)
+}
+
+pub fn active_runtime_for_id(runtime_id: &str) -> Option<&'static RuntimeCatalogEntry> {
+    let id = runtime_id.trim().to_lowercase();
+    if id == "llm_only" {
+        return None;
+    }
+    runtime_by_id(&id)
 }
 
 pub fn resolve_runtime_id(settings: &GameSettings) -> String {
@@ -70,8 +86,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_has_at_least_23_runtimes() {
-        assert!(catalog().runtimes.len() >= 23);
+    fn registry_has_at_least_29_runtimes() {
+        assert!(catalog().version >= 2);
+        assert!(catalog().runtimes.len() >= 29);
+    }
+
+    #[test]
+    fn meeting_entries_have_api_transport() {
+        let mock = runtime_by_id("mock").expect("mock meeting brain");
+        assert!(mock.layers.contains(&"meeting".to_string()));
+        assert_eq!(mock.transport, "api");
     }
 
     #[test]

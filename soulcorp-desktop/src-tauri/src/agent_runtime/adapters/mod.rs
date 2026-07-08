@@ -2,14 +2,14 @@ pub mod claw;
 pub mod generic;
 pub mod grok;
 
-use crate::agent_runtime::registry::{active_runtime, effective_adapter_id};
+use crate::agent_runtime::registry::{active_runtime, active_runtime_for_id, effective_adapter_id};
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, GameSettings};
 use std::path::Path;
 
-pub fn probe_runtime(settings: &GameSettings) -> RuntimeProbe {
-    let Some(entry) = active_runtime(settings) else {
+pub fn probe_runtime_for_id(runtime_id: &str, settings: &GameSettings) -> RuntimeProbe {
+    let Some(entry) = active_runtime_for_id(runtime_id) else {
         return RuntimeProbe {
             runtime_id: "llm_only".to_string(),
             runtime_label: "In-app LLM".to_string(),
@@ -27,7 +27,12 @@ pub fn probe_runtime(settings: &GameSettings) -> RuntimeProbe {
     dispatch_probe(&custom_entry, settings)
 }
 
-pub fn execute_runtime(
+pub fn probe_runtime(settings: &GameSettings) -> RuntimeProbe {
+    probe_runtime_for_id(&settings.agent_runtime_mode, settings)
+}
+
+pub fn execute_runtime_for_id(
+    runtime_id: &str,
     settings: &GameSettings,
     company_id: &str,
     task: &WorkNode,
@@ -35,8 +40,8 @@ pub fn execute_runtime(
     project_title: &str,
     workspace_root: Option<&Path>,
 ) -> Result<RuntimeResult, String> {
-    let entry = active_runtime(settings).ok_or_else(|| {
-        "No subprocess runtime selected. Choose a runtime in Command Center → Policies.".to_string()
+    let entry = active_runtime_for_id(runtime_id).ok_or_else(|| {
+        format!("No subprocess runtime selected for '{runtime_id}'.")
     })?;
     let custom_entry = custom_runtime_entry(settings, entry);
     let result = dispatch_execute(
@@ -61,6 +66,25 @@ pub fn execute_runtime(
     Ok(result)
 }
 
+pub fn execute_runtime(
+    settings: &GameSettings,
+    company_id: &str,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&Path>,
+) -> Result<RuntimeResult, String> {
+    execute_runtime_for_id(
+        &settings.agent_runtime_mode,
+        settings,
+        company_id,
+        task,
+        agent,
+        project_title,
+        workspace_root,
+    )
+}
+
 fn custom_runtime_entry<'a>(
     settings: &GameSettings,
     entry: &'a crate::agent_runtime::types::RuntimeCatalogEntry,
@@ -76,6 +100,9 @@ fn custom_runtime_entry<'a>(
         default_binary: settings.agent_runtime_custom_binary.clone(),
         docs_url: entry.docs_url.clone(),
         capabilities: entry.capabilities.clone(),
+        layers: entry.layers.clone(),
+        transport: entry.transport.clone(),
+        api_provider_id: entry.api_provider_id.clone(),
     }
 }
 

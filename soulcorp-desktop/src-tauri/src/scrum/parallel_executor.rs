@@ -142,6 +142,7 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
         settings: state.settings.clone(),
         hub: state.hub.clone(),
         department_providers: state.department_ai_providers.clone(),
+        department_runtimes: state.department_agent_runtimes.clone(),
         company_id: state.company_id.clone(),
         workspace_root,
     };

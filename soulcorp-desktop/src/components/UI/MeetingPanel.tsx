@@ -6,13 +6,15 @@ import { filterByQuery } from "../../utils/listSearch";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 import { openWorkspacePage } from "../../utils/openWorkspacePage";
 import { clearLocalProgress, reportLocalProgress } from "../../stores/progressStore";
-import { resolveEffectiveAiProviderLabel } from "../../data/aiProviders";
 import { formatAgentOptionLabel } from "../../utils/agentLabel";
+import { EffectiveBrainPill } from "./brain/EffectiveBrainPill";
+import { transportForEntry } from "../../utils/agentRuntimeCatalog";
 import type {
-  CompanyDepartmentsSnapshot,
+  BrainResolutionPreview,
   MeetingAiStatus,
   MeetingSnapshot,
   MeetingTurnCostEstimate,
+  RuntimeCatalog,
 } from "../../types/game";
 
 const MEETING_TYPES = [
@@ -60,7 +62,6 @@ function MeetingCard({
 }
 
 export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
-  const settings = useGameStore((state) => state.settings);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const activeMeeting = useGameStore((state) => state.activeMeeting);
@@ -72,9 +73,8 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
   const [aiStatus, setAiStatus] = useState<MeetingAiStatus | null>(null);
   const [advancing, setAdvancing] = useState(false);
   const [turnCost, setTurnCost] = useState<MeetingTurnCostEstimate | null>(null);
-  const [departmentProviders, setDepartmentProviders] = useState<Map<string, string | null>>(
-    () => new Map(),
-  );
+  const [brainPreviews, setBrainPreviews] = useState<BrainResolutionPreview[]>([]);
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const [transcriptSearchQuery, setTranscriptSearchQuery] = useState("");
   const debouncedTranscriptQuery = useDebouncedValue(transcriptSearchQuery);
@@ -94,23 +94,24 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
     [agentRecords],
   );
   const usingLiveLlm = aiStatus?.active_provider !== "mock";
+  const brainPreviewByAgentId = useMemo(
+    () => new Map(brainPreviews.map((preview) => [preview.agent_id, preview])),
+    [brainPreviews],
+  );
+
+  const meetingBrainForAgent = (agentId: string) => brainPreviewByAgentId.get(agentId);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [status, departments] = await Promise.all([
+        const [status, previews, catalog] = await Promise.all([
           invoke<MeetingAiStatus>("get_meeting_ai_status"),
-          invoke<CompanyDepartmentsSnapshot>("list_company_departments"),
+          invoke<BrainResolutionPreview[]>("get_brain_resolution_preview", { agentId: null }),
+          invoke<RuntimeCatalog>("get_agent_runtime_catalog"),
         ]);
         setAiStatus(status);
-        setDepartmentProviders(
-          new Map(
-            (departments.department_ai_providers ?? []).map((entry) => [
-              entry.department,
-              entry.ai_provider ?? null,
-            ]),
-          ),
-        );
+        setBrainPreviews(previews);
+        setRuntimeCatalog(catalog);
       } catch (error) {
         setStatusMessage(String(error));
       }
@@ -296,23 +297,27 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
         </label>
 
         <div className="agent-picker">
-          {selectableAgents.map((agent) => (
-            <label key={agent.id} className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(agent.id)}
-                onChange={() => toggleAgent(agent.id)}
-              />
-              <span>
-                {formatAgentOptionLabel(agent)} ·{" "}
-                {resolveEffectiveAiProviderLabel(
-                  agent.ai_provider,
-                  departmentProviders.get(agent.department) ?? null,
-                  settings.ai_provider,
-                )}
-              </span>
-            </label>
-          ))}
+          {selectableAgents.map((agent) => {
+            const preview = meetingBrainForAgent(agent.id);
+            const transport = transportForEntry(
+              runtimeCatalog?.runtimes.find((entry) => entry.id === preview?.meeting_brain_id),
+            );
+            return (
+              <label key={agent.id} className="checkbox-row meeting-agent-picker-row">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(agent.id)}
+                  onChange={() => toggleAgent(agent.id)}
+                />
+                <span className="meeting-agent-picker-label">
+                  {formatAgentOptionLabel(agent)}
+                  {preview ? (
+                    <EffectiveBrainPill label={preview.meeting_brain_label} transport={transport} />
+                  ) : null}
+                </span>
+              </label>
+            );
+          })}
         </div>
 
         <label className="checkbox-row">
@@ -384,17 +389,28 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
                 No matches for &ldquo;{debouncedTranscriptQuery}&rdquo;.
               </p>
             ) : (
-              filteredMessages.map((message, index) => (
-                <article key={`${message.speaker_id}-${index}`} className="meeting-message">
-                  <header className="meeting-message-header">
-                    <strong>{message.speaker_name}</strong>
-                    {message.provider ? (
-                      <span className="meeting-message-provider">{message.provider}</span>
-                    ) : null}
-                  </header>
-                  <p>{message.content}</p>
-                </article>
-              ))
+              filteredMessages.map((message, index) => {
+                const preview = meetingBrainForAgent(message.speaker_id);
+                const transport = transportForEntry(
+                  runtimeCatalog?.runtimes.find((entry) => entry.id === preview?.meeting_brain_id),
+                );
+                return (
+                  <article key={`${message.speaker_id}-${index}`} className="meeting-message">
+                    <header className="meeting-message-header">
+                      <strong>{message.speaker_name}</strong>
+                      {preview ? (
+                        <EffectiveBrainPill
+                          label={preview.meeting_brain_label}
+                          transport={transport}
+                        />
+                      ) : message.provider ? (
+                        <span className="meeting-message-provider">{message.provider}</span>
+                      ) : null}
+                    </header>
+                    <p>{message.content}</p>
+                  </article>
+                );
+              })
             )}
             {activeMeeting.completed && activeMeeting.outcome_summary ? (
               <p className="meeting-outcome">{activeMeeting.outcome_summary}</p>

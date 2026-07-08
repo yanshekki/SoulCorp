@@ -9,6 +9,7 @@ import type {
   RuntimeProbeSummary,
 } from "../../../types/game";
 import {
+  filterCatalogByLayer,
   groupCatalogEntries,
   isSubprocessRuntime,
   runtimeBinaryPlaceholder,
@@ -60,7 +61,8 @@ export function AgentRuntimeSection({
   }, [loadRuntimeData, activeMode]);
 
   const grouped = useMemo(
-    () => (catalog ? groupCatalogEntries(catalog) : []),
+    () =>
+      catalog ? groupCatalogEntries(filterCatalogByLayer(catalog, "execution")) : [],
     [catalog],
   );
 

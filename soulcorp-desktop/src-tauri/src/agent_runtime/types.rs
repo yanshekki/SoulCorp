@@ -26,6 +26,14 @@ pub struct RuntimeResult {
 
 pub type ClawRunResult = RuntimeResult;
 
+fn default_layers() -> Vec<String> {
+    vec!["execution".to_string()]
+}
+
+fn default_transport() -> String {
+    "subprocess".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeCatalogEntry {
     pub id: String,
@@ -35,6 +43,12 @@ pub struct RuntimeCatalogEntry {
     pub default_binary: String,
     pub docs_url: String,
     pub capabilities: Vec<String>,
+    #[serde(default = "default_layers")]
+    pub layers: Vec<String>,
+    #[serde(default = "default_transport")]
+    pub transport: String,
+    #[serde(default)]
+    pub api_provider_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

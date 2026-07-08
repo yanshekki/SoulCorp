@@ -73,6 +73,7 @@ pub fn try_auto_recruit_tick(state: &mut AppState) -> AutoRecruitReport {
         soul: None,
         soul_id: None,
         ai_provider: None,
+            agent_runtime_mode: None,
         agent_kind: None,
         skills: skills_for_role(role),
         reports_to: None,

@@ -172,6 +172,7 @@ mod tests {
                 soul: None,
                 soul_id: None,
                 ai_provider: None,
+            agent_runtime_mode: None,
                 agent_kind: None,
                 skills: crate::state::skills_for_role("Engineer"),
                 reports_to: None,

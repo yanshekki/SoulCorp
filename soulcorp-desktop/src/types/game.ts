@@ -166,6 +166,17 @@ export interface CustomDepartmentBuilding {
 export interface DepartmentAiConfig {
   department: string;
   ai_provider?: string | null;
+  agent_runtime_mode?: string | null;
+}
+
+export interface BrainResolutionPreview {
+  agent_id: string;
+  department: string;
+  meeting_brain_id: string;
+  meeting_brain_label: string;
+  meeting_provider: string;
+  execution_runtime_id: string;
+  execution_runtime_label: string;
 }
 
 export interface CompanyDepartmentsSnapshot {
@@ -583,6 +594,7 @@ export interface AgentRecord {
   skills?: string[];
   soul?: SoulProfile | null;
   ai_provider?: string | null;
+  agent_runtime_mode?: string | null;
   agent_kind?: string | null;
   reports_to?: string | null;
   manages_department?: string | null;
@@ -757,6 +769,7 @@ export interface AutomationStatus {
   openclaw_available: boolean;
   openclaw_version?: string | null;
   openclaw_message: string;
+  active_execution_runtimes?: string[];
   readiness: AutomationReadiness;
 }
 
@@ -768,6 +781,9 @@ export interface RuntimeCatalogEntry {
   default_binary: string;
   docs_url: string;
   capabilities: string[];
+  layers?: string[];
+  transport?: string;
+  api_provider_id?: string | null;
 }
 
 export interface AdapterCatalogEntry {

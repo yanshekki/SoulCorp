@@ -3,13 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { GameSettings } from "../../types/game";
 import {
-  AGENT_AI_PROVIDER_OPTIONS,
   AI_PROVIDER_DEFAULT,
-  AI_PROVIDER_OPTIONS,
   type DepartmentAiConfig,
   resolveEffectiveAiProviderLabel,
 } from "../../data/aiProviders";
-import type { AgentRecord, CompanyDepartmentsSnapshot } from "../../types/game";
+import type { AgentRecord, CompanyDepartmentsSnapshot, RuntimeCatalog } from "../../types/game";
 import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -19,7 +17,16 @@ import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 import { AgentRuntimeSection } from "./command-center/AgentRuntimeSection";
-import { isSubprocessRuntime, runtimeModeLabel } from "../../utils/agentRuntimeCatalog";
+import { EffectiveBrainPill } from "./brain/EffectiveBrainPill";
+import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
+import { MeetingBrainPicker } from "./brain/MeetingBrainPicker";
+import {
+  isSubprocessRuntime,
+  meetingBrainLabel,
+  resolveEffectiveExecutionRuntimeLabel,
+  runtimeModeLabel,
+  transportForEntry,
+} from "../../utils/agentRuntimeCatalog";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -43,6 +50,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const [departmentConfigs, setDepartmentConfigs] = useState<DepartmentAiConfig[]>([]);
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
   const [soulDrafts, setSoulDrafts] = useState<Record<string, string>>({});
   const [soulSavingId, setSoulSavingId] = useState<string | null>(null);
   const [expandedSoulId, setExpandedSoulId] = useState<string | null>(null);
@@ -71,12 +79,18 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
     [departmentConfigs],
   );
 
-  const companyDefaultLabel = resolveEffectiveAiProviderLabel(
-    null,
-    null,
-    settings.ai_provider,
-    settings.pure_local_mode,
+  const departmentRuntimeMap = useMemo(
+    () =>
+      new Map(
+        departmentConfigs.map((entry) => [entry.department, entry.agent_runtime_mode ?? null]),
+      ),
+    [departmentConfigs],
   );
+
+  const companyMeetingLabel = settings.pure_local_mode
+    ? "Mock (offline)"
+    : `Company default · ${meetingBrainLabel(settings.ai_provider, runtimeCatalog)}`;
+  const companyExecutionLabel = runtimeModeLabel(settings.agent_runtime_mode);
 
   const refreshDepartments = useCallback(async () => {
     try {
@@ -90,6 +104,12 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   useEffect(() => {
     void refreshDepartments();
   }, [activeCompanyId, refreshDepartments]);
+
+  useEffect(() => {
+    void invoke<RuntimeCatalog>("get_agent_runtime_catalog")
+      .then(setRuntimeCatalog)
+      .catch(() => setRuntimeCatalog(null));
+  }, []);
 
   useEffect(() => {
     if (!onSectionFocus) {
@@ -117,6 +137,32 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
   }, [onSectionFocus, departmentConfigs.length, agentRecords.length]);
+
+  const updateDepartmentRuntime = async (department: string, value: string) => {
+    try {
+      const updated = await invoke<DepartmentAiConfig>("update_department_runtime_mode", {
+        request: {
+          department,
+          agent_runtime_mode: value === AI_PROVIDER_DEFAULT ? null : value,
+        },
+      });
+      setDepartmentConfigs((current) => {
+        const next = current.filter((entry) => entry.department !== department);
+        next.push(updated);
+        next.sort((left, right) => left.department.localeCompare(right.department));
+        return next;
+      });
+      setStatusMessage(
+        `${department} execution runtime now uses ${resolveEffectiveExecutionRuntimeLabel(
+          null,
+          updated.agent_runtime_mode,
+          settings.agent_runtime_mode ?? "llm_only",
+        )}.`,
+      );
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
 
   const updateDepartmentProvider = async (department: string, value: string) => {
     try {
@@ -185,6 +231,29 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
     }
   };
 
+  const updateAgentRuntime = async (agentId: string, value: string) => {
+    try {
+      const updated = await invoke<AgentRecord>("update_agent_runtime_mode", {
+        request: {
+          agent_id: agentId,
+          agent_runtime_mode: value === AI_PROVIDER_DEFAULT ? null : value,
+        },
+      });
+      setAgentRecords(
+        agentRecords.map((record) => (record.id === updated.id ? updated : record)),
+      );
+      setStatusMessage(
+        `${updated.name} execution runtime now uses ${resolveEffectiveExecutionRuntimeLabel(
+          updated.agent_runtime_mode,
+          departmentRuntimeMap.get(updated.department) ?? null,
+          settings.agent_runtime_mode ?? "llm_only",
+        )}.`,
+      );
+    } catch (error) {
+      setStatusMessage(String(error));
+    }
+  };
+
   const updateAgentProvider = async (agentId: string, value: string) => {
     try {
       const updated = await invoke<AgentRecord>("update_agent_ai_provider", {
@@ -208,8 +277,12 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
     }
   };
 
-  const overrideCount = agentRecords.filter((agent) => agent.ai_provider).length;
-  const departmentOverrideCount = departmentConfigs.filter((entry) => entry.ai_provider).length;
+  const meetingOverrideCount = agentRecords.filter((agent) => agent.ai_provider).length;
+  const executionOverrideCount = agentRecords.filter((agent) => agent.agent_runtime_mode).length;
+  const departmentMeetingOverrideCount = departmentConfigs.filter((entry) => entry.ai_provider).length;
+  const departmentExecutionOverrideCount = departmentConfigs.filter(
+    (entry) => entry.agent_runtime_mode,
+  ).length;
   const subprocessRuntime = isSubprocessRuntime(settings.agent_runtime_mode);
 
   const persistRuntimeSettings = async (patch: Partial<GameSettings>) => {
@@ -250,25 +323,53 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
           </p>
         </header>
 
-        <div className="agents-priority-flow">
-          <article>
-            <strong>1. Agent override</strong>
-            <span>Per-employee selection below</span>
-          </article>
-          <span className="agents-priority-arrow" aria-hidden="true">
-            →
-          </span>
-          <article>
-            <strong>2. Department default</strong>
-            <span>Team-wide brain assignment</span>
-          </article>
-          <span className="agents-priority-arrow" aria-hidden="true">
-            →
-          </span>
-          <article>
-            <strong>3. Company default</strong>
-            <span>{companyDefaultLabel}</span>
-          </article>
+        <div className="agents-priority-stack">
+          <div className="agents-priority-layer">
+            <p className="agents-priority-layer-label">Meeting brain</p>
+            <div className="agents-priority-flow">
+              <article>
+                <strong>1. Agent override</strong>
+                <span>Per-employee meeting brain</span>
+              </article>
+              <span className="agents-priority-arrow" aria-hidden="true">
+                →
+              </span>
+              <article>
+                <strong>2. Department default</strong>
+                <span>Team-wide meeting assignment</span>
+              </article>
+              <span className="agents-priority-arrow" aria-hidden="true">
+                →
+              </span>
+              <article>
+                <strong>3. Company default</strong>
+                <span>{companyMeetingLabel}</span>
+              </article>
+            </div>
+          </div>
+          <div className="agents-priority-layer">
+            <p className="agents-priority-layer-label">Execution runtime</p>
+            <div className="agents-priority-flow">
+              <article>
+                <strong>1. Agent override</strong>
+                <span>Per-employee subprocess</span>
+              </article>
+              <span className="agents-priority-arrow" aria-hidden="true">
+                →
+              </span>
+              <article>
+                <strong>2. Department default</strong>
+                <span>Team-wide runtime assignment</span>
+              </article>
+              <span className="agents-priority-arrow" aria-hidden="true">
+                →
+              </span>
+              <article>
+                <strong>3. Company default</strong>
+                <span>{companyExecutionLabel}</span>
+              </article>
+            </div>
+          </div>
         </div>
 
         <div className="agents-overview-stats">
@@ -277,20 +378,28 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
             <span>Departments</span>
           </article>
           <article>
-            <strong>{departmentOverrideCount}</strong>
-            <span>Dept overrides</span>
+            <strong>{departmentMeetingOverrideCount}</strong>
+            <span>Dept meeting overrides</span>
+          </article>
+          <article>
+            <strong>{departmentExecutionOverrideCount}</strong>
+            <span>Dept runtime overrides</span>
           </article>
           <article>
             <strong>{agentRecords.length}</strong>
             <span>Employees</span>
           </article>
           <article>
-            <strong>{overrideCount}</strong>
-            <span>Agent overrides</span>
+            <strong>{meetingOverrideCount}</strong>
+            <span>Agent meeting overrides</span>
+          </article>
+          <article>
+            <strong>{executionOverrideCount}</strong>
+            <span>Agent runtime overrides</span>
           </article>
           <article>
             <strong>{subprocessRuntime ? "CLI" : "LLM"}</strong>
-            <span>{runtimeModeLabel(settings.agent_runtime_mode)}</span>
+            <span>{companyExecutionLabel}</span>
           </article>
         </div>
 
@@ -355,37 +464,62 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
         ) : (
           <div className="agents-brain-grid">
             {departmentConfigs.map((entry) => {
-              const selected = entry.ai_provider ?? AI_PROVIDER_DEFAULT;
+              const meetingSelected = entry.ai_provider ?? AI_PROVIDER_DEFAULT;
+              const executionSelected = entry.agent_runtime_mode ?? AI_PROVIDER_DEFAULT;
+              const effectiveMeetingLabel = resolveEffectiveAiProviderLabel(
+                null,
+                entry.ai_provider,
+                settings.ai_provider,
+                settings.pure_local_mode,
+              );
+              const effectiveExecutionLabel = resolveEffectiveExecutionRuntimeLabel(
+                null,
+                entry.agent_runtime_mode,
+                settings.agent_runtime_mode ?? "llm_only",
+              );
+              const meetingEntry = runtimeCatalog?.runtimes.find(
+                (runtime) =>
+                  runtime.id === entry.ai_provider
+                  || runtime.api_provider_id === entry.ai_provider,
+              );
+              const executionEntry = runtimeCatalog?.runtimes.find(
+                (runtime) => runtime.id === entry.agent_runtime_mode,
+              );
               return (
                 <article key={entry.department} className="agents-brain-card">
                   <div className="agents-brain-card-head">
                     <div className="agents-brain-card-title">
                       <strong>{entry.department}</strong>
-                      <span className="agents-effective-pill">
-                        {resolveEffectiveAiProviderLabel(
-                          null,
-                          entry.ai_provider,
-                          settings.ai_provider,
-                          settings.pure_local_mode,
-                        )}
-                      </span>
+                      <div className="agents-effective-pill-row">
+                        <EffectiveBrainPill
+                          label={effectiveMeetingLabel}
+                          transport={transportForEntry(meetingEntry)}
+                        />
+                        <EffectiveBrainPill
+                          label={effectiveExecutionLabel}
+                          transport={transportForEntry(executionEntry)}
+                        />
+                      </div>
                     </div>
                   </div>
                   <label className="field-label brain-provider-field">
-                    LLM brain
-                    <select
-                      value={selected}
-                      onChange={(event) =>
-                        void updateDepartmentProvider(entry.department, event.target.value)
-                      }
+                    Meeting brain
+                    <MeetingBrainPicker
+                      catalog={runtimeCatalog}
+                      value={meetingSelected}
+                      inheritLabel="Company default"
                       disabled={settings.pure_local_mode}
-                    >
-                      {AI_PROVIDER_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => void updateDepartmentProvider(entry.department, value)}
+                    />
+                  </label>
+                  <label className="field-label brain-provider-field">
+                    Execution runtime
+                    <ExecutionRuntimePicker
+                      catalog={runtimeCatalog}
+                      value={executionSelected}
+                      inheritLabel="Company default"
+                      onChange={(value) => void updateDepartmentRuntime(entry.department, value)}
+                    />
                   </label>
                 </article>
               );
@@ -429,8 +563,29 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
             ) : null}
           <div className="agents-brain-grid agents-employee-grid">
             {filteredAgentRecords.map((agent) => {
-              const selected = agent.ai_provider ?? AI_PROVIDER_DEFAULT;
+              const meetingSelected = agent.ai_provider ?? AI_PROVIDER_DEFAULT;
+              const executionSelected = agent.agent_runtime_mode ?? AI_PROVIDER_DEFAULT;
               const departmentProvider = departmentProviderMap.get(agent.department) ?? null;
+              const departmentRuntime = departmentRuntimeMap.get(agent.department) ?? null;
+              const effectiveMeetingLabel = resolveEffectiveAiProviderLabel(
+                agent.ai_provider,
+                departmentProvider,
+                settings.ai_provider,
+                settings.pure_local_mode,
+              );
+              const effectiveExecutionLabel = resolveEffectiveExecutionRuntimeLabel(
+                agent.agent_runtime_mode,
+                departmentRuntime,
+                settings.agent_runtime_mode ?? "llm_only",
+              );
+              const meetingEntry = runtimeCatalog?.runtimes.find(
+                (runtime) =>
+                  runtime.id === agent.ai_provider
+                  || runtime.api_provider_id === agent.ai_provider,
+              );
+              const executionEntry = runtimeCatalog?.runtimes.find(
+                (runtime) => runtime.id === agent.agent_runtime_mode,
+              );
               const soulDraft = soulDraftForAgent(agent);
               const baselineSoul = agent.soul?.raw_content?.trim()
                 ? agent.soul.raw_content
@@ -449,14 +604,16 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                           <span className="fate-agent-badge"> · Fate</span>
                         ) : null}
                       </strong>
-                      <span className="agents-effective-pill">
-                        {resolveEffectiveAiProviderLabel(
-                          agent.ai_provider,
-                          departmentProvider,
-                          settings.ai_provider,
-                          settings.pure_local_mode,
-                        )}
-                      </span>
+                      <div className="agents-effective-pill-row">
+                        <EffectiveBrainPill
+                          label={effectiveMeetingLabel}
+                          transport={transportForEntry(meetingEntry)}
+                        />
+                        <EffectiveBrainPill
+                          label={effectiveExecutionLabel}
+                          transport={transportForEntry(executionEntry)}
+                        />
+                      </div>
                     </div>
                     <p className="muted agents-brain-card-subtitle">
                       {agent.role} · {agent.department}
@@ -503,18 +660,24 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                     </div>
                   ) : null}
                   <label className="field-label brain-provider-field">
-                    LLM brain
-                    <select
-                      value={selected}
-                      onChange={(event) => void updateAgentProvider(agent.id, event.target.value)}
+                    Meeting brain
+                    <MeetingBrainPicker
+                      catalog={runtimeCatalog}
+                      value={meetingSelected}
+                      inheritLabel="Department default"
                       disabled={settings.pure_local_mode || agent.agent_kind === "fate"}
-                    >
-                      {AGENT_AI_PROVIDER_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => void updateAgentProvider(agent.id, value)}
+                    />
+                  </label>
+                  <label className="field-label brain-provider-field">
+                    Execution runtime
+                    <ExecutionRuntimePicker
+                      catalog={runtimeCatalog}
+                      value={executionSelected}
+                      inheritLabel="Department default"
+                      disabled={agent.agent_kind === "fate"}
+                      onChange={(value) => void updateAgentRuntime(agent.id, value)}
+                    />
                   </label>
                   {agent.agent_kind !== "fate" ? (
                     <button

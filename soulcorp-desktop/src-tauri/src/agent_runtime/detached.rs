@@ -11,6 +11,7 @@ pub struct DetachedRuntimeContext {
     pub settings: GameSettings,
     pub hub: HubState,
     pub department_providers: HashMap<String, String>,
+    pub department_runtimes: HashMap<String, String>,
     pub company_id: String,
     pub workspace_root: Option<std::path::PathBuf>,
 }
@@ -28,7 +29,13 @@ pub fn execute_for_task_detached(
     agent: &AgentRecord,
     project_title: &str,
 ) -> Result<DetachedExecutionResult, String> {
-    let mode = super::AgentRuntimeMode::from_setting(&ctx.settings.agent_runtime_mode);
+    let runtime_id = crate::brain::resolve_execution_runtime(
+        &ctx.settings,
+        &ctx.department_runtimes,
+        &agent.department,
+        agent,
+    );
+    let mode = super::AgentRuntimeMode::from_setting(&runtime_id);
     match mode {
         super::AgentRuntimeMode::LlmOnly => {
             if ctx.settings.scrum_use_agent_tools {
@@ -38,7 +45,8 @@ pub fn execute_for_task_detached(
             }
         }
         super::AgentRuntimeMode::Subprocess => {
-            match super::adapters::execute_runtime(
+            match super::adapters::execute_runtime_for_id(
+                &runtime_id,
                 &ctx.settings,
                 &ctx.company_id,
                 task,
@@ -48,11 +56,11 @@ pub fn execute_for_task_detached(
             ) {
                 Ok(result) => Ok(DetachedExecutionResult {
                     content: result.content,
-                    provider: ctx.settings.agent_runtime_mode.clone(),
+                    provider: runtime_id.clone(),
                     charge: None,
                 }),
                 Err(err) => {
-                    let label = super::registry::effective_label(&ctx.settings);
+                    let label = crate::brain::effective_execution_label(&runtime_id);
                     if ctx.settings.agent_runtime_fallback_to_llm {
                         eprintln!("{label} runtime failed ({err}); falling back to LLM.");
                         execute_llm_only_detached(ctx, task, agent, project_title)

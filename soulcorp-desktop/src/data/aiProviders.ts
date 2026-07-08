@@ -1,3 +1,5 @@
+import { legacyMeetingLabel } from "../utils/agentRuntimeCatalog";
+
 export const AI_PROVIDER_DEFAULT = "default";
 
 export const AI_PROVIDER_OPTIONS = [
@@ -20,10 +22,14 @@ export type AiProviderId = (typeof AI_PROVIDER_OPTIONS)[number]["value"];
 export interface DepartmentAiConfig {
   department: string;
   ai_provider?: string | null;
+  agent_runtime_mode?: string | null;
 }
 
 function providerOptionLabel(provider: string): string {
-  return AI_PROVIDER_OPTIONS.find((option) => option.value === provider)?.label ?? provider;
+  return (
+    AI_PROVIDER_OPTIONS.find((option) => option.value === provider)?.label
+    ?? legacyMeetingLabel(provider)
+  );
 }
 
 export function aiProviderLabel(
