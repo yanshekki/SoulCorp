@@ -1,111 +1,84 @@
-# NOTION_LIKE_UI_DATA_SYNC.md
-**Notion-like System — Detailed UI, Data Model & Sync Logic**
+# Workspace UI, Data Model & Sync
 
-## 1. UI / UX Design
+**Last updated: July 2026**
 
-### Main Layout (Desktop App)
-- Left sidebar: Workspace navigator (Company / Agents / My Workspace / Custom folders)
-- Center: Main editor/viewer (Notion-style block editor)
-- Right sidebar (contextual):
-  - Page info + last edited by
-  - Linked entities (related projects, agents, meetings)
-  - Comments thread
-  - Version history
+## Overview
 
-### Editor Features
-- Block-based editing (text, heading, to-do, image, code, embed, database)
-- Slash commands (`/meeting`, `/deliverable`, `/agent`, `/project`)
-- @mention agents or pages (auto-creates links)
-- Drag & drop blocks + files from agent chat directly into pages
-- Real-time cursors (when multiple agents/players are editing)
+Workspace data lives in **company-scoped folders** on disk plus a **SQLite FTS5** index for search. The UI loads a compact **snapshot** first, then fetches pages on demand with an in-memory LRU cache. Tauri commands are **async** with `spawn_blocking` for disk I/O.
 
-### Game Integration
-- From the isometric view, player can right-click any agent or building → "Open Workspace"
-- Project progress bar in game is clickable → jumps directly to the Notion page
-- Completed deliverables appear as cards that can be dragged into pages
+---
 
-## 2. Data Model
+## Implemented
 
-### Core Entities
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Page + folder model | ✅ | `workspace/models.rs` |
+| Filesystem storage | ✅ | `workspace/storage.rs` |
+| FTS5 virtual table | ✅ | `workspace/index.rs` — `workspace_fts` |
+| Lazy snapshot API | ✅ | `list_workspace_snapshot` |
+| Tree / children APIs | ✅ | `list_workspace_tree`, `list_workspace_folder_children` |
+| Page LRU cache (64) | ✅ | `workspace/cache.rs` |
+| Async command wrappers | ✅ | `commands/workspace.rs` |
+| Page CRUD | ✅ | create/update/delete/reorder commands |
+| File import | ✅ | `import_workspace_files` |
+| Virtualized lists (FE) | ✅ | `@tanstack/react-virtual` in workspace lists |
+| Workspace store | ✅ | `stores/workspaceStore.ts` |
+| Client service | ✅ | `services/workspaceClient.ts` |
 
-```ts
-interface Page {
-  id: string;
-  title: string;
-  icon?: string;
-  parentId?: string;           // for nested pages/folders
-  workspaceType: 'company' | 'agent' | 'user' | 'custom';
-  ownerId?: string;            // agentId or userId
-  content: Block[];            // rich block content (JSON)
-  linkedEntities: LinkedEntity[];
-  lastEditedAt: Date;
-  lastEditedBy: string;
-  version: number;
-}
+---
 
-interface Block {
-  id: string;
-  type: 'text' | 'heading' | 'todo' | 'code' | 'image' | 'embed' | 'database';
-  content: any;
-  children?: Block[];
-}
+## Architecture
 
-interface LinkedEntity {
-  type: 'project' | 'agent' | 'meeting' | 'gig' | 'deliverable';
-  id: string;
-  title: string;
-}
-```
-
-### Folder / Workspace Structure (Local)
+### Storage layout
 
 ```
-workspaces/
-├── company/
-│   └── pages/
-├── agents/
-│   └── [agentId]/
-│       └── pages/
-├── user/
-│   └── pages/
-└── custom/
-    └── [userCreatedWorkspaceId]/
+{app_data}/workspaces/{company_id}/
+├── pages/{page_id}.md
+├── meta/{page_id}.json
+├── files/...
+└── folders.json (tree structure)
 ```
 
-All pages are stored as individual JSON + Markdown hybrid files for easy export and git-like versioning.
+### Load sequence
 
-## 3. Real-time Sync Logic (Local + Cloud)
+```mermaid
+sequenceDiagram
+  participant UI as WorkspaceShell
+  participant R as Rust workspace
+  participant C as cache
+  UI->>R: list_workspace_snapshot
+  R-->>UI: folders + summaries
+  UI->>R: get_workspace_page(id)
+  R->>C: get_cached_page
+  alt cache miss
+    R->>R: read disk + parse
+    R->>C: put_cached_page
+  end
+```
 
-### Local (Always On)
-- Uses **Yjs CRDT** (or similar) for real-time multi-user editing inside the Tauri app
-- All changes are saved locally immediately (IndexedDB + file system)
-- Conflict resolution: Last-write-wins with clear visual indicator + undo
+### FTS search
 
-### Cloud Sync (Pro / VIP only, user-initiated)
-When user clicks "Sync with soulmd-hub":
+`search_workspace` builds an FTS5 `MATCH` query with `snippet()` and `bm25()` ranking. Index updated on page create/update/delete.
 
-1. Client collects all dirty pages since last sync
-2. Signs request with NEAR wallet (reuse existing auth)
-3. Pushes to `POST /api/sync/notion-push`
-4. Hub returns latest changes from other devices/agents
-5. Merge happens locally with conflict UI if needed
+### Agent-facing APIs
 
-### Agent Access
-- Rust backend exposes controlled APIs so agents can:
-  - Read pages they have permission for
-  - Create/update pages in their own workspace
-  - Append content to company project pages (e.g. after finishing a task)
-- All agent edits go through the same CRDT + sync pipeline
+Separate `agent_workspace_*` commands provide scoped read/write for scrum execution — see [WORKSPACE_FOLDERS_TECH_SPEC.md](WORKSPACE_FOLDERS_TECH_SPEC.md).
 
-## 4. Performance & Offline Considerations
-- Full-text search is local-first (using SQLite FTS or similar)
-- Large pages are lazy-loaded
-- Images and attachments are stored locally; only metadata + links are synced by default
-- Pro/VIP users can choose "Sync full page content including images"
+---
 
-## 5. Security
-- All local data is encrypted at rest (user password or OS keychain)
-- When syncing, only pages the user/agent has explicit access to are transmitted
-- soulmd-hub never sees content of private agent folders unless the player explicitly shares them
+## Planned / Gaps
 
-**This system turns SoulCorp into a genuine hybrid game + serious knowledge work platform.**
+| Item | Notes |
+|------|-------|
+| Cloud sync / CRDT | No multi-device merge |
+| WebSocket live index | Local FTS only |
+| Binary file full-text | Filename + metadata search |
+| External S3 backup | Local export ZIP |
+
+---
+
+## Related docs
+
+- [NOTION_LIKE_SYSTEM.md](NOTION_LIKE_SYSTEM.md)
+- [PERFORMANCE.md](PERFORMANCE.md)
+- [WORKSPACE_FOLDERS_TECH_SPEC.md](WORKSPACE_FOLDERS_TECH_SPEC.md)

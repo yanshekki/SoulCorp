@@ -1,35 +1,80 @@
-# MEETING_SYSTEM.md
-**Meeting System（完全可觀察 + 有真實影響）**
+# Meeting System
 
-## 點樣開會
-- 用戶可以隨時按「Call Meeting」按鈕
-- 選擇參與嘅 agents（可選 2–12 人）
-- 選擇會議類型：
-  - Daily Standup
-  - Project Kickoff
-  - Crisis Meeting
-  - Team Building
-  - Strategy Discussion（God Mode）
+**Last updated: July 2026**
 
-## 會議過程（玩家可以全程觀看）
-- Agents 會用真實 LLM 進行多輪對話
-- 對話內容會即時顯示喺 chat log（類似 Discord / Slack）
-- 你會見到佢哋：
-  - 討論 project 進度
-  - 爭論技術方案
-  - 提出新 idea
-  - 互相支持或批評
-  - 甚至講閒話、八卦（如果 drama on）
+## Overview
 
-## 會議結果會真實影響遊戲
-- 會議共識 → 直接改 project progress / priority
-- 士氣變化 → 影響 agents 之後幾日嘅 productivity
-- 新 idea → 有機會變成新 internal project
-- 衝突 → 可能觸發 drama event 或 relationship 變化
+**Meeting** (CEO step 2) runs **fully observable multi-agent LLM conversations**. Each turn calls the resolved meeting provider (Ollama, hub, or cloud). Token costs are estimated before and charged during the meeting. Meetings can feed directives, workspace notes, and autopilot alignment gates.
 
-## 為什麼呢個系統好正
-- 玩家唔係「睇數字上升」，而係真係「睇到自己嘅 AI 員工喺開會」
-- 好有代入感同故事感
-- 即使關閉 Random Events，呢個系統仍然可以手動觸發（Serious Work Mode 都適用）
+---
 
-**呢個係 SoulCorp 最有特色嘅功能之一：你唔係管理數據，而係管理一班有性格嘅 AI 員工。**
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Start / advance meeting | ✅ | `meeting/runner.rs`, `start_meeting`, `advance_meeting` |
+| Active meeting state | ✅ | `get_active_meeting` |
+| LLM provider integration | ✅ | `ai/`, `brain::resolve_meeting_provider` |
+| Streaming responses | ✅ | `ai/streaming.rs` |
+| Token cost estimate | ✅ | `estimate_meeting_turn_cost` |
+| Token charging | ✅ | `token_budget::charge_tokens` |
+| Meeting AI status | ✅ | `get_meeting_ai_status` |
+| Generate meeting notes | ✅ | `generate_meeting_notes` → workspace |
+| Autopilot meeting gate | ✅ | `dismiss_meeting_gate_cmd`, `PendingGateKind::MeetingSummary` |
+| Follow-up directive | ✅ | `meeting_follow_up_directive_cmd` |
+| Orchestrator auto-meeting | ✅ | `orchestrator_auto_meeting` setting |
+| Frontend Meeting page | ✅ | `MeetingPage.tsx` |
+| Async LLM invoke | ✅ | `spawn_blocking` in `commands/meeting.rs` |
+
+---
+
+## Architecture
+
+### Meeting turn flow
+
+```mermaid
+sequenceDiagram
+  participant UI as MeetingPage
+  participant R as meeting runner
+  participant B as brain resolver
+  participant AI as LLM provider
+  participant T as token_budget
+  UI->>R: advance_meeting
+  R->>B: resolve_meeting_provider(agent)
+  R->>T: estimate / charge tokens
+  R->>AI: prompt with SOUL + context
+  AI-->>R: assistant turn
+  R-->>UI: updated transcript
+```
+
+### Provider resolution
+
+Uses `resolve_meeting_registry_id` and per-agent/dept overrides before falling back to global `GameSettings`.
+
+### Integration with autopilot
+
+When intervention mode gates meetings, a `MeetingSummary` pending gate blocks pipeline advance until CEO dismisses or acts via `dismiss_meeting_gate_cmd`.
+
+### Serious Work Mode
+
+When `play_mode` is work-focused, random meeting interruptions from Fate are suppressed (see [RANDOM_EVENTS.md](RANDOM_EVENTS.md)).
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Voice / TTS meetings | Text transcript only |
+| Meeting templates library | Ad-hoc topics from UI |
+| Calendar-scheduled recurring meetings | Manual start only |
+| Multi-room parallel meetings | Single active meeting |
+
+---
+
+## Related docs
+
+- [AGENT_RUNTIME.md](AGENT_RUNTIME.md)
+- [COMPANY_AUTOPILOT.md](COMPANY_AUTOPILOT.md)
+- [FINANCE_BUDGET.md](FINANCE_BUDGET.md)
+- [NOTION_LIKE_SYSTEM.md](NOTION_LIKE_SYSTEM.md)

@@ -1,16 +1,27 @@
 # SoulCorp Desktop
 
-Tauri 2.x desktop client for SoulCorp — Rust backend + React 19 + TypeScript + Three.js.
+**Last updated: July 2026**
 
-## Features
+Tauri 2.x desktop client — Rust backend + React 19 + TypeScript + Three.js.
 
-- Isometric 3D office with instanced agent rendering and building zoom
-- Agent simulation: morale, finance, meetings (Ollama / hub LLM), random events, god mode
-- Notion-like workspace (TipTap editor, folders, search, entity links, per-agent folders)
-- Marketplace gig lifecycle with QC review and dispute flow
-- Pro / VIP tiers, NEAR wallet upgrades, executive lounge, AI Co-CEO
-- Export: backup JSON, reports (MD/HTML/PDF), static site ZIP, QC-rated deliverables
-- One-click deploy to GitHub and Vercel from Settings
+## Overview
+
+Run an AI company locally: **9-step CEO workflow** (Projects → Meeting → Workspace → Departments → Recruitment → Agent Brains → Observatory → Tokens → Marketplace), optional **Company Autopilot** with human gates, and full offline play.
+
+## Features (implemented)
+
+| Area | Highlights |
+|------|------------|
+| **Workflow** | CEO ribbon, command center, autopilot pipeline panel |
+| **Projects** | Directives, sprints, scrum worker, parallel execution |
+| **Meetings** | Multi-agent LLM meetings (Ollama / hub / cloud) |
+| **Workspace** | TipTap editor, FTS search, six-view navigator, agent workspace API |
+| **Agents** | SOUL.md, brain/runtime cascade, OpenClaw subprocess support |
+| **Observatory** | Live agent sessions, mind stream, activity timeline |
+| **Tokens** | Company pool, dept/agent wallets, usage ledger |
+| **3D campus** | v2 edition — isometric office + interior design (optional in v1) |
+| **Hub** | Gig lifecycle, NEAR tier upgrades (when configured) |
+| **Export** | Backup, reports (MD/HTML/PDF), static site ZIP, Vercel/GitHub deploy |
 
 ## Development
 
@@ -18,19 +29,35 @@ Tauri 2.x desktop client for SoulCorp — Rust backend + React 19 + TypeScript +
 pnpm install
 pnpm verify
 cargo test --manifest-path src-tauri/Cargo.toml --lib
-pnpm tauri dev
+pnpm tauri dev        # v1 workflow edition
+pnpm dev:v2           # v2 with 3D campus
 ```
 
 ## Phase verification
 
-From the repo root:
+From the SoulCorp repo root:
 
 ```bash
-bash scripts/verify-phase.sh 18
+bash scripts/verify-phase.sh 22
 ```
 
 ## Local data
 
-- Game state: SQLite via `rusqlite` in the Tauri app data directory
-- Workspace pages: markdown + JSON under `workspaces/`
-- Prisma schema (`prisma/schema.prisma`) mirrors core tables for tooling only
+| Data | Location |
+|------|----------|
+| Game state | SQLite in Tauri app data dir (`rusqlite`) |
+| Workspace | `workspaces/{companyId}/` markdown + files |
+| Prisma schema | Tooling mirror only — not runtime DB |
+
+## Documentation
+
+Full specs: [`../docs/INDEX.md`](../docs/INDEX.md)
+
+Key docs: [Architecture](../docs/ARCHITECTURE_OVERVIEW.md) · [Autopilot](../docs/COMPANY_AUTOPILOT.md) · [Performance](../docs/PERFORMANCE.md)
+
+## Editions
+
+| Command | Edition |
+|---------|---------|
+| `pnpm dev` / `pnpm build` | v1 — workflow-first |
+| `pnpm dev:v2` / `pnpm build:v2` | v2 — campus + design studio + god mode |

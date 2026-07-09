@@ -1,55 +1,85 @@
-# AGENT_SYSTEM.md
-**AI Employees — The Heart of SoulCorp**
+# Agent System
 
-## How Agents Work
-Every agent is a real LLM instance loaded with:
-- `SOUL.md` (core personality, values, communication style) — from soulmd-hub
-- `STYLE.md` + `RULES.md` (optional)
-- Current memory + compressed summary
-- Department SOP + company vision
-- Personal relationships graph with other agents
+**Last updated: July 2026**
 
-### AI API Connection
-Agents 呼叫 LLM 嘅邏輯由 Tauri Rust 後端統一管理（見 `TAURI_DESKTOP_SPEC.md` → AI Provider Abstraction）。
+## Overview
 
-支援多種 AI Provider：
-- 本地模型（Ollama, vLLM 等）
-- 常見雲端 provider（OpenAI, Claude, Grok 等）
-- **soulmd-hub API**（特別支援）：
-  - `POST https://soulmd-hub.ysk.hk/api/chat`
-  - `POST https://soulmd-hub.ysk.hk/api/self-chat`
+Agents are AI employees defined by **SOUL.md** personality files, department assignment, morale/energy stats, and configurable brain/runtime settings. The player hires agents through recruitment; no demo agents are seeded at startup. **AI Co-CEO** (VIP) can spawn briefings and directives with configurable autonomy.
 
-玩家可以喺設定入面為每個 agent 或整個公司選擇用邊個 AI Provider。
+---
 
-## Agent Daily Life (Simulated)
-- Wake up → check tasks + mood
-- Walk to assigned department (visible in isometric view)
-- Collaborate with teammates (real multi-agent conversations)
-- Take breaks, chat in lounge, form relationships
-- Report progress at end of day
-- Can get burnout, inspiration, or drama
+## Implemented
 
-## Agent Stats (Visible)
-- Skill levels (per department)
-- Morale / Burnout
-- Energy
-- Relationship network
-- Reputation in company
-- Innovation score
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Agent roster in AppState | ✅ | `state/agent_roster.rs` |
+| SOUL.md load/update | ✅ | `soul/`, `load_agent_soul`, `update_agent_soul` |
+| Department assignment | ✅ | `departments/`, `assign_agent_department` |
+| Org chart | ✅ | `get_org_chart`, `DepartmentsPage.tsx` |
+| Morale / energy / status | ✅ | Simulation tick, `run_simulation_tick` |
+| Brain provider per agent/dept | ✅ | `brain/resolver.rs` |
+| Runtime mode per agent/dept | ✅ | `update_agent_runtime_mode` |
+| Co-CEO spawn + briefing | ✅ | `spawn_co_ceo`, `run_co_ceo_briefing` |
+| Co-CEO directives | ✅ | `apply_co_ceo_directive`, `send_co_ceo_directive_to_stae` |
+| Co-CEO autonomy setting | ✅ | `set_co_ceo_autonomy` |
+| Custom VIP departments | ✅ | `create_custom_department` |
+| Department cascade AI | ✅ | `departments/cascade.rs` |
+| System agents (Fate) | ✅ | `fate/mod.rs`, `FATE_AGENT_ID` |
+| Relationship graph | ✅ | `get_agent_relationship_graph` |
+| Agent visual customization | ✅ | `update_agent_visual` |
+| Frontend Agents page | ✅ | `AgentsPage.tsx` (CEO step 6) |
 
-## Special Agent Behaviors (Emergence)
-- Can fall in love / form rivalries
-- Propose new project ideas
-- Request better tools / model upgrade
-- Mentor junior agents
-- Unionize if morale is too low
-- "Retire" and become a legendary mentor (legacy SOUL.md)
+---
 
-## Hiring Flow
-1. Open soulmd-hub marketplace inside the game
-2. Browse real SOUL.md personas (filter by skill, price, vibe)
-3. "Interview" them (real chat with the agent)
-4. Negotiate salary (in $SOUL or USDT)
-5. Onboard → they appear in your office the next day
+## Architecture
 
-**Agents are not just numbers — they feel alive because they run on real LLMs with persistent personality.**
+### Agent record (conceptual)
+
+| Field | Role |
+|-------|------|
+| `id`, `name`, `role` | Identity |
+| `department` | Org + brain cascade |
+| `morale`, `energy` | Simulation stats |
+| `salary` | Monthly payroll (token economy) |
+| `status` | `idle`, `working`, `meeting`, `throttled`, … |
+| `soul_path` | SOUL.md on disk |
+
+### Department → workspace sync
+
+Hiring or org changes call `sync_workspace_organization_cmd` to mirror department folders under the company workspace.
+
+### Co-CEO flow
+
+```mermaid
+sequenceDiagram
+  participant CEO
+  participant CoCEO as Co-CEO agent
+  participant S as AppState
+  CEO->>CoCEO: run_co_ceo_briefing
+  CoCEO->>S: proposed directives
+  CEO->>S: apply_co_ceo_directive
+```
+
+### Fate system agent
+
+`FATE_AGENT_ID` drives random events when `play_mode == Game` and `random_events_enabled`. Disabled automatically in Serious Work Mode.
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Agent skill trees / leveling | Morale and salary only |
+| Multi-language SOUL templates | User-authored markdown |
+| Agent-to-agent chat outside meetings | Meetings + relationship graph only |
+| Avatar generation from SOUL | Manual visual picker |
+
+---
+
+## Related docs
+
+- [AGENT_RUNTIME.md](AGENT_RUNTIME.md)
+- [RECRUITMENT_HR.md](RECRUITMENT_HR.md)
+- [MEETING_SYSTEM.md](MEETING_SYSTEM.md)
+- [WORKSPACE_FOLDERS_SYSTEM.md](WORKSPACE_FOLDERS_SYSTEM.md)

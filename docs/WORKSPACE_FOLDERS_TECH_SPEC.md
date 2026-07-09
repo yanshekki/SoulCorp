@@ -1,79 +1,78 @@
-# WORKSPACE_FOLDERS_TECH_SPEC.md
-**Workspace Folders System — Technical Specification**
+# Workspace Folders — Technical Specification
 
-## 1. Folder Data Model
+**Last updated: July 2026**
 
-```ts
-interface WorkspaceFolder {
-  id: string;
-  name: string;
-  icon?: string;
-  parentId?: string;
-  workspaceType: 'company' | 'agent' | 'user' | 'custom';
-  ownerId: string;                    // agentId or userId
-  permissions: Permission[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+## Overview
 
-interface Permission {
-  subjectId: string;                  // agentId or userId
-  role: 'owner' | 'editor' | 'viewer';
-}
+Technical details for workspace storage, Tauri commands, agent-scoped APIs, and deliverable linking. Agents interact through **`agent_workspace_*`** commands; the CEO UI uses the full **`workspace_*`** command set.
+
+---
+
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| WorkspaceStorage | ✅ | `workspace/storage.rs` |
+| Page parse / serialize | ✅ | Markdown + JSON metadata |
+| FTS index maintenance | ✅ | `workspace/index.rs` |
+| CEO commands (full access) | ✅ | `lib.rs` workspace group |
+| Agent list folder | ✅ | `agent_workspace_list_folder` |
+| Agent read/search | ✅ | `agent_workspace_read_page`, `agent_workspace_search` |
+| Agent write deliverable | ✅ | `agent_workspace_write_deliverable` |
+| Agent append journal | ✅ | `agent_workspace_append_journal` |
+| Agent create/append page | ✅ | `agent_workspace_create_page`, `agent_workspace_append_page` |
+| Agent context bundle | ✅ | `agent_workspace_get_context` |
+| Activity listing | ✅ | `agent_workspace_list_activity`, `list_agent_activity` |
+| Deliverable deep links | ✅ | Phase 22 — links in scrum runs |
+| Activity feed UI | ✅ | `AgentWorkspaceActivityFeed.tsx` |
+| Client wrappers | ✅ | `agentWorkspaceClient.ts` |
+
+---
+
+## Architecture
+
+### Command tiers
+
+| Tier | Caller | Scope |
+|------|--------|-------|
+| Full workspace | CEO UI | All folders CRUD |
+| Agent workspace | Scrum executor / tools | Agent + assigned task paths |
+| Read-only resolve | Backlinks, search | Company-wide index |
+
+### Agent tool loop
+
+When `scrum_use_agent_tools` is enabled, `scrum/agent_tools.rs` calls agent workspace commands in an LLM tool-use loop with `ActivityRunContext` for Observatory.
+
+### Deliverable path
+
+```
+run_work_execution
+  → agent_runtime::execute_for_task
+  → agent_workspace_write_deliverable
+  → work node status InReview
+  → autopilot deliverable gate (optional)
 ```
 
-Every page belongs to exactly one folder. Folders can be nested.
+### Security notes
 
-## 2. Agent Autonomy Rules
+- Agent commands validate agent ID and task assignment
+- Subprocess runtimes use `agent_runtime/security.rs` path rules
+- No arbitrary filesystem escape outside company workspace root
 
-- By default, each agent has **full read + write** access only to their own folder (`Agents/[AgentName]/`)
-- Agents **cannot** read or write other agents' private folders unless the player grants explicit permission
-- Agents **can** read + append to company project pages that are relevant to their current tasks
-- Agent behavior when creating content is heavily influenced by their `SOUL.md` (e.g. a very organized agent will create neatly named pages and tag them; a chaotic creative agent may create many loosely structured notes)
+---
 
-## 3. Permission System (Simple but Powerful)
+## Planned / Gaps
 
-- Player (user) is always **owner** of the entire company workspace
-- Player can grant/revoke access to any folder for any agent
-- Agents can request access to another agent's folder (triggers a small event / meeting)
-- "Public within company" vs "Private" toggle on folders
+| Item | Notes |
+|------|-------|
+| Signed agent API tokens | In-process Tauri only |
+| Folder quota enforcement | Token budget indirect limit |
+| Virus scan on import | User-trusted local import |
 
-## 4. File & Page Storage
+---
 
-- Every page is stored as a single file:
-  - `{pageId}.json` — structured data + metadata
-  - `{pageId}.md` — human-readable Markdown version (for easy export/git)
-- Attachments (images, code files, PDFs) are stored in an `attachments/` subfolder next to the page file
-- This structure makes backup, export, and even git versioning very natural
+## Related docs
 
-## 5. Sync Behavior
-
-- Local changes to any folder/page are tracked with a simple "dirty" flag + timestamp
-- When user triggers sync:
-  - Only changed folders/pages since last sync are uploaded
-  - Agent-created content in private folders is **never** synced unless the player explicitly enables "Share agent private workspaces with hub"
-- This keeps private agent thoughts private by default
-
-## 6. UI / Interaction
-
-- In the left sidebar: Collapsible tree view of all folders (Company → Departments → Agents → Custom)
-- Right-click on any folder → context menu (New Page, New Subfolder, Permissions, Export, Delete)
-- Drag & drop pages between folders (with permission checks)
-- Search bar at the top searches across **all** folders the current viewer has access to
-
-## 7. Integration Points
-
-- **Notion-like Editor**: Lives on top of this folder system
-- **Agent System**: Agents primarily operate inside their own folder + linked company project pages
-- **Meeting System**: Meeting outputs are automatically saved to:
-  - The relevant project page
-  - Each participating agent's personal folder
-- **Recruitment**: When hiring a new agent, their folder + default pages (Onboarding, First Week Goals, etc.) are auto-created
-
-## 8. Future Extensibility
-
-- "Team Workspaces" (shared folder for a group of agents working on the same project)
-- "External Client Workspaces" (shared with clients via secure link — Pro/VIP feature)
-- Git-like branching for experimental ideas inside a folder
-
-**This folder system gives SoulCorp real organizational depth while remaining simple and intuitive to use.**
+- [WORKSPACE_FOLDERS_SYSTEM.md](WORKSPACE_FOLDERS_SYSTEM.md)
+- [AGENT_RUNTIME.md](AGENT_RUNTIME.md)
+- [PROJECTS_SCRUM.md](PROJECTS_SCRUM.md)

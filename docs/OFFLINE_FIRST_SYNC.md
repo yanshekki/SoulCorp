@@ -1,43 +1,72 @@
-# OFFLINE_FIRST_SYNC.md
-**Offline-first + User-controlled Sync Architecture**
+# Offline-First Architecture & Sync
 
-## Core Principle
-**Everything important happens locally first.**  
-The desktop client is a full standalone game. The soulmd-hub is only used when the user wants to:
-- Post or take gigs on the global marketplace
-- Sync $SOUL balance and tier status
-- Backup progress (Pro/VIP feature)
+**Last updated: July 2026**
 
-## Local Systems (Always Available)
-- Full game simulation (agent AI, project progress, morale, events)
-- Local queue of pending actions (create gig, submit deliverable, etc.)
-- All SOUL.md files and company state stored locally (encrypted)
-- Complete offline play mode (toggle in settings)
+## Overview
 
-## Sync Flow (Pro / VIP only)
-1. User clicks big friendly **"Sync with soulmd-hub"** button
-2. Client authenticates via existing NEAR wallet signature (reused from soulmd-hub)
-3. Pushes local queue (gigs created, work submitted, etc.)
-4. Pulls latest market data + $SOUL balance + tier
-5. Conflict resolution UI (clear "last write wins" with preview)
-6. Success toast + in-world celebration particles
+SoulCorp desktop is **fully playable offline**. Game state persists to local SQLite; workspace pages live on disk. Hub sync, NEAR upgrades, and marketplace gigs are **opt-in** and degrade gracefully when unreachable.
 
-## Pure Local Mode
-For users who want zero cloud connection:
-- All marketplace features disabled or marked "Local Only"
-- No fee collection (or local simulated economy)
-- Full export of company state as encrypted backup file
-- Later import on another machine
+---
 
-## Data Safety
-- Every important change is saved locally immediately
-- Optional periodic local snapshots (user can set interval)
-- End-to-end encryption for any data that touches the hub (reuse existing libsodium in soulmd-hub)
+## Implemented
 
-## Why This Design Wins
-- Maximum privacy and performance
-- Works perfectly on planes, trains, and areas with bad internet
-- Users feel in full control (no forced cloud sync)
-- Pro/VIP becomes a genuine valuable feature (cloud sync + marketplace access + fee discounts)
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Local SQLite persistence | ✅ | `db/persistence.rs`, `rusqlite` |
+| Flush on app exit | ✅ | `lib.rs` `RunEvent::Exit` |
+| Multi-company local registry | ✅ | `bootstrap_companies` |
+| Workspace filesystem storage | ✅ | `workspace/storage.rs` |
+| Company backup export/import | ✅ | `export_company_backup`, `import_company_backup` |
+| Hub sync command | ✅ | `sync_with_hub` |
+| Hub status + config | ✅ | `get_hub_status`, `update_hub_config` |
+| Hub gigs (when online) | ✅ | `gigs/`, `hub/` |
+| $SOUL balance fetch | ✅ | `fetch_soul_balance` |
+| No startup network requirement | ✅ | App launches without hub |
+| V1 operational normalization | ✅ | `operations/normalize_v1_operational_state` |
 
-**This is the final sync philosophy. No forced cloud. User is always in control.**
+---
+
+## Architecture
+
+### Data residency
+
+| Data | Location | Sync |
+|------|----------|------|
+| Agents, scrum, tokens | SQLite | Backup JSON only |
+| Workspace pages | Local FS | Export ZIP |
+| Hub gigs / tier | Hub MySQL | `sync_with_hub` |
+| NEAR wallet | Browser extension | On-demand |
+
+### Sync model
+
+```mermaid
+flowchart LR
+  D[Desktop AppState] -->|export_company_backup| B[JSON backup]
+  D -->|sync_with_hub| H[Hub API]
+  H -->|gigs, balance| D
+```
+
+User initiates sync explicitly — no background always-on replication of full game state to cloud.
+
+### Offline gig behavior
+
+Gig list empty or cached when hub unreachable; local scrum and workspace continue unaffected.
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Automatic scheduled sync | Manual `sync_with_hub` |
+| Conflict resolution for multi-device | Single-writer local model |
+| WebSocket push from hub | REST only |
+| End-to-end encrypted cloud backup | Plain JSON backup today |
+
+---
+
+## Related docs
+
+- [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
+- [EXPORT_REAL_PRODUCTS.md](EXPORT_REAL_PRODUCTS.md)
+- [docs/soulmd-hub/SOULMD_HUB_EXTENSION_PLAN.md](soulmd-hub/SOULMD_HUB_EXTENSION_PLAN.md)

@@ -1,66 +1,70 @@
-# NEW_API_ENDPOINTS_FOR_HUB.md
-**New REST API Endpoints to Add to soulmd-hub for SoulCorp**
+# New API Endpoints for soulmd-hub
 
-All endpoints follow the existing soulmd-hub API style (JSON, proper error codes, Web3 signature auth where needed).
+**Last updated: July 2026**
 
-## Marketplace (Gigs)
+## Overview
 
-### POST /api/market/gigs
-Create a new gig (from desktop or web)
+REST endpoints the **desktop client expects** from soulmd-hub. Implemented client-side in `soulcorp-desktop/src-tauri/src/hub/` and `gigs/`. Hub PHP may not expose all routes yet — treat this as the contract target.
 
-**Auth**: Required (NEAR signature or session)
+---
 
-**Body**:
-```json
-{
-  "title": "Build landing page for AI product",
-  "description": "Need modern React + Tailwind landing page...",
-  "budget_usdt": "450.00",
-  "required_skills": ["react", "tailwind", "copywriting"],
-  "deadline": "2026-07-15T23:59:59Z"
-}
-```
+## Implemented (desktop client)
 
-**Response**: `{ "gig_id": 12345, "status": "open" }`
+| Client command | Expected hub capability |
+|----------------|-------------------------|
+| `sync_with_hub` | Pull/push sync payload |
+| `get_hub_status` | Health + version |
+| `update_hub_config` | Store API base URL + keys |
+| `list_hub_gigs` | List open gigs |
+| `create_hub_gig` | Post gig |
+| `accept_hub_gig` | Assign to company |
+| `start_gig_work` / `submit_gig_for_qc` | Work + QC flow |
+| `complete_hub_gig` / `reject_gig_qc` / `dispute_hub_gig` | Close gig |
+| `fetch_soul_balance` | $SOUL balance |
+| `get_near_upgrade_config` | Tier upgrade metadata |
+| `claim_near_tier_upgrade` | Verify on-chain payment |
 
-### GET /api/market/gigs?status=open
-List open gigs (with filters)
+---
 
-### POST /api/market/gigs/{id}/assign
-Assign gig to yourself (or accept bid)
+## Endpoint reference (target)
 
-### POST /api/market/gigs/{id}/submit
-Submit deliverable (URL or base64 for small files)
+### Marketplace
 
-### POST /api/market/gigs/{id}/qc
-QC review (only poster or assigned QC agent can call)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/gigs` | List gigs (filters: status, skills) |
+| POST | `/api/gigs` | Create gig |
+| POST | `/api/gigs/{id}/accept` | Accept assignment |
+| POST | `/api/gigs/{id}/submit` | Submit deliverable for QC |
+| POST | `/api/gigs/{id}/complete` | Complete after QC pass |
+| POST | `/api/gigs/{id}/dispute` | Open dispute |
 
-## Sync & Economy
+### Sync & economy
 
-### POST /api/sync/push
-Push local desktop state (queue of actions)
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/sync/desktop` | Bidirectional sync chunk |
+| GET | `/api/user/soul-balance` | $SOUL balance |
+| GET | `/api/user/tier` | Pro/VIP status |
+| POST | `/api/user/tier/claim` | Claim NEAR upgrade |
 
-**Only for Pro/VIP users**
+### Auth
 
-### GET /api/sync/pull
-Get latest market state + $SOUL balance + tier
+Reuse existing soulmd-hub NEAR Ed25519 / session auth — desktop sends same headers as web hub clients.
 
-### GET /api/user/soul-balance
-Current $SOUL + staked amount + tier
+---
 
-### POST /api/user/stake-soul
-Stake $SOUL to upgrade to Pro/VIP (with NEAR tx)
+## Planned / Gaps
 
-## Fee & Rewards (Internal)
+| Item | Notes |
+|------|-------|
+| OpenAPI spec file in hub repo | Informal table here only |
+| Rate limiting / idempotency keys | Not specified |
+| Webhook callbacks to desktop | Pull sync only |
 
-These are mostly called internally or by desktop after NEAR tx confirmation:
+---
 
-- POST /api/fee/record
-- POST /api/rewards/distribute
+## Related docs
 
-## Error Codes (consistent with existing hub)
-- 4001 = Insufficient tier for this action (e.g. trying to sync without Pro)
-- 4002 = Gig already assigned
-- 4003 = QC failed (with reason)
-
-**All new endpoints should be documented in docs/04_API_REFERENCE.md of the soulmd-hub repo.**
+- [SOULMD_HUB_EXTENSION_PLAN.md](SOULMD_HUB_EXTENSION_PLAN.md)
+- [EXPORT_REAL_PRODUCTS.md](../EXPORT_REAL_PRODUCTS.md)

@@ -1,52 +1,54 @@
-# ACHIEVEMENTS.md
-**Achievements, Milestones & Multiple Endings**
+# Achievements & Endings
 
-## Achievement Categories
+**Last updated: July 2026**
 
-### Economic
-- First $1,000 Revenue
-- First $10,000 Profit Month
-- Zero Burn Rate Quarter
-- Highest Single Gig Value
+## Overview
 
-### Growth
-- 10 Agents
-- 50 Agents
-- 3 Departments
-- 10 Departments
-- Unicorn Valuation
+Achievements track long-term company milestones; **endings** define narrative victory conditions. Defaults are seeded on first launch if empty. The Achievements page is available in v2 (and when `showAchievements` is enabled).
 
-### Agent Happiness & Culture
-- Zero Burnout Quarter
-- All Agents Above 80 Morale
-- Successful Office Romance (without drama)
-- Agent Union Formed and Resolved Peacefully
-- Legendary Agent Retires (and becomes mentor)
+---
 
-### Chaos & Fun
-- Trigger 50 Random Events
-- Survive a Black Swan
-- Create Total Office Chaos (and recover)
-- Agent Becomes Sentient (temporary)
+## Implemented
 
-### Productivity & Quality
-- 100 Completed Gigs
-- 50 Exported Real Products
-- Perfect QC Score on 10 consecutive gigs
-- Build a product that gets real external users
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Default achievement set | ✅ | `achievements::default_achievements` |
+| Default endings set | ✅ | `achievements::default_endings` |
+| Progress tracking in state | ✅ | `state.achievements`, `state.endings` |
+| Query API | ✅ | `get_achievements` |
+| Frontend page | ✅ | `AchievementsPage.tsx` |
+| Simulation tick hooks | ✅ | Achievement checks during `run_simulation_tick` |
 
-### God Mode
-- Use God Mode 100 times
-- Never use God Mode in first 6 months (hidden achievement)
-- Cause a major positive change with one God Mode action
+---
 
-## Multiple Endings (Win Conditions)
+## Architecture
 
-1. **Profitable Exit** — Sell the company for a large sum of USDT
-2. **Self-Sustaining Collective** — Agents start running their own gigs and the company becomes mostly autonomous
-3. **Market Dominance** — Become the top company in your industry on the global marketplace
-4. **Maximum Chaos** — Embrace total randomness and create legendary stories (fun ending)
-5. **Legacy Builder** — Many legendary agents retire and their influence continues for years
-6. **AI Singularity** — Something unexpected happens with the agents (secret/rare ending)
+Each achievement/ending record typically includes:
 
-**Achievements and endings give long-term players clear goals and replay value.**
+| Field | Role |
+|-------|------|
+| `id` | Stable key |
+| `title`, `description` | UI copy |
+| `unlocked` / `progress` | Player state |
+| `category` | Grouping in UI |
+
+Unlock conditions are evaluated in Rust against live `AppState` (company metrics, agent counts, gig completions, etc.).
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Steam / platform achievements | Local only |
+| Custom mod achievements | Fixed default set |
+| Ending cinematic sequences | Text unlock notification |
+| Achievement-linked rewards | Cosmetic / narrative only today |
+
+---
+
+## Related docs
+
+- [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md)
+- [EXPORT_REAL_PRODUCTS.md](EXPORT_REAL_PRODUCTS.md)
+- [PRO_VIP_SYSTEM.md](PRO_VIP_SYSTEM.md)

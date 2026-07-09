@@ -1,37 +1,81 @@
-# FINANCE_BUDGET.md
-**Finance & Budget System**
+# Finance & Token Economy
 
-## Core Concepts
-- Every company has a **Budget** (in USDT and Compute Tokens)
-- Budget comes from completed gigs, internal revenue, or player top-up
-- Agents consume "Compute Tokens" when running (especially heavy models)
-- Player must manage budget carefully or agents will slow down / refuse tasks
+**Last updated: July 2026**
 
-## Budget Categories
-- **Compute / AI Costs** (biggest expense)
-- **Salaries** (paid to agents in USDT or $SOUL)
-- **Marketing & Client Acquisition**
-- **R&D / Tool Upgrades**
-- **Office Upgrades** (Server Farm, Creativity Lounge, etc.)
-- **Emergency Buffer**
+## Overview
 
-## Finance Dashboard (in-game)
-- Real-time burn rate
-- Revenue this month vs last month
-- Agent cost efficiency ranking
-- Upcoming big expenses (model upgrades, new hires)
-- Profit & Loss statement (exportable)
+SoulCorp uses a **unified token economy** (not separate USDT + compute tracks). The company holds a **token pool** allocated to department and agent wallets. AI meetings, scrum execution, and agent runs **charge tokens**; starvation throttles agents. The **Tokens** page (CEO step 8) is the primary finance UI.
 
-## Agent Salary System
-- Each agent has a base salary + performance bonus
-- High morale + good results = bonus
-- Burnout or poor performance = salary complaint event
-- Player can adjust individual salaries or set company-wide policy
+Legacy salary and budget allocation systems remain for simulation flavor and payroll projection.
 
-## Pro / VIP Advantages
-- Advanced forecasting (AI predicts next month burn/revenue)
-- Automatic budget reallocation suggestions
-- Tax / fee optimization reports
-- Multi-company portfolio view (if player owns multiple companies)
+---
 
-**Finance is not just a number — poor budget management directly affects agent morale and project success.**
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Token economy state | ✅ | `state` — `TokenEconomy` |
+| Company pool | ✅ | `token_budget::total_company_tokens` |
+| Dept / agent wallets | ✅ | `DepartmentTokenWallet`, `AgentTokenWallet` |
+| Period limits (weekly/monthly/…) | ✅ | `token_budget/mod.rs` period reset |
+| Charge on AI usage | ✅ | `charge_tokens`, `ChargeContext` |
+| Usage ledger | ✅ | `get_token_usage_ledger` |
+| Allocate / rebalance | ✅ | `allocate_*_tokens_cmd`, `rebalance_token_wallets_cmd` |
+| Budget update per dept/agent | ✅ | `update_*_token_budget_cmd` |
+| Enforcement / starvation | ✅ | `apply_enforcement`, agent `throttled` status |
+| Finance tick (salary) | ✅ | `finance/mod.rs`, `run_simulation_tick` |
+| Budget allocations % | ✅ | `update_budget_allocations` |
+| Agent salary adjust | ✅ | `adjust_agent_salary` |
+| Command center burn metrics | ✅ | `command_center.rs` — pool, monthly_burn |
+| Cost estimates | ✅ | `estimate_meeting_turn_cost`, `estimate_work_execution_cost` |
+| Frontend Tokens page | ✅ | `TokensPage.tsx` |
+| Legacy finance panel | ✅ | `FinancePanel.tsx`, `get_finance_state` |
+
+---
+
+## Architecture
+
+### Wallet hierarchy
+
+```
+Company token pool
+├── Department wallets (optional period caps)
+│   └── Agent wallets (optional period caps)
+└── Unallocated reserve
+```
+
+### Charge sources (`TokenUsageSource`)
+
+Meetings, scrum execution, god mode powers, and other AI calls record usage entries in the ledger.
+
+### Simulation payroll
+
+`projected_monthly_payroll` = sum(agent salaries) + per-agent overhead. Displayed in command center alongside token burn.
+
+### Starvation behavior
+
+When pool is depleted or wallet over limit:
+
+- Agents may enter `throttled` status
+- Execution runs may fail or queue
+- Command center raises alerts
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| USDT on-chain payroll | NEAR/$SOUL is hub/tier layer; in-game unit is tokens |
+| Multi-currency display | Single token denomination in UI |
+| AI-predicted burn forecasting | VIP foresight is event-level, not finance ML |
+| Tax / fee reports | Not implemented locally |
+
+---
+
+## Related docs
+
+- [PRO_VIP_SYSTEM.md](PRO_VIP_SYSTEM.md)
+- [MEETING_SYSTEM.md](MEETING_SYSTEM.md)
+- [PROJECTS_SCRUM.md](PROJECTS_SCRUM.md)
+- [GOD_MODE.md](GOD_MODE.md)

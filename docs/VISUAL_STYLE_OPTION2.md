@@ -1,51 +1,66 @@
-# VISUAL_STYLE_OPTION2.md
-**Stardew Valley × Pokémon Legends Isometric Style (Locked)**
+# Campus Visual Style — Option 2
 
-## Art Direction
-- **Core Vibe**: Cozy, charming, slightly magical management sim
-- **Perspective**: True 45° isometric (not fake 2.5D)
-- **Color Palette**: Warm earth tones + soft pastels (Stardew) mixed with vibrant accent colors for agents and UI (Pokémon)
-- **Lighting**: Soft global illumination + gentle shadows (Three.js)
-- **Pixel + Low-poly Hybrid**: Pixel textures on buildings/agents + clean low-poly ground and props
+**Last updated: July 2026**
 
-## Technical Implementation (Three.js)
-- OrthographicCamera with proper isometric rotation
-- Tilemap system (32×32 or 64×64 tiles)
-- InstancedMesh for 200+ agents (huge performance win)
-- LOD system:
-  - Close: full pixel sprite + animation
-  - Medium: simplified mesh
-  - Far: billboard icon only
-- Post-processing stack:
-  - Subtle CRT / pixel filter (optional, user toggle)
-  - Soft bloom on UI elements and agent status bubbles
-  - vignette for cozy feel
+**Stardew Valley × Pokémon Legends isometric style (locked for campus/world)**
 
-## World Layout
-1. **Player Company Building** (main hub)
-   - Multiple floors (click to zoom into department)
-   - Rooftop garden / chill area
-2. **Hub Plaza** (global marketplace area)
-   - Other player companies visible (read-only or visit if friends)
-   - Gig board physical object in world
-3. **Agent Housing / Park** (for idle agents, relationships, drama events)
+Interior offices use a separate spec: `soulcorp-desktop/docs/OFFICE_VISUAL_TARGET.md`.
 
-## Agent Representation
-- Cute pixel sprites (different outfits per department/role)
-- Status bubbles above head: "Coding...", "In Meeting", "Burnout 😩"
-- Walking + idle animations (simple but charming)
-- When working: subtle particle effects (code particles, money, hearts for morale)
+---
 
-## UI / HUD Philosophy
-- Minimal floating UI (Game Boy inspired)
-- Main menu = classic game pause menu style
-- Sidebar = modern clean (for KPIs, agent list, queue status)
-- Notifications = toast + in-world speech bubbles
+## Overview
 
-## Accessibility & Performance
-- Toggleable pixel filter (for low-end devices)
-- Colorblind-friendly palettes
-- 60 FPS target on integrated graphics
-- Graceful degradation (disable shadows/particles on low power)
+The **3D campus** (v2 edition, optional in v1) uses a cozy 45° isometric world: warm palettes, pixel-low-poly hybrid buildings, instanced agent sprites, and zoom-into-building interiors.
 
-**This style gives strong "game" feeling while remaining professional enough for actual business simulation use.**
+---
+
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Isometric Three.js scene | ✅ | `GameScene`, `ThreeOfficeRenderer.tsx` |
+| InstancedMesh agents | ✅ | Phase 8 render perf |
+| LOD / pixel sprites | ✅ | Agent rendering pipeline |
+| Campus + interior views | ✅ | `worldView` in game store |
+| Building click zoom | ✅ | Interior sub-scenes |
+| Visual design presets | ✅ | `visualDesignClient`, `designPresets.ts` |
+| Campus theme packs | ✅ | `officeThemePacks.ts` |
+| Low power mode | ✅ | Reduces 3D update cost |
+| WebGL pause when inactive | ✅ | Skips render if `activePanel !== "office"` |
+| 3D smoke test (CI) | ✅ | `scene3dSmoke.ts`, phase 7 |
+| Design studio (v2) | ✅ | `DesignStudioPage`, furniture catalog |
+
+---
+
+## Art direction
+
+| Aspect | Choice |
+|--------|--------|
+| Perspective | True 45° isometric (`OrthographicCamera`) |
+| Palette | Warm earth + soft pastels; vibrant agent accents |
+| Agents | Pixel sprites, status bubbles, instanced rendering |
+| UI | Game-inspired pause menu + modern management sidebar |
+
+### Performance targets
+
+- 60 FPS on integrated graphics with instancing + LOD
+- `low_power_mode` disables heavy shadows/particles
+- Optional pixel filter toggle (accessibility / retro feel)
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Hub plaza multiplayer avatars | Campus is local company |
+| Weather / day-night cycle | Static lighting presets |
+| Procedural campus expansion | Manual building layout |
+
+---
+
+## Related docs
+
+- `soulcorp-desktop/docs/OFFICE_VISUAL_TARGET.md`
+- [TAURI_DESKTOP_SPEC.md](TAURI_DESKTOP_SPEC.md)
+- [PERFORMANCE.md](PERFORMANCE.md)

@@ -1,59 +1,68 @@
-# NOTION_LIKE_SYSTEM.md
-**Real-time Notion-style Document & Progress System**
+# Notion-like Workspace System
+
+**Last updated: July 2026**
 
 ## Overview
-SoulCorp includes a built-in, lightweight Notion-like workspace directly inside the desktop app. This allows users (and AI agents) to create, edit, and view company documents, project progress, meeting notes, deliverables, and results in real time — without leaving the game.
 
-## Core Features
+The built-in **Workspace** (CEO step 3) is a Notion-style productivity layer: markdown pages, folders, files, entity links, templates, comments, and version history. **Workspace UX 2.0** (phase 20) added a six-view navigator, command palette, context menus, pinned/recent lists, and organize mode.
 
-### 1. Company Workspace (Shared)
-- A central "Company Docs" section (accessible from the main menu or by clicking the HQ building)
-- Supports:
-  - Pages (like Notion pages)
-  - Databases (project tracker, OKR, deliverable log)
-  - Folders & sub-pages
-  - Real-time collaborative editing (when multiple agents or the player are viewing/editing)
-- Every completed gig or internal project automatically generates a page with:
-  - Summary
-  - Agent chat logs from the project
-  - Deliverables (code, links, PDFs, images)
-  - Progress timeline + final results
+---
 
-### 2. Per-Agent Personal Folders
-- Every AI employee has their own private workspace folder:
-  - `Agents/[AgentName]/`
-  - Inside: Personal notes, task lists, meeting summaries they attended, self-reflections, skill improvement logs
-- Agents can autonomously create and update pages in their own folder (based on their SOUL.md personality)
-- Player can view (and edit with permission) any agent's folder
+## Implemented
 
-### 3. Real-time Sync & Collaboration
-- When the player or agents edit a page, changes appear instantly for everyone viewing it (local first, then sync to soulmd-hub when online)
-- Version history (like Notion)
-- Comments & @mentions (agents can @ each other or the player)
-- Templates: Meeting Notes, Project Brief, Post-mortem, OKR, Client Report, etc.
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Workspace shell | ✅ | `components/workspace/WorkspaceShell.tsx` |
+| Six-view navigator | ✅ | `WorkspaceNavigator.tsx`, `workspaceNav.ts` |
+| Views: recent/pinned/projects/agents/files/browse | ✅ | `WORKSPACE_NAV_VIEWS` |
+| Command palette | ✅ | `WorkspaceCommandPalette.tsx` |
+| TipTap page editor (lazy) | ✅ | `PageEditor.tsx`, `SoulMdEditor.tsx` |
+| File attachments + lazy viewer | ✅ | `FileViewer.tsx`, `WorkspaceMainPanel.tsx` |
+| Pinned + recent tracking | ✅ | `workspaceStore.ts` |
+| Organize mode (reorder) | ✅ | `organizeMode` in store |
+| Entity links + backlinks | ✅ | `link_workspace_entity`, `find_workspace_backlinks` |
+| Templates | ✅ | `list_workspace_templates`, `create_page_from_template_cmd` |
+| Page versions + restore | ✅ | `list_page_versions`, `restore_page_version` |
+| Comments | ✅ | `list_page_comments`, `add_page_comment` |
+| Presence indicators | ✅ | `set_workspace_presence` |
+| Database view | ✅ | `get_workspace_database` |
+| Search | ✅ | `search_workspace` (FTS5) |
+| CEO workflow step 3 | ✅ | `navigation.ts` |
 
-### 4. Integration with Game Systems
-- Project progress in the isometric view is directly linked to the Notion-style pages
-- When agents finish work, the results + chat history are automatically appended to the relevant page
-- Player can drag deliverables from agent chat directly into a Notion page
-- Search across all company + agent documents (powered by local + optional hub index)
+---
 
-## Technical Implementation (Tauri)
-- Local storage: SQLite + file-based markdown/JSON (works fully offline)
-- Editor: TipTap / BlockNote.js or similar (Notion-like block editor)
-- Real-time collaboration (local): Yjs or similar CRDT for multi-user editing inside the app
-- Sync to soulmd-hub: When user clicks Sync, documents are pushed as structured data (or Markdown + attachments)
-- Agent access: Rust backend exposes safe APIs so agents can read/write pages via function calling
+## Architecture
 
-## Benefits for Different Users
-- **Casual / Fun players**: Beautiful living company wiki that grows organically with agent activity
-- **Serious productivity users**: Use it as a real internal knowledge base + project management tool (toggle off random events for clean workflow)
-- **Teams**: Multiple humans can join the same company (future multiplayer) and co-edit docs in real time
+### Six views
 
-## Pro / VIP Advantages
-- Unlimited pages & storage
-- Advanced search + AI summarization of long documents
-- Auto-generated weekly company reports
-- Export entire workspace as Notion import / Markdown zip / PDF
+| View | Purpose |
+|------|---------|
+| `recent` | Last opened pages/files |
+| `pinned` | User-starred items |
+| `projects` | Grouped by project folders |
+| `agents` | Per-agent workspace folders |
+| `files` | Non-markdown attachments |
+| `browse` | Full folder tree + organize mode |
 
-**This turns SoulCorp from "just a game" into a genuine hybrid work + simulation platform.**
+### CEO loop position
+
+Projects produce deliverables → Meeting aligns → **Workspace** is where the CEO reviews pages, briefs, and agent output before org/hiring steps.
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Real-time multi-user co-editing | Local presence only |
+| Kanban database view | Table/database basic |
+| Mobile workspace | Desktop only |
+| Notion import | Markdown ZIP export only |
+
+---
+
+## Related docs
+
+- [NOTION_LIKE_UI_DATA_SYNC.md](NOTION_LIKE_UI_DATA_SYNC.md)
+- [WORKSPACE_FOLDERS_SYSTEM.md](WORKSPACE_FOLDERS_SYSTEM.md)
+- [COMPANY_AUTOPILOT.md](COMPANY_AUTOPILOT.md)

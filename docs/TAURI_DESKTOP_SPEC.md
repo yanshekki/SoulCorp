@@ -1,83 +1,134 @@
-# TAURI_DESKTOP_SPEC.md
-**Tauri 2.x Desktop Client Specification (Rust Backend)**
+# Tauri Desktop Client Specification
 
-## Project Structure
+**Last updated: July 2026**
+
+## Overview
+
+`soulcorp-desktop/` is the primary SoulCorp product: a Tauri 2 application with a Rust command layer and React SPA. The app supports **v1** (workflow-focused) and **v2** (3D campus + creative tools) editions from one codebase.
+
+---
+
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| App bootstrap + SQLite init | ✅ | `lib.rs` setup, `db::init_database` |
+| Multi-company registry | ✅ | `list_companies`, `create_company`, `switch_company` |
+| Onboarding wizard | ✅ | `OnboardingWizard.tsx`, `complete_onboarding` |
+| Sidebar + CEO ribbon | ✅ | `navigation.ts`, `CollapsibleDock` |
+| Lazy panel host (LRU 6) | ✅ | `PanelHost.tsx`, `lazyPanels.ts` |
+| 3D office (v2 / optional v1) | ✅ | `GameScene`, `ThreeOfficeRenderer` |
+| 100+ Tauri commands | ✅ | `lib.rs` invoke_handler |
+| Window state persistence | ✅ | `tauri-plugin-window-state` |
+| Smoke watchdog | ✅ | `commands::spawn_smoke_watchdog` |
+| Scrum background worker | ✅ | `scrum::spawn_scrum_worker` |
+| Edition gating | ✅ | `config/features.ts` (`showOffice3D`, `showGodMode`, etc.) |
+| Acceptance scripts | ✅ | `src/acceptance/`, `scripts/acceptance-check.mjs` |
+
+---
+
+## Project structure
+
 ```
 soulcorp-desktop/
-├── src-tauri/
-│   ├── src/
-│   │   ├── main.rs              # Tauri entry + Rust commands
-│   │   ├── commands/            # expose Rust functions to frontend
-│   │   │   ├── agent.rs         # spawn/kill/manage local AI agents
-│   │   │   ├── simulation.rs    # game tick, agent AI, queue processing
-│   │   │   ├── sync.rs          # local queue + optional hub sync
-│   │   │   └── near.rs          # NEAR transaction signing (via near-api-js or Rust SDK)
-│   │   └── lib.rs
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── src/                         # React frontend
+├── src/                    # React frontend
+│   ├── App.tsx             # Shell, nav, panel routing
+│   ├── config/
+│   │   ├── navigation.ts   # CEO_WORKFLOW_CHAIN, nav groups
+│   │   ├── lazyPanels.ts   # React.lazy panel map
+│   │   └── features.ts     # Edition feature flags
 │   ├── components/
-│   │   ├── GameScene.tsx        # Three.js isometric world
-│   │   ├── AgentSprite.tsx
-│   │   ├── BuildingModal.tsx
-│   │   └── UI/
-│   ├── stores/                  # Zustand stores
-│   ├── services/                # API client for soulmd-hub
-│   └── App.tsx
-├── package.json
-└── README.md
+│   │   ├── UI/             # Pages: Projects, Meeting, Tokens, …
+│   │   ├── workspace/      # WorkspaceShell, editors, navigator
+│   │   └── design/         # Design studio (v2)
+│   ├── services/           # Tauri invoke clients
+│   └── stores/             # Zustand state
+├── src-tauri/
+│   └── src/
+│       ├── commands/       # Tauri command handlers (grouped)
+│       ├── autopilot/      # Company autopilot
+│       ├── scrum/          # Projects pipeline
+│       ├── workspace/      # Pages, FTS, cache
+│       ├── agent_runtime/  # Execution backends
+│       ├── brain/          # Provider resolution
+│       ├── token_budget/   # Token economy
+│       └── db/             # rusqlite persistence
+└── prisma/                 # Tooling schema mirror
 ```
 
-## Core Rust Commands (exposed to JS)
-- `start_local_agent(soul_md_path, role, dept, ai_provider)` → returns agent_id
-- `run_simulation_tick()` → advances game world, agents work
-- `get_local_queue_status()` → pending sync items
-- `sync_with_hub(jwt_or_signature)` → push local changes, pull market updates
-- `submit_gig_to_hub(gig_data)` → create gig on marketplace
-- `sign_near_transaction(tx_payload)` → secure signing (user confirms in UI)
+---
 
-## Three.js Isometric World (Option 2)
-- Orthographic camera, 45° angle
-- Tile-based map (company building floors + outdoor "hub plaza")
-- InstancedMesh for agents (performance)
-- Click raycasting → building zoom + sub-scene load
-- Post-processing: subtle pixel filter + soft shadows for cozy feel
+## Command groups (representative)
 
-## Offline-first Architecture
-1. All simulation runs 100% locally (Rust game loop)
-2. Every important action is queued locally (IndexedDB + Rust queue)
-3. User explicitly presses "Sync with soulmd-hub" (Pro/VIP feature)
-4. Conflict resolution: last-write-wins with clear UI notification
-5. Pure Local Mode toggle for users who want zero cloud
+Commands are registered in `lib.rs`. Grouped by domain:
 
-## AI Provider Abstraction (重要)
-為了支援多種 AI API（包括本地模型同 soulmd-hub API），Rust 後端需要有清晰嘅 **AI Provider** 抽象層：
+| Domain | Examples |
+|--------|----------|
+| **Company** | `create_company`, `switch_company`, `get_onboarding_state` |
+| **Agents** | `list_agents`, `update_agent_soul`, `get_agent_runtime_status` |
+| **Scrum** | `issue_directive`, `route_directive`, `run_work_execution`, `get_scrum_snapshot` |
+| **Autopilot** | `get_autopilot_snapshot`, `ceo_approve_directive_cmd`, `set_full_autopilot` |
+| **Meeting** | `start_meeting`, `advance_meeting`, `generate_meeting_notes` |
+| **Workspace** | `list_workspace_snapshot`, `get_workspace_page`, `search_workspace` |
+| **Agent workspace** | `agent_workspace_read_page`, `agent_workspace_write_deliverable` |
+| **Tokens** | `get_token_economy`, `allocate_department_tokens_cmd`, `rebalance_token_wallets_cmd` |
+| **Recruitment** | `hire_candidate`, `sync_workspace_organization_cmd` |
+| **Hub / gigs** | `list_hub_gigs`, `accept_hub_gig`, `complete_hub_gig` |
+| **God mode** | `god_mode_time_warp`, `god_mode_mass_motivation`, … |
+| **Export / deploy** | `export_company_backup`, `push_static_site_to_vercel` |
 
-### 支援嘅 AI Provider（至少）
-- Local models（Ollama, vLLM, LM Studio 等）
-- OpenAI / Claude / Grok 等常見 provider
-- **soulmd-hub API**：
-  - `POST /api/chat`
-  - `POST /api/self-chat`
+Async handlers use `tokio::task::spawn_blocking` for disk/CPU-heavy workspace and export work.
 
-### 建議實現方式
-- 在 `src-tauri/src/ai/` 建立 `provider.rs` trait
-- 每個 provider 實現 `chat(prompt, system_prompt, temperature)` 方法
-- Agent 啟動時可以選擇用邊個 provider（由玩家設定或 agent SOUL.md 指定）
+---
 
-**呢個設計可以讓玩家靈活選擇用本地模型定用 soulmd-hub 嘅 API，而唔使改 code。**
+## Editions
 
-## Security Considerations (Rust)
-- All NEAR signing happens in Rust (no private key exposed to JS)
-- Local SOUL.md files are encrypted at rest (user password or OS keyring)
-- Rate limiting on local agent spawning to prevent runaway costs
-- AI API calls 應該有 timeout 同 error handling
-- 敏感 API key 應該用 OS keyring 或加密儲存
+| Flag | v1 | v2 |
+|------|----|----|
+| `PRODUCT_EDITION` | `v1` (default) | `v2` |
+| 3D campus | Optional (`showOffice3D`) | On |
+| Design studio | Off | On |
+| God mode in ribbon | Off | On |
+| CEO workflow panels | All 9 steps | All 9 + campus |
 
-## Performance Targets
-- 60 FPS on mid-range laptop (Intel i5 + integrated graphics or better)
-- 200+ agents simulated smoothly with instancing + LOD
-- Local tick < 16ms (game loop in Rust)
-- Cold start < 3 seconds
+Dev commands:
 
-**This spec is ready for immediate Grok Build execution.**
+```bash
+pnpm dev          # v1
+pnpm dev:v2       # v2 with campus
+pnpm verify       # typecheck + production build (v1)
+cargo test --manifest-path src-tauri/Cargo.toml --lib
+```
+
+---
+
+## Local data layout
+
+| Data | Storage |
+|------|---------|
+| Game state | SQLite in Tauri app data dir (`rusqlite`) |
+| Workspace pages | `workspaces/{companyId}/` markdown + JSON metadata |
+| Exports | User-accessible exports folder (`open_exports_folder`) |
+| Window geometry | Plugin state file |
+
+No mock or auto-seeded agents at startup — companies start empty after onboarding.
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Command API versioning | Breaking changes handled ad hoc; no `/v2` command namespace |
+| Plugin auto-update | Not configured |
+| iOS/Android Tauri mobile | Scaffold exists (`mobile_entry_point`); not shipped |
+| Unified OpenAPI for commands | Tauri invoke only; no HTTP surface |
+
+---
+
+## Related docs
+
+- [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
+- [PERFORMANCE.md](PERFORMANCE.md)
+- [NOTION_LIKE_UI_DATA_SYNC.md](NOTION_LIKE_UI_DATA_SYNC.md)
+- [COMPANY_AUTOPILOT.md](COMPANY_AUTOPILOT.md)

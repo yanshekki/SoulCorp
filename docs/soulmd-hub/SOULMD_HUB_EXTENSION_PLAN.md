@@ -1,106 +1,80 @@
-# SOULMD_HUB_EXTENSION_PLAN.md
-**Extending Existing soulmd-hub for SoulCorp Marketplace & Economy**
+# soulmd-hub Extension Plan
 
-**Target Repo**: https://github.com/yanshekki/soulmd-hub
+**Last updated: July 2026**
 
-## Philosophy
-We do **not** create a new backend. We extend the existing, battle-tested soulmd-hub (PHP + MySQL + NEAR + Web3 auth) with the minimum necessary features for the game economy.
+## Overview
 
-This keeps maintenance low, reuses existing NEAR contract (soulmd-hub.near), auth, NFT soul system, and user base.
+SoulCorp extends the existing **soulmd-hub** repo (PHP + MySQL + NEAR) for marketplace gigs, sync, and tier upgrades. The **desktop client is ahead of hub PHP** — gig lifecycle, sync commands, and NEAR wallet flows are implemented in `soulcorp-desktop`; hub controllers may still be partial.
 
-## New Database Tables (add to private/sql/)
+**Target repo:** https://github.com/yanshekki/soulmd-hub
 
-```sql
--- Gigs / Marketplace
-CREATE TABLE gigs (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    poster_user_id BIGINT UNSIGNED NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    budget_usdt DECIMAL(18,8) NOT NULL,
-    status ENUM('open','assigned','in_qc','completed','disputed','cancelled') DEFAULT 'open',
-    required_skills JSON,
-    deadline DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (poster_user_id) REFERENCES users(id)
-);
+---
 
--- Gig Assignments & QC
-CREATE TABLE gig_assignments (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    gig_id BIGINT UNSIGNED NOT NULL,
-    assignee_user_id BIGINT UNSIGNED NOT NULL,
-    status ENUM('assigned','submitted','qc_passed','qc_rejected') DEFAULT 'assigned',
-    deliverable_url TEXT,
-    qc_score JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (gig_id) REFERENCES gigs(id),
-    FOREIGN KEY (assignee_user_id) REFERENCES users(id)
-);
+## Implemented (desktop side)
 
--- Platform Transactions & Fee
-CREATE TABLE platform_transactions (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    gig_id BIGINT UNSIGNED,
-    from_user_id BIGINT UNSIGNED,
-    to_user_id BIGINT UNSIGNED,
-    amount_usdt DECIMAL(18,8),
-    fee_usdt DECIMAL(18,8),
-    fee_soul DECIMAL(18,8),
-    tx_hash VARCHAR(128),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Hub client module | ✅ | `src-tauri/src/hub/` |
+| Sync command | ✅ | `sync_with_hub` |
+| Gig CRUD + lifecycle | ✅ | `gigs/`, marketplace commands |
+| $SOUL balance | ✅ | `fetch_soul_balance` |
+| NEAR tier upgrade | ✅ | `claim_near_tier_upgrade`, wallet UI |
+| Hub config in settings | ✅ | `update_hub_config` |
 
--- User Tiers (Pro / VIP)
-CREATE TABLE user_tiers (
-    user_id BIGINT UNSIGNED PRIMARY KEY,
-    tier ENUM('free','pro','vip') DEFAULT 'free',
-    soul_staked DECIMAL(18,8) DEFAULT 0,
-    expires_at DATETIME,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
+---
+
+## Planned (hub PHP — reference schema)
+
+The following remains the target hub schema; verify against live `hub/soulmd-hub` submodule before implementation.
+
+### New tables (illustrative)
+
+- `gigs` — marketplace postings
+- `gig_assignments` — assignee + QC state
+- `user_tiers` — Pro/VIP
+- `sync_logs` — desktop sync audit
+
+### New controllers (illustrative)
+
+| Controller | Role |
+|------------|------|
+| `MarketplaceController` | Gig list/create/bid |
+| `SyncController` | Desktop state pull/push |
+| `FeeController` | Platform fee + NEAR |
+| `VipController` | Tier checks |
+
+### Economy (design intent)
+
+- NEAR USDT + $SOUL
+- 10% platform fee split (treasury / rewards / stakers)
+
+---
+
+## Integration diagram
+
+```mermaid
+flowchart LR
+  D[soulcorp-desktop] -->|HTTPS| H[soulmd-hub API]
+  H --> M[(MySQL)]
+  H --> N[NEAR contracts]
+  D -->|optional| N
 ```
 
-## New PHP Controllers (public_html/controllers/)
+---
 
-1. **MarketplaceController.php**
-   - createGig()
-   - listOpenGigs()
-   - bidOnGig() / acceptBid()
-   - submitDeliverable()
-   - qcReview()
+## Planned / Gaps
 
-2. **SyncController.php**
-   - pushDesktopState() (for Pro/VIP users)
-   - pullMarketUpdates()
-   - getSoulBalance()
+| Item | Notes |
+|------|-------|
+| Full PHP controller parity | Desktop mocks or partial endpoints |
+| WebSocket live market | Not implemented |
+| Fee splitting smart contract | Design doc only |
 
-3. **FeeController.php**
-   - calculateAndRecordFee()
-   - distributeSoulRewards()
+---
 
-4. **VipController.php**
-   - checkTier()
-   - stakeSoulForVip()
-   - getBenefits()
+## Related docs
 
-## NEAR Smart Contract Changes (contract/)
-
-- Add fee splitting logic (10% total)
-- $SOUL reward distribution on gig completion
-- Optional: soulmd-hub.near already handles NFT souls — reuse for "SoulCorp Verified Company" badges
-
-## Integration Points with Desktop (Tauri)
-- All marketplace actions go through existing Web3 signature flow
-- Desktop calls `https://soulmd-hub.ysk.hk/api/market/...`
-- Sync uses same libsodium + Ed25519 verification already in place
-
-## rollout Plan
-1. Add new tables (migration script)
-2. Add 4 new controllers + routes
-3. Extend NEAR contract (or handle fee logic in PHP + near-api-js first for speed)
-4. Update frontend (existing soulmd-hub web) to show "SoulCorp Gig Marketplace" tab
-5. Document new API endpoints in docs/04_API_REFERENCE.md
-
-**This extension is minimal, safe, and fully backward compatible with existing soulmd-hub users and features.**
+- [NEW_API_ENDPOINTS_FOR_HUB.md](NEW_API_ENDPOINTS_FOR_HUB.md)
+- [OFFLINE_FIRST_SYNC.md](../OFFLINE_FIRST_SYNC.md)
+- [EXPORT_REAL_PRODUCTS.md](../EXPORT_REAL_PRODUCTS.md)
+- [PRO_VIP_SYSTEM.md](../PRO_VIP_SYSTEM.md)

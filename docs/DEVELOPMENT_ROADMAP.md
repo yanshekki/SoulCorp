@@ -1,117 +1,106 @@
-# DEVELOPMENT_ROADMAP.md
-**SoulCorp Development Roadmap (Final Version)**
+# SoulCorp Development Roadmap
 
-## Guiding Principles
+**Last updated: July 2026**
 
-- The desktop application must work **fully offline and independently** without connecting to soulmd-hub.
-- Connecting to soulmd-hub (for marketplace and sync) is **optional** and should be implemented later.
-- Prioritize building a solid local experience first.
-- Deliver visible, playable results as early as possible.
-- Keep the architecture clean and suitable for iterative development with AI assistance.
+## Overview
+
+Phases **0–22** are **merged at 100%** per `.automation/phase-state.json`. Post-phase work added **Company Autopilot** and a **three-phase performance pass** (lazy panels, async workspace, WebGL pause). This roadmap reflects shipped reality, not aspirational scope.
 
 ---
 
-## Phase Overview
+## Guiding principles (still active)
 
-| Phase | Focus Area                              | Requires soulmd-hub? | Priority | Expected Outcome |
-|-------|-----------------------------------------|----------------------|----------|------------------|
-| 0     | Project Setup & Documentation           | No                   | High     | Clean project structure + final docs |
-| 1     | Tauri Foundation + Isometric World      | No                   | Highest  | Playable 3D office with moving agents |
-| 2     | Agent Core + Key Game Systems           | No                   | High     | Agents with personality + meetings + events |
-| 3     | Notion-like Workspace + Folders         | No                   | High     | Real productivity value (documents & folders) |
-| 4     | Local Polish & Completeness             | No                   | High     | Fully usable standalone desktop app |
-| 5     | soulmd-hub Integration (Optional)       | Yes                  | Medium   | Marketplace + sync features |
-| 6     | Advanced Features & Release Polish      | Partial              | Medium   | Pro/VIP, achievements, export, optimization |
+- Desktop must run **fully offline** without soulmd-hub.
+- Hub connection is **optional** (marketplace, NEAR upgrades, sync).
+- User-created data only — no auto-seeded demo company.
+- Visible CEO workflow (9 steps) is the primary v1 UX path.
 
 ---
 
-## Phase Details
+## Phase history (implemented)
 
-### Phase 0: Preparation & Project Setup
-- Finalize all specification documents (`INDEX.md`, etc.)
-- Initialize Tauri 2.x project (Rust + React + TypeScript + Three.js)
-- Design local data architecture (SQLite + file-based storage)
-- Set up basic project structure and coding standards
-- Prepare soulmd-hub extension branch (database migrations, new controllers)
+| Phase | Focus | Merged | Outcome |
+|-------|-------|--------|---------|
+| 0 | Project setup | 2026-06-30 | Tauri scaffold, automation, CI |
+| 1 | Isometric world | 2026-06-30 | Three.js campus, UI shell |
+| 2 | Agent systems | 2026-06-30 | Meetings, events, finance, god mode |
+| 3 | Workspace | 2026-06-30 | Notion-like pages, agent folders |
+| 4 | Local polish | 2026-06-30 | Achievements, export, offline |
+| 5 | Hub integration | 2026-06-30 | Gig client, sync commands |
+| 6 | Release | 2026-06-30 | Pro/VIP, E2E, installers |
+| 7 | 3D smoke | 2026-06-30 | Headless xvfb pixel test |
+| 8 | Render perf | 2026-06-30 | InstancedMesh, LOD sprites |
+| 9 | Ship | 2026-06-30 | .deb bundle verification |
+| 10 | Gig lifecycle | 2026-06-30 | Accept → work → QC → payout |
+| 11 | Onboarding | 2026-06-30 | First-launch wizard |
+| 12 | Static site | 2026-06-30 | ZIP + Netlify/Vercel config |
+| 13 | Pro/VIP depth | 2026-06-30 | Foresight, morale heatmap, Co-CEO |
+| 14 | Gig QC | 2026-06-30 | Submit/reject/dispute, score bands |
+| 15 | Recruitment graph | 2026-06-30 | Relationship graph, analytics |
+| 16 | LLM meetings | 2026-06-30 | Ollama + hub real meetings |
+| 17 | VIP executive | 2026-06-30 | Custom departments, AI Co-CEO |
+| 18 | Deploy export | 2026-06-30 | GitHub/Vercel one-click deploy |
+| 19 | V1 production | 2026-07-07 | Persistence, observability, auto-recruit |
+| 20 | Workspace UX 2.0 | 2026-07-08 | Six-view nav, command palette, pins |
+| 21 | Workspace FTS | 2026-07-08 | SQLite FTS5, lazy snapshots, virtualization |
+| 22 | Agent workspace API | 2026-07-08 | Agent tools, activity feed, deliverables |
 
-**Goal**: Solid foundation ready for development.
+Verify a phase from repo root:
 
----
-
-### Phase 1: Tauri Foundation + Isometric World
-- Set up Tauri application with Rust backend and React frontend
-- Implement basic Three.js isometric scene (Option 2 visual style)
-- Agent sprites + basic walking animation
-- Clickable buildings with zoom functionality
-- Basic UI layout (sidebar, dashboard, menu)
-- Simple state management
-
-**Deliverable**: A visually working company office where agents can move around.
-
----
-
-### Phase 2: Agent Core System + Core Game Mechanics
-- Load and parse `SOUL.md` for agents
-- Implement agent daily behavior loop (in Rust)
-- **Meeting System** — observable multi-agent conversations
-- **Random Events System** — with toggle for Serious Work Mode
-- **Finance & Budget System**
-- **God Mode** basic powers (Time Warp, morale control, etc.)
-
-**Deliverable**: Agents feel alive. Players can watch meetings, experience events, and manage basic economy.
-
----
-
-### Phase 3: Notion-like Workspace + Per-Agent Folders
-- Implement block-based document editor (Notion-like)
-- Per-agent private workspace folders
-- Automatic document generation from agent activities
-- Search, linking, and basic collaboration features
-- Integration between game state and documents
-
-**Deliverable**: A functional internal knowledge base that grows with agent work. Usable for real productivity.
+```bash
+bash scripts/verify-phase.sh 22
+```
 
 ---
 
-### Phase 4: Local Experience Polish & Completeness
-- Complete all local-only features (upgrades, achievements, export)
-- Performance optimization (many agents)
-- UX/UI refinement
-- Ensure 100% offline functionality
-- Finalize settings (including Random Events toggle)
+## Post-phase delivery (2026-07, on `main`)
 
-**Deliverable**: A complete, polished, standalone desktop application that can be used seriously without any cloud connection.
-
----
-
-### Phase 5: soulmd-hub Integration (Optional)
-- Connect to soulmd-hub APIs (recruitment, marketplace)
-- Implement Gig / Marketplace system
-- Basic sync functionality (for Pro/VIP users)
-- NEAR transaction handling for fees and rewards
-- $SOUL balance integration
-
-**Note**: This phase is intentionally placed later because the core experience must work without it.
-
-**Deliverable**: Optional connection to soulmd-hub for marketplace and cross-device sync.
+| Work | Commits | Status |
+|------|---------|--------|
+| Company Autopilot PR1–5 | `f1b807e`, `6147f2b` | ✅ Merged |
+| Perf phase 1 — lazy panels, LRU host, manualChunks | `03fe6c7` | ✅ Merged |
+| Perf phase 2 — async workspace, cache, spawn_blocking | `03fe6c7` | ✅ Merged |
+| Perf phase 3 — scrum cache, nav prefetch, debounce | `03fe6c7` | ✅ Merged |
+| Perf remaining 5% — FileViewer lazy, WebGL pause, org sync | `c316efe` | ✅ Merged |
 
 ---
 
-### Phase 6: Advanced Features & Final Polish
-- Complete Pro / VIP system
-- Achievements and multiple endings
-- Advanced export features
-- Final visual and performance polish
-- Testing, bug fixing, and release preparation
+## Current product capabilities
+
+```mermaid
+flowchart TB
+  subgraph shipped [Shipped on main]
+    W[CEO 9-step workflow]
+    A[Company Autopilot + gates]
+    P[Projects / Scrum worker]
+    O[Observatory + agent activity]
+    T[Token economy]
+    S[Workspace FTS + agent API]
+    H[Hub gigs optional]
+  end
+  W --> P --> A
+  P --> O
+  P --> T
+  P --> S
+```
 
 ---
 
-## Key Decisions
+## Planned / next (not scheduled)
 
-- **soulmd-hub integration is optional** and deprioritized until the local experience is solid.
-- AI API calls are abstracted in the Rust backend (supporting local models + soulmd-hub `/api/chat` & `/api/self-chat`).
-- The Notion-like workspace and per-agent folders are treated as core local features (not dependent on the hub).
+| Priority | Item | Notes |
+|----------|------|-------|
+| Medium | Hub PHP endpoint parity | Desktop ready; hub controllers partial |
+| Medium | Tauri auto-updater | Distribution convenience |
+| Low | Multi-company portfolio dashboard | Data model exists |
+| Low | Real-time hub WebSocket | Replace poll-based sync |
+| Low | Cloud workspace replication | Conflicts with local-first default |
 
 ---
 
-**This roadmap prioritizes building a strong, independent local product first, while keeping the door open for deeper soulmd-hub integration later.**
+## Related docs
+
+- [INDEX.md](INDEX.md)
+- [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
+- [COMPANY_AUTOPILOT.md](COMPANY_AUTOPILOT.md)
+- [PERFORMANCE.md](PERFORMANCE.md)

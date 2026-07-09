@@ -1,56 +1,108 @@
-# TECH_STACK_FINAL_LOCKED.md
+# SoulCorp Official Technology Stack
 
-**SoulCorp Official Architecture (Shek Ki 2026-06-18)**
+**Last updated: July 2026**
 
-## Desktop Client (Tauri 2.x + Rust)
-- **Framework**: Tauri 2.x
-- **Backend Language**: Rust (commands for local simulation, agents, queue)
-- **Frontend**: React 19 + Vite + TypeScript
-- **3D / Game Engine**: Three.js r168 + @react-three/fiber + @react-three/drei
-- **Visual Style**: Option 2 — Stardew Valley × Pokémon Legends isometric 45°
-- **Local Database**: Prisma + SQLite (full offline support)
-- **Agent System**: Local child processes / Docker for OpenClaw / Hermes / local LLMs
-- **State Management**: Zustand + local queue (IndexedDB + BullMQ-like in Rust)
-- **Offline-first**: Full local simulation + explicit "Sync Now" button for Pro/VIP users
+## Overview
 
-## Platform Hub (soulmd-hub Extension)
-- **Base Repo**: https://github.com/yanshekki/soulmd-hub (PHP 8 + MySQL + NEAR)
-- **New Components**:
-  - MarketplaceController.php (gigs, bids, matching)
-  - SyncController.php (desktop state sync, $SOUL balance)
-  - FeeController.php (10% platform fee logic + NEAR calls)
-  - VipController.php (Pro / VIP tier checks)
-- **Database**: Extend existing MySQL schema (new tables: gigs, transactions, user_tiers, sync_logs)
-- **Real-time**: Add WebSocket (optional, for live market updates)
-- **Auth**: Reuse existing NEAR Ed25519 + libsodium verification
+SoulCorp ships as a **Tauri 2** desktop app with a **Rust** simulation backend and **React 19** frontend. All company logic, AI calls, workspace storage, and token accounting run locally. Optional **soulmd-hub** adds marketplace and NEAR wallet features.
 
-## Blockchain & Economy
-- **USDT Contract**: usdt.tether-token.near (official Tether on NEAR)
-- **$SOUL Token**: soul.tkn.near (existing, with liquidity on RHEA Finance)
-- **Platform Fee**: 10% on every gig/transaction
-  - 5% → soulmd-hub treasury (NEAR)
-  - 3% → $SOUL reward pool for active users
-  - 2% → Pro/VIP stakers
-- **Smart Contract Changes**: Extend soulmd-hub.near contract for fee splitting + $SOUL rewards
+Two product editions are built from the same codebase: **v1** (workflow-first, optional 3D campus) and **v2** (full campus, design studio, god mode ribbon).
 
-## Visual & UX
-- **Window Size**: 1280×720 (resizable, fullscreen supported)
-- **Art Direction**: Cozy isometric pixel + low-poly hybrid (Three.js)
-- **Agent Representation**: Pixel sprites with walking animations, job status bubbles
-- **Interaction**: Click building → zoom into department sub-scene (like Pokémon entering a house)
-- **UI Overlay**: Classic game menu + modern sidebar (inspired by Game Boy + modern management sims)
+---
 
-## Development & Deployment
-- **Desktop Distribution**: Tauri native installers (.exe, .dmg, .AppImage, .deb)
-- **Auto-update**: Tauri built-in updater (delta updates for Rust backend)
-- **Hub Hosting**: Existing VPS running soulmd-hub (no new server needed)
-- **Local AI Hardware**: Recommended dual RTX 5090 or Mac Studio M4/Max for heavy local agent runs
+## Implemented
 
-## Why This Stack Wins
-- Maximum privacy & performance (everything heavy runs locally)
-- Zero new server cost (reuse soulmd-hub infrastructure)
-- Real blockchain economy with actual USDT + $SOUL
-- True offline-first experience with optional cloud sync
-- Leverages existing soulmd-hub user base, auth, NFT souls, and NEAR integration
+| Layer | Choice | Status | Key paths |
+|-------|--------|--------|-----------|
+| Desktop shell | Tauri 2.x | ✅ | `src-tauri/`, plugins: opener, dialog, window-state |
+| Backend | Rust 2021 | ✅ | `src-tauri/src/lib.rs` (~100+ invoke commands) |
+| Async runtime | tokio + spawn_blocking | ✅ | `commands/workspace.rs`, `meeting.rs`, `export.rs` |
+| Game DB | rusqlite (bundled) | ✅ | `db/persistence.rs` — primary persistence |
+| Tooling schema | Prisma + SQLite | ✅ | `prisma/schema.prisma` — dev/tooling mirror only |
+| Frontend | React 19 + Vite 6 + TS | ✅ | `src/`, strict `pnpm typecheck` |
+| 3D | Three.js + R3F + drei | ✅ | `GameScene`, `ThreeOfficeRenderer` |
+| Rich text | TipTap 3 (lazy-loaded) | ✅ | `SoulMdEditor`, `workspace-editor.css` |
+| State | Zustand stores | ✅ | `gameStore`, `workspaceStore`, `agentActivityStore` |
+| Virtual lists | @tanstack/react-virtual | ✅ | Workspace lists, backlog trees |
+| AI providers | reqwest + local Ollama | ✅ | `ai/`, `brain/resolver.rs` |
+| Agent subprocess | OpenClaw adapter | ✅ | `agent_runtime/openclaw.rs` |
+| NEAR wallet | @near-wallet-selector | ✅ | `services/nearWallet.ts`, VIP upgrade flow |
+| PDF export | printpdf (Rust) | ✅ | `commands/export.rs` |
+| Editions | v1 / v2 feature flags | ✅ | `PRODUCT_EDITION` env, `config/features.ts` |
+| CI verify | typecheck + vite build | ✅ | `pnpm verify` |
+| Rust tests | cargo test --lib | ✅ | 100+ tests across scrum, autopilot, workspace |
 
-**This is the final locked stack. No more changes unless critical security or performance issues arise.**
+---
+
+## Architecture notes
+
+### Desktop client
+
+```
+Tauri 2.x
+├── Rust backend
+│   ├── rusqlite — companies, agents, scrum, token economy
+│   ├── filesystem — workspace markdown + attachments
+│   ├── tokio — async command handlers
+│   └── rayon — parallel work where needed
+└── React 19 frontend
+    ├── Vite — manualChunks (vendor, three, tiptap)
+    ├── React.lazy — all sidebar panels
+    ├── Three.js — isometric campus + interior rooms
+    └── TipTap — workspace page editor (code-split)
+```
+
+### AI & agent execution
+
+| Mode | Description |
+|------|-------------|
+| **LLM-only** | In-process provider call (Ollama, hub `/api/chat`, etc.) |
+| **Subprocess** | External runtime (e.g. OpenClaw) via `agent_runtime` adapters |
+| **Agent tools** | Workspace read/write/search when `scrum_use_agent_tools` enabled |
+
+Brain resolution order: agent override → department override → global settings (`brain/resolver.rs`).
+
+### Platform hub (optional)
+
+| Component | Stack |
+|-----------|-------|
+| Base | PHP 8 + MySQL + NEAR (existing soulmd-hub repo) |
+| Desktop client | `hub/`, `gigs/` modules, sync commands |
+| Economy | $SOUL balance fetch, NEAR tier upgrade, gig lifecycle |
+
+Hub is **not required** for offline play. See `docs/soulmd-hub/`.
+
+### Visual
+
+| Scope | Style |
+|-------|-------|
+| Campus / world | Option 2 — Stardew × Pokémon Legends isometric (`VISUAL_STYLE_OPTION2.md`) |
+| Interior offices | Sims × Two Point Hospital (`soulcorp-desktop/docs/OFFICE_VISUAL_TARGET.md`) |
+| Default interior theme | `StartupWarm` |
+
+### Distribution
+
+- Native bundles via `pnpm tauri build` (.deb, .AppImage, etc.)
+- Window state persisted (size/position, not maximized) via `tauri-plugin-window-state`
+- Headless 3D smoke test (xvfb) for CI — phase 7
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| Tauri auto-updater | Not wired in production builds yet |
+| Docker-packaged local agents | OpenClaw path exists; no bundled Docker images |
+| Prisma as runtime DB | Intentionally not used — rusqlite is canonical |
+| WebSocket hub live market | REST polling only from desktop |
+| BullMQ / IndexedDB queue | Described in early docs; actual queue is Rust-side scrum worker |
+
+---
+
+## Related docs
+
+- [TAURI_DESKTOP_SPEC.md](TAURI_DESKTOP_SPEC.md)
+- [PERFORMANCE.md](PERFORMANCE.md)
+- [AGENT_RUNTIME.md](AGENT_RUNTIME.md)
+- [OFFLINE_FIRST_SYNC.md](OFFLINE_FIRST_SYNC.md)

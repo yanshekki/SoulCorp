@@ -1,37 +1,63 @@
-# GOD_MODE.md
-**God Mode / CEO Superpowers**
+# God Mode
+
+**Last updated: July 2026**
 
 ## Overview
-God Mode gives the player (CEO) powerful intervention abilities. It is designed to be fun but balanced — overusing it has consequences (agent dependency, morale issues, or chaotic outcomes).
 
-## Available Powers
+God Mode gives the CEO **sandbox intervention powers** for experimentation and recovery. Available in **v2** edition (feature flag `showGodMode`). Each power is invoked via Tauri commands, logged to history, and may consume tokens or affect simulation state.
 
-### Positive / Helpful
-- **Divine Inspiration** — Temporarily boost all agents' creativity and speed (1–3 days)
-- **Time Warp** — Fast-forward time (1 week / 1 quarter)
-- **Mass Motivation** — Instantly raise company-wide morale
-- **Emergency Budget Injection** — Add USDT or Compute Tokens
-- **Perfect Hiring** — Reveal hidden high-potential agents in the marketplace
+---
 
-### Neutral / Chaotic
-- **Black Swan** — Trigger a completely random major event (can be good or bad)
-- **Agent Mutation** — Randomly change one agent's personality traits (risky but fun)
-- **Reality Edit** — Temporarily change one project outcome or relationship
+## Implemented
 
-### Dangerous / Fun
-- **Total Chaos Mode** — All agents become extremely unpredictable for 24h
-- **Reset One Agent's Memory** — Make an agent forget everything (can be traumatic for them)
-- **Force Romance / Rivalry** — Create artificial relationships between agents
+| Power | Status | Command |
+|-------|--------|---------|
+| Time warp | ✅ | `god_mode_time_warp` |
+| Mass motivation | ✅ | `god_mode_mass_motivation` |
+| Emergency budget | ✅ | `god_mode_emergency_budget` |
+| Divine inspiration | ✅ | `god_mode_divine_inspiration` |
+| Black swan event | ✅ | `god_mode_black_swan` |
+| Agent mutation | ✅ | `god_mode_agent_mutation` |
+| Reality edit | ✅ | `god_mode_reality_edit` |
+| Perfect hiring | ✅ | `god_mode_perfect_hiring` |
+| Total chaos | ✅ | `god_mode_total_chaos` |
+| Reset agent memory | ✅ | `god_mode_reset_agent_memory` |
+| Force relationship | ✅ | `god_mode_force_relationship` |
+| Status + history | ✅ | `get_god_mode_status`, `get_god_mode_history` |
+| Frontend page | ✅ | `GodModePage.tsx` (v2 ribbon) |
 
-## Balance & Consequences
-- Every God Mode action has a **"Reality Cost"** (hidden from player at first)
-- Overusing God Mode makes agents lazy or overly dependent on the player
-- Some actions can trigger negative long-term events (agents lose trust, form unions against "divine interference")
-- Pro/VIP players get more God Mode options + lower Reality Cost
+**Key paths:** `commands/god_mode.rs`, `stores/gameStore.ts`
 
-## UI
-- Big glowing "God Mode" button in the top right (only visible when enabled in settings)
-- Every action shows a clear preview of what will happen + potential risks
-- History log of all God Mode interventions (for roleplay and learning)
+---
 
-**God Mode makes the player feel truly powerful, while still encouraging smart long-term management.**
+## Architecture
+
+God mode actions mutate `AppState` directly (agents, finance, events, relationships) and append to `god_mode_history` for audit. Powers respect current play mode where relevant — e.g. chaos events may be suppressed in Serious Work Mode.
+
+### Design intent
+
+- **Recovery**: fix broken runs (budget, morale, hiring)
+- **Experimentation**: mutate agents / reality without replaying days
+- **Drama**: black swan and total chaos for game mode players
+
+Not required for normal CEO workflow or autopilot operation.
+
+---
+
+## Planned / Gaps
+
+| Item | Notes |
+|------|-------|
+| God mode in v1 edition | Flag off by default |
+| Undo last god action | History view only; no rollback |
+| Cooldown / cost balancing | Partial token costs on some powers |
+| Multiplayer sync | Local state only |
+
+---
+
+## Related docs
+
+- [RANDOM_EVENTS.md](RANDOM_EVENTS.md)
+- [AGENT_SYSTEM.md](AGENT_SYSTEM.md)
+- [FINANCE_BUDGET.md](FINANCE_BUDGET.md)
+- [PRO_VIP_SYSTEM.md](PRO_VIP_SYSTEM.md)

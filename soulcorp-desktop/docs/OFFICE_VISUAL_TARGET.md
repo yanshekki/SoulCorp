@@ -1,6 +1,21 @@
 # Office Visual Target — Sims × Two Point Hospital
 
+**Last updated: July 2026**
+
 **Default theme pack: `StartupWarm`**
+
+## Implemented
+
+| Feature | Status | Key paths |
+|---------|--------|-----------|
+| Interior sub-style (separate from campus Option 2) | ✅ | `ThreeOfficeRenderer`, interior layouts |
+| Theme packs (StartupWarm default) | ✅ | `officeThemePacks.ts`, `data/officeThemePacks.ts` |
+| Furniture catalog + GLTF pipeline | ✅ | `furnitureCatalog.ts`, `scripts/generate-furniture-gltf.mjs` |
+| Design studio placement (v2) | ✅ | `DesignStudioPage`, `designStudioStore` |
+| HK office layout presets | ✅ | `data/hkOfficeLayouts.ts` |
+| Warm UI CSS layer | ✅ | `styles/startup-warm-ui.css` |
+
+Campus/world exterior follows [VISUAL_STYLE_OPTION2.md](../../docs/VISUAL_STYLE_OPTION2.md).
 
 Interior offices use a dedicated sub-style: cozy low-poly game readability (Sims build mode) with playful clarity (Two Point Hospital). Campus/world keeps `VISUAL_STYLE_OPTION2` isometric style; only **interior rooms** follow this document.
 
