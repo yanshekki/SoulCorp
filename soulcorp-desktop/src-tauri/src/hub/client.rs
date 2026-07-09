@@ -95,7 +95,12 @@ impl HubClient {
             .await
     }
 
-    pub async fn submit_gig_for_qc(&self, gig_id: u64, qc_score: f32) -> Result<Value, String> {
+    pub async fn submit_gig_for_qc(
+        &self,
+        gig_id: u64,
+        qc_score: f32,
+        deliverable_url: Option<String>,
+    ) -> Result<Value, String> {
         let url = format!(
             "{}/api/market-gig-submit-qc.php",
             self.base_url.trim_end_matches('/')
@@ -105,9 +110,19 @@ impl HubClient {
             serde_json::json!({
                 "gig_id": gig_id,
                 "qc_score": { "overall": qc_score },
+                "deliverable_url": deliverable_url,
             }),
         )
         .await
+    }
+
+    pub async fn cancel_gig(&self, gig_id: u64) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/market-gig-cancel.php",
+            self.base_url.trim_end_matches('/')
+        );
+        self.post_json(&url, serde_json::json!({ "gig_id": gig_id }))
+            .await
     }
 
     pub async fn reject_gig_qc(

@@ -5,10 +5,13 @@ use serde_json::{json, Value};
 use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 
+pub const GIG_CREATE_TYPE: &str = "gig_create";
 pub const GIG_QC_SUBMIT_TYPE: &str = "gig_qc_submit";
 pub const GIG_ASSIGN_TYPE: &str = "gig_assign";
 pub const GIG_START_TYPE: &str = "gig_start";
 pub const GIG_COMPLETE_TYPE: &str = "gig_complete";
+pub const GIG_REJECT_QC_TYPE: &str = "gig_reject_qc";
+pub const GIG_DISPUTE_TYPE: &str = "gig_dispute";
 
 fn hub_runtime() -> &'static Runtime {
     static RT: OnceLock<Runtime> = OnceLock::new();
@@ -19,7 +22,28 @@ pub fn hub_client_from_state(state: &AppState) -> HubClient {
     HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
 }
 
-pub fn enqueue_gig_qc_submit(state: &mut AppState, gig_id: u64, qc_score: f32, contract_id: &str) {
+pub fn enqueue_gig_create(state: &mut AppState, payload: Value) {
+    if state
+        .sync_queue
+        .iter()
+        .any(|item| item.get("type") == Some(&json!(GIG_CREATE_TYPE)) && item.get("title") == payload.get("title"))
+    {
+        return;
+    }
+    let mut item = payload;
+    if let Some(object) = item.as_object_mut() {
+        object.insert("type".to_string(), json!(GIG_CREATE_TYPE));
+    }
+    state.sync_queue.push(item);
+}
+
+pub fn enqueue_gig_qc_submit(
+    state: &mut AppState,
+    gig_id: u64,
+    qc_score: f32,
+    contract_id: &str,
+    deliverable_url: Option<String>,
+) {
     if state
         .sync_queue
         .iter()
@@ -30,7 +54,8 @@ pub fn enqueue_gig_qc_submit(state: &mut AppState, gig_id: u64, qc_score: f32, c
     state.sync_queue.push(json!({
         "type": GIG_QC_SUBMIT_TYPE,
         "gig_id": gig_id,
-        "qc_score": qc_score,
+        "qc_score": { "overall": qc_score },
+        "deliverable_url": deliverable_url,
         "contract_id": contract_id,
     }));
 }
@@ -63,8 +88,74 @@ pub fn enqueue_gig_assign(state: &mut AppState, gig_id: u64) {
     }));
 }
 
-pub fn blocking_submit_gig_qc(client: &HubClient, gig_id: u64, qc_score: f32) -> Result<Value, String> {
-    hub_runtime().block_on(client.submit_gig_for_qc(gig_id, qc_score))
+pub fn enqueue_gig_complete(state: &mut AppState, gig_id: u64, contract_id: &str) {
+    if state
+        .sync_queue
+        .iter()
+        .any(|item| queue_item_contract_id(item) == Some(contract_id))
+    {
+        return;
+    }
+    state.sync_queue.push(json!({
+        "type": GIG_COMPLETE_TYPE,
+        "gig_id": gig_id,
+        "contract_id": contract_id,
+    }));
+}
+
+pub fn enqueue_gig_reject_qc(
+    state: &mut AppState,
+    gig_id: u64,
+    contract_id: &str,
+    qc_notes: Option<String>,
+) {
+    if state
+        .sync_queue
+        .iter()
+        .any(|item| queue_item_contract_id(item) == Some(contract_id))
+    {
+        return;
+    }
+    state.sync_queue.push(json!({
+        "type": GIG_REJECT_QC_TYPE,
+        "gig_id": gig_id,
+        "qc_notes": qc_notes,
+        "contract_id": contract_id,
+    }));
+}
+
+pub fn enqueue_gig_dispute(
+    state: &mut AppState,
+    gig_id: u64,
+    contract_id: &str,
+    qc_notes: Option<String>,
+) {
+    if state
+        .sync_queue
+        .iter()
+        .any(|item| queue_item_contract_id(item) == Some(contract_id))
+    {
+        return;
+    }
+    state.sync_queue.push(json!({
+        "type": GIG_DISPUTE_TYPE,
+        "gig_id": gig_id,
+        "qc_notes": qc_notes,
+        "contract_id": contract_id,
+    }));
+}
+
+pub fn blocking_create_gig(client: &HubClient, payload: Value) -> Result<Value, String> {
+    hub_runtime().block_on(client.create_gig(payload))
+}
+
+pub fn blocking_submit_gig_qc(
+    client: &HubClient,
+    gig_id: u64,
+    qc_score: f32,
+    deliverable_url: Option<String>,
+) -> Result<Value, String> {
+    hub_runtime().block_on(client.submit_gig_for_qc(gig_id, qc_score, deliverable_url))
 }
 
 pub fn blocking_assign_gig(client: &HubClient, gig_id: u64) -> Result<Value, String> {
@@ -79,27 +170,28 @@ pub fn blocking_complete_gig(client: &HubClient, gig_id: u64) -> Result<Value, S
     hub_runtime().block_on(client.complete_gig(gig_id))
 }
 
+pub fn blocking_reject_gig_qc(
+    client: &HubClient,
+    gig_id: u64,
+    qc_notes: Option<String>,
+) -> Result<Value, String> {
+    hub_runtime().block_on(client.reject_gig_qc(gig_id, qc_notes))
+}
+
+pub fn blocking_dispute_gig(
+    client: &HubClient,
+    gig_id: u64,
+    qc_notes: Option<String>,
+) -> Result<Value, String> {
+    hub_runtime().block_on(client.dispute_gig(gig_id, qc_notes))
+}
+
 pub fn blocking_pull_sync(client: &HubClient) -> Result<HubSyncPull, String> {
     hub_runtime().block_on(client.pull_sync())
 }
 
 pub fn blocking_push_sync(client: &HubClient, payload: Value) -> Result<Value, String> {
     hub_runtime().block_on(client.push_sync(payload))
-}
-
-pub fn enqueue_gig_complete(state: &mut AppState, gig_id: u64, contract_id: &str) {
-    if state
-        .sync_queue
-        .iter()
-        .any(|item| queue_item_contract_id(item) == Some(contract_id))
-    {
-        return;
-    }
-    state.sync_queue.push(json!({
-        "type": GIG_COMPLETE_TYPE,
-        "gig_id": gig_id,
-        "contract_id": contract_id,
-    }));
 }
 
 pub fn apply_hub_pull(state: &mut AppState, pull: HubSyncPull) {
@@ -143,13 +235,47 @@ pub fn try_auto_hub_pull(state: &mut AppState) -> HubPullReport {
         }
     }
 
+    let flush = flush_pending_hub_gig_ops(state);
+    if flush.qc_submitted > 0
+        || flush.gigs_assigned > 0
+        || flush.gigs_started > 0
+        || flush.gigs_completed > 0
+        || flush.gigs_created > 0
+        || flush.gigs_rejected > 0
+        || flush.gigs_disputed > 0
+    {
+        report.messages.push(format!(
+            "Flushed hub queue (created {}, assigned {}, started {}, qc {}, completed {}, rejected {}, disputed {}).",
+            flush.gigs_created,
+            flush.gigs_assigned,
+            flush.gigs_started,
+            flush.qc_submitted,
+            flush.gigs_completed,
+            flush.gigs_rejected,
+            flush.gigs_disputed,
+        ));
+    }
+    if !flush.failures.is_empty() {
+        report
+            .messages
+            .push(format!("Hub flush deferred: {}", flush.failures.join("; ")));
+    }
+
     let client = hub_client_from_state(state);
     if !state.sync_queue.is_empty() {
         let queue = state.sync_queue.clone();
         match blocking_push_sync(&client, json!({ "queue": queue })) {
-            Ok(_) => {
-                state.sync_queue.clear();
-                report.messages.push("Pushed pending hub sync queue.".into());
+            Ok(body) => {
+                let processed = body
+                    .get("processed")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(0);
+                if processed > 0 {
+                    state.sync_queue.clear();
+                    report
+                        .messages
+                        .push(format!("Pushed {processed} pending hub sync item(s)."));
+                }
             }
             Err(err) => {
                 report
@@ -176,19 +302,29 @@ pub fn try_auto_hub_pull(state: &mut AppState) -> HubPullReport {
 }
 
 pub struct HubFlushReport {
+    pub gigs_created: u32,
     pub qc_submitted: u32,
     pub gigs_assigned: u32,
     pub gigs_started: u32,
     pub gigs_completed: u32,
+    pub gigs_rejected: u32,
+    pub gigs_disputed: u32,
     pub failures: Vec<String>,
+}
+
+fn is_legacy_gig_create(item: &Value) -> bool {
+    item.get("type").is_none() && item.get("title").is_some()
 }
 
 pub fn flush_pending_hub_gig_ops(state: &mut AppState) -> HubFlushReport {
     let mut report = HubFlushReport {
+        gigs_created: 0,
         qc_submitted: 0,
         gigs_assigned: 0,
         gigs_started: 0,
         gigs_completed: 0,
+        gigs_rejected: 0,
+        gigs_disputed: 0,
         failures: Vec::new(),
     };
 
@@ -203,19 +339,51 @@ pub fn flush_pending_hub_gig_ops(state: &mut AppState) -> HubFlushReport {
         let item_type = item
             .get("type")
             .and_then(|v| v.as_str())
+            .map(|value| value.to_string())
+            .or_else(|| {
+                if is_legacy_gig_create(&item) {
+                    Some(GIG_CREATE_TYPE.to_string())
+                } else {
+                    None
+                }
+            })
             .unwrap_or_default();
 
-        match item_type {
+        match item_type.as_str() {
+            GIG_CREATE_TYPE => {
+                let payload = if item.get("type").is_some() {
+                    item.clone()
+                } else {
+                    let mut legacy = item.clone();
+                    if let Some(object) = legacy.as_object_mut() {
+                        object.insert("type".to_string(), json!(GIG_CREATE_TYPE));
+                    }
+                    legacy
+                };
+                match blocking_create_gig(&client, payload) {
+                    Ok(_) => report.gigs_created += 1,
+                    Err(err) => {
+                        report.failures.push(format!("Create gig: {err}"));
+                        remaining.push(item);
+                    }
+                }
+            }
             GIG_QC_SUBMIT_TYPE => {
                 let gig_id = item.get("gig_id").and_then(|v| v.as_u64()).unwrap_or(0);
                 let qc_score = item
                     .get("qc_score")
+                    .and_then(|value| value.get("overall"))
                     .and_then(|v| v.as_f64())
+                    .or_else(|| item.get("qc_score").and_then(|v| v.as_f64()))
                     .unwrap_or(0.75) as f32;
+                let deliverable_url = item
+                    .get("deliverable_url")
+                    .and_then(|v| v.as_str())
+                    .map(|value| value.to_string());
                 if gig_id == 0 {
                     continue;
                 }
-                match blocking_submit_gig_qc(&client, gig_id, qc_score) {
+                match blocking_submit_gig_qc(&client, gig_id, qc_score, deliverable_url) {
                     Ok(_) => report.qc_submitted += 1,
                     Err(err) => {
                         report.failures.push(format!("QC submit gig {gig_id}: {err}"));
@@ -258,6 +426,40 @@ pub fn flush_pending_hub_gig_ops(state: &mut AppState) -> HubFlushReport {
                     Ok(_) => report.gigs_completed += 1,
                     Err(err) => {
                         report.failures.push(format!("Complete gig {gig_id}: {err}"));
+                        remaining.push(item);
+                    }
+                }
+            }
+            GIG_REJECT_QC_TYPE => {
+                let gig_id = item.get("gig_id").and_then(|v| v.as_u64()).unwrap_or(0);
+                let qc_notes = item
+                    .get("qc_notes")
+                    .and_then(|v| v.as_str())
+                    .map(|value| value.to_string());
+                if gig_id == 0 {
+                    continue;
+                }
+                match blocking_reject_gig_qc(&client, gig_id, qc_notes) {
+                    Ok(_) => report.gigs_rejected += 1,
+                    Err(err) => {
+                        report.failures.push(format!("Reject QC gig {gig_id}: {err}"));
+                        remaining.push(item);
+                    }
+                }
+            }
+            GIG_DISPUTE_TYPE => {
+                let gig_id = item.get("gig_id").and_then(|v| v.as_u64()).unwrap_or(0);
+                let qc_notes = item
+                    .get("qc_notes")
+                    .and_then(|v| v.as_str())
+                    .map(|value| value.to_string());
+                if gig_id == 0 {
+                    continue;
+                }
+                match blocking_dispute_gig(&client, gig_id, qc_notes) {
+                    Ok(_) => report.gigs_disputed += 1,
+                    Err(err) => {
+                        report.failures.push(format!("Dispute gig {gig_id}: {err}"));
                         remaining.push(item);
                     }
                 }

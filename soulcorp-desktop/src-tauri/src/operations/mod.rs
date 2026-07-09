@@ -135,8 +135,8 @@ pub fn try_auto_submit_gig_qc(state: &mut AppState) -> u32 {
 
         if !state.settings.pure_local_mode && !state.hub.base_url.trim().is_empty() {
             let client = hub_client_from_state(state);
-            if let Err(err) = blocking_submit_gig_qc(&client, gig_id, qc_score) {
-                enqueue_gig_qc_submit(state, gig_id, qc_score, &contract_id);
+            if let Err(err) = blocking_submit_gig_qc(&client, gig_id, qc_score, None) {
+                enqueue_gig_qc_submit(state, gig_id, qc_score, &contract_id, None);
                 eprintln!("Hub QC queued for gig {gig_id}: {err}");
             }
         }

@@ -162,19 +162,29 @@ pub async fn create_hub_gig(
         }
 
         let payload = json!({
+            "type": "gig_create",
             "title": request.title,
             "description": request.description,
             "budget_usdt": request.budget_usdt,
             "required_skills": request.required_skills,
         });
 
-        state.sync_queue.push(payload.clone());
-        commit(app, &state)?;
+        crate::gigs::hub_sync::enqueue_gig_create(&mut state, payload.clone());
+        commit(app.clone(), &state)?;
         (client_from_state(&state), payload)
     };
 
+    let queued_title = request.title.clone();
     match client.create_gig(payload).await {
-        Ok(response) => Ok(response),
+        Ok(response) => {
+            let mut state = app_state.lock().map_err(|e| e.to_string())?;
+            state.sync_queue.retain(|item| {
+                item.get("type") != Some(&json!("gig_create"))
+                    || item.get("title").and_then(|value| value.as_str()) != Some(queued_title.as_str())
+            });
+            commit(app.clone(), &state)?;
+            Ok(response)
+        }
         Err(error) => Ok(json!({
             "status": "queued_locally",
             "queued": true,
@@ -204,7 +214,14 @@ pub async fn sync_with_hub(
     {
         let mut state = app_state.lock().map_err(|e| e.to_string())?;
         let flush = crate::gigs::flush_pending_hub_gig_ops(&mut state);
-        if flush.qc_submitted > 0 || flush.gigs_assigned > 0 || flush.gigs_started > 0 {
+        if flush.qc_submitted > 0
+            || flush.gigs_assigned > 0
+            || flush.gigs_started > 0
+            || flush.gigs_completed > 0
+            || flush.gigs_created > 0
+            || flush.gigs_rejected > 0
+            || flush.gigs_disputed > 0
+        {
             let _ = crate::db::persistence::commit(app.clone(), &state);
         }
     }
@@ -216,10 +233,27 @@ pub async fn sync_with_hub(
 
     if !queue.is_empty() {
         progress.emit_percent("Pushing local changes…", 45.0, Some("push"));
-        client
-            .push_sync(json!({ "queue": queue }))
-            .await
-            .map_err(|error| format!("Hub sync push failed: {error}"))?;
+        match client.push_sync(json!({ "queue": queue })).await {
+            Ok(body) => {
+                let processed = body
+                    .get("processed")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(0);
+                if processed > 0 {
+                    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                    state.sync_queue.clear();
+                    commit(app.clone(), &state)?;
+                }
+            }
+            Err(error) => {
+                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let _ = crate::gigs::flush_pending_hub_gig_ops(&mut state);
+                commit(app.clone(), &state)?;
+                if !state.sync_queue.is_empty() {
+                    return Err(format!("Hub sync push failed: {error}"));
+                }
+            }
+        }
     }
 
     progress.emit_percent("Pulling hub data…", 70.0, Some("pull"));
@@ -235,7 +269,6 @@ pub async fn sync_with_hub(
         state.hub.soul_balance = pull.soul_balance;
         state.hub.cached_open_gigs = pull.open_gigs.clone();
         state.hub.last_sync_at = Some(Utc::now().to_rfc3339());
-        state.sync_queue.clear();
         commit(app, &state)?;
     }
 

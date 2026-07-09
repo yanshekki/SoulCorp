@@ -2,6 +2,9 @@ use crate::db::persistence::commit;
 use crate::gigs::{
     compute_qc_score, finalize_contract_at_index, payout_for_budget, submit_contract_for_qc_at_index,
 };
+use crate::gigs::hub_sync::{
+    enqueue_gig_dispute, enqueue_gig_reject_qc, enqueue_gig_qc_submit,
+};
 use crate::hub::{filter_gigs_for_tier, HubClient, HubGig};
 use crate::state::{AppState, GigContract};
 use chrono::Utc;
@@ -261,11 +264,22 @@ pub async fn submit_gig_for_qc(
     if !pure_local {
         if let Some(client) = client {
             match client
-                .submit_gig_for_qc(gig_id, qc_score)
+                .submit_gig_for_qc(gig_id, qc_score, None)
                 .await
             {
                 Ok(_) => {}
-                Err(error) => return Err(format!("Failed to submit gig for QC: {error}")),
+                Err(error) => {
+                    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                    enqueue_gig_qc_submit(
+                        &mut state,
+                        gig_id,
+                        qc_score,
+                        &request.contract_id,
+                        None,
+                    );
+                    commit(app.clone(), &state)?;
+                    eprintln!("Hub QC submit queued for gig {gig_id}: {error}");
+                }
             }
         }
     }
@@ -380,12 +394,19 @@ pub async fn reject_gig_qc(
 
     if !pure_local {
         if let Some(client) = client {
-            match client
+            if let Err(error) = client
                 .reject_gig_qc(gig_id, request.qc_notes.clone())
                 .await
             {
-                Ok(_) => {}
-                Err(error) => return Err(format!("Failed to reject gig QC: {error}")),
+                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                enqueue_gig_reject_qc(
+                    &mut state,
+                    gig_id,
+                    &request.contract_id,
+                    request.qc_notes.clone(),
+                );
+                commit(app.clone(), &state)?;
+                eprintln!("Hub reject QC queued for gig {gig_id}: {error}");
             }
         }
     }
@@ -439,12 +460,19 @@ pub async fn dispute_hub_gig(
 
     if !pure_local {
         if let Some(client) = client {
-            match client
+            if let Err(error) = client
                 .dispute_gig(gig_id, request.qc_notes.clone())
                 .await
             {
-                Ok(_) => {}
-                Err(error) => return Err(format!("Failed to open gig dispute: {error}")),
+                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                enqueue_gig_dispute(
+                    &mut state,
+                    gig_id,
+                    &request.contract_id,
+                    request.qc_notes.clone(),
+                );
+                commit(app.clone(), &state)?;
+                eprintln!("Hub dispute queued for gig {gig_id}: {error}");
             }
         }
     }
