@@ -55,6 +55,9 @@ export function useScrumWorkerSync() {
     let disposed = false;
     const unlisten = listen<WorkerTickReport>("scrum-changed", (event) => {
       notifyScrumChanged();
+      void import("../services/autopilotClient")
+        .then(({ getAutopilotSnapshot }) => getAutopilotSnapshot())
+        .catch(() => undefined);
       const report = event.payload;
       if (report.messages.length > 0) {
         setStatusMessage(report.messages[report.messages.length - 1] ?? "Scrum worker updated.");

@@ -3,11 +3,15 @@ pub mod brief_pages;
 mod interventions;
 mod snapshot;
 
+#[cfg(test)]
+mod smoke_test;
+
 pub use bootstrap::bootstrap_first_cycle;
 pub use brief_pages::ensure_story_brief_pages;
 pub use interventions::{
-    approve_deliverable_with_gate, ceo_approve_directive, ceo_comment_on_item,
-    ceo_reject_deliverable, ceo_reject_directive, dismiss_meeting_gate, record_intervention,
+    approve_deliverable_with_gate, ceo_approve_directive, ceo_comment_on_item, ceo_edit_directive,
+    ceo_reject_deliverable, ceo_reject_directive, ceo_reroute_story, ceo_update_story_criteria,
+    dismiss_meeting_gate, meeting_follow_up_directive, record_intervention,
 };
 pub use crate::state::AutopilotIntervention;
 pub use snapshot::{
@@ -30,7 +34,9 @@ pub fn apply_autopilot_runtime_defaults(state: &mut crate::state::AppState) {
         .values()
         .filter(|a| !crate::fate::is_system_agent(a))
         .count();
-    if staffed_agents >= 2 {
+    let pool = crate::token_budget::total_company_tokens(&state.token_economy);
+    let tokens_ok = pool >= state.settings.scrum_min_tokens_guard;
+    if staffed_agents >= 2 && tokens_ok {
         state.settings.scrum_parallel_agents = true;
     }
     if state.settings.autopilot_intervention_mode == "paused" {

@@ -8,9 +8,13 @@ import {
   ceoApproveDeliverable,
   ceoApproveDirective,
   ceoCommentOnItem,
+  ceoEditDirective,
   ceoRejectDeliverable,
   ceoRejectDirective,
+  ceoRerouteStory,
+  ceoUpdateStoryCriteria,
   dismissMeetingGate,
+  meetingFollowUpDirective,
   pauseAutopilot,
   resumeAutopilot,
   setAutopilotInterventionMode,
@@ -47,6 +51,12 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
   const [commentDraft, setCommentDraft] = useState("");
   const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
   const [rejectDraft, setRejectDraft] = useState("");
+  const [editTitleDraft, setEditTitleDraft] = useState("");
+  const [editDescDraft, setEditDescDraft] = useState("");
+  const [criteriaDraft, setCriteriaDraft] = useState("");
+  const [drawerMode, setDrawerMode] = useState<
+    "comment" | "edit_directive" | "edit_criteria" | "reject"
+  >("comment");
 
   const selectedGate = useMemo(
     () => snapshot?.pending_gates.find((g) => g.id === selectedGateId) ?? null,
@@ -245,7 +255,27 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                       <button type="button" className="primary-action" disabled={busy} onClick={() => void handleGateAction(gate, "approve")}>
                         Approve &amp; route
                       </button>
-                      <button type="button" disabled={busy} onClick={() => { setSelectedGateId(gate.id); setRejectDraft(""); }}>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedGateId(gate.id);
+                          setDrawerMode("edit_directive");
+                          setEditTitleDraft(gate.title);
+                          setEditDescDraft(gate.detail);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedGateId(gate.id);
+                          setDrawerMode("reject");
+                          setRejectDraft("");
+                        }}
+                      >
                         Reject
                       </button>
                     </>
@@ -255,7 +285,15 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                       <button type="button" className="primary-action" disabled={busy} onClick={() => void handleGateAction(gate, "approve")}>
                         Approve
                       </button>
-                      <button type="button" disabled={busy} onClick={() => { setSelectedGateId(gate.id); setRejectDraft(""); }}>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedGateId(gate.id);
+                          setDrawerMode("reject");
+                          setRejectDraft("");
+                        }}
+                      >
                         Reject
                       </button>
                       {gate.workspace_page_id ? (
@@ -266,14 +304,72 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                     </>
                   ) : null}
                   {gate.kind === "meeting_summary" ? (
-                    <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "dismiss")}>
-                      Dismiss
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        disabled={busy}
+                        onClick={() =>
+                          gate.meeting_id
+                            ? void run(
+                                () => meetingFollowUpDirective(gate.meeting_id!),
+                                "Follow-up directive issued.",
+                              )
+                            : undefined
+                        }
+                      >
+                        Add follow-up directive
+                      </button>
+                      <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "dismiss")}>
+                        Dismiss
+                      </button>
+                    </>
                   ) : null}
-                  {gate.kind === "story_brief" ? (
-                    <span className="muted">Autopilot preparing brief…</span>
+                  {gate.kind === "story_brief" && gate.work_node_id ? (
+                    <>
+                      {gate.workspace_page_id ? (
+                        <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "open")}>
+                          Open in Workspace
+                        </button>
+                      ) : (
+                        <span className="muted">Autopilot preparing brief…</span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedGateId(gate.id);
+                          setDrawerMode("edit_criteria");
+                          setCriteriaDraft("- Criterion 1\n- Criterion 2");
+                        }}
+                      >
+                        Edit criteria
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          gate.work_node_id
+                            ? void run(
+                                () => ceoRerouteStory(gate.work_node_id!),
+                                "Story queued for re-route.",
+                              )
+                            : undefined
+                        }
+                      >
+                        Reject &amp; re-route
+                      </button>
+                    </>
                   ) : null}
-                  <button type="button" disabled={busy} onClick={() => setSelectedGateId(gate.id)}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setSelectedGateId(gate.id);
+                      setDrawerMode("comment");
+                      setCommentDraft("");
+                    }}
+                  >
                     Comment
                   </button>
                 </div>
@@ -285,39 +381,143 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
 
       {selectedGate ? (
         <div className="autopilot-intervention-drawer">
-          <h5>Intervention · {selectedGate.title}</h5>
-          <textarea
-            className="autopilot-comment-box"
-            rows={3}
-            placeholder="CEO comment or rejection reason…"
-            value={selectedGate.id.includes("reject") ? rejectDraft : commentDraft}
-            onChange={(e) => {
-              if (rejectDraft !== "" && selectedGate.kind !== "story_brief") {
-                setRejectDraft(e.target.value);
-              } else {
-                setCommentDraft(e.target.value);
-              }
-            }}
-          />
+          <h5>
+            {drawerMode === "comment"
+              ? "Comment"
+              : drawerMode === "edit_directive"
+                ? "Edit directive"
+                : drawerMode === "edit_criteria"
+                  ? "Edit acceptance criteria"
+                  : "Reject"}
+            {" · "}
+            {selectedGate.title}
+          </h5>
+
+          {drawerMode === "comment" ? (
+            <textarea
+              className="autopilot-comment-box"
+              rows={3}
+              placeholder="CEO comment…"
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+            />
+          ) : null}
+
+          {drawerMode === "edit_directive" ? (
+            <div className="autopilot-drawer-fields">
+              <label className="field-label">
+                Title
+                <input
+                  type="text"
+                  value={editTitleDraft}
+                  onChange={(e) => setEditTitleDraft(e.target.value)}
+                />
+              </label>
+              <label className="field-label">
+                Description
+                <textarea
+                  className="autopilot-comment-box"
+                  rows={4}
+                  value={editDescDraft}
+                  onChange={(e) => setEditDescDraft(e.target.value)}
+                />
+              </label>
+            </div>
+          ) : null}
+
+          {drawerMode === "edit_criteria" ? (
+            <textarea
+              className="autopilot-comment-box"
+              rows={5}
+              placeholder="- Criterion 1&#10;- Criterion 2&#10;- Criterion 3"
+              value={criteriaDraft}
+              onChange={(e) => setCriteriaDraft(e.target.value)}
+            />
+          ) : null}
+
+          {drawerMode === "reject" ? (
+            <textarea
+              className="autopilot-comment-box"
+              rows={3}
+              placeholder="Rejection reason (optional)…"
+              value={rejectDraft}
+              onChange={(e) => setRejectDraft(e.target.value)}
+            />
+          ) : null}
+
           <div className="autopilot-drawer-actions">
-            <button
-              type="button"
-              className="primary-action"
-              disabled={busy || !commentDraft.trim()}
-              onClick={() => void handleGateAction(selectedGate, "comment")}
-            >
-              Save comment
-            </button>
-            {(selectedGate.kind === "directive" || selectedGate.kind === "deliverable") && rejectDraft.trim() ? (
+            {drawerMode === "comment" ? (
               <button
                 type="button"
+                className="primary-action"
+                disabled={busy || !commentDraft.trim()}
+                onClick={() => void handleGateAction(selectedGate, "comment")}
+              >
+                Save comment
+              </button>
+            ) : null}
+            {drawerMode === "edit_directive" && selectedGate.directive_id ? (
+              <button
+                type="button"
+                className="primary-action"
+                disabled={busy || !editTitleDraft.trim()}
+                onClick={() =>
+                  void run(async () => {
+                    await ceoEditDirective(
+                      selectedGate.directive_id!,
+                      editTitleDraft.trim(),
+                      editDescDraft.trim(),
+                    );
+                    setSelectedGateId(null);
+                  }, "Directive updated.")
+                }
+              >
+                Save edits
+              </button>
+            ) : null}
+            {drawerMode === "edit_criteria" && selectedGate.work_node_id ? (
+              <button
+                type="button"
+                className="primary-action"
                 disabled={busy}
-                onClick={() => void handleGateAction(selectedGate, "reject")}
+                onClick={() => {
+                  const criteria = criteriaDraft
+                    .split("\n")
+                    .map((line) => line.replace(/^[-*•]\s*/, "").trim())
+                    .filter(Boolean);
+                  void run(async () => {
+                    await ceoUpdateStoryCriteria(selectedGate.work_node_id!, criteria);
+                    setSelectedGateId(null);
+                  }, "Acceptance criteria updated.");
+                }}
+              >
+                Save criteria
+              </button>
+            ) : null}
+            {drawerMode === "reject" ? (
+              <button
+                type="button"
+                className="primary-action"
+                disabled={busy}
+                onClick={() => {
+                  void handleGateAction(selectedGate, "reject").then(() => {
+                    setSelectedGateId(null);
+                  });
+                }}
               >
                 Confirm reject
               </button>
             ) : null}
-            <button type="button" disabled={busy} onClick={() => setSelectedGateId(null)}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setSelectedGateId(null);
+                setDrawerMode("comment");
+                setCommentDraft("");
+                setRejectDraft("");
+              }}
+            >
               Close
             </button>
           </div>

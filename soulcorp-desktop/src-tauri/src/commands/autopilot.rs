@@ -1,7 +1,8 @@
 use crate::autopilot::{
-    apply_full_autopilot_settings, ceo_approve_directive, ceo_comment_on_item,
-    ceo_reject_deliverable, ceo_reject_directive, compute_autopilot_snapshot,
-    dismiss_meeting_gate, approve_deliverable_with_gate, AutopilotSnapshot,
+    apply_full_autopilot_settings, approve_deliverable_with_gate, ceo_approve_directive,
+    ceo_comment_on_item, ceo_edit_directive, ceo_reject_deliverable, ceo_reject_directive,
+    ceo_reroute_story, ceo_update_story_criteria, compute_autopilot_snapshot, dismiss_meeting_gate,
+    meeting_follow_up_directive, AutopilotSnapshot,
 };
 use crate::db::persistence::commit;
 use crate::scrum::worker::apply_scrum_worker_tick;
@@ -32,6 +33,26 @@ pub struct SetInterventionModeRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFullAutopilotRequest {
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CeoEditDirectiveRequest {
+    pub directive_id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CeoUpdateStoryCriteriaRequest {
+    pub story_id: String,
+    pub acceptance_criteria: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CeoRerouteStoryRequest {
+    pub story_id: String,
 }
 
 #[tauri::command]
@@ -100,6 +121,7 @@ pub fn ceo_comment_on_item_cmd(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     ceo_comment_on_item(
         &mut state,
+        Some(&app),
         &request.item_kind,
         &request.item_id,
         &request.comment,
@@ -167,6 +189,61 @@ pub fn resume_autopilot(
     let snapshot = compute_autopilot_snapshot(&state);
     commit(app, &state)?;
     Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn ceo_edit_directive_cmd(
+    request: CeoEditDirectiveRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<AutopilotSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ceo_edit_directive(
+        &mut state,
+        &request.directive_id,
+        request.title.as_deref(),
+        request.description.as_deref(),
+    )?;
+    commit(app, &state)?;
+    Ok(compute_autopilot_snapshot(&state))
+}
+
+#[tauri::command]
+pub fn ceo_update_story_criteria_cmd(
+    request: CeoUpdateStoryCriteriaRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<AutopilotSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    ceo_update_story_criteria(&mut state, &request.story_id, request.acceptance_criteria)?;
+    commit(app, &state)?;
+    Ok(compute_autopilot_snapshot(&state))
+}
+
+#[tauri::command]
+pub fn ceo_reroute_story_cmd(
+    request: CeoRerouteStoryRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<AutopilotSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let _ = ceo_reroute_story(&mut state, &request.story_id)?;
+    let _ = apply_scrum_worker_tick(&mut state, &app, false);
+    commit(app, &state)?;
+    Ok(compute_autopilot_snapshot(&state))
+}
+
+#[tauri::command]
+pub fn meeting_follow_up_directive_cmd(
+    meeting_id: String,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<AutopilotSnapshot, String> {
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let _ = meeting_follow_up_directive(&mut state, &meeting_id)?;
+    let _ = apply_scrum_worker_tick(&mut state, &app, false);
+    commit(app, &state)?;
+    Ok(compute_autopilot_snapshot(&state))
 }
 
 #[tauri::command]

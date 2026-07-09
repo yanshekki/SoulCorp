@@ -1,8 +1,10 @@
 use crate::scrum::pm_review::approve_deliverable_core;
-use crate::state::AutopilotIntervention;
 use crate::scrum::tree::now_iso;
-use crate::scrum::types::{DirectiveStatus, WorkNodeKind, WorkNodeStatus};
-use crate::state::AppState;
+use crate::scrum::types::{DirectiveSource, DirectiveStatus, DirectiveTarget, WorkNodeKind, WorkNodeStatus};
+use crate::state::{AppState, AutopilotIntervention};
+use crate::workspace::models::AddPageCommentRequest;
+use crate::workspace::storage::{company_workspace_root, WorkspaceStorage};
+use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 pub fn record_intervention(
@@ -58,8 +60,28 @@ pub fn ceo_reject_directive(state: &mut AppState, directive_id: &str, reason: &s
     Ok(())
 }
 
+fn write_workspace_ceo_comment(
+    app: &AppHandle,
+    state: &AppState,
+    page_id: &str,
+    comment: &str,
+) -> Result<(), String> {
+    if state.company_id.is_empty() {
+        return Ok(());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
+    storage.add_page_comment(&AddPageCommentRequest {
+        page_id: page_id.to_string(),
+        author: "CEO".to_string(),
+        content: comment.to_string(),
+    })?;
+    Ok(())
+}
+
 pub fn ceo_comment_on_item(
     state: &mut AppState,
+    app: Option<&AppHandle>,
     item_kind: &str,
     item_id: &str,
     comment: &str,
@@ -86,7 +108,12 @@ pub fn ceo_comment_on_item(
                 directive.description, trimmed
             );
         }
-        "work_node" | "deliverable" => {
+        "work_node" | "deliverable" | "story" | "story_brief" => {
+            let page_id = state
+                .work_nodes
+                .iter()
+                .find(|n| n.id == item_id)
+                .and_then(|n| n.linked_workspace_page_id.clone());
             let node = state
                 .work_nodes
                 .iter_mut()
@@ -96,6 +123,9 @@ pub fn ceo_comment_on_item(
                 "{}\n\n[CEO comment: {}]",
                 node.description, trimmed
             );
+            if let (Some(app), Some(page_id)) = (app, page_id) {
+                let _ = write_workspace_ceo_comment(app, state, &page_id, trimmed);
+            }
         }
         "meeting" => {
             state
@@ -189,6 +219,151 @@ pub fn dismiss_meeting_gate(state: &mut AppState, meeting_id: &str) {
         state.autopilot.dismissed_meeting_ids.push(meeting_id.to_string());
     }
     record_intervention(state, "dismiss", "meeting", meeting_id, "");
+}
+
+pub fn ceo_edit_directive(
+    state: &mut AppState,
+    directive_id: &str,
+    title: Option<&str>,
+    description: Option<&str>,
+) -> Result<(), String> {
+    let directive = state
+        .directives
+        .iter_mut()
+        .find(|d| d.id == directive_id)
+        .ok_or_else(|| "Directive not found.".to_string())?;
+    if let Some(title) = title {
+        let trimmed = title.trim();
+        if !trimmed.is_empty() {
+            directive.title = trimmed.to_string();
+        }
+    }
+    if let Some(description) = description {
+        directive.description = description.trim().to_string();
+    }
+    record_intervention(state, "edit", "directive", directive_id, "");
+    Ok(())
+}
+
+pub fn ceo_update_story_criteria(
+    state: &mut AppState,
+    story_id: &str,
+    criteria: Vec<String>,
+) -> Result<(), String> {
+    let cleaned: Vec<String> = criteria
+        .into_iter()
+        .map(|c| c.trim().to_string())
+        .filter(|c| !c.is_empty())
+        .collect();
+    if cleaned.len() < 2 {
+        return Err("Provide at least 2 acceptance criteria.".to_string());
+    }
+    let node = state
+        .work_nodes
+        .iter_mut()
+        .find(|n| n.id == story_id && n.kind == WorkNodeKind::Story)
+        .ok_or_else(|| "Story not found.".to_string())?;
+    node.acceptance_criteria = cleaned;
+    node.updated_at = now_iso();
+    record_intervention(state, "edit_criteria", "story", story_id, "");
+    Ok(())
+}
+
+pub fn ceo_reroute_story(state: &mut AppState, story_id: &str) -> Result<String, String> {
+    let (project_id, directive_id) = {
+        let story = state
+            .work_nodes
+            .iter()
+            .find(|n| n.id == story_id && n.kind == WorkNodeKind::Story)
+            .ok_or_else(|| "Story not found.".to_string())?;
+        let directive_id = state
+            .directives
+            .iter()
+            .find(|d| d.spawned_node_ids.contains(&story_id.to_string()))
+            .map(|d| d.id.clone());
+        (story.project_id.clone(), directive_id)
+    };
+
+    let child_ids: Vec<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| n.parent_id.as_deref() == Some(story_id))
+        .map(|n| n.id.clone())
+        .collect();
+    state.work_nodes.retain(|n| n.id != story_id && !child_ids.contains(&n.id));
+
+    if let Some(directive_id) = directive_id {
+        if let Some(directive) = state.directives.iter_mut().find(|d| d.id == directive_id) {
+            directive.status = DirectiveStatus::Open;
+            directive.spawned_node_ids.retain(|id| id != story_id);
+            directive.awaiting_ceo_gate = false;
+            record_intervention(state, "reroute", "story", story_id, "");
+            return Ok(directive_id);
+        }
+    }
+
+    let directive = crate::scrum::command_center::issue_directive_record(
+        state,
+        "CEO re-route request".into(),
+        format!("Re-route story {story_id} with updated criteria."),
+        DirectiveSource::Ceo,
+        DirectiveTarget::Project,
+        project_id,
+    );
+    record_intervention(state, "reroute", "story", story_id, "");
+    Ok(directive.id)
+}
+
+pub fn meeting_follow_up_directive(
+    state: &mut AppState,
+    meeting_id: &str,
+) -> Result<crate::scrum::types::Directive, String> {
+    let (meeting_type, summary) = {
+        let meeting = state
+            .meetings
+            .get(meeting_id)
+            .ok_or_else(|| "Meeting not found.".to_string())?;
+        (
+            meeting.meeting_type.clone(),
+            meeting
+                .outcome_summary
+                .clone()
+                .unwrap_or_else(|| "Follow up on meeting action items.".to_string()),
+        )
+    };
+    let project_id = state
+        .projects
+        .iter()
+        .min_by_key(|p| p.priority)
+        .map(|p| p.id.clone())
+        .ok_or_else(|| "No project for follow-up directive.".to_string())?;
+
+    let directive = crate::scrum::command_center::issue_directive_record(
+        state,
+        format!("Follow-up: {meeting_type}"),
+        summary,
+        DirectiveSource::Meeting,
+        DirectiveTarget::Project,
+        project_id.clone(),
+    );
+    let directive_id = directive.id.clone();
+    if !super::gates_directives(state) {
+        let _ = crate::scrum::scheduler::route_directive_rule_based(
+            state,
+            &directive_id,
+            &project_id,
+        );
+    } else if let Some(d) = state.directives.iter_mut().find(|d| d.id == directive_id) {
+        d.awaiting_ceo_gate = true;
+    }
+    dismiss_meeting_gate(state, meeting_id);
+    record_intervention(state, "follow_up", "meeting", meeting_id, "");
+    state
+        .directives
+        .iter()
+        .find(|d| d.id == directive_id)
+        .cloned()
+        .ok_or_else(|| "Directive not found.".to_string())
 }
 
 pub fn approve_deliverable_with_gate(

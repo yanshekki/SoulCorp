@@ -192,12 +192,53 @@ export function buildProjectGroups(
       .map((file) => fileToListItem(file, tree, pinnedIds));
     const items = filterWorkspaceItems([...pages, ...files], filter);
     if (items.length > 0) {
-      groups.push({
-        id: root.id,
-        label: root.name,
-        icon: root.icon ?? "📁",
-        items,
-      });
+      if (root.id === "folder-projects") {
+        const briefs = items.filter((item) => item.title.startsWith("Brief —"));
+        const deliverables = items.filter((item) => item.title.startsWith("Deliverable —"));
+        const other = items.filter(
+          (item) =>
+            !item.title.startsWith("Brief —") && !item.title.startsWith("Deliverable —"),
+        );
+        const subgroups: WorkspaceListGroup[] = [];
+        if (briefs.length > 0) {
+          subgroups.push({
+            id: `${root.id}-briefs`,
+            label: "Briefs",
+            icon: "📋",
+            items: briefs,
+          });
+        }
+        if (deliverables.length > 0) {
+          subgroups.push({
+            id: `${root.id}-deliverables`,
+            label: "Deliverables",
+            icon: "📦",
+            items: deliverables,
+          });
+        }
+        if (other.length > 0) {
+          subgroups.push({
+            id: `${root.id}-other`,
+            label: "Other",
+            icon: "📄",
+            items: other,
+          });
+        }
+        groups.push({
+          id: root.id,
+          label: root.name,
+          icon: root.icon ?? "📁",
+          items: [],
+          subgroups,
+        });
+      } else {
+        groups.push({
+          id: root.id,
+          label: root.name,
+          icon: root.icon ?? "📁",
+          items,
+        });
+      }
     }
   }
 

@@ -132,7 +132,9 @@ export function WorkspaceShell() {
         <div className="app-page-header-main">
           <p className="workflow-step-badge">{formatWorkflowStepBadge("workspace")}</p>
           <h2>Workspace</h2>
-          <p className="muted">Company docs, notes & deliverables</p>
+          <p className="muted">
+            Company docs, notes & deliverables — Projects view groups Briefs and Deliverables
+          </p>
         </div>
         <div className="ws-shell-header-search">
           <WorkspaceSearch onOpenResult={(itemId) => void openWorkspaceItem(itemId)} />

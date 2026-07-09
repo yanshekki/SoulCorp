@@ -123,3 +123,32 @@ export async function pauseAutopilot(): Promise<AutopilotSnapshot> {
 export async function resumeAutopilot(): Promise<AutopilotSnapshot> {
   return invoke<AutopilotSnapshot>("resume_autopilot");
 }
+
+export async function ceoEditDirective(
+  directiveId: string,
+  title?: string,
+  description?: string,
+): Promise<AutopilotSnapshot> {
+  return invoke<AutopilotSnapshot>("ceo_edit_directive_cmd", {
+    request: { directive_id: directiveId, title, description },
+  });
+}
+
+export async function ceoUpdateStoryCriteria(
+  storyId: string,
+  acceptanceCriteria: string[],
+): Promise<AutopilotSnapshot> {
+  return invoke<AutopilotSnapshot>("ceo_update_story_criteria_cmd", {
+    request: { story_id: storyId, acceptance_criteria: acceptanceCriteria },
+  });
+}
+
+export async function ceoRerouteStory(storyId: string): Promise<AutopilotSnapshot> {
+  return invoke<AutopilotSnapshot>("ceo_reroute_story_cmd", {
+    request: { story_id: storyId },
+  });
+}
+
+export async function meetingFollowUpDirective(meetingId: string): Promise<AutopilotSnapshot> {
+  return invoke<AutopilotSnapshot>("meeting_follow_up_directive_cmd", { meetingId });
+}

@@ -85,13 +85,30 @@ export function WorkspaceItemList({
               <span>{group.label}</span>
               <span className="ws-item-group-count">{group.items.length}</span>
             </header>
-            <div className="ws-item-group-items">
-              {group.items.length >= VIRTUALIZE_THRESHOLD ? (
-                <VirtualItemRows items={group.items} renderRow={renderRow} />
-              ) : (
-                group.items.map((item) => renderRow(item))
-              )}
-            </div>
+            {group.subgroups && group.subgroups.length > 0 ? (
+              <div className="ws-item-subgroups">
+                {group.subgroups.map((subgroup) => (
+                  <section key={subgroup.id} className="ws-item-subgroup">
+                    <header className="ws-item-subgroup-header">
+                      <span aria-hidden="true">{subgroup.icon ?? "📁"}</span>
+                      <span>{subgroup.label}</span>
+                      <span className="ws-item-group-count">{subgroup.items.length}</span>
+                    </header>
+                    <div className="ws-item-group-items">
+                      {subgroup.items.map((item) => renderRow(item))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="ws-item-group-items">
+                {group.items.length >= VIRTUALIZE_THRESHOLD ? (
+                  <VirtualItemRows items={group.items} renderRow={renderRow} />
+                ) : (
+                  group.items.map((item) => renderRow(item))
+                )}
+              </div>
+            )}
           </section>
         ))}
         {contextMenu ? (

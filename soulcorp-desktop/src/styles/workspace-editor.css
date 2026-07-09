@@ -1408,6 +1408,32 @@
   font-size: 0.62rem;
 }
 
+.ws-item-subgroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-subtle);
+  margin-left: var(--space-3);
+}
+
+.ws-item-subgroup {
+  margin-bottom: var(--space-1);
+}
+
+.ws-item-subgroup-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
 /* ── Context menu ────────────────────────────────────────────────── */
 
 .ws-context-menu {

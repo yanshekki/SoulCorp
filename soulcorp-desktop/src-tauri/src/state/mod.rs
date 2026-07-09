@@ -1073,6 +1073,8 @@ pub struct AutopilotRuntimeState {
     pub deliverables_this_week: u32,
     #[serde(default)]
     pub gigs_advanced_this_week: u32,
+    #[serde(default)]
+    pub phase_timestamps: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

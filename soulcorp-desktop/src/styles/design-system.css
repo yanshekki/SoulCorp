@@ -8381,6 +8381,19 @@ body.workspace-resizing {
   border-radius: var(--radius-md);
 }
 
+.autopilot-drawer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.autopilot-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .autopilot-comment-box {
   width: 100%;
   margin: var(--space-2) 0;

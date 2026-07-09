@@ -32,6 +32,7 @@ export interface WorkspaceListGroup {
   label: string;
   icon?: string;
   items: WorkspaceListItem[];
+  subgroups?: WorkspaceListGroup[];
 }
 
 export const WORKSPACE_NAV_VIEWS: Array<{

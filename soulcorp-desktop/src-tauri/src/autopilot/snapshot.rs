@@ -367,7 +367,11 @@ fn compute_pending_gates(state: &AppState) -> Vec<PendingGate> {
     gates
 }
 
-fn pipeline_steps(phase: AutopilotPhase, counts: &AutopilotPhaseCounts) -> Vec<AutopilotPipelineStep> {
+fn pipeline_steps(
+    phase: AutopilotPhase,
+    counts: &AutopilotPhaseCounts,
+    timestamps: &std::collections::HashMap<String, String>,
+) -> Vec<AutopilotPipelineStep> {
     let phases = [
         (AutopilotPhase::Briefing, counts.open_directives),
         (AutopilotPhase::Aligning, 0),
@@ -387,7 +391,7 @@ fn pipeline_steps(phase: AutopilotPhase, counts: &AutopilotPhaseCounts) -> Vec<A
             label: p.label().to_string(),
             count,
             active: p == phase,
-            last_action_at: None,
+            last_action_at: timestamps.get(p.as_str()).cloned(),
         })
         .collect()
 }
@@ -435,6 +439,8 @@ pub fn compute_autopilot_snapshot(state: &AppState) -> AutopilotSnapshot {
     let counts = compute_counts(state);
     let readiness = crate::operations::compute_automation_readiness(state);
 
+    let steps = pipeline_steps(phase, &counts, &state.autopilot.phase_timestamps);
+
     AutopilotSnapshot {
         phase: phase.as_str().to_string(),
         phase_label: phase.label().to_string(),
@@ -447,7 +453,7 @@ pub fn compute_autopilot_snapshot(state: &AppState) -> AutopilotSnapshot {
         last_worker_tick_at: state.scrum_worker.last_tick_at.clone(),
         last_orchestrator_tick_at: state.orchestrator.last_tick_at.clone(),
         counts,
-        pipeline_steps: pipeline_steps(phase, &compute_counts(state)),
+        pipeline_steps: steps,
         pending_gates: compute_pending_gates(state),
         recent_interventions: state.autopilot.recent_interventions.clone(),
         deliverables_this_week: state.autopilot.deliverables_this_week,
@@ -470,9 +476,57 @@ pub fn after_worker_tick(
         || report.meetings > 0
         || force_orchestrator;
 
+    let ts = report.timestamp.clone();
+    if report.orchestrated > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Briefing.as_str().to_string(), ts.clone());
+    }
+    if report.meetings > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Aligning.as_str().to_string(), ts.clone());
+    }
+    if report.routed > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Planning.as_str().to_string(), ts.clone());
+    }
+    if report.planned > 0 || report.delegated > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Scheduling.as_str().to_string(), ts.clone());
+    }
+    if report.executed > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Executing.as_str().to_string(), ts.clone());
+    }
+    if report.approved > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Reviewing.as_str().to_string(), ts.clone());
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Delivered.as_str().to_string(), ts.clone());
+    }
+    if report.gigs_completed > 0 {
+        state
+            .autopilot
+            .phase_timestamps
+            .insert(AutopilotPhase::Growing.as_str().to_string(), ts.clone());
+    }
+
     if made_progress {
         state.autopilot.stall_tick_count = 0;
-        state.autopilot.last_progress_at = Some(report.timestamp.clone());
+        state.autopilot.last_progress_at = Some(ts);
         if report.approved > 0 {
             state.autopilot.deliverables_this_week += report.approved;
         }
