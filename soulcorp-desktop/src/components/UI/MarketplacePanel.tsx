@@ -13,6 +13,7 @@ import {
 } from "../../services/hubClient";
 import { simulationAutoRun } from "../../config/features";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useAutopilotSnapshot } from "../../hooks/useAutopilotSnapshot";
 import { useGameStore } from "../../stores/gameStore";
 import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
 import { MARKETPLACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
@@ -87,6 +88,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
   const [budget, setBudget] = useState(250);
   const [skills, setSkills] = useState("react, tailwind");
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const { snapshot: autopilotSnapshot } = useAutopilotSnapshot();
 
   const refreshFinance = useCallback(async () => {
     const finance = await invoke<TokenEconomy>("get_finance_state");
@@ -401,6 +403,21 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
             {tierBenefits.platform_fee_percent.toFixed(0)}%.
           </p>
         </header>
+
+        {autopilotSnapshot &&
+        (autopilotSnapshot.deliverables_this_week > 0 ||
+          autopilotSnapshot.gigs_advanced_this_week > 0) ? (
+          <p className="marketplace-autopilot-hint muted">
+            This week: {autopilotSnapshot.deliverables_this_week} deliverable
+            {autopilotSnapshot.deliverables_this_week === 1 ? "" : "s"} completed
+            {autopilotSnapshot.gigs_advanced_this_week > 0
+              ? ` → ${autopilotSnapshot.gigs_advanced_this_week} gig${
+                  autopilotSnapshot.gigs_advanced_this_week === 1 ? "" : "s"
+                } advanced`
+              : ""}
+            .
+          </p>
+        ) : null}
 
         <div className="hub-status-row hub-sync-status">
           <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>

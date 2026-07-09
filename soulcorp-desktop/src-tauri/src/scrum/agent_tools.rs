@@ -579,6 +579,7 @@ mod tests {
             acceptance_criteria: vec![],
             linked_workspace_page_id: None,
             linked_gig_contract_id: None,
+            awaiting_ceo_gate: false,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             completed_at: None,

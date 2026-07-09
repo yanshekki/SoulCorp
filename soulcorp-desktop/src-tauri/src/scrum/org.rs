@@ -178,6 +178,8 @@ mod tests {
             target_ref: "Human Resources".into(),
             status: DirectiveStatus::Open,
             spawned_node_ids: vec![],
+            awaiting_ceo_gate: false,
+            ceo_comment: String::new(),
             created_at: String::new(),
         };
         let project_id = resolve_project_for_directive(&state, &directive).expect("project");

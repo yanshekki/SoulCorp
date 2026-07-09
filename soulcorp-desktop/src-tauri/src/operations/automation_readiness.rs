@@ -14,6 +14,10 @@ pub struct AutomationReadinessItem {
 pub struct AutomationReadiness {
     pub items: Vec<AutomationReadinessItem>,
     pub ready: bool,
+    #[serde(default)]
+    pub autopilot_phase: String,
+    #[serde(default)]
+    pub stall_reason: Option<String>,
 }
 
 pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
@@ -171,8 +175,22 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
     ];
 
     let ready = items.iter().take(7).all(|item| item.ok) && tokens_ok && runtime_ok;
+    let phase = crate::autopilot::detect_phase(state);
+    let stall_reason = if phase == crate::autopilot::AutopilotPhase::Stalled {
+        Some(format!(
+            "No progress for {} worker ticks.",
+            state.autopilot.stall_tick_count
+        ))
+    } else {
+        None
+    };
 
-    AutomationReadiness { items, ready }
+    AutomationReadiness {
+        items,
+        ready,
+        autopilot_phase: phase.as_str().to_string(),
+        stall_reason,
+    }
 }
 
 #[cfg(test)]

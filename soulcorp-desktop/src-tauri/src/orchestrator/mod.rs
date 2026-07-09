@@ -454,6 +454,31 @@ fn ensure_co_ceo_spawned(state: &mut AppState, report: &mut OrchestratorReport) 
     report.messages.push("Orchestrator spawned AI Co-CEO.".into());
 }
 
+#[derive(Debug, Clone)]
+pub struct FirstDirectivePlan {
+    pub title: String,
+    pub description: String,
+    pub target_department: String,
+}
+
+pub fn generate_first_directive(state: &mut AppState) -> Option<FirstDirectivePlan> {
+    generate_directives(state).into_iter().next().map(|d| FirstDirectivePlan {
+        title: d.title,
+        description: d.description,
+        target_department: d.target_department,
+    })
+}
+
+pub fn ensure_co_ceo_spawned_public(state: &mut AppState, messages: &mut Vec<String>) {
+    let mut report = OrchestratorReport {
+        directives_issued: 0,
+        meetings_triggered: 0,
+        messages: Vec::new(),
+    };
+    ensure_co_ceo_spawned(state, &mut report);
+    messages.extend(report.messages);
+}
+
 fn push_orchestrator_log(state: &mut AppState, messages: &[String]) {
     for msg in messages {
         state.orchestrator.recent_log.push(msg.clone());

@@ -1,4 +1,5 @@
 pub mod achievements_cmd;
+pub mod autopilot;
 pub mod agent;
 pub mod agent_activity;
 pub mod brain;
@@ -31,6 +32,7 @@ pub mod visual_design;
 pub mod workspace;
 
 pub use achievements_cmd::*;
+pub use autopilot::*;
 pub use agent::*;
 pub use agent_activity::*;
 pub use brain::*;

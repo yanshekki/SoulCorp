@@ -122,6 +122,7 @@ pub fn create_company(
     state.onboarding_completed = true;
     state.apply_agent_roster(&request.agent_roster)?;
     state.apply_project_setup(request.project_setup_mode, request.custom_project.clone())?;
+    crate::commands::onboarding::apply_v1_automation_defaults_public(&mut state);
 
     let company_id = state.company_id.clone();
     let summary = summary_from_state(&state);
@@ -136,6 +137,8 @@ pub fn create_company(
     reset_commit_debounce(&company_id);
     let mut locked = app_state.lock().map_err(|e| e.to_string())?;
     *locked = state;
+    crate::autopilot::bootstrap_first_cycle(&mut locked, &app);
+    commit(app.clone(), &locked)?;
 
     Ok(SwitchCompanyResponse {
         active_company_id: company_id,

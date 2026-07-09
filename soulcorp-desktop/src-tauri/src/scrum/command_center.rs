@@ -218,6 +218,8 @@ pub fn issue_directive_record(
         target_ref,
         status: DirectiveStatus::Open,
         spawned_node_ids: Vec::new(),
+        awaiting_ceo_gate: false,
+        ceo_comment: String::new(),
         created_at: super::tree::now_iso(),
     };
     state.directives.push(directive.clone());
@@ -330,6 +332,19 @@ pub fn issue_co_ceo_directive(
         project_id.clone(),
     );
     let directive_id = directive.id.clone();
+
+    if crate::autopilot::gates_directives(state) {
+        if let Some(d) = state.directives.iter_mut().find(|d| d.id == directive_id) {
+            d.awaiting_ceo_gate = true;
+        }
+        return state
+            .directives
+            .iter()
+            .find(|d| d.id == directive_id)
+            .cloned()
+            .ok_or_else(|| "Directive not found.".to_string());
+    }
+
     super::scheduler::route_directive_rule_based(state, &directive_id, &project_id)?;
     if state.settings.scrum_auto_schedule {
         if let Ok(sprint_id) = super::scheduler::ensure_active_sprint(state, &project_id) {

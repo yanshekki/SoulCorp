@@ -745,6 +745,8 @@ export interface GameSettings {
   agent_activity_stream_enabled?: boolean;
   agent_activity_persist_stream?: boolean;
   agent_activity_max_events?: number;
+  autopilot_intervention_mode?: string;
+  autopilot_full_auto_enabled?: boolean;
 }
 
 export interface AutomationReadinessItem {
@@ -757,6 +759,8 @@ export interface AutomationReadinessItem {
 export interface AutomationReadiness {
   items: AutomationReadinessItem[];
   ready: boolean;
+  autopilot_phase?: string;
+  stall_reason?: string | null;
 }
 
 export interface AutomationStatus {
@@ -775,6 +779,7 @@ export interface AutomationStatus {
   openclaw_message: string;
   active_execution_runtimes?: string[];
   readiness: AutomationReadiness;
+  autopilot?: import("../services/autopilotClient").AutopilotSnapshot;
 }
 
 export interface RuntimeCatalogEntry {

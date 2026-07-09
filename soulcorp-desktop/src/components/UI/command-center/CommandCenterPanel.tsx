@@ -25,6 +25,7 @@ import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
 import { PaginationBar } from "../PaginationBar";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 import { AgentRuntimeSection } from "./AgentRuntimeSection";
+import { AutopilotPipelinePanel } from "./AutopilotPipelinePanel";
 import { CoCeoPanel } from "./CoCeoPanel";
 import {
   cancelDirective,
@@ -511,6 +512,8 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         hub_auto_pull_interval_secs: patch.hub_auto_pull_interval_secs,
         orchestrator_auto_complete_gigs: patch.orchestrator_auto_complete_gigs,
         orchestrator_auto_recruit: patch.orchestrator_auto_recruit,
+        autopilot_intervention_mode: patch.autopilot_intervention_mode,
+        autopilot_full_auto_enabled: patch.autopilot_full_auto_enabled,
       },
     });
     setSettings(next);
@@ -568,6 +571,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         ) : null}
         {tab === "overview" && overview ? (
           <div className="command-overview">
+            <div className="command-panel-block autopilot-panel-block">
+              <h4 className="command-panel-heading">Company Autopilot</h4>
+              <AutopilotPipelinePanel onJumpToSection={onJumpToSection} />
+            </div>
             <div className="command-kpi-strip">
               {showSimulationChrome ? (
                 <>
@@ -614,6 +621,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   ) : (
                     <span className="command-readiness-warn">Setup needed</span>
                   )}
+                  {automation?.readiness?.autopilot_phase ? (
+                    <span className="command-readiness-phase">
+                      · Phase: {automation.readiness.autopilot_phase}
+                    </span>
+                  ) : null}
                 </h4>
                 <ul className="command-readiness-list">
                   {(automation?.readiness?.items ?? []).map((item) => (
@@ -675,6 +687,24 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   <dt>Parallel LLM</dt>
                   <dd>{automation?.parallel_llm_enabled ? "On" : "Off"}</dd>
                 </div>
+                {automation?.autopilot ? (
+                  <>
+                    <div className="command-automation-meta-item">
+                      <dt>Autopilot phase</dt>
+                      <dd>{automation.autopilot.phase_label}</dd>
+                    </div>
+                    <div className="command-automation-meta-item">
+                      <dt>Deliverables (week)</dt>
+                      <dd>{automation.autopilot.deliverables_this_week}</dd>
+                    </div>
+                    {automation.autopilot.gigs_advanced_this_week > 0 ? (
+                      <div className="command-automation-meta-item">
+                        <dt>Gigs advanced</dt>
+                        <dd>{automation.autopilot.gigs_advanced_this_week}</dd>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
                 <div className="command-automation-meta-item command-automation-meta-item--time">
                   <dt>Worker tick</dt>
                   <dd title={automation?.scrum_worker_last_tick_at ?? undefined}>
@@ -1097,6 +1127,35 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
           <section className="command-policies">
             <h4 className="command-panel-heading">Execution policies</h4>
             <div className="command-policies-grid">
+            <div className="command-policy-group command-panel-block">
+              <h5 className="command-policy-group-title">Company Autopilot</h5>
+              <div className="command-form">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.autopilot_full_auto_enabled ?? true}
+                    onChange={(e) =>
+                      void persistSettings({ autopilot_full_auto_enabled: e.target.checked })
+                    }
+                  />
+                  <span>Full Autopilot (enable all automation policies)</span>
+                </label>
+                <label className="field-label">
+                  Intervention mode
+                  <select
+                    value={settings.autopilot_intervention_mode ?? "auto"}
+                    onChange={(e) =>
+                      void persistSettings({ autopilot_intervention_mode: e.target.value })
+                    }
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="gate_directives">Gate directives</option>
+                    <option value="gate_deliverables">Gate deliverables</option>
+                    <option value="paused">Paused</option>
+                  </select>
+                </label>
+              </div>
+            </div>
             <div className="command-policy-group command-panel-block">
               <h5 className="command-policy-group-title">Scrum automation</h5>
               <div className="command-form">

@@ -47,7 +47,11 @@ pub struct WorkerTickReport {
     pub timestamp: String,
 }
 
-pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerTickReport {
+pub fn apply_scrum_worker_tick(
+    state: &mut AppState,
+    app: &AppHandle,
+    force_orchestrator: bool,
+) -> WorkerTickReport {
     let mut report = WorkerTickReport {
         routed: 0,
         planned: 0,
@@ -97,7 +101,9 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
 
     seed_default_org_links(state);
 
-    let orchestrator = apply_orchestrator_tick(state, app, false);
+    let force = force_orchestrator
+        || state.autopilot.stall_tick_count >= crate::autopilot::STALL_TICK_THRESHOLD;
+    let orchestrator = apply_orchestrator_tick(state, app, force);
     report.orchestrated = orchestrator.directives_issued;
     report.meetings = orchestrator.meetings_triggered;
     report.messages.extend(orchestrator.messages);
@@ -119,6 +125,9 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
             .collect();
 
         for directive in open_directives {
+            if directive.awaiting_ceo_gate {
+                continue;
+            }
             let Some(project_id) = resolve_project_for_directive(state, &directive) else {
                 continue;
             };
@@ -135,9 +144,20 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
                 Ok(_) => {
                     report.routed += 1;
                     report.messages.push(format!("Auto-routed directive {directive_id}."));
+                    let briefs = crate::autopilot::ensure_story_brief_pages(state, app);
+                    if briefs > 0 {
+                        report.messages.push(format!("Created {briefs} story brief page(s)."));
+                    }
                 }
                 Err(err) => report.messages.push(format!("Route failed {directive_id}: {err}")),
             }
+        }
+    }
+
+    if report.routed == 0 {
+        let briefs = crate::autopilot::ensure_story_brief_pages(state, app);
+        if briefs > 0 {
+            report.messages.push(format!("Created {briefs} story brief page(s)."));
         }
     }
 
@@ -230,6 +250,7 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
     crate::operations::sync_agent_visual_state(state);
     push_worker_log(state, app, &report.messages);
     state.scrum_worker.last_tick_at = Some(report.timestamp.clone());
+    crate::autopilot::after_worker_tick(state, app, &report, force_orchestrator);
     report
 }
 
@@ -276,7 +297,7 @@ pub fn spawn_scrum_worker(app: AppHandle) {
             let Ok(mut state) = state_mutex.lock() else {
                 continue;
             };
-            apply_scrum_worker_tick(&mut state, &app)
+            apply_scrum_worker_tick(&mut state, &app, false)
         };
 
         if let Some(parallel) = run_detached_parallel_tick(&app) {

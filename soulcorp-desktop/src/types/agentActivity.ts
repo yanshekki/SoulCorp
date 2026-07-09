@@ -12,7 +12,8 @@ export type ActivityKind =
   | "tool_action"
   | "work_assigned"
   | "deliverable_ready"
-  | "error";
+  | "error"
+  | "autopilot_phase_change";
 
 export interface AgentActivitySession {
   id: string;

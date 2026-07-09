@@ -1,4 +1,5 @@
 mod achievements;
+mod autopilot;
 mod agent_activity;
 mod agent_runtime;
 mod brain;
@@ -166,6 +167,17 @@ pub fn run() {
             commands::link_work_node_to_gig,
             commands::get_command_center_overview,
             commands::get_automation_status,
+            commands::get_autopilot_snapshot,
+            commands::ceo_approve_directive_cmd,
+            commands::ceo_reject_directive_cmd,
+            commands::ceo_approve_deliverable_cmd,
+            commands::ceo_reject_deliverable_cmd,
+            commands::ceo_comment_on_item_cmd,
+            commands::dismiss_meeting_gate_cmd,
+            commands::set_autopilot_intervention_mode,
+            commands::set_full_autopilot,
+            commands::resume_autopilot,
+            commands::pause_autopilot,
             commands::get_agent_runtime_catalog,
             commands::get_agent_runtime_status,
             commands::get_openclaw_status,

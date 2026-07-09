@@ -178,6 +178,7 @@ pub fn test_agent_runtime(
                 acceptance_criteria: vec!["Return a short confirmation sentence.".into()],
                 linked_workspace_page_id: None,
                 linked_gig_contract_id: None,
+                awaiting_ceo_gate: false,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
                 completed_at: None,

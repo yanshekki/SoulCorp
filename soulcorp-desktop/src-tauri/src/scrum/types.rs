@@ -105,6 +105,8 @@ pub struct WorkNode {
     #[serde(default)]
     pub linked_gig_contract_id: Option<String>,
     #[serde(default)]
+    pub awaiting_ceo_gate: bool,
+    #[serde(default)]
     pub created_at: String,
     #[serde(default)]
     pub updated_at: String,
@@ -162,6 +164,10 @@ pub struct Directive {
     pub status: DirectiveStatus,
     #[serde(default)]
     pub spawned_node_ids: Vec<String>,
+    #[serde(default)]
+    pub awaiting_ceo_gate: bool,
+    #[serde(default)]
+    pub ceo_comment: String,
     #[serde(default)]
     pub created_at: String,
 }

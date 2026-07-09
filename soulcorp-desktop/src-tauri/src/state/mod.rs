@@ -173,6 +173,14 @@ pub struct GameSettings {
     pub agent_activity_persist_stream: bool,
     #[serde(default = "default_agent_activity_max_events")]
     pub agent_activity_max_events: u32,
+    #[serde(default = "default_autopilot_intervention_mode")]
+    pub autopilot_intervention_mode: String,
+    #[serde(default = "default_true")]
+    pub autopilot_full_auto_enabled: bool,
+}
+
+fn default_autopilot_intervention_mode() -> String {
+    "auto".to_string()
 }
 
 fn default_agent_activity_max_events() -> u32 {
@@ -446,6 +454,10 @@ impl<'de> Deserialize<'de> for GameSettings {
             agent_activity_persist_stream: bool,
             #[serde(default = "default_agent_activity_max_events")]
             agent_activity_max_events: u32,
+            #[serde(default = "default_autopilot_intervention_mode")]
+            autopilot_intervention_mode: String,
+            #[serde(default = "default_true")]
+            autopilot_full_auto_enabled: bool,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -524,6 +536,8 @@ impl<'de> Deserialize<'de> for GameSettings {
             agent_activity_stream_enabled: helper.agent_activity_stream_enabled,
             agent_activity_persist_stream: helper.agent_activity_persist_stream,
             agent_activity_max_events: helper.agent_activity_max_events.clamp(100, 1000),
+            autopilot_intervention_mode: helper.autopilot_intervention_mode,
+            autopilot_full_auto_enabled: helper.autopilot_full_auto_enabled,
         })
     }
 }
@@ -610,6 +624,8 @@ impl Default for GameSettings {
             agent_activity_stream_enabled: true,
             agent_activity_persist_stream: true,
             agent_activity_max_events: default_agent_activity_max_events(),
+            autopilot_intervention_mode: default_autopilot_intervention_mode(),
+            autopilot_full_auto_enabled: true,
         }
     }
 }
@@ -1027,6 +1043,38 @@ pub struct ScrumWorkerState {
     pub recent_log: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutopilotIntervention {
+    pub id: String,
+    pub action: String,
+    pub item_kind: String,
+    pub item_id: String,
+    pub comment: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AutopilotRuntimeState {
+    #[serde(default)]
+    pub current_phase: String,
+    #[serde(default)]
+    pub last_phase_change_at: Option<String>,
+    #[serde(default)]
+    pub stall_tick_count: u32,
+    #[serde(default)]
+    pub last_progress_at: Option<String>,
+    #[serde(default)]
+    pub recent_interventions: Vec<AutopilotIntervention>,
+    #[serde(default)]
+    pub dismissed_meeting_ids: Vec<String>,
+    #[serde(default)]
+    pub last_snapshot_at: Option<String>,
+    #[serde(default)]
+    pub deliverables_this_week: u32,
+    #[serde(default)]
+    pub gigs_advanced_this_week: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CoCeoState {
     #[serde(default)]
@@ -1116,6 +1164,8 @@ pub struct AppState {
     #[serde(default)]
     pub scrum_worker: ScrumWorkerState,
     #[serde(default)]
+    pub autopilot: AutopilotRuntimeState,
+    #[serde(default)]
     pub projects: Vec<InternalProject>,
     #[serde(default)]
     pub work_nodes: Vec<crate::scrum::WorkNode>,
@@ -1175,6 +1225,7 @@ impl Default for AppState {
             co_ceo: CoCeoState::default(),
             orchestrator: OrchestratorState::default(),
             scrum_worker: ScrumWorkerState::default(),
+            autopilot: AutopilotRuntimeState::default(),
             projects: Vec::new(),
             work_nodes: Vec::new(),
             sprints: Vec::new(),

@@ -31,6 +31,7 @@ mod tests {
             acceptance_criteria: vec![],
             linked_workspace_page_id: None,
             linked_gig_contract_id: None,
+            awaiting_ceo_gate: false,
             created_at: String::new(),
             updated_at: String::new(),
             completed_at: None,
@@ -75,6 +76,8 @@ mod tests {
             target_ref: "proj-core".into(),
             status: DirectiveStatus::Routed,
             spawned_node_ids: vec!["story-1".into()],
+            awaiting_ceo_gate: false,
+            ceo_comment: String::new(),
             created_at: String::new(),
         });
         state.work_nodes.push(WorkNode {
@@ -98,6 +101,7 @@ mod tests {
             acceptance_criteria: vec![],
             linked_workspace_page_id: None,
             linked_gig_contract_id: None,
+            awaiting_ceo_gate: false,
             created_at: String::new(),
             updated_at: String::new(),
             completed_at: None,

@@ -326,6 +326,7 @@ pub fn create_work_node(
         acceptance_criteria: request.acceptance_criteria,
         linked_workspace_page_id: None,
         linked_gig_contract_id: None,
+        awaiting_ceo_gate: false,
         created_at: now.clone(),
         updated_at: now,
         completed_at: None,
@@ -433,6 +434,8 @@ pub fn issue_directive(
         target_ref: request.target_ref,
         status: DirectiveStatus::Open,
         spawned_node_ids: Vec::new(),
+        awaiting_ceo_gate: false,
+        ceo_comment: String::new(),
         created_at: now_iso(),
     };
     state.directives.push(directive.clone());
@@ -841,6 +844,7 @@ pub struct AutomationStatus {
     #[serde(default)]
     pub active_execution_runtimes: Vec<String>,
     pub readiness: crate::operations::AutomationReadiness,
+    pub autopilot: crate::autopilot::AutopilotSnapshot,
 }
 
 #[tauri::command]
@@ -878,5 +882,6 @@ pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<Automa
         openclaw_message: openclaw.message,
         active_execution_runtimes,
         readiness: crate::operations::compute_automation_readiness(&state),
+        autopilot: crate::autopilot::compute_autopilot_snapshot(&state),
     })
 }

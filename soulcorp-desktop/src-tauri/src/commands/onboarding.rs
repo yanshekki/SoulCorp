@@ -125,6 +125,8 @@ pub fn complete_onboarding(
     };
     commit(app.clone(), &state)?;
     persist_agent_roster_workspace(&app, &state)?;
+    crate::autopilot::bootstrap_first_cycle(&mut state, &app);
+    commit(app.clone(), &state)?;
     Ok(snapshot)
 }
 
@@ -146,6 +148,10 @@ pub fn persist_single_agent_soul(
     Ok(())
 }
 
+pub fn apply_v1_automation_defaults_public(state: &mut AppState) {
+    apply_v1_automation_defaults(state);
+}
+
 fn apply_v1_automation_defaults(state: &mut AppState) {
     state.settings.scrum_worker_enabled = true;
     state.settings.orchestrator_enabled = true;
@@ -154,6 +160,9 @@ fn apply_v1_automation_defaults(state: &mut AppState) {
     state.settings.scrum_auto_execute = true;
     state.settings.scrum_auto_approve = true;
     state.settings.scrum_execution_paused = false;
+    state.settings.autopilot_full_auto_enabled = true;
+    state.settings.autopilot_intervention_mode = "auto".to_string();
+    crate::autopilot::apply_autopilot_runtime_defaults(state);
 }
 
 pub fn persist_agent_roster_workspace(app: &AppHandle, state: &AppState) -> Result<(), String> {

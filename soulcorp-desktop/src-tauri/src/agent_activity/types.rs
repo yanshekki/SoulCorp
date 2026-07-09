@@ -44,6 +44,7 @@ pub enum ActivityKind {
     WorkAssigned,
     DeliverableReady,
     Error,
+    AutopilotPhaseChange,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

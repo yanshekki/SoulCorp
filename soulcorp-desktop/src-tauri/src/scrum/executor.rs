@@ -200,9 +200,11 @@ pub fn execute_task(
                 Some(summary.clone()),
             );
             let tokens = estimate.estimated_tokens;
+            let gate_deliverable = crate::autopilot::gates_deliverables(state);
             if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == work_node_id) {
                 node.status = WorkNodeStatus::InReview;
                 node.linked_workspace_page_id = Some(page_id.clone());
+                node.awaiting_ceo_gate = gate_deliverable;
                 node.updated_at = now_iso();
             }
             let parent_id = task.parent_id.clone();
@@ -525,7 +527,7 @@ pub fn route_directive_llm(
         .collect();
 
     let prompt = format!(
-        "Break down this CEO directive into 1-2 stories with 3-6 tasks as JSON array.\nDirective: {}\nDetails: {}\nTeam skills: {}\nDepartments: {}\n\nUse cross-department tasks when needed. Order tasks so later items depend on earlier ones.\nReturn ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\"}}]}}]",
+        "Break down this CEO directive into 1-2 stories with 3-6 tasks as JSON array.\nDirective: {}\nDetails: {}\nTeam skills: {}\nDepartments: {}\n\nUse cross-department tasks when needed. Order tasks so later items depend on earlier ones.\nEach story MUST include acceptance_criteria (array of at least 2 measurable strings). Each task SHOULD include acceptance_criteria when applicable.\nReturn ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Criterion 1\",\"Criterion 2\"],\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Task criterion\"]}}]}}]",
         directive.title,
         directive.description,
         team_skills.join(", "),
@@ -581,6 +583,8 @@ fn parse_llm_decomposition(
         points: u8,
         #[serde(default)]
         department: String,
+        #[serde(default)]
+        acceptance_criteria: Vec<String>,
     }
     #[derive(serde::Deserialize)]
     struct LlmStory {
@@ -589,6 +593,8 @@ fn parse_llm_decomposition(
         points: u8,
         #[serde(default)]
         department: String,
+        #[serde(default)]
+        acceptance_criteria: Vec<String>,
         #[serde(default)]
         tasks: Vec<LlmTask>,
     }
@@ -620,6 +626,14 @@ fn parse_llm_decomposition(
         } else {
             story.department.clone()
         };
+        let story_criteria = if story.acceptance_criteria.len() >= 2 {
+            story.acceptance_criteria.clone()
+        } else {
+            vec![
+                "Deliverable meets story objective.".to_string(),
+                "Acceptance criteria reviewed by PM.".to_string(),
+            ]
+        };
         let story_node = WorkNode {
             id: story_id.clone(),
             parent_id: None,
@@ -638,9 +652,10 @@ fn parse_llm_decomposition(
             department: dept.clone(),
             sprint_id: None,
             depends_on: Vec::new(),
-            acceptance_criteria: vec!["PM reviewed deliverable.".to_string()],
+            acceptance_criteria: story_criteria,
             linked_workspace_page_id: None,
             linked_gig_contract_id: None,
+            awaiting_ceo_gate: false,
             created_at: now.clone(),
             updated_at: now.clone(),
             completed_at: None,
@@ -652,6 +667,11 @@ fn parse_llm_decomposition(
         for (task_index, task) in story.tasks.into_iter().take(6).enumerate() {
             let task_id = super::tree::new_node_id();
             let depends_on = previous_task_id.clone().into_iter().collect::<Vec<_>>();
+            let task_criteria = if task.acceptance_criteria.is_empty() {
+                vec!["Complete and publish deliverable.".to_string()]
+            } else {
+                task.acceptance_criteria.clone()
+            };
             let task_node = WorkNode {
                 id: task_id.clone(),
                 parent_id: Some(story_id.clone()),
@@ -674,9 +694,10 @@ fn parse_llm_decomposition(
                 },
                 sprint_id: None,
                 depends_on,
-                acceptance_criteria: vec!["Complete and publish deliverable.".to_string()],
+                acceptance_criteria: task_criteria,
                 linked_workspace_page_id: None,
                 linked_gig_contract_id: None,
+                awaiting_ceo_gate: false,
                 created_at: now.clone(),
                 updated_at: now.clone(),
                 completed_at: None,

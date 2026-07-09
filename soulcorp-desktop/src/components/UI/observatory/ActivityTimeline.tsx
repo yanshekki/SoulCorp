@@ -40,6 +40,8 @@ function eventLabel(event: AgentActivityEvent): string {
       return "Error";
     case "status_change":
       return "Status change";
+    case "autopilot_phase_change":
+      return event.content_full ?? "Autopilot phase change";
     default:
       return event.kind.replace(/_/g, " ");
   }
@@ -72,6 +74,8 @@ function matchesHistoryType(
       return event.kind === "error";
     case "deliverable":
       return event.kind === "deliverable_ready";
+    case "autopilot":
+      return event.kind === "autopilot_phase_change";
     default:
       return true;
   }

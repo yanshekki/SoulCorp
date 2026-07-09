@@ -254,6 +254,32 @@ pub fn emit_deliverable_ready(
     append_event(state, app, event, None);
 }
 
+pub fn emit_autopilot_phase_change(
+    state: &mut AppState,
+    app: Option<&AppHandle>,
+    previous_phase: &str,
+    new_phase: &str,
+    source: super::types::ActivitySource,
+) {
+    let session_id = "autopilot-system".to_string();
+    let event = AgentActivityEvent {
+        id: new_event_id(),
+        session_id: session_id.clone(),
+        agent_id: "system".to_string(),
+        kind: ActivityKind::AutopilotPhaseChange,
+        timestamp: now_iso(),
+        step: None,
+        content_delta: None,
+        content_full: Some(format!("Autopilot: {previous_phase} → {new_phase}")),
+        metadata: json!({
+            "previous_phase": previous_phase,
+            "new_phase": new_phase,
+            "source": format!("{:?}", source).to_lowercase(),
+        }),
+    };
+    append_event(state, app, event, None);
+}
+
 pub fn emit_worker_message(
     state: &mut AppState,
     app: Option<&AppHandle>,

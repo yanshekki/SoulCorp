@@ -194,6 +194,19 @@ function StoryCard({
           {group.story.description ? (
             <p className="muted backlog-story-desc">{group.story.description}</p>
           ) : null}
+          {!group.story.linked_workspace_page_id ? (
+            <p className="muted backlog-brief-pending">Autopilot preparing brief…</p>
+          ) : (
+            <button
+              type="button"
+              className="backlog-brief-link"
+              onClick={() =>
+                void openWorkspacePage(group.story.linked_workspace_page_id!, group.story.title)
+              }
+            >
+              Open brief
+            </button>
+          )}
           <p className="muted backlog-story-submeta">
             {group.tasks.length} task{group.tasks.length === 1 ? "" : "s"}
             {group.tasks.length > 0 ? ` · ${doneCount} done` : ""}

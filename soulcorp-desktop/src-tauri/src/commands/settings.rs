@@ -74,6 +74,8 @@ pub struct SettingsUpdate {
     pub agent_activity_stream_enabled: Option<bool>,
     pub agent_activity_persist_stream: Option<bool>,
     pub agent_activity_max_events: Option<u32>,
+    pub autopilot_intervention_mode: Option<String>,
+    pub autopilot_full_auto_enabled: Option<bool>,
 }
 
 #[tauri::command]
@@ -309,6 +311,24 @@ pub fn update_game_settings(
     }
     if let Some(max) = update.agent_activity_max_events {
         state.settings.agent_activity_max_events = max.clamp(100, 1000);
+    }
+    if let Some(mode) = update.autopilot_intervention_mode {
+        let normalized = mode.trim().to_lowercase();
+        if matches!(
+            normalized.as_str(),
+            "auto" | "gate_directives" | "gate_deliverables" | "paused"
+        ) {
+            state.settings.autopilot_intervention_mode = normalized.clone();
+            if normalized == "paused" {
+                state.settings.scrum_execution_paused = true;
+            }
+        }
+    }
+    if let Some(enabled) = update.autopilot_full_auto_enabled {
+        state.settings.autopilot_full_auto_enabled = enabled;
+        if enabled {
+            crate::autopilot::apply_full_autopilot_settings(&mut state, true);
+        }
     }
 
     let settings = state.settings.clone();

@@ -39,7 +39,10 @@ pub fn approve_deliverable_core(state: &mut AppState, work_node_id: &str) -> Res
 }
 
 pub fn apply_pm_auto_review_tick(state: &mut AppState, app: &AppHandle) -> Option<PmReviewResult> {
-    if !state.settings.scrum_auto_approve || state.settings.scrum_execution_paused {
+    if !state.settings.scrum_auto_approve
+        || state.settings.scrum_execution_paused
+        || crate::autopilot::gates_deliverables(state)
+    {
         return None;
     }
 
@@ -69,12 +72,9 @@ pub fn apply_pm_auto_review_tick(state: &mut AppState, app: &AppHandle) -> Optio
                 }
             }
             Ok(false) => {
-                if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
-                    node.status = WorkNodeStatus::Blocked;
-                    node.updated_at = now_iso();
-                }
+                create_revision_task(state, &task_id, "PM requested revisions.");
                 result.rejected += 1;
-                result.messages.push(format!("PM rejected {task_id}."));
+                result.messages.push(format!("PM rejected {task_id} — revision task created."));
             }
             Err(err) => {
                 if state.settings.pure_local_mode || state.settings.ai_provider == "mock" {
@@ -119,11 +119,23 @@ fn review_task(state: &mut AppState, app: &AppHandle, task_id: &str) -> Result<b
         .ok_or_else(|| "PM agent not found.".to_string())?;
 
     let deliverable = read_deliverable_text(app, state, &task)?;
-    let criteria = if task.acceptance_criteria.is_empty() {
-        "Deliverable meets the task objective.".to_string()
-    } else {
-        task.acceptance_criteria.join("\n- ")
-    };
+    let mut criteria_list = task.acceptance_criteria.clone();
+    if criteria_list.is_empty() {
+        if let Some(story_id) = &task.parent_id {
+            if let Some(story) = state.work_nodes.iter().find(|n| n.id == *story_id) {
+                if !story.acceptance_criteria.is_empty() {
+                    criteria_list = story.acceptance_criteria.clone();
+                } else if let Some(page_id) = &story.linked_workspace_page_id {
+                    criteria_list =
+                        crate::autopilot::brief_pages::extract_criteria_from_brief(app, state, page_id);
+                }
+            }
+        }
+    }
+    if criteria_list.is_empty() {
+        return Err("No acceptance criteria for PM review.".to_string());
+    }
+    let criteria = criteria_list.join("\n- ");
 
     if state.settings.pure_local_mode || state.settings.ai_provider == "mock" {
         return Ok(!deliverable.trim().is_empty());
@@ -166,6 +178,58 @@ fn review_task(state: &mut AppState, app: &AppHandle, task_id: &str) -> Result<b
 
     let first_line = response.content.lines().next().unwrap_or("").to_uppercase();
     Ok(first_line.contains("APPROVE") && !first_line.contains("REJECT"))
+}
+
+fn create_revision_task(state: &mut AppState, task_id: &str, feedback: &str) {
+    let (parent_id, project_id, title, department) = {
+        let Some(task) = state.work_nodes.iter().find(|n| n.id == task_id) else {
+            return;
+        };
+        (
+            task.parent_id.clone(),
+            task.project_id.clone(),
+            task.title.clone(),
+            task.department.clone(),
+        )
+    };
+
+    if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
+        node.status = WorkNodeStatus::Done;
+        node.completed_at = Some(now_iso());
+        node.updated_at = now_iso();
+    }
+
+    let revision_id = super::tree::new_node_id();
+    let now = now_iso();
+    state.work_nodes.push(super::types::WorkNode {
+        id: revision_id,
+        parent_id,
+        project_id,
+        kind: WorkNodeKind::Task,
+        title: format!("Revision: {title}"),
+        description: feedback.to_string(),
+        status: WorkNodeStatus::Ready,
+        priority: 5,
+        story_points: 2,
+        backlog_rank: 0,
+        assignee_agent_id: None,
+        assigned_by_manager_id: None,
+        owner_pm_agent_id: state.default_pm_agent_id.clone(),
+        retry_count: 0,
+        department,
+        sprint_id: None,
+        depends_on: vec![task_id.to_string()],
+        acceptance_criteria: vec![
+            "Address PM feedback.".to_string(),
+            "Updated deliverable in Workspace.".to_string(),
+        ],
+        linked_workspace_page_id: None,
+        linked_gig_contract_id: None,
+        awaiting_ceo_gate: false,
+        created_at: now.clone(),
+        updated_at: now,
+        completed_at: None,
+    });
 }
 
 fn read_deliverable_text(app: &AppHandle, state: &AppState, task: &super::types::WorkNode) -> Result<String, String> {
