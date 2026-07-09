@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import {
   initWorkspaceSnapshot,
+  listWorkspaceSnapshot,
   pickDefaultPageIdFromFolder,
 } from "../services/workspaceClient";
 import { useGameStore } from "../stores/gameStore";
@@ -18,6 +19,28 @@ export function useWorkspaceBootstrap(enabled: boolean) {
     }
 
     const load = async () => {
+      const state = useWorkspaceStore.getState();
+      if (state.workspacePreloaded && state.tree.folders.length > 0 && state.summariesLoaded) {
+        setIsLoading(false);
+        if (!state.selectedPageId) {
+          const companyFolder =
+            state.tree.folders.find((folder) => folder.id === "folder-company") ??
+            state.tree.folders.find((folder) => folder.workspace_type === "company");
+          if (companyFolder) {
+            const { loadFolderChildren, openPage } = useWorkspaceStore.getState();
+            await loadFolderChildren(companyFolder.id);
+            const defaultPageId = await pickDefaultPageIdFromFolder(companyFolder.id);
+            if (defaultPageId) {
+              await openPage(defaultPageId);
+            }
+          }
+        }
+        void listWorkspaceSnapshot().then((snapshot) => {
+          useWorkspaceStore.getState().applySnapshot(snapshot);
+        });
+        return;
+      }
+
       setIsLoading(true);
       reportLocalProgress("workspace_init", "Initializing workspace…", 20, "init");
       try {
@@ -25,6 +48,7 @@ export function useWorkspaceBootstrap(enabled: boolean) {
         const { selectedPageId, openPage, loadFolderChildren } = useWorkspaceStore.getState();
         applySnapshot(snapshot);
         await useWorkspaceStore.getState().loadViewData(useWorkspaceStore.getState().activeView);
+        useWorkspaceStore.setState({ workspacePreloaded: true });
         if (!selectedPageId) {
           const companyFolder =
             snapshot.folders.find((folder) => folder.id === "folder-company") ??

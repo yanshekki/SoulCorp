@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showSimulationChrome } from "../../config/features";
 import { useGameStore } from "../../stores/gameStore";
 import {
+  clearScrumSnapshotCache,
+  getCachedScrumSnapshot,
+  setCachedScrumSnapshot,
+} from "../../stores/scrumSnapshotCache";
+import {
   approveDeliverable,
   assignWorkNode,
   createWorkNode,
@@ -106,6 +111,9 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
       setBacklogLoading(true);
       try {
         const data = await getScrumSnapshot(pid);
+        if (activeCompanyId) {
+          setCachedScrumSnapshot(activeCompanyId, data);
+        }
         setSnapshot(data);
       } catch (error) {
         setStatusMessage(String(error));
@@ -113,7 +121,7 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
         setBacklogLoading(false);
       }
     },
-    [selectedProjectId, setStatusMessage],
+    [activeCompanyId, selectedProjectId, setStatusMessage],
   );
 
   const syncScrumSnapshot = useCallback(
@@ -139,20 +147,30 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
   useEffect(() => {
     setSnapshot(null);
     setSelectedProjectId("");
+    clearScrumSnapshotCache();
   }, [activeCompanyId]);
 
   useEffect(() => {
     if (!activeCompanyId) {
       return;
     }
+    const cached = getCachedScrumSnapshot(activeCompanyId);
+    if (cached) {
+      setSnapshot(cached);
+      setSelectedProjectId(cached.projects[0]?.id ?? "");
+      setBacklogLoading(false);
+    }
     let cancelled = false;
-    setBacklogLoading(true);
+    if (!cached) {
+      setBacklogLoading(true);
+    }
     void (async () => {
       try {
         const data = await getScrumSnapshot();
         if (cancelled) {
           return;
         }
+        setCachedScrumSnapshot(activeCompanyId, data);
         setSnapshot(data);
         setSelectedProjectId(data.projects[0]?.id ?? "");
       } catch (error) {

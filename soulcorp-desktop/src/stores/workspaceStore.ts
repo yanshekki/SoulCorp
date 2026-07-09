@@ -40,6 +40,27 @@ let openFileGeneration = 0;
 let summariesLoadGeneration = 0;
 let folderChildrenGeneration = 0;
 
+const PAGE_CACHE_MAX = 20;
+const pageContentCache = new Map<string, WorkspacePage>();
+
+function cachePage(page: WorkspacePage): void {
+  if (pageContentCache.has(page.id)) {
+    pageContentCache.delete(page.id);
+  }
+  pageContentCache.set(page.id, page);
+  while (pageContentCache.size > PAGE_CACHE_MAX) {
+    const oldest = pageContentCache.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    pageContentCache.delete(oldest);
+  }
+}
+
+function clearPageCache(): void {
+  pageContentCache.clear();
+}
+
 export interface WorkspaceFolderChildrenState {
   pages: WorkspacePageSummary[];
   files: WorkspaceFileSummary[];
@@ -69,6 +90,7 @@ interface WorkspaceStore {
   searchQuery: string;
   searchResults: WorkspaceSearchResult[];
   isLoading: boolean;
+  workspacePreloaded: boolean;
   dataRevision: number;
   syncPreferences: (companyId: string | null) => void;
   setActiveView: (view: WorkspaceNavView) => void;
@@ -94,6 +116,7 @@ interface WorkspaceStore {
   openFile: (fileId: string) => Promise<void>;
   openWorkspaceItem: (itemId: string) => Promise<void>;
   reloadForCompany: (tree: WorkspaceTree) => Promise<void>;
+  preloadFromBootstrap: (snapshot: WorkspaceSnapshot, summaries: WorkspaceSummaries) => void;
   upsertPageSummary: (summary: WorkspacePageSummary) => void;
   upsertFileSummary: (summary: WorkspaceFileSummary) => void;
   removePageSummary: (pageId: string) => void;
@@ -172,6 +195,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   searchQuery: "",
   searchResults: [],
   isLoading: false,
+  workspacePreloaded: false,
   dataRevision: 0,
   syncPreferences: (companyId) =>
     set({
@@ -337,14 +361,18 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     set((state) => ({
       dataRevision: state.dataRevision + 1,
     })),
-  setSelectedPage: (page) =>
+  setSelectedPage: (page) => {
+    if (page) {
+      cachePage(page);
+    }
     set({
       selectedPage: page,
       selectedPageId: page?.id ?? null,
       selectedFile: null,
       selectedFileId: null,
       fileOpenError: null,
-    }),
+    });
+  },
   setSelectedFile: (file) =>
     set({
       selectedFile: file,
@@ -367,10 +395,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       fileOpenError: null,
     });
     try {
+      const cached = pageContentCache.get(pageId);
+      if (cached) {
+        if (generation !== openPageGeneration) {
+          return;
+        }
+        set({ selectedPage: cached, openingPageId: null, pageOpenError: null });
+        get().recordRecent(pageId);
+        return;
+      }
       const page = await getWorkspacePage(pageId);
       if (generation !== openPageGeneration) {
         return;
       }
+      cachePage(page);
       set({ selectedPage: page, openingPageId: null, pageOpenError: null });
       get().recordRecent(pageId);
     } catch (error) {
@@ -423,11 +461,32 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     }
     await get().openPage(itemId);
   },
+  preloadFromBootstrap: (snapshot, summaries) => {
+    clearPageCache();
+    set((state) => ({
+      tree: {
+        folders: snapshot.folders,
+        pages: sortPageSummaries(summaries.pages),
+        files: sortFileSummaries(summaries.files ?? []),
+      },
+      summariesLoaded: true,
+      workspacePreloaded: true,
+      folderChildren: {},
+      folderChildrenLoading: {},
+      isLoading: false,
+      ...clearSelectionPatch(),
+      openingPageId: null,
+      openingFileId: null,
+      dataRevision: state.dataRevision + 1,
+      viewDataRevision: state.viewDataRevision + 1,
+    }));
+  },
   reloadForCompany: async (tree) => {
     openPageGeneration += 1;
     openFileGeneration += 1;
     summariesLoadGeneration += 1;
     folderChildrenGeneration += 1;
+    clearPageCache();
     set((state) => ({
       tree: {
         folders: tree.folders,
@@ -519,6 +578,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   reset: () => {
     openPageGeneration += 1;
     openFileGeneration += 1;
+    clearPageCache();
     set({
       preferencesCompanyId: null,
       activeView: "recent",
@@ -543,6 +603,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       searchQuery: "",
       searchResults: [],
       isLoading: false,
+      workspacePreloaded: false,
       dataRevision: 0,
     });
   },

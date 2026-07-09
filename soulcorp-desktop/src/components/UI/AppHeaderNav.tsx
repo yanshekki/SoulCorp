@@ -1,5 +1,7 @@
 import { useMemo } from "react";
+import { prefetchPanel } from "../../config/lazyPanels";
 import { getNavGroups, isPanelVisibleInEdition } from "../../config/navigation";
+import type { SidebarPanel } from "../../types/game";
 import { useAgentActivityStore } from "../../stores/agentActivityStore";
 import { useGameStore } from "../../stores/gameStore";
 
@@ -47,6 +49,8 @@ export function AppHeaderNav() {
                       type="button"
                       className={`nav-btn${activePanel === panel.id ? " active" : ""}${panel.workflowStep != null ? " nav-btn--workflow" : " nav-btn--plain"}`}
                       onClick={() => setActivePanel(panel.id)}
+                      onMouseEnter={() => prefetchPanel(panel.id as SidebarPanel)}
+                      onFocus={() => prefetchPanel(panel.id as SidebarPanel)}
                       title={panel.workflowHint}
                     >
                       {panel.workflowStep != null ? (

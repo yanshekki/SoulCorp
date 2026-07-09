@@ -248,8 +248,12 @@ impl WorkspaceStorage {
         Ok(WorkspaceSummaries { pages, files })
     }
 
+    /// Reindex folder item sort orders (cold path — not run on every list_tree).
+    pub fn repair_folder_orders(&self) -> Result<(), String> {
+        self.normalize_folder_item_orders()
+    }
+
     pub fn list_tree(&self) -> Result<WorkspaceTree, String> {
-        self.normalize_folder_item_orders()?;
         self.ensure_index()?;
         let folders = self.read_folders()?;
         let summaries = self.list_summaries()?;
@@ -1561,7 +1565,8 @@ mod organization_tests {
             storage.write_page(page).expect("write legacy order");
         }
 
-        let tree = storage.list_tree().expect("normalize via list_tree");
+        storage.repair_folder_orders().expect("repair legacy orders");
+        let tree = storage.list_tree().expect("list tree");
         let mut folder_pages: Vec<_> = tree
             .pages
             .into_iter()

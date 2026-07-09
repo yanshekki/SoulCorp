@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { JSONContent } from "@tiptap/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteWorkspacePage,
   listWorkspaceTree,
@@ -10,8 +10,11 @@ import type { WorkspacePage, WorkspacePresenceEntry } from "../../types/workspac
 import { useWorkspaceEditorViewport } from "../../hooks/useWorkspaceEditorViewport";
 import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
 import { PageEditorSidebar } from "./PageEditorSidebar";
-import { TipTapEditor } from "./TipTapEditor";
 import { WorkspaceEmptyState } from "./WorkspaceEmptyState";
+
+const TipTapEditor = lazy(() =>
+  import("./TipTapEditor").then((mod) => ({ default: mod.TipTapEditor })),
+);
 
 const AUTO_SAVE_DELAY_MS = 1200;
 
@@ -311,7 +314,16 @@ export function PageEditor() {
                 {selectedPage.last_edited_by}
               </span>
             </div>
-            <TipTapEditor value={richDoc} onChange={setRichDoc} />
+            <Suspense
+              fallback={
+                <div className="ws-editor-loading">
+                  <span className="ws-editor-loading-spinner" aria-hidden="true" />
+                  Loading editor…
+                </div>
+              }
+            >
+              <TipTapEditor value={richDoc} onChange={setRichDoc} />
+            </Suspense>
           </article>
         </div>
       </div>

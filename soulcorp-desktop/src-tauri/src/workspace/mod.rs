@@ -1,5 +1,6 @@
 pub mod activity_docs;
 pub mod agent_service;
+pub mod cache;
 pub mod file_catalog;
 pub mod index;
 pub mod models;

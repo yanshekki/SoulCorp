@@ -13,10 +13,64 @@ use crate::workspace::{
     WorkspaceSnapshot, WorkspaceStorage, WorkspaceSummaries, WorkspaceTemplate,
     WorkspaceTree, WorkspaceFolderChildren, ResolveWorkspaceItemsRequest,
 };
+use crate::workspace::cache::{get_cached_page, invalidate_cached_page, open_cached_storage, put_cached_page};
 use crate::workspace::LinkedEntity;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
+
+struct WorkspaceCtx {
+    company_id: String,
+    app_data_dir: PathBuf,
+    sync_structure: bool,
+    departments: Vec<String>,
+    agents: Vec<(String, String, String)>,
+}
+
+impl WorkspaceCtx {
+    fn from_state(app: &AppHandle, state: &AppState, sync_structure: bool) -> Result<Self, String> {
+        if state.company_id.is_empty() {
+            return Err("Create a company before using the workspace.".to_string());
+        }
+        Ok(Self {
+            company_id: state.company_id.clone(),
+            sync_structure,
+            departments: collect_departments(state),
+            agents: state
+                .agents
+                .values()
+                .map(|agent| {
+                    (
+                        agent.id.clone(),
+                        agent.name.clone(),
+                        agent.department.clone(),
+                    )
+                })
+                .collect(),
+            app_data_dir: app.path().app_data_dir().map_err(|e| e.to_string())?,
+        })
+    }
+
+    fn open_storage(&self) -> Result<WorkspaceStorage, String> {
+        let storage = open_cached_storage(&self.app_data_dir, &self.company_id)?;
+        storage.ensure_seed()?;
+        if self.sync_structure {
+            storage.ensure_organization_structure(&self.departments, &self.agents)?;
+        }
+        Ok(storage)
+    }
+}
+
+async fn run_workspace_read<F, T>(ctx: WorkspaceCtx, work: F) -> Result<T, String>
+where
+    F: FnOnce(WorkspaceStorage) -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(move || work(ctx.open_storage()?))
+        .await
+        .map_err(|e| e.to_string())?
+}
 
 fn collect_departments(state: &AppState) -> Vec<String> {
     crate::departments::department_names(state)
@@ -58,75 +112,108 @@ fn storage_for_app_handle_sync(
 }
 
 #[tauri::command]
-pub fn init_workspace(
+pub async fn init_workspace(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSnapshot, String> {
     let progress = ProgressReporter::new(app.clone(), "workspace_init");
     progress.emit_percent("Syncing workspace folders…", 40.0, Some("folders"));
-    let storage = storage_for_app_handle_sync(&app, &state)?;
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, true)?
+    };
     progress.emit_percent("Building workspace index…", 80.0, Some("index"));
-    let snapshot = storage.list_snapshot()?;
+    let snapshot = run_workspace_read(ctx, |storage| storage.list_snapshot()).await?;
     progress.finish("Workspace ready");
     progress.clear();
     Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn list_workspace_snapshot(
+pub async fn list_workspace_snapshot(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSnapshot, String> {
-    let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.list_snapshot()
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    run_workspace_read(ctx, |storage| storage.list_snapshot()).await
 }
 
 #[tauri::command]
-pub fn list_workspace_summaries(
+pub async fn list_workspace_summaries(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSummaries, String> {
-    let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.list_summaries()
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    run_workspace_read(ctx, |storage| storage.list_summaries()).await
 }
 
 #[tauri::command]
-pub fn list_workspace_folder_children(
+pub async fn list_workspace_folder_children(
     app: AppHandle,
     folder_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceFolderChildren, String> {
-    let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.list_folder_children(&folder_id)
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    run_workspace_read(ctx, move |storage| storage.list_folder_children(&folder_id)).await
 }
 
 #[tauri::command]
-pub fn resolve_workspace_items(
+pub async fn resolve_workspace_items(
     app: AppHandle,
     request: ResolveWorkspaceItemsRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSummaries, String> {
-    let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.resolve_items(&request)
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    run_workspace_read(ctx, move |storage| storage.resolve_items(&request)).await
 }
 
 #[tauri::command]
-pub fn list_workspace_tree(
+pub async fn list_workspace_tree(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceTree, String> {
-    let storage = storage_for_app_handle_sync(&app, &state)?;
-    storage.list_tree()
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    run_workspace_read(ctx, |storage| storage.list_tree()).await
 }
 
 #[tauri::command]
-pub fn get_workspace_page(
+pub async fn get_workspace_page(
     app: AppHandle,
     page_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let storage = storage_for_app_handle(&app, &state)?;
-    storage.get_page(&page_id)
+    let company_id = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        if locked.company_id.is_empty() {
+            return Err("Create a company before using the workspace.".to_string());
+        }
+        locked.company_id.clone()
+    };
+    if let Some(page) = get_cached_page(&company_id, &page_id) {
+        return Ok(page);
+    }
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, false)?
+    };
+    let page = run_workspace_read(ctx, move |storage| storage.get_page(&page_id)).await?;
+    put_cached_page(&company_id, &page);
+    Ok(page)
 }
 
 #[tauri::command]
@@ -149,8 +236,17 @@ pub fn update_workspace_page(
     request: UpdatePageRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
+    let company_id = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        locked.company_id.clone()
+    };
     let storage = storage_for_app_handle(&app, &state)?;
-    storage.update_page(&request)
+    let page = storage.update_page(&request)?;
+    if !company_id.is_empty() {
+        invalidate_cached_page(&company_id, &request.page_id);
+        put_cached_page(&company_id, &page);
+    }
+    Ok(page)
 }
 
 #[tauri::command]

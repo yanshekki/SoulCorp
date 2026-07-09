@@ -1,33 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { BuildingModal } from "./components/BuildingModal";
-import { GameScene } from "./components/GameScene";
 import { CompanySetupGate } from "./components/UI/CompanySetupGate";
 import { CreateCompanyModal } from "./components/UI/CreateCompanyModal";
 import { OnboardingWizard } from "./components/UI/OnboardingWizard";
 import { ShellLayout } from "./components/UI/ShellLayout";
-import { DesignStudioPage } from "./components/design/DesignStudioPage";
-import { AchievementsPage } from "./components/UI/AchievementsPage";
-import { AgentsPage } from "./components/UI/AgentsPage";
-import { ObservatoryPage } from "./components/UI/ObservatoryPage";
-import { DepartmentsPage } from "./components/UI/departments/DepartmentsPage";
-import { MarketplacePage } from "./components/UI/MarketplacePage";
-import { TokensPage } from "./components/UI/TokensPage";
-import { RecruitmentPage } from "./components/UI/RecruitmentPage";
-import { MeetingPage } from "./components/UI/MeetingPage";
-import { ProjectsPage } from "./components/UI/ProjectsPage";
-
-import { GodModePage } from "./components/UI/GodModePage";
-import { SettingsPage } from "./components/UI/SettingsPage";
-import { WorkspaceShell } from "./components/workspace/WorkspaceShell";
+import { PanelHost } from "./components/UI/PanelHost";
 import { LoadingOverlay } from "./components/UI/LoadingOverlay";
-import {
-  showAchievements,
-  showBuildingModal,
-  showDesignStudio,
-  showGodMode,
-  showOffice3D,
-} from "./config/features";
+import { showBuildingModal } from "./config/features";
 import { useGameAudio } from "./hooks/useGameAudio";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
 import { useOperationProgress } from "./hooks/useOperationProgress";
@@ -41,11 +21,6 @@ import "./App.css";
 import "./styles/design-system.css";
 import "./styles/workspace-editor.css";
 import "./styles/startup-warm-ui.css";
-
-const GAME_SCENE_PANELS = new Set<SidebarPanel>(showOffice3D ? ["office"] : []);
-const WEBGL_STAGE_PANELS = new Set<SidebarPanel>(
-  showOffice3D ? ["office", ...(showDesignStudio ? (["design_studio"] as SidebarPanel[]) : [])] : [],
-);
 
 function App() {
   const statusMessage = useGameStore((state) => state.statusMessage);
@@ -63,7 +38,8 @@ function App() {
   useEffect(() => {
     const previous = prevPanelRef.current;
     prevPanelRef.current = activePanel;
-    if (WEBGL_STAGE_PANELS.has(previous) && !WEBGL_STAGE_PANELS.has(activePanel)) {
+    const webglPanels = new Set<SidebarPanel>(["office", "design_studio"]);
+    if (webglPanels.has(previous) && !webglPanels.has(activePanel)) {
       setStageReady(false);
       let inner = 0;
       const outer = requestAnimationFrame(() => {
@@ -106,43 +82,7 @@ function App() {
     content = (
       <>
         <ShellLayout statusMessage={statusMessage}>
-          {!stageReady ? (
-            <div className="app-stage-transition" aria-hidden="true" />
-          ) : activePanel === "workspace" ? (
-            <WorkspaceShell />
-          ) : activePanel === "meeting" ? (
-            <MeetingPage />
-          ) : activePanel === "projects" ? (
-            <ProjectsPage />
-          ) : showDesignStudio && activePanel === "design_studio" ? (
-            <DesignStudioPage />
-          ) : activePanel === "settings" ? (
-            <SettingsPage />
-          ) : showGodMode && activePanel === "god_mode" ? (
-            <GodModePage />
-          ) : showAchievements && activePanel === "achievements" ? (
-            <AchievementsPage />
-          ) : activePanel === "departments" ? (
-            <DepartmentsPage />
-          ) : activePanel === "agents" ? (
-            <AgentsPage />
-          ) : activePanel === "observatory" ? (
-            <ObservatoryPage />
-          ) : activePanel === "recruitment" ? (
-            <RecruitmentPage />
-          ) : activePanel === "marketplace" ? (
-            <MarketplacePage />
-          ) : activePanel === "finance" ? (
-            <TokensPage />
-          ) : GAME_SCENE_PANELS.has(activePanel) ? (
-            <GameScene />
-          ) : (
-            <div className="app-stage-placeholder">
-              <p className="muted">
-                Open <strong>Workspace</strong> or another section from the top navigation.
-              </p>
-            </div>
-          )}
+          <PanelHost activePanel={activePanel} stageReady={stageReady} />
         </ShellLayout>
         {showBuildingModal ? <BuildingModal /> : null}
         <CreateCompanyModal />

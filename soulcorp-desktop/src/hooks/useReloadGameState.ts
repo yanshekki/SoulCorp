@@ -31,7 +31,12 @@ import type {
   MeetingSnapshot,
   TierBenefits,
 } from "../types/game";
-import type { WorkspaceTree } from "../types/workspace";
+import {
+  listWorkspaceSnapshot,
+  listWorkspaceSummaries,
+} from "../services/workspaceClient";
+
+import { clearScrumSnapshotCache } from "../stores/scrumSnapshotCache";
 
 const BOOTSTRAP_OP = "bootstrap";
 
@@ -131,6 +136,7 @@ export async function reloadGameState(
         : "Create a company to start your workspace.",
     );
     useWorkspaceStore.getState().reset();
+    clearScrumSnapshotCache();
     clearLocalProgress(operationId);
     useGameStore.getState().bumpCompanyRevision();
     return;
@@ -238,8 +244,11 @@ export async function reloadGameState(
     }
 
     try {
-      const tree = await invoke<WorkspaceTree>("list_workspace_tree");
-      await useWorkspaceStore.getState().reloadForCompany(tree);
+      const [snapshot, summaries] = await Promise.all([
+        listWorkspaceSnapshot(),
+        listWorkspaceSummaries(),
+      ]);
+      useWorkspaceStore.getState().preloadFromBootstrap(snapshot, summaries);
     } catch (error) {
       useWorkspaceStore.getState().reset();
       setStatusMessage(`Workspace load failed: ${String(error)}`);
