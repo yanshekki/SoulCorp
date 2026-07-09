@@ -97,16 +97,25 @@ mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
   < private/sql/soulcorp_marketplace.sql
 ```
 
-### 3a. Existing installs — add `in_progress` status
+### 3a. Existing installs — upgrade file
 
-If `gigs` table already exists from an earlier deploy, run:
+If `gigs` already existed from an earlier deploy (or you need tier backfill), import:
 
-```sql
-ALTER TABLE gigs
-  MODIFY status ENUM(
-    'open','assigned','in_progress','in_qc','completed','disputed','cancelled'
-  ) DEFAULT 'open';
+**phpMyAdmin:** **Import** → `private/sql/soulcorp_marketplace_upgrade.sql`
+
+**CLI:**
+
+```bash
+mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+  < private/sql/soulcorp_marketplace_upgrade.sql
 ```
+
+This file:
+
+1. Adds `in_progress` to `gigs.status` ENUM
+2. Backfills `user_tiers` from active `users.tier` (PayPal / NEAR)
+
+Fresh install only needs `soulcorp_marketplace.sql` — skip the upgrade file.
 
 - [ ] Tables exist: `gigs`, `gig_assignments`, `platform_transactions`, `user_tiers`, `sync_logs`
 - [ ] `gigs.status` ENUM includes `in_progress`
@@ -117,29 +126,6 @@ Verify:
 SHOW TABLES LIKE 'gigs';
 SHOW COLUMNS FROM gigs LIKE 'status';
 SELECT COUNT(*) FROM user_tiers;
-```
-
-### 3b. Tier backfill (one-time, optional)
-
-Sync existing PayPal/NEAR premium users into `user_tiers`:
-
-```sql
-INSERT INTO user_tiers (user_id, tier, soul_balance, expires_at)
-SELECT u.id, u.tier, 0, u.vip_expires_at
-FROM users u
-WHERE u.tier IN ('pro', 'vip')
-  AND u.vip_expires_at > NOW()
-  AND NOT EXISTS (SELECT 1 FROM user_tiers ut WHERE ut.user_id = u.id);
-
-UPDATE user_tiers ut
-JOIN users u ON u.id = ut.user_id
-SET ut.tier = u.tier, ut.expires_at = u.vip_expires_at, ut.updated_at = NOW()
-WHERE u.tier IN ('pro', 'vip')
-  AND u.vip_expires_at > NOW()
-  AND (
-    ut.tier = 'free'
-    OR (u.tier = 'vip' AND ut.tier = 'pro')
-  );
 ```
 
 ---
