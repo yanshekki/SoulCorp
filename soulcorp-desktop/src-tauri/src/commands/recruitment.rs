@@ -690,6 +690,7 @@ pub async fn hire_candidate(
         None
     };
 
+    let hired_agent = {
     let mut state = app_state.lock().map_err(|e| e.to_string())?;
     ensure_agent_capacity(&state)?;
     let agent_id = format!("agent-{}", Uuid::new_v4());
@@ -750,6 +751,9 @@ pub async fn hire_candidate(
         .cloned()
         .unwrap_or(record);
     persist_single_agent_soul(&app, &state, &hired)?;
-    commit(app, &state)?;
-    Ok(hired)
+    commit(app.clone(), &state)?;
+    hired
+    };
+    let _ = crate::commands::workspace::sync_workspace_organization_cmd(app, app_state).await;
+    Ok(hired_agent)
 }

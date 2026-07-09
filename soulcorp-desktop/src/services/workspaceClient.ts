@@ -27,6 +27,17 @@ export async function listWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   return invoke<WorkspaceSnapshot>("list_workspace_snapshot");
 }
 
+export async function syncWorkspaceOrganization(): Promise<WorkspaceSnapshot> {
+  return invoke<WorkspaceSnapshot>("sync_workspace_organization_cmd");
+}
+
+/** Sync Teams/agent folders after roster changes without reloading all pages. */
+export async function syncWorkspaceFoldersAfterOrgChange(): Promise<void> {
+  const { useWorkspaceStore } = await import("../stores/workspaceStore");
+  const snapshot = await syncWorkspaceOrganization();
+  useWorkspaceStore.getState().setWorkspaceFolders(snapshot.folders);
+}
+
 export async function listWorkspaceSummaries(): Promise<WorkspaceSummaries> {
   return invoke<WorkspaceSummaries>("list_workspace_summaries");
 }

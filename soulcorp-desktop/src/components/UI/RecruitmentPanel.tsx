@@ -218,8 +218,8 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
       setAgentRecords(agents);
       const updatedFinance = await invoke<TokenEconomy>("get_finance_state");
       setFinance(updatedFinance);
-      const { refreshWorkspaceTree } = await import("../../services/workspaceClient");
-      await refreshWorkspaceTree(true).catch(() => undefined);
+      const { syncWorkspaceFoldersAfterOrgChange } = await import("../../services/workspaceClient");
+      await syncWorkspaceFoldersAfterOrgChange().catch(() => undefined);
       setStatusMessage(`${hired.name} joined the company as ${hired.role}.`);
     } catch (error) {
       setStatusMessage(String(error));

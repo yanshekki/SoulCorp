@@ -231,11 +231,15 @@ export function ThreeOfficeRenderer({
       if (disposed) {
         return;
       }
+      const state = useGameStore.getState();
+      if (state.activePanel !== "office") {
+        frameRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
       const { width: viewWidth, height: viewHeight } = viewSizeRef.current;
       const delta = Math.min((time - lastTimeRef.current) / 1000, 0.05);
       lastTimeRef.current = time;
-
-      const state = useGameStore.getState();
       const agents =
         agentRuntimeRef.current.length > 0 ? agentRuntimeRef.current : state.agents;
       const lowPower = state.settings.low_power_mode;

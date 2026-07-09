@@ -112,6 +112,18 @@ fn storage_for_app_handle_sync(
 }
 
 #[tauri::command]
+pub async fn sync_workspace_organization_cmd(
+    app: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<WorkspaceSnapshot, String> {
+    let ctx = {
+        let locked = state.lock().map_err(|e| e.to_string())?;
+        WorkspaceCtx::from_state(&app, &locked, true)?
+    };
+    run_workspace_read(ctx, |storage| storage.list_snapshot()).await
+}
+
+#[tauri::command]
 pub async fn init_workspace(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,

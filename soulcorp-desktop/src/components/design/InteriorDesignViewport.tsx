@@ -198,6 +198,10 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
     sceneRef.current = createInteriorScene(canvas, initWidth, initHeight);
 
     const renderLoop = (now: number) => {
+      if (useGameStore.getState().activePanel !== "design_studio") {
+        frameRef.current = requestAnimationFrame(renderLoop);
+        return;
+      }
       const handles = sceneRef.current;
       const orbit = orbitRef.current;
       if (handles) {

@@ -1,7 +1,22 @@
+import { Suspense, lazy } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { FileViewer } from "./FileViewer";
 import { PageEditor } from "./PageEditor";
 import { WorkspaceEmptyState } from "./WorkspaceEmptyState";
+
+const FileViewer = lazy(() =>
+  import("./FileViewer").then((mod) => ({ default: mod.FileViewer })),
+);
+
+function FileViewerFallback() {
+  return (
+    <div className="ws-editor-root ws-editor-root--loading">
+      <div className="ws-editor-loading">
+        <span className="ws-editor-loading-spinner" aria-hidden="true" />
+        Opening file…
+      </div>
+    </div>
+  );
+}
 
 export function WorkspaceMainPanel() {
   const selectedFile = useWorkspaceStore((state) => state.selectedFile);
@@ -12,7 +27,11 @@ export function WorkspaceMainPanel() {
   const fileOpenError = useWorkspaceStore((state) => state.fileOpenError);
 
   if (selectedFile || openingFileId) {
-    return <FileViewer />;
+    return (
+      <Suspense fallback={<FileViewerFallback />}>
+        <FileViewer />
+      </Suspense>
+    );
   }
 
   if (selectedPage || openingPageId) {

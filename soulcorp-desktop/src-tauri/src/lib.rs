@@ -222,6 +222,7 @@ pub fn run() {
             commands::god_mode_force_relationship,
             commands::get_god_mode_history,
             commands::get_god_mode_status,
+            commands::sync_workspace_organization_cmd,
             commands::init_workspace,
             commands::list_workspace_snapshot,
             commands::list_workspace_summaries,

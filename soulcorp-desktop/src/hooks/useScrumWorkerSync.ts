@@ -88,6 +88,18 @@ export function useScrumWorkerSync() {
             .then(({ refreshWorkspaceTree }) => refreshWorkspaceTree(false))
             .catch(() => undefined);
         }
+        const orgStructureChanged = report.messages.some(
+          (m) =>
+            m.includes("Auto-recruited") ||
+            m.includes("joined") ||
+            m.includes("hired") ||
+            m.includes("new agent"),
+        );
+        if (orgStructureChanged) {
+          void import("../services/workspaceClient")
+            .then(({ syncWorkspaceFoldersAfterOrgChange }) => syncWorkspaceFoldersAfterOrgChange())
+            .catch(() => undefined);
+        }
       }, DEBOUNCE_MS);
     });
 
