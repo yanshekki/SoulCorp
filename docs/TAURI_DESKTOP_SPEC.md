@@ -120,7 +120,7 @@ No mock or auto-seeded agents at startup — companies start empty after onboard
 | Item | Notes |
 |------|-------|
 | Command API versioning | Breaking changes handled ad hoc; no `/v2` command namespace |
-| Plugin auto-update | Not configured |
+| Plugin auto-update | ✅ Settings → Check for updates; signed via `TAURI_SIGNING_PRIVATE_KEY` |
 | iOS/Android Tauri mobile | Scaffold exists (`mobile_entry_point`); not shipped |
 | Unified OpenAPI for commands | Tauri invoke only; no HTTP surface |
 

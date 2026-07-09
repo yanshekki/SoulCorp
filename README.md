@@ -2,7 +2,7 @@
 
 **AI Company Simulator** — Build and run an AI agent company locally, with optional soulmd-hub marketplace integration.
 
-**Last updated: July 2026** · Phases **0–24** implemented on `main`.
+**Last updated: July 2026** · Phases **0–25** implemented on `main`.
 
 ## What works today
 
@@ -43,14 +43,24 @@ pnpm dev:v2           # v2 with 3D campus
 ./scripts/verify-phase.sh 22   # agent workspace API
 ./scripts/verify-phase.sh 23   # professional search
 ./scripts/verify-phase.sh 24   # universal agent runtime
+./scripts/verify-phase.sh 25   # public beta updater
 bash scripts/run-hub-marketplace-smoke.sh
 ```
 
 CI runs `verify-phase.sh 0` on push to `main`. Coding standards: [`scripts/CODING_STANDARDS.md`](scripts/CODING_STANDARDS.md).
 
-## Remaining gaps (optional / post-v1)
+## Public beta release
 
-- Public beta distribution channel and Tauri auto-updater
+1. Configure `TAURI_SIGNING_PRIVATE_KEY` in GitHub repo secrets
+2. Tag a release: `git tag v1.0.1 && git push origin v1.0.1`
+3. GitHub Actions uploads `.deb`, `.AppImage`, and `latest.json`
+4. Testers use **Settings → General → Check for updates**
+
+Full steps: [`scripts/public-beta-checklist.md`](scripts/public-beta-checklist.md)
+
+## Remaining gaps (optional)
+
+- First tagged GitHub Release published
 - Hub WebSocket live market (REST sync works today)
 - Cloud workspace replication (local-first by design)
 

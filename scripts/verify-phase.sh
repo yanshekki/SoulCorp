@@ -511,6 +511,20 @@ case "${PHASE}" in
     grep -q '"22"' "${REPO_ROOT}/.automation/phase-state.json"
     echo "Phase 22 agent workspace API checks passed."
     ;;
+  25)
+    test -f "${DESKTOP_DIR}/src/services/updaterClient.ts"
+    test -f "${DESKTOP_DIR}/src-tauri/.signing/soulcorp.key.pub"
+    test -f "${REPO_ROOT}/scripts/generate-updater-manifest.sh"
+    test -f "${REPO_ROOT}/scripts/public-beta-checklist.md"
+    test -f "${REPO_ROOT}/.github/workflows/release.yml"
+    grep -q "tauri-plugin-updater" "${DESKTOP_DIR}/src-tauri/Cargo.toml"
+    grep -q "createUpdaterArtifacts" "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
+    grep -q "updater:default" "${DESKTOP_DIR}/src-tauri/capabilities/default.json"
+    grep -q "checkForAppUpdate" "${DESKTOP_DIR}/src/components/UI/SettingsPanel.tsx"
+    grep -q "@tauri-apps/plugin-updater" "${DESKTOP_DIR}/package.json"
+    grep -q '"25"' "${REPO_ROOT}/.automation/phase-state.json"
+    echo "Phase 25 public beta updater checks passed."
+    ;;
   *)
     echo "Phase ${PHASE} has no extra automated checks yet."
     ;;

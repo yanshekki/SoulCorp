@@ -1,4 +1,6 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { patchAudioSettings, setAudioMuted } from "../../hooks/useAudioSettings";
 import { reloadGameState } from "../../hooks/useReloadGameState";
@@ -28,6 +30,11 @@ import {
   effectiveApiProviderForSettings,
   legacyMeetingProviderToRegistryId,
 } from "../../utils/agentRuntimeCatalog";
+import {
+  checkForAppUpdate,
+  downloadAndInstallUpdate,
+  type UpdateProgress,
+} from "../../services/updaterClient";
 
 export const SETTINGS_SECTIONS = [
   { id: "general", label: "General" },
@@ -88,6 +95,10 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
   const [githubRepoName, setGithubRepoName] = useState("");
   const [deployBusy, setDeployBusy] = useState(false);
   const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalog | null>(null);
+  const [appVersion, setAppVersion] = useState("1.0.0");
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const effectiveApiProvider = effectiveApiProviderForSettings(settings.ai_provider, runtimeCatalog);
   const meetingBrainValue = legacyMeetingProviderToRegistryId(settings.ai_provider);
@@ -111,6 +122,62 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
       .then(setRuntimeCatalog)
       .catch(() => setRuntimeCatalog(null));
   }, []);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion("1.0.0"));
+  }, []);
+
+  const checkAppUpdate = async () => {
+    setUpdateBusy(true);
+    setUpdateProgress({
+      downloaded: 0,
+      contentLength: null,
+      phase: "checking",
+      message: "Checking for updates…",
+    });
+    try {
+      const update = await checkForAppUpdate();
+      setPendingUpdate(update);
+      setUpdateProgress({
+        downloaded: 0,
+        contentLength: null,
+        phase: "idle",
+        message: update
+          ? `Update available: v${update.version}`
+          : `SoulCorp v${appVersion} is up to date.`,
+      });
+    } catch (error) {
+      setPendingUpdate(null);
+      setUpdateProgress({
+        downloaded: 0,
+        contentLength: null,
+        phase: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const installAppUpdate = async () => {
+    if (!pendingUpdate) {
+      return;
+    }
+    setUpdateBusy(true);
+    try {
+      await downloadAndInstallUpdate(pendingUpdate, setUpdateProgress);
+    } catch (error) {
+      setUpdateProgress({
+        downloaded: 0,
+        contentLength: null,
+        phase: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      setUpdateBusy(false);
+    }
+  };
 
   const deployStatusRequestedRef = useRef(false);
 
@@ -393,6 +460,33 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
               }
             />
           </label>
+          <div className="settings-update-row">
+            <p className="muted">Installed version: <strong>v{appVersion}</strong></p>
+            <div className="settings-action-row">
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={updateBusy}
+                onClick={() => void checkAppUpdate()}
+              >
+                Check for updates
+              </button>
+              {pendingUpdate ? (
+                <button
+                  type="button"
+                  disabled={updateBusy}
+                  onClick={() => void installAppUpdate()}
+                >
+                  Install v{pendingUpdate.version}
+                </button>
+              ) : null}
+            </div>
+            {updateProgress ? (
+              <p className={`muted settings-update-status settings-update-status--${updateProgress.phase}`}>
+                {updateProgress.message}
+              </p>
+            ) : null}
+          </div>
         </SettingsCard>
 
         {showPlayModeSettings ? (

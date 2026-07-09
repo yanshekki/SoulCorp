@@ -33,6 +33,8 @@ prisma/dev.db-journal
 soulcorp-backup.json
 
 # Rust / Tauri
+src-tauri/.signing/*.key
+!src-tauri/.signing/*.key.pub
 src-tauri/target
 target
 src-tauri/gen

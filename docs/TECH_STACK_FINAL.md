@@ -92,7 +92,7 @@ Hub is **not required** for offline play. See `docs/soulmd-hub/`.
 
 | Item | Notes |
 |------|-------|
-| Tauri auto-updater | Not wired in production builds yet |
+| Tauri auto-updater | ✅ `tauri-plugin-updater` + GitHub `latest.json` releases |
 | Docker-packaged local agents | OpenClaw path exists; no bundled Docker images |
 | Prisma as runtime DB | Intentionally not used — rusqlite is canonical |
 | WebSocket hub live market | REST polling only from desktop |

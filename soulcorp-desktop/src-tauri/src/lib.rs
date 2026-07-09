@@ -50,6 +50,12 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
             db::init_database(app.handle())?;
             let (_registry, mut state) = db::persistence::bootstrap_companies(app.handle())?;
             crate::operations::normalize_v1_operational_state(&mut state);

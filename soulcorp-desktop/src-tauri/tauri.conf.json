@@ -31,6 +31,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -39,5 +40,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3MDVBODMzQzJGRDQ2MQpSV1JoMUM4OGcxcHdCc3k4VnZvc1AyNXZXRmdSKzhaR3NWRnllK29YR0N4QU9CbTJjUjZyVVJRdAo=",
+      "endpoints": [
+        "https://github.com/yanshekki/SoulCorp/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

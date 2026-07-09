@@ -33,12 +33,16 @@ pnpm tauri dev        # v1 workflow edition
 pnpm dev:v2           # v2 with 3D campus
 ```
 
+## Updates
+
+**Settings → General → Check for updates** (requires signed GitHub Release + `latest.json`).
+
 ## Phase verification
 
 From the SoulCorp repo root:
 
 ```bash
-bash scripts/verify-phase.sh 22
+bash scripts/verify-phase.sh 25
 ```
 
 ## Local data
