@@ -84,9 +84,17 @@ sudo systemctl reload php8.2-fpm   # or your PHP version
 
 Run on production MySQL **once at deploy time** (not per-request). Safe to re-run (`CREATE TABLE IF NOT EXISTS`). `SoulCorpHub.php` does not auto-migrate at runtime.
 
+**phpMyAdmin (recommended):**
+
+1. Select your soulmd-hub database
+2. **Import** → choose `private/sql/soulcorp_marketplace.sql`
+3. Execute — creates `gigs`, `gig_assignments`, `platform_transactions`, `user_tiers`, `sync_logs`
+
+**CLI alternative:**
+
 ```bash
 mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
-  < private/sql/20260630_soulcorp_marketplace.sql
+  < private/sql/soulcorp_marketplace.sql
 ```
 
 ### 3a. Existing installs — add `in_progress` status
