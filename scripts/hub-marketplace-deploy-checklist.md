@@ -82,7 +82,7 @@ sudo systemctl reload php8.2-fpm   # or your PHP version
 
 ## 3. Database migration
 
-Run on production MySQL. Safe to re-run (`CREATE TABLE IF NOT EXISTS`).
+Run on production MySQL **once at deploy time** (not per-request). Safe to re-run (`CREATE TABLE IF NOT EXISTS`). `SoulCorpHub.php` does not auto-migrate at runtime.
 
 ```bash
 mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
