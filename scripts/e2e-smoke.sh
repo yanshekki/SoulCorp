@@ -9,11 +9,12 @@ echo "==> SoulCorp E2E smoke tests"
 "${REPO_ROOT}/scripts/verify-phase.sh" 6
 
 BUNDLE_DIR="${DESKTOP_DIR}/src-tauri/target/release/bundle"
-if [[ -f "${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb" ]]; then
-  echo "Release .deb bundle present ($(du -h "${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb" | cut -f1))."
+APP_VERSION="$(node -p "require('${DESKTOP_DIR}/package.json').version")"
+if [[ -f "${BUNDLE_DIR}/deb/SoulCorp_${APP_VERSION}_amd64.deb" ]]; then
+  echo "Release .deb bundle present ($(du -h "${BUNDLE_DIR}/deb/SoulCorp_${APP_VERSION}_amd64.deb" | cut -f1))."
 fi
-if [[ -f "${BUNDLE_DIR}/appimage/SoulCorp_1.0.0_amd64.AppImage" ]]; then
-  echo "Release AppImage present ($(du -h "${BUNDLE_DIR}/appimage/SoulCorp_1.0.0_amd64.AppImage" | cut -f1))."
+if [[ -f "${BUNDLE_DIR}/appimage/SoulCorp_${APP_VERSION}_amd64.AppImage" ]]; then
+  echo "Release AppImage present ($(du -h "${BUNDLE_DIR}/appimage/SoulCorp_${APP_VERSION}_amd64.AppImage" | cut -f1))."
 fi
 
 # Rust module presence checks (no full cargo build required on minimal Linux)

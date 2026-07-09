@@ -162,8 +162,11 @@ case "${PHASE}" in
     test -f "${DESKTOP_DIR}/src/components/UI/TierPanel.tsx"
     test -f "${REPO_ROOT}/scripts/build-release.sh"
     test -f "${REPO_ROOT}/scripts/e2e-smoke.sh"
-    grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/package.json"
-    grep -q '"version": "1.0.0"' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
+    PKG_VERSION="$(node -p "require('${DESKTOP_DIR}/package.json').version")"
+    TAURI_VERSION="$(node -p "require('${DESKTOP_DIR}/src-tauri/tauri.conf.json').version")"
+    test "${PKG_VERSION}" = "${TAURI_VERSION}"
+    grep -q "\"version\": \"${PKG_VERSION}\"" "${DESKTOP_DIR}/package.json"
+    grep -q "\"version\": \"${TAURI_VERSION}\"" "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
     grep -q '"devtools": false' "${DESKTOP_DIR}/src-tauri/tauri.conf.json"
     grep -q "tier-panel" "${DESKTOP_DIR}/src/components/UI/TierPanel.tsx"
     grep -q "#\[test\]" "${DESKTOP_DIR}/src-tauri/src/tier/mod.rs"
@@ -196,7 +199,8 @@ case "${PHASE}" in
     test -f "${REPO_ROOT}/scripts/ship-checklist.md"
     test -f "${REPO_ROOT}/scripts/static-site-smoke.sh"
     bash "${REPO_ROOT}/scripts/static-site-smoke.sh"
-    test -f "${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_1.0.0_amd64.deb" \
+    RELEASE_VERSION="$(node -p "require('${DESKTOP_DIR}/package.json').version")"
+    test -f "${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_${RELEASE_VERSION}_amd64.deb" \
       || echo "WARN: release .deb not built yet (run build-release.sh)."
     echo "Phase 9 ship checks passed."
     ;;

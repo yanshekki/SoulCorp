@@ -1,7 +1,7 @@
 {
   "name": "soulcorp-desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "VITE_PRODUCT_EDITION=v1 PRODUCT_EDITION=v1 tauri dev",

@@ -3,7 +3,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DESKTOP_DIR="${REPO_ROOT}/soulcorp-desktop"
-DEB_PATH="${SOULCORP_DEB_PATH:-${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_1.0.0_amd64.deb}"
+APP_VERSION="$(node -p "require('${DESKTOP_DIR}/package.json').version")"
+DEB_PATH="${SOULCORP_DEB_PATH:-${DESKTOP_DIR}/src-tauri/target/release/bundle/deb/SoulCorp_${APP_VERSION}_amd64.deb}"
 SMOKE_OUTPUT="${SOULCORP_3D_SMOKE_OUTPUT:-/tmp/soulcorp-3d-smoke.json}"
 SMOKE_TIMEOUT="${SOULCORP_3D_SMOKE_TIMEOUT:-120}"
 USE_DOCKER="${SOULCORP_RELEASE_DOCKER:-1}"

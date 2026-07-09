@@ -31,16 +31,16 @@ if pkg-config --exists glib-2.0 2>/dev/null; then
   ls -lh "${BUNDLE_DIR}/rpm/"*.rpm 2>/dev/null || true
   ls -lh "${BUNDLE_DIR}/appimage/"*.AppImage 2>/dev/null || true
 
-  test -f "${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb"
+  test -f "${BUNDLE_DIR}/deb/SoulCorp_${APP_VERSION}_amd64.deb"
   test -x "${DESKTOP_DIR}/src-tauri/target/release/soulcorp-desktop"
   if [[ -f "${BUNDLE_DIR}/appimage/SoulCorp_${APP_VERSION}_amd64.AppImage.sig" ]]; then
-    bash "${REPO_ROOT}/scripts/generate-updater-manifest.sh" "${APP_VERSION}" > /dev/null
+    bash "${REPO_ROOT}/scripts/generate-updater-manifest.sh" "${APP_VERSION}" "${REPO_ROOT}/latest.json"
     echo "Updater manifest: ${REPO_ROOT}/latest.json"
   fi
 
   echo ""
-  echo "Install .deb: sudo dpkg -i ${BUNDLE_DIR}/deb/SoulCorp_1.0.0_amd64.deb"
-  echo "Run AppImage: chmod +x ${BUNDLE_DIR}/appimage/SoulCorp_1.0.0_amd64.AppImage && ./SoulCorp_1.0.0_amd64.AppImage"
+  echo "Install .deb: sudo dpkg -i ${BUNDLE_DIR}/deb/SoulCorp_${APP_VERSION}_amd64.deb"
+  echo "Run AppImage: chmod +x ${BUNDLE_DIR}/appimage/SoulCorp_${APP_VERSION}_amd64.AppImage && ./SoulCorp_${APP_VERSION}_amd64.AppImage"
 else
   echo "WARN: glib-2.0 not found; skipping Tauri bundle."
   echo "Frontend build completed. Install Linux prerequisites for .deb/.AppImage:"

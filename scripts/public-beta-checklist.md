@@ -17,7 +17,7 @@
 ## GitHub Release
 
 1. Bump `version` in `soulcorp-desktop/package.json` and `src-tauri/tauri.conf.json`
-2. Commit and tag: `git tag v1.0.1 && git push origin v1.0.1`
+2. Commit and tag: `git tag -a v1.0.1 -m "SoulCorp public beta 1.0.1" && git push origin v1.0.1`
 3. GitHub Actions `Release` workflow uploads:
    - `SoulCorp_*_amd64.deb` — manual install
    - `SoulCorp_*_amd64.AppImage` — portable Linux
@@ -28,10 +28,10 @@
 
 ```bash
 # Install (Debian/Ubuntu)
-sudo dpkg -i SoulCorp_1.0.0_amd64.deb
+sudo dpkg -i SoulCorp_1.0.1_amd64.deb
 
 # Or portable
-chmod +x SoulCorp_1.0.0_amd64.AppImage && ./SoulCorp_1.0.0_amd64.AppImage
+chmod +x SoulCorp_1.0.1_amd64.AppImage && ./SoulCorp_1.0.1_amd64.AppImage
 ```
 
 In-app updates: **Settings → General → Check for updates**
