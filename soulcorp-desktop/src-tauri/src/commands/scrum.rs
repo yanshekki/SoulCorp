@@ -12,9 +12,48 @@ use crate::scrum::{
 };
 use crate::state::{AppState, InternalProject};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
+
+struct ScrumSnapshotCache {
+    company_id: String,
+    project_id: Option<String>,
+    fingerprint: u64,
+    snapshot: ScrumSnapshot,
+}
+
+fn scrum_cache_slot() -> &'static Mutex<Option<ScrumSnapshotCache>> {
+    static SLOT: OnceLock<Mutex<Option<ScrumSnapshotCache>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+
+fn scrum_state_fingerprint(state: &AppState, project_id: Option<&str>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    state.company_id.hash(&mut hasher);
+    state.tick.hash(&mut hasher);
+    state.projects.len().hash(&mut hasher);
+    state.work_nodes.len().hash(&mut hasher);
+    state.directives.len().hash(&mut hasher);
+    state.execution_runs.len().hash(&mut hasher);
+    project_id.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn build_scrum_snapshot(state: &AppState, project_id: Option<String>) -> ScrumSnapshot {
+    let pid = project_id.or_else(|| state.projects.first().map(|p| p.id.clone()));
+    ScrumSnapshot {
+        projects: state.projects.clone(),
+        tree: pid.as_ref().map(|id| build_work_tree(id, &state.work_nodes)),
+        board: pid.as_ref().map(|id| board_snapshot(&state, id)),
+        directives: state.directives.clone(),
+        inboxes: agent_inboxes(&state),
+        execution_runs: state.execution_runs.clone(),
+        default_pm_agent_id: state.default_pm_agent_id.clone(),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectRequest {
@@ -237,16 +276,28 @@ pub fn get_scrum_snapshot(
     _app: AppHandle,
 ) -> Result<ScrumSnapshot, String> {
     let state = state.lock().map_err(|e| e.to_string())?;
-    let pid = project_id.or_else(|| state.projects.first().map(|p| p.id.clone()));
-    Ok(ScrumSnapshot {
-        projects: state.projects.clone(),
-        tree: pid.as_ref().map(|id| build_work_tree(id, &state.work_nodes)),
-        board: pid.as_ref().map(|id| board_snapshot(&state, id)),
-        directives: state.directives.clone(),
-        inboxes: agent_inboxes(&state),
-        execution_runs: state.execution_runs.clone(),
-        default_pm_agent_id: state.default_pm_agent_id.clone(),
-    })
+    let fingerprint = scrum_state_fingerprint(&state, project_id.as_deref());
+    if let Ok(guard) = scrum_cache_slot().lock() {
+        if let Some(entry) = guard.as_ref() {
+            if entry.company_id == state.company_id
+                && entry.project_id == project_id
+                && entry.fingerprint == fingerprint
+            {
+                return Ok(entry.snapshot.clone());
+            }
+        }
+    }
+
+    let snapshot = build_scrum_snapshot(&state, project_id.clone());
+    if let Ok(mut guard) = scrum_cache_slot().lock() {
+        *guard = Some(ScrumSnapshotCache {
+            company_id: state.company_id.clone(),
+            project_id,
+            fingerprint,
+            snapshot: snapshot.clone(),
+        });
+    }
+    Ok(snapshot)
 }
 
 #[tauri::command]

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { AgentLiveGrid } from "./AgentLiveGrid";
@@ -45,8 +46,15 @@ function ObservatoryCard({
   );
 }
 
+interface ExportResult {
+  path: string;
+  format: string;
+  message: string;
+}
+
 export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const sessions = useAgentActivityStore((state) => state.sessions);
   const events = useAgentActivityStore((state) => state.events);
@@ -122,6 +130,15 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
     selectAgent(null);
   };
 
+  const exportSessions = useCallback(async () => {
+    try {
+      const result = await invoke<ExportResult>("export_agent_activity_markdown");
+      setExportMessage(result.message);
+    } catch (error) {
+      setExportMessage(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
   useEffect(() => {
     if (!onSectionFocus) {
       return;
@@ -188,7 +205,11 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
           <button type="button" className="secondary-action" onClick={() => setActivePanel("projects")}>
             Projects & execution
           </button>
+          <button type="button" className="secondary-action" onClick={() => void exportSessions()}>
+            Export sessions
+          </button>
         </div>
+        {exportMessage ? <p className="muted observatory-export-status">{exportMessage}</p> : null}
       </ObservatoryCard>
 
       <ObservatoryCard

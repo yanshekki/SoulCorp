@@ -149,7 +149,9 @@ case "${PHASE}" in
     test -f "${REPO_ROOT}/hub/soulmd-hub/tests/integration/helpers/test_runner.php"
     grep -q "evaluateNonNftSoulAccess" "${REPO_ROOT}/hub/soulmd-hub/private/includes/token-gate.php"
     grep -q "csrfTokensMatch" "${REPO_ROOT}/hub/soulmd-hub/private/src/ApiSecurity.php"
+    test -f "${REPO_ROOT}/hub/soulmd-hub/tests/integration/soulcorp_marketplace_test.php"
     bash "${REPO_ROOT}/scripts/run-hub-security-tests.sh"
+    bash "${REPO_ROOT}/scripts/run-hub-marketplace-smoke.sh"
     echo "Phase 5 hub integration checks passed."
     ;;
   6)

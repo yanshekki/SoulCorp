@@ -72,7 +72,7 @@ The office render loop continues `requestAnimationFrame` but **skips scene updat
 | Item | Notes |
 |------|-------|
 | Service worker / PWA caching | Desktop app only |
-| Rust-side scrum snapshot cache | FE cache only today |
+| Rust-side scrum snapshot cache | ✅ Fingerprint cache in `get_scrum_snapshot` (+ FE cache) |
 | WASM workspace parser | Rust native parsing used |
 | Automatic perf profiling overlay | Manual devtools only |
 | Interior viewport pause | Campus renderer gated; design viewport may still run when open |

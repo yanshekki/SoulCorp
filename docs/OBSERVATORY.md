@@ -75,7 +75,7 @@ stateDiagram-v2
 
 | Item | Notes |
 |------|-------|
-| Session export (JSON/MD) | View-only in app |
+| Session export (JSON) | Markdown export via `export_agent_activity_markdown` |
 | Filter by department / project | Basic list today |
 | Real-time WebSocket to remote observers | Local Tauri events only |
 | Session replay with workspace deep links | Partial — deliverable events link when present |

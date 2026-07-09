@@ -269,6 +269,7 @@ pub fn run() {
             commands::agent_workspace_list_activity,
             commands::list_agent_activity,
             commands::get_agent_session,
+            commands::export_agent_activity_markdown,
             commands::get_achievements,
             commands::export_company_backup,
             commands::export_company_report_markdown,

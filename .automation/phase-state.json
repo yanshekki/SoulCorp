@@ -1,5 +1,5 @@
 {
-  "current_phase": 22,
+  "current_phase": 24,
   "repo_root": "/home/ki/文件/SoulCorp",
   "phases": {
     "0": {
@@ -161,6 +161,20 @@
       "status": "merged",
       "description": "AgentWorkspaceService, Tauri commands, agent tools context, activity feed, deliverable deep links",
       "merged_at": "2026-07-08T03:40:00.000000+00:00",
+      "completion": 100
+    },
+    "23": {
+      "branch": "phase-23/professional-search",
+      "status": "merged",
+      "description": "SearchField, SearchableListToolbar, pagination, execution log search, search acceptance",
+      "merged_at": "2026-07-09T12:00:00.000000+00:00",
+      "completion": 100
+    },
+    "24": {
+      "branch": "phase-24/universal-agent-runtime",
+      "status": "merged",
+      "description": "Agent runtime catalog, probe/test commands, OpenClaw security, runtime acceptance",
+      "merged_at": "2026-07-09T12:00:00.000000+00:00",
       "completion": 100
     }
   }

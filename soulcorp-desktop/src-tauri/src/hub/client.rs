@@ -260,6 +260,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn free_tier_hides_executive_lounge_gigs() {
+        let gigs = vec![
+            HubGig {
+                gig_id: 1,
+                title: "Open".into(),
+                description: String::new(),
+                budget_usdt: 100.0,
+                status: "open".into(),
+                required_skills: vec![],
+                executive_lounge: false,
+            },
+            HubGig {
+                gig_id: 2,
+                title: "Lounge".into(),
+                description: String::new(),
+                budget_usdt: 9000.0,
+                status: "open".into(),
+                required_skills: vec![],
+                executive_lounge: true,
+            },
+        ];
+        let filtered = filter_gigs_for_tier(gigs, "free");
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].gig_id, 1);
+    }
+
+    #[test]
     fn deserializes_tier_object_from_hub_pull_sync() {
         let payload = serde_json::json!({
             "tier": {
@@ -319,6 +346,13 @@ fn encode_query_component(value: &str) -> String {
         .collect()
 }
 
-pub fn filter_gigs_for_tier(gigs: Vec<HubGig>, _tier: &str) -> Vec<HubGig> {
-    gigs
+pub fn filter_gigs_for_tier(gigs: Vec<HubGig>, tier: &str) -> Vec<HubGig> {
+    use crate::tier::UserTier;
+    match UserTier::from_label(tier) {
+        UserTier::Vip | UserTier::Pro | UserTier::Local => gigs,
+        UserTier::Free => gigs
+            .into_iter()
+            .filter(|gig| !gig.executive_lounge)
+            .collect(),
+    }
 }
