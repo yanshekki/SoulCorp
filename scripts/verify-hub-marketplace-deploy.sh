@@ -120,7 +120,7 @@ else
     check "sync-push authenticated (HTTP ${push_code})" 0
   fi
 
-  balance_code="$(curl -sS -o /tmp/hub_balance.json -w "%{http_code}" \
+  balance_code="$(curl -sSL -o /tmp/hub_balance.json -w "%{http_code}" \
     -H "Authorization: Bearer ${HUB_API_KEY}" \
     "${HUB_BASE_URL%/}/api/user-soul-balance.php" 2>/dev/null || echo "000")"
   if [[ "$balance_code" == "200" ]] && grep -q '"tier"' /tmp/hub_balance.json 2>/dev/null; then
