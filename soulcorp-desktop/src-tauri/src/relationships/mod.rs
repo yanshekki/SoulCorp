@@ -64,10 +64,8 @@ pub fn infer_relationship_type(score: f32) -> &'static str {
     }
 }
 
-pub fn ensure_relationship_backfill(state: &mut AppState) {
-    if state.agents.len() >= 2 && state.agent_relationships.is_empty() {
-        seed_default_relationships(state);
-    }
+pub fn ensure_relationship_backfill(_state: &mut AppState) {
+    // Relationship edges are created from real agent interactions, not seeded defaults.
 }
 
 pub fn seed_default_relationships(state: &mut AppState) {

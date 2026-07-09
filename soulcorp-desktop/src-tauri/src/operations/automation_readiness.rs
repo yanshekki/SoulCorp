@@ -189,7 +189,17 @@ mod tests {
         assert!(!report.ready);
         assert!(report.items.iter().any(|i| i.id == "project" && !i.ok));
 
-        state.seed_projects();
+        state.projects.push(crate::state::InternalProject {
+            id: "proj-1".into(),
+            title: "User Project".into(),
+            progress: 0.0,
+            priority: 1,
+            owner_department: "Engineering".into(),
+            description: String::new(),
+            pm_agent_id: None,
+            active_sprint_id: None,
+            default_cycle_days: 14,
+        });
         state.settings.scrum_worker_enabled = true;
         state.settings.orchestrator_enabled = true;
         let report = compute_automation_readiness(&state);

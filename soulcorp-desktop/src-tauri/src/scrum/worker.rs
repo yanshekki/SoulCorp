@@ -80,13 +80,6 @@ pub fn apply_scrum_worker_tick(state: &mut AppState, app: &AppHandle) -> WorkerT
         return report;
     }
 
-    if state.projects.is_empty() {
-        state.seed_projects();
-        report
-            .messages
-            .push("Auto-seeded default project (board was empty).".into());
-    }
-
     let pool = crate::token_budget::total_company_tokens(&state.token_economy);
     if pool < state.settings.scrum_min_tokens_guard {
         let msg = format!(

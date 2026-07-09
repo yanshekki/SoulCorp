@@ -155,83 +155,12 @@ impl WorkspaceStorage {
             self.write_folders(&folders)?;
         }
 
-        for department in departments {
-            self.ensure_department_seed_pages(department)?;
-        }
-
-        Ok(())
-    }
-
-    fn ensure_department_seed_pages(&self, department: &str) -> Result<(), String> {
-        let folder_id = department_folder_id(department);
-        if !self
-            .read_all_pages()?
-            .iter()
-            .any(|page| page.folder_id == folder_id && page.title == "Team Overview")
-        {
-            let overview = self.create_page(
-                &CreatePageRequest {
-                    folder_id: folder_id.clone(),
-                    title: "Team Overview".to_string(),
-                },
-                "system",
-            )?;
-            self.update_page(&UpdatePageRequest {
-                page_id: overview.id,
-                title: None,
-                blocks: Some(vec![
-                    Block {
-                        id: Uuid::new_v4().to_string(),
-                        block_type: "heading".to_string(),
-                        content: format!("{department} Team Overview"),
-                        checked: None,
-                    },
-                    Block {
-                        id: Uuid::new_v4().to_string(),
-                        block_type: "text".to_string(),
-                        content: "Mission, owners, rituals, and shared team context live here.".to_string(),
-                        checked: None,
-                    },
-                    Block {
-                        id: Uuid::new_v4().to_string(),
-                        block_type: "heading".to_string(),
-                        content: "Members".to_string(),
-                        checked: None,
-                    },
-                    Block {
-                        id: Uuid::new_v4().to_string(),
-                        block_type: "text".to_string(),
-                        content: "Link agents and projects from this page to keep the team board current.".to_string(),
-                        checked: None,
-                    },
-                ]),
-                rich_doc: None,
-                linked_entities: None,
-                last_edited_by: Some("system".to_string()),
-            })?;
-        }
-
-        if !self
-            .read_all_pages()?
-            .iter()
-            .any(|page| page.folder_id == folder_id && page.title == "Weekly Priorities")
-        {
-            self.create_page(
-                &CreatePageRequest {
-                    folder_id,
-                    title: "Weekly Priorities".to_string(),
-                },
-                "system",
-            )?;
-        }
-
         Ok(())
     }
 
     fn seed_defaults(&self) -> Result<(), String> {
         let now = Utc::now().to_rfc3339();
-        let departments = default_departments();
-        let mut folders = vec![
+        let folders = vec![
             WorkspaceFolder {
                 id: "folder-company".to_string(),
                 name: "Company Hub".to_string(),
@@ -273,34 +202,7 @@ impl WorkspaceStorage {
             },
         ];
 
-        for department in &departments {
-            folders.push(WorkspaceFolder {
-                id: department_folder_id(department),
-                name: department.clone(),
-                icon: Some(department_icon(department)),
-                parent_id: Some("folder-teams".to_string()),
-                workspace_type: WorkspaceType::Department,
-                owner_id: "player".to_string(),
-                is_private: false,
-                permissions: vec![],
-                created_at: now.clone(),
-                updated_at: now.clone(),
-                sort_order: 0,
-            });
-        }
-
         self.write_folders(&folders)?;
-
-        let welcome = CreatePageRequest {
-            folder_id: "folder-company".to_string(),
-            title: "Welcome to SoulCorp Workspace".to_string(),
-        };
-        self.create_page(&welcome, "player")?;
-
-        for department in departments {
-            self.ensure_department_seed_pages(&department)?;
-        }
-
         Ok(())
     }
 
@@ -1514,13 +1416,7 @@ fn extract_mentions(content: &str) -> Vec<String> {
 }
 
 pub fn default_departments() -> Vec<String> {
-    vec![
-        "Engineering".to_string(),
-        "Human Resources".to_string(),
-        "Executive".to_string(),
-        "Marketing".to_string(),
-        "Marketplace".to_string(),
-    ]
+    Vec::new()
 }
 
 fn department_slug(department: &str) -> String {

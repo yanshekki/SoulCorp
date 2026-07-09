@@ -139,17 +139,31 @@ mod tests {
     use crate::state::{AgentRecord, AppState};
 
     #[test]
-    fn ensure_default_departments_seeds_five_entries() {
+    fn ensure_default_departments_does_not_seed_entries() {
         let mut state = AppState::default();
         ensure_default_departments(&mut state);
-        assert_eq!(state.departments.len(), 5);
-        assert!(state.departments.iter().any(|dept| dept.name == "Engineering"));
+        assert!(state.departments.is_empty());
+    }
+
+    fn seed_engineering_department(state: &mut AppState) {
+        state.departments.push(crate::state::CompanyDepartment {
+            id: "dept-eng".into(),
+            name: "Engineering".into(),
+            display_name: "Engineering".into(),
+            sop: String::new(),
+            brand_color: "#6d7f9b".into(),
+            accent_color: "#5ec8ff".into(),
+            building_id: "engineering".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+            parent_department_id: None,
+            head_agent_id: None,
+        });
     }
 
     #[test]
     fn rename_cascades_agent_and_project_references() {
         let mut state = AppState::default();
-        ensure_default_departments(&mut state);
+        seed_engineering_department(&mut state);
         state.agents.insert(
             "agent-1".into(),
             AgentRecord {

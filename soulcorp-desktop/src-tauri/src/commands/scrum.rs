@@ -234,13 +234,9 @@ pub fn update_project(
 pub fn get_scrum_snapshot(
     project_id: Option<String>,
     state: State<'_, Mutex<AppState>>,
-    app: AppHandle,
+    _app: AppHandle,
 ) -> Result<ScrumSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    if state.work_nodes.is_empty() && !state.projects.is_empty() {
-        state.seed_scrum_demo();
-        commit(app, &state)?;
-    }
+    let state = state.lock().map_err(|e| e.to_string())?;
     let pid = project_id.or_else(|| state.projects.first().map(|p| p.id.clone()));
     Ok(ScrumSnapshot {
         projects: state.projects.clone(),

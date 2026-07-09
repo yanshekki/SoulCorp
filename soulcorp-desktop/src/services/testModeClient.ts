@@ -9,7 +9,3 @@ export interface TestModeResult {
 export async function clearAllTestData(): Promise<TestModeResult> {
   return invoke<TestModeResult>("clear_all_test_data");
 }
-
-export async function seedFakeTestData(): Promise<TestModeResult> {
-  return invoke<TestModeResult>("seed_fake_test_data");
-}

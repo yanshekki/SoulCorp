@@ -335,10 +335,6 @@ impl AppState {
             crate::fate::ensure_fate_agent(self);
         }
 
-        if !crate::config::is_v1() {
-            crate::relationships::seed_default_relationships(self);
-        }
-        crate::departments::ensure_default_departments(self);
         if self.token_economy.departments.is_empty() {
             crate::token_budget::initialize_wallets_from_agents(self);
         }

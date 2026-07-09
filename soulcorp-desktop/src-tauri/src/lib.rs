@@ -55,13 +55,7 @@ pub fn run() {
             if crate::config::is_v1() && !state.company_id.is_empty() {
                 let _ = db::persistence::commit(app.handle().clone(), &state);
             }
-            if state.onboarding_completed && state.agents.is_empty() {
-                let _ = state.apply_agent_roster(&state::default_agent_roster());
-            } else if state.agents.is_empty() {
-                // Wait for first-launch onboarding before seeding starter agents.
-            } else if state.projects.is_empty() {
-                state.seed_projects();
-            }
+            // Agents and projects come from user onboarding / in-app creation only.
             if state.achievements.is_empty() {
                 state.achievements = default_achievements();
             }
@@ -139,7 +133,6 @@ pub fn run() {
             commands::update_campus_theme,
             commands::apply_design_preset,
             commands::clear_all_test_data,
-            commands::seed_fake_test_data,
             commands::get_finance_state,
             commands::get_token_economy,
             commands::get_token_usage_ledger,

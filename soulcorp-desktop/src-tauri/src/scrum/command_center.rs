@@ -269,29 +269,35 @@ pub fn issue_marketplace_directive(
         .projects
         .iter()
         .min_by_key(|p| p.priority)
-        .map(|p| p.id.clone())
-        .unwrap_or_else(|| "proj-core".to_string());
+        .map(|p| p.id.clone());
+    let (target, target_ref) = match &project_id {
+        Some(id) => (DirectiveTarget::Project, id.clone()),
+        None => (DirectiveTarget::Department, "Marketplace".to_string()),
+    };
     let directive = issue_directive_record(
         state,
         format!("Deliver gig: {title}"),
         description.to_string(),
         DirectiveSource::Marketplace,
-        DirectiveTarget::Project,
-        project_id.clone(),
+        target,
+        target_ref,
     );
     let directive_id = directive.id.clone();
-    if let Ok(nodes) = super::scheduler::route_directive_rule_based(state, &directive_id, &project_id) {
-        for node in nodes {
-            if node.kind == WorkNodeKind::Story {
-                if let Some(work) = state.work_nodes.iter_mut().find(|n| n.id == node.id) {
-                    work.linked_gig_contract_id = Some(contract_id.to_string());
+    if let Some(project_id) = project_id.clone() {
+        if let Ok(nodes) = super::scheduler::route_directive_rule_based(state, &directive_id, &project_id)
+        {
+            for node in nodes {
+                if node.kind == WorkNodeKind::Story {
+                    if let Some(work) = state.work_nodes.iter_mut().find(|n| n.id == node.id) {
+                        work.linked_gig_contract_id = Some(contract_id.to_string());
+                    }
                 }
             }
         }
-    }
-    if state.settings.scrum_auto_schedule {
-        if let Ok(sprint_id) = super::scheduler::ensure_active_sprint(state, &project_id) {
-            let _ = super::scheduler::plan_sprint(state, &sprint_id);
+        if state.settings.scrum_auto_schedule {
+            if let Ok(sprint_id) = super::scheduler::ensure_active_sprint(state, &project_id) {
+                let _ = super::scheduler::plan_sprint(state, &sprint_id);
+            }
         }
     }
     state

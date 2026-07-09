@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { reloadGameState } from "../../hooks/useReloadGameState";
-import { clearAllTestData, seedFakeTestData } from "../../services/testModeClient";
+import { clearAllTestData } from "../../services/testModeClient";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
-import { IS_V2, simulationAutoRun } from "../../config/features";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 export function TestModeButton() {
@@ -61,30 +60,6 @@ export function TestModeButton() {
     }
   };
 
-  const handleSeed = async () => {
-    setBusy(true);
-    setOpen(false);
-    try {
-      const result = await seedFakeTestData();
-      resetLocalStores();
-      setOnboardingReady(true);
-      await reloadGameState();
-      useGameStore.setState({
-        isPaused: !simulationAutoRun,
-        activePanel: simulationAutoRun ? "office" : "projects",
-      });
-      useGameStore.getState().bumpScrumRevision();
-      setStatusMessage(result.message);
-      requestAnimationFrame(() => {
-        document.getElementById("command")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    } catch (error) {
-      setStatusMessage(String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="test-mode-toolbar" ref={rootRef} data-open={open || undefined}>
       <button
@@ -110,16 +85,6 @@ export function TestModeButton() {
           >
             Clear all data
           </button>
-          {IS_V2 ? (
-            <button
-              type="button"
-              className="test-mode-action"
-              disabled={busy}
-              onClick={() => void handleSeed()}
-            >
-              Seed fake data
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>

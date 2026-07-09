@@ -158,7 +158,17 @@ mod tests {
     #[test]
     fn resolves_department_directive_to_matching_project() {
         let mut state = AppState::default();
-        state.seed_projects();
+        state.projects.push(crate::state::InternalProject {
+            id: "proj-hr".into(),
+            title: "HR Program".into(),
+            progress: 0.0,
+            priority: 1,
+            owner_department: "Human Resources".into(),
+            description: String::new(),
+            pm_agent_id: None,
+            active_sprint_id: None,
+            default_cycle_days: 14,
+        });
         let directive = Directive {
             id: "dir-1".into(),
             title: "HR push".into(),

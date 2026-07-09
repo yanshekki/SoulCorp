@@ -3,8 +3,6 @@ import { useGameStore } from "../stores/gameStore";
 import { listDepartments } from "../services/departmentsClient";
 import type { DepartmentListEntry, DepartmentsSnapshot } from "../types/game";
 
-import { FALLBACK_DEPARTMENTS } from "../data/defaultDepartments";
-
 export function useCompanyDepartments() {
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const [snapshot, setSnapshot] = useState<DepartmentsSnapshot | null>(null);
@@ -29,8 +27,7 @@ export function useCompanyDepartments() {
     void refresh();
   }, [refresh]);
 
-  const departmentNames =
-    snapshot?.departments.map((department) => department.name) ?? FALLBACK_DEPARTMENTS;
+  const departmentNames = snapshot?.departments.map((department) => department.name) ?? [];
 
   const departments: DepartmentListEntry[] = snapshot?.departments ?? [];
 

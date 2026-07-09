@@ -17,8 +17,9 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectSetupMode {
-    #[default]
+    /// Legacy saves only — no demo data is injected.
     Preset,
+    #[default]
     Custom,
 }
 
@@ -1211,7 +1212,7 @@ impl AppState {
         }
 
         match mode {
-            ProjectSetupMode::Preset => self.seed_preset_projects(),
+            ProjectSetupMode::Preset => Ok(()),
             ProjectSetupMode::Custom => {
                 let custom =
                     custom.ok_or_else(|| "Custom project details are required.".to_string())?;
@@ -1219,11 +1220,7 @@ impl AppState {
                 if title.len() < 2 {
                     return Err("Project title must be at least 2 characters.".to_string());
                 }
-                let department = if custom.owner_department.trim().is_empty() {
-                    "Engineering".to_string()
-                } else {
-                    custom.owner_department.trim().to_string()
-                };
+                let department = custom.owner_department.trim().to_string();
                 self.projects.push(InternalProject {
                     id: format!("proj-{}", uuid::Uuid::new_v4()),
                     title: title.to_string(),
@@ -1235,112 +1232,11 @@ impl AppState {
                     active_sprint_id: None,
                     default_cycle_days: 14,
                 });
+                Ok(())
             }
         }
-        Ok(())
     }
 
-    fn seed_preset_projects(&mut self) {
-        if !self.projects.is_empty() {
-            return;
-        }
-        self.projects = vec![
-            InternalProject {
-                id: "proj-core".into(),
-                title: "SoulCorp Core Platform".into(),
-                progress: 0.35,
-                priority: 1,
-                owner_department: "Engineering".into(),
-                description: "Core AI company platform features.".into(),
-                pm_agent_id: None,
-                active_sprint_id: None,
-                default_cycle_days: 14,
-            },
-            InternalProject {
-                id: "proj-hr".into(),
-                title: "Team Culture Program".into(),
-                progress: 0.2,
-                priority: 2,
-                owner_department: "Human Resources".into(),
-                description: "Morale, rituals, and team health.".into(),
-                pm_agent_id: None,
-                active_sprint_id: None,
-                default_cycle_days: 14,
-            },
-        ];
-        self.seed_scrum_demo();
-    }
-
-    pub fn seed_projects(&mut self) {
-        self.seed_preset_projects();
-    }
-
-    pub fn seed_scrum_demo(&mut self) {
-        if !self.work_nodes.is_empty() {
-            return;
-        }
-        let now = crate::scrum::now_iso();
-        let story_id = crate::scrum::new_node_id();
-        self.work_nodes.push(crate::scrum::WorkNode {
-            id: story_id.clone(),
-            parent_id: None,
-            project_id: "proj-core".into(),
-            kind: crate::scrum::WorkNodeKind::Story,
-            title: "Ship Projects command center".into(),
-            description: "Backlog, sprint board, and agent inbox.".into(),
-            status: crate::scrum::WorkNodeStatus::Ready,
-            priority: 4,
-            story_points: 5,
-            backlog_rank: 1,
-            assignee_agent_id: None,
-            assigned_by_manager_id: None,
-            owner_pm_agent_id: self.default_pm_agent_id.clone(),
-            retry_count: 0,
-            department: "Engineering".into(),
-            sprint_id: None,
-            depends_on: Vec::new(),
-            acceptance_criteria: vec!["Projects panel live in navigation.".into()],
-            linked_workspace_page_id: None,
-            linked_gig_contract_id: None,
-            created_at: now.clone(),
-            updated_at: now.clone(),
-            completed_at: None,
-        });
-        for (index, (title, points)) in [
-            ("API & data model", 2u8),
-            ("Projects UI shell", 2u8),
-            ("Agent inbox wiring", 1u8),
-        ]
-        .iter()
-        .enumerate()
-        {
-            self.work_nodes.push(crate::scrum::WorkNode {
-                id: crate::scrum::new_node_id(),
-                parent_id: Some(story_id.clone()),
-                project_id: "proj-core".into(),
-                kind: crate::scrum::WorkNodeKind::Task,
-                title: title.to_string(),
-                description: String::new(),
-                status: crate::scrum::WorkNodeStatus::Backlog,
-                priority: 4,
-                story_points: *points,
-                backlog_rank: index as u32,
-                assignee_agent_id: None,
-                assigned_by_manager_id: None,
-                owner_pm_agent_id: self.default_pm_agent_id.clone(),
-                retry_count: 0,
-                department: "Engineering".into(),
-                sprint_id: None,
-                depends_on: Vec::new(),
-                acceptance_criteria: vec!["Deliverable in Workspace.".into()],
-                linked_workspace_page_id: None,
-                linked_gig_contract_id: None,
-                created_at: now.clone(),
-                updated_at: now.clone(),
-                completed_at: None,
-            });
-        }
-    }
 }
 
 #[cfg(test)]
@@ -1387,13 +1283,13 @@ mod project_setup_tests {
     use super::*;
 
     #[test]
-    fn preset_setup_seeds_demo_backlog() {
+    fn preset_setup_does_not_inject_demo_data() {
         let mut state = AppState::default();
         state
             .apply_project_setup(ProjectSetupMode::Preset, None)
             .expect("preset");
-        assert_eq!(state.projects.len(), 2);
-        assert!(!state.work_nodes.is_empty());
+        assert!(state.projects.is_empty());
+        assert!(state.work_nodes.is_empty());
     }
 
     #[test]
