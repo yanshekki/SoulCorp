@@ -100,6 +100,7 @@ pub fn apply_scrum_worker_tick(
     }
 
     seed_default_org_links(state);
+    let _ = crate::scrum::queue::backfill_missing_queued_at(state);
 
     let force = force_orchestrator
         || state.autopilot.stall_tick_count >= crate::autopilot::STALL_TICK_THRESHOLD;

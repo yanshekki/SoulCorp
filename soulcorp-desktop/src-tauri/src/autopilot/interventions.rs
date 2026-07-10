@@ -206,6 +206,7 @@ pub fn ceo_reject_deliverable(
         created_at: now.clone(),
         updated_at: now,
         completed_at: None,
+        queued_at: None,
         awaiting_ceo_gate: false,
     };
     state.work_nodes.push(revision);

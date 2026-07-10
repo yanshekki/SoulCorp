@@ -39,7 +39,11 @@ export function RecruitmentCandidatePicker({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      // Soft: keep prior results visible while searching — only gate empty first load.
+      const showLoading = candidates.length === 0;
+      if (showLoading) {
+        setLoading(true);
+      }
       try {
         const result = await invoke<{
           candidates: RecruitmentCandidate[];
@@ -66,7 +70,7 @@ export function RecruitmentCandidatePicker({
           setMessage(String(error));
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && showLoading) {
           setLoading(false);
         }
       }
@@ -75,6 +79,8 @@ export function RecruitmentCandidatePicker({
     return () => {
       cancelled = true;
     };
+    // candidates.length is only a soft-loading gate at effect start
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
   const filteredCandidates = useMemo(() => {

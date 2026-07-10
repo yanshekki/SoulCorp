@@ -10,9 +10,26 @@ pub fn execute_llm_only(
     task: &WorkNode,
     agent: &AgentRecord,
     _project_title: &str,
+    workspace_root: Option<&std::path::Path>,
     activity: Option<ActivityRunContext>,
 ) -> Result<String, String> {
-    let request = build_execution_request(state, task, agent)?;
+    let mut request = build_execution_request(state, task, agent)?;
+    if let Some(root) = workspace_root {
+        if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root.to_path_buf()) {
+            let max_chars = state.settings.agent_memory_max_chars.max(500) as usize;
+            let mem = crate::workspace::agent_memory::prompt_memory_section(
+                Some(&storage),
+                agent,
+                max_chars,
+            );
+            if !mem.trim().is_empty() {
+                request.context = Some(match request.context {
+                    Some(existing) => format!("{existing}{mem}"),
+                    None => mem,
+                });
+            }
+        }
+    }
     let dept_providers = state.department_ai_providers.clone();
     let billed = BilledChatRequest {
         request,

@@ -34,14 +34,14 @@ pub fn skill_match_score(task: &WorkNode, agent: &AgentRecord) -> f32 {
 }
 
 pub fn agent_capacity(agent: &AgentRecord, nodes: &[WorkNode]) -> f32 {
-    let assigned: u8 = nodes
+    let assigned: u32 = nodes
         .iter()
         .filter(|n| {
             n.assignee_agent_id.as_deref() == Some(agent.id.as_str())
                 && !matches!(n.status, WorkNodeStatus::Done)
         })
-        .map(|n| n.story_points.max(1))
-        .sum();
+        .map(|n| u32::from(n.story_points.max(1)))
+        .fold(0u32, |acc, pts| acc.saturating_add(pts));
     let wallet_bonus = 1.0f32;
     let load_penalty = 1.0 / (1.0 + assigned as f32 * 0.15);
     agent.energy.clamp(0.2, 1.0) * agent.morale.clamp(0.2, 1.0) * wallet_bonus * load_penalty
@@ -100,6 +100,7 @@ pub fn route_directive_rule_based(
         created_at: now.clone(),
         updated_at: now.clone(),
         completed_at: None,
+        queued_at: None,
     };
 
     let tasks = decompose_story_to_tasks(&story, &directive, &pm_id, dept_head.as_deref(), &now);
@@ -158,6 +159,7 @@ fn decompose_story_to_tasks(
             created_at: now.to_string(),
             updated_at: now.to_string(),
             completed_at: None,
+            queued_at: None,
         })
         .collect()
 }
@@ -233,9 +235,8 @@ pub fn apply_department_head_delegation(state: &mut AppState) -> u32 {
         };
 
         if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
-            node.assignee_agent_id = Some(agent_id);
+            super::queue::assign_and_enqueue(node, agent_id);
             node.assigned_by_manager_id = Some(manager_id);
-            node.updated_at = now_iso();
             delegated += 1;
         }
     }
@@ -299,10 +300,9 @@ pub fn plan_sprint(state: &mut AppState, sprint_id: &str) -> Result<u32, String>
                 let best = pick_best_agent(state, &task, &agents, &state.work_nodes);
                 if let Some(agent_id) = best {
                     if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
-                        node.assignee_agent_id = Some(agent_id);
+                        super::queue::assign_and_enqueue(node, agent_id);
                         node.status = WorkNodeStatus::InSprint;
                         node.sprint_id = Some(sprint_id.to_string());
-                        node.updated_at = now_iso();
                         assigned_count += 1;
                     }
                 }
@@ -357,21 +357,21 @@ pub fn board_snapshot(state: &AppState, project_id: &str) -> super::types::Scrum
         .cloned()
         .collect();
 
-    let burndown_total: u8 = project_nodes
+    let burndown_total: u32 = project_nodes
         .iter()
         .filter(|n| n.kind == WorkNodeKind::Task && n.sprint_id.is_some())
-        .map(|n| n.story_points.max(1))
-        .sum();
+        .map(|n| u32::from(n.story_points.max(1)))
+        .fold(0u32, |acc, pts| acc.saturating_add(pts));
 
-    let burndown_remaining: u8 = project_nodes
+    let burndown_remaining: u32 = project_nodes
         .iter()
         .filter(|n| {
             n.kind == WorkNodeKind::Task
                 && n.sprint_id.is_some()
                 && !matches!(n.status, WorkNodeStatus::Done)
         })
-        .map(|n| n.story_points.max(1))
-        .sum();
+        .map(|n| u32::from(n.story_points.max(1)))
+        .fold(0u32, |acc, pts| acc.saturating_add(pts));
 
     super::types::ScrumBoardSnapshot {
         project_id: project_id.to_string(),
@@ -421,7 +421,12 @@ pub fn agent_inboxes(state: &AppState) -> Vec<super::types::AgentInboxEntry> {
                 })
                 .cloned()
                 .collect();
-            let assigned_points: u8 = tasks.iter().map(|t| t.story_points.max(1)).sum();
+            let assigned_points: u32 = tasks
+                .iter()
+                .map(|t| u32::from(t.story_points.max(1)))
+                .fold(0u32, |acc, pts| acc.saturating_add(pts));
+            let queued_count = super::queue::queue_depth(state, &agent.id);
+            let busy = super::queue::agent_is_busy(state, &agent.id);
             super::types::AgentInboxEntry {
                 agent_id: agent.id.clone(),
                 agent_name: agent.name.clone(),
@@ -429,6 +434,8 @@ pub fn agent_inboxes(state: &AppState) -> Vec<super::types::AgentInboxEntry> {
                 department: agent.department.clone(),
                 assigned_points,
                 tasks,
+                queued_count,
+                busy,
             }
         })
         .collect();

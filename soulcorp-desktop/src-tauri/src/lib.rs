@@ -10,6 +10,7 @@ mod meeting;
 mod orchestrator;
 mod fate;
 mod scrum;
+mod skills;
 mod commands;
 mod db;
 mod progress;
@@ -194,9 +195,29 @@ pub fn run() {
             commands::probe_all_agent_runtimes,
             commands::test_agent_runtime,
             commands::test_openclaw_runtime,
+            commands::list_skill_catalog,
+            commands::get_skill_pack,
+            commands::list_enabled_skills,
+            commands::get_skills_prompt_fragment,
+            commands::dispatch_skill_tool,
+            commands::set_skill_pack_enabled,
+            commands::update_skill_policy,
+            commands::get_skill_preferences,
+            commands::get_firewall_status,
+            commands::get_firewall_audit,
+            commands::clear_firewall_audit,
+            commands::probe_skill_runtimes,
+            commands::install_skill_runtime,
+            commands::list_custom_skills,
+            commands::create_custom_skill,
+            commands::get_custom_skill_files,
+            commands::save_custom_skill_files,
+            commands::delete_custom_skill,
+            commands::test_skill_script,
             commands::preview_route_directive_cmd,
             commands::cancel_directive,
             commands::update_directive_status,
+            commands::send_co_ceo_directive_to_state,
             commands::send_co_ceo_directive_to_stae,
             commands::run_batch_executions,
             commands::update_budget_allocations,
@@ -273,6 +294,8 @@ pub fn run() {
             commands::agent_workspace_append_journal,
             commands::agent_workspace_write_deliverable,
             commands::agent_workspace_list_activity,
+            commands::agent_workspace_get_memory,
+            commands::agent_workspace_compress_memory,
             commands::list_agent_activity,
             commands::get_agent_session,
             commands::export_agent_activity_markdown,

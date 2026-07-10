@@ -78,14 +78,43 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
   };
 
   const handleInterventionMode = async (mode: AutopilotInterventionMode) => {
+    // Gate policy only — never used as a pause switch (Pause button owns run/stop).
+    const nextMode: AutopilotInterventionMode =
+      mode === "paused" ? "auto" : mode;
     await run(async () => {
-      await setAutopilotInterventionMode(mode);
+      await setAutopilotInterventionMode(nextMode);
+      const latest = useGameStore.getState().settings;
       setSettings({
-        ...settings,
-        autopilot_intervention_mode: mode,
-        scrum_execution_paused: mode === "paused",
+        ...latest,
+        autopilot_intervention_mode: nextMode,
       });
-    }, `Intervention mode: ${mode}`);
+    }, `Intervention mode: ${nextMode}`);
+  };
+
+  const handlePauseToggle = async () => {
+    const pausing = !snapshot?.execution_paused;
+    await run(async () => {
+      if (pausing) {
+        await pauseAutopilot();
+        const latest = useGameStore.getState().settings;
+        setSettings({
+          ...latest,
+          scrum_execution_paused: true,
+        });
+      } else {
+        await resumeAutopilot();
+        const latest = useGameStore.getState().settings;
+        setSettings({
+          ...latest,
+          scrum_execution_paused: false,
+          // Clear legacy paused mode if present; keep gate_* modes intact.
+          autopilot_intervention_mode:
+            latest.autopilot_intervention_mode === "paused"
+              ? "auto"
+              : (latest.autopilot_intervention_mode ?? "auto"),
+        });
+      }
+    }, pausing ? "Autopilot paused." : "Autopilot resumed.");
   };
 
   const handleFullAutopilot = async (enabled: boolean) => {
@@ -100,7 +129,12 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
         scrum_auto_schedule: enabled ? true : settings.scrum_auto_schedule,
         scrum_auto_execute: enabled ? true : settings.scrum_auto_execute,
         scrum_auto_approve: enabled ? true : settings.scrum_auto_approve,
+        // Enabling full auto also un-pauses so the toggle is meaningful.
         scrum_execution_paused: enabled ? false : settings.scrum_execution_paused,
+        autopilot_intervention_mode:
+          enabled && settings.autopilot_intervention_mode === "paused"
+            ? "auto"
+            : settings.autopilot_intervention_mode,
       });
     }, enabled ? "Full Autopilot enabled." : "Full Autopilot disabled.");
   };
@@ -166,41 +200,63 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
 
   return (
     <div className="autopilot-panel">
-      <div className="autopilot-controls">
-        <label className="checkbox-row">
+      <div className="autopilot-toolbar" role="toolbar" aria-label="Autopilot controls">
+        <label className="autopilot-toolbar-item autopilot-toolbar-check">
           <input
             type="checkbox"
             checked={settings.autopilot_full_auto_enabled ?? true}
             disabled={busy}
             onChange={(e) => void handleFullAutopilot(e.target.checked)}
           />
-          <span>Full Autopilot (all scrum_auto_* policies)</span>
+          <span className="autopilot-toolbar-check-copy">
+            <strong>Full Autopilot</strong>
+            <span className="muted">All automation policies</span>
+          </span>
         </label>
-        <label className="field-label">
-          Intervention mode
+
+        <div className="autopilot-toolbar-item autopilot-toolbar-select">
+          <span className="autopilot-toolbar-label" id="autopilot-mode-label">
+            When CEO steps in
+          </span>
           <select
-            value={snapshot.intervention_mode}
+            aria-labelledby="autopilot-mode-label"
+            value={
+              snapshot.intervention_mode === "paused" ? "auto" : snapshot.intervention_mode
+            }
             disabled={busy}
             onChange={(e) =>
               void handleInterventionMode(e.target.value as AutopilotInterventionMode)
             }
           >
             <option value="auto">Auto — intervene anytime</option>
-            <option value="gate_directives">Gate directives</option>
-            <option value="gate_deliverables">Gate deliverables</option>
-            <option value="paused">Paused</option>
+            <option value="gate_directives">Gate directives only</option>
+            <option value="gate_deliverables">Gate deliverables only</option>
           </select>
-        </label>
-        {snapshot.execution_paused ? (
-          <button type="button" className="primary-action" disabled={busy} onClick={() => void run(resumeAutopilot, "Autopilot resumed.")}>
-            Resume autopilot
+        </div>
+
+        <div className="autopilot-toolbar-actions">
+          <button
+            type="button"
+            className={`autopilot-toolbar-btn${snapshot.execution_paused ? " autopilot-toolbar-btn--primary" : " autopilot-toolbar-btn--pause"}`}
+            disabled={busy}
+            onClick={() => void handlePauseToggle()}
+            aria-pressed={snapshot.execution_paused}
+            title={
+              snapshot.execution_paused
+                ? "Resume automated execution"
+                : "Pause all automated execution now"
+            }
+          >
+            {snapshot.execution_paused ? "Resume" : "Pause"}
           </button>
-        ) : (
-          <button type="button" disabled={busy} onClick={() => void run(pauseAutopilot, "Autopilot paused.")}>
-            Pause autopilot
-          </button>
-        )}
+        </div>
       </div>
+      {snapshot.execution_paused ? (
+        <p className="autopilot-paused-banner" role="status">
+          Autopilot is <strong>paused</strong> — workers and orchestrator will not advance work until
+          you press Resume.
+        </p>
+      ) : null}
 
       <div className="autopilot-live">
         <div className="autopilot-phase-pill">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
@@ -14,7 +14,8 @@ export const OBSERVATORY_SECTIONS = [
 ] as const;
 
 interface ObservatoryPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
 function ObservatoryCard({
@@ -22,14 +23,19 @@ function ObservatoryCard({
   title,
   description,
   badge,
+  activeSection,
   children,
 }: {
   id: string;
   title: string;
   description?: string;
   badge?: string;
+  activeSection: string;
   children: ReactNode;
 }) {
+  if (activeSection !== id) {
+    return null;
+  }
   return (
     <section
       id={id}
@@ -52,7 +58,7 @@ interface ExportResult {
   message: string;
 }
 
-export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
+export function ObservatoryPanel({ activeSection, onNavigateSection }: ObservatoryPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
@@ -97,10 +103,6 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
     );
   }, [filterAgentId, sessions]);
 
-  const scrollToSection = (sectionId: string) => {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const handleSelectAgent = (agentId: string, sessionId?: string) => {
     selectAgent(agentId);
     setFilterAgent(agentId);
@@ -115,14 +117,14 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
     if (session) {
       selectSession(session.id);
     }
-    scrollToSection("stream");
+    onNavigateSection?.("stream");
   };
 
   const handleSelectSession = (sessionId: string, agentId: string) => {
     selectSession(sessionId);
     selectAgent(agentId);
     setFilterAgent(agentId);
-    scrollToSection("stream");
+    onNavigateSection?.("stream");
   };
 
   const clearFocus = () => {
@@ -139,37 +141,11 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-observatory-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-observatory-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, sessions.length, events.length]);
-
   return (
     <div className="observatory-panel observatory-panel--page" ref={scrollRootRef}>
       <ObservatoryCard
         id="overview"
+        activeSection={activeSection}
         title="Agent Observatory"
         description="Watch live LLM tokens, execution steps, and subprocess output while agents work. Pick a live session or history event — the mind stream opens below."
       >
@@ -196,7 +172,7 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
           </article>
         </div>
         <div className="observatory-quick-links">
-          <button type="button" className="secondary-action" onClick={() => scrollToSection("live")}>
+          <button type="button" className="secondary-action" onClick={() => onNavigateSection?.("live")}>
             Jump to live
           </button>
           <button type="button" className="secondary-action" onClick={() => setActivePanel("meeting")}>
@@ -214,6 +190,7 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
 
       <ObservatoryCard
         id="live"
+        activeSection={activeSection}
         badge="Live"
         title="Thinking now"
         description="Agents with an active session. Click one to open their mind stream."
@@ -223,6 +200,7 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
 
       <ObservatoryCard
         id="history"
+        activeSection={activeSection}
         title="Session history"
         description="Step milestones and outcomes. Token chunks are hidden here — open the mind stream for the full live text."
       >
@@ -231,6 +209,7 @@ export function ObservatoryPanel({ onSectionFocus }: ObservatoryPanelProps) {
 
       <ObservatoryCard
         id="stream"
+        activeSection={activeSection}
         badge="Stream"
         title="Mind stream"
         description={

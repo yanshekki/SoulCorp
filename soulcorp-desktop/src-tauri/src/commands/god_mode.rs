@@ -6,7 +6,7 @@ use crate::token_budget::{top_up_company_tokens, total_company_tokens};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -399,10 +399,25 @@ pub fn god_mode_reset_agent_memory(
         agent.name.clone()
     };
 
+    // Also clear working memory.md (soul was already cleared above).
+    if !state.company_id.is_empty() {
+        if let Ok(dir) = app.path().app_data_dir() {
+            let root = crate::workspace::company_workspace_root(&dir, &state.company_id);
+            if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root) {
+                let _ = storage.ensure_seed();
+                let _ = crate::workspace::agent_memory::reset_agent_memory(
+                    &mut state,
+                    &storage,
+                    &target_id,
+                );
+            }
+        }
+    }
+
     let result = record_use(
         &mut state,
         "reset_agent_memory",
-        format!("{agent_name}'s memory was wiped. They feel lost but unburdened."),
+        format!("{agent_name}'s soul + memory.md were wiped. They feel lost but unburdened."),
         0.14,
     );
     commit(app, &state)?;

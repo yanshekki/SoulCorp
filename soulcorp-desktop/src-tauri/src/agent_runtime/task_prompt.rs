@@ -32,8 +32,26 @@ pub fn build_task_message(
         .map(|body| format!("\n\n## Workspace context\n{body}\n"))
         .unwrap_or_default();
 
+    // Note: working memory (memory.md) is merged into workspace_addon by callers when available.
+
+    // Bridge SoulCorp skill catalog into OpenClaw / Hermes / other subprocess runtimes.
+    let skills_section = {
+        // Subprocess bridge uses default policy (company prefs applied in in-app path).
+        let policy = crate::skills::SkillPolicy::default();
+        let enabled = crate::skills::enabled_packs(&policy);
+        if enabled.is_empty() {
+            String::new()
+        } else {
+            let summaries: Vec<_> = enabled.iter().map(|p| p.summary(true)).collect();
+            format!(
+                "\n\n## SoulCorp skills (prefer using equivalent tools if available)\n{}\n",
+                crate::skills::format_skill_catalog_prompt(&summaries)
+            )
+        }
+    };
+
     format!(
-        "# SoulCorp task execution\n\n## Agent\n- Name: {name}\n- Role: {role}\n- Department: {department}\n\n## Project\n{project_title}\n\n## Task\n**{title}**\n\n{description}\n\n## Acceptance criteria\n{acceptance}\n\n## Agent soul\n{soul_section}{soul_file_note}{workspace_section}\n## Instructions\nComplete this task using your available tools. Return the final deliverable as markdown plain text in your reply. Summarize files created and key decisions.",
+        "# SoulCorp task execution\n\n## Agent\n- Name: {name}\n- Role: {role}\n- Department: {department}\n\n## Project\n{project_title}\n\n## Task\n**{title}**\n\n{description}\n\n## Acceptance criteria\n{acceptance}\n\n## Agent soul\n{soul_section}{soul_file_note}{workspace_section}{skills_section}\n## Instructions\nComplete this task using your available tools. Return the final deliverable as markdown plain text in your reply. Summarize files created and key decisions.",
         name = agent.name,
         role = agent.role,
         department = agent.department,

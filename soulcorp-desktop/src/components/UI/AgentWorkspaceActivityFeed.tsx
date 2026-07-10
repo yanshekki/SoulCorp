@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listAgentWorkspaceActivity } from "../../services/agentWorkspaceClient";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
@@ -42,20 +42,29 @@ export function AgentWorkspaceActivityFeed() {
   const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const [listPage, setListPage] = useState(0);
   const debouncedQuery = useDebouncedValue(searchQuery);
+  const hasEntriesRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!activeCompanyId) {
+      hasEntriesRef.current = false;
       setEntries([]);
       return;
     }
-    setLoading(true);
+    // Soft refresh: keep existing rows visible; only show loading on first empty load.
+    const showLoading = !hasEntriesRef.current;
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const activity = await listAgentWorkspaceActivity(40);
+      hasEntriesRef.current = activity.length > 0 || hasEntriesRef.current;
       setEntries(activity);
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [activeCompanyId, setStatusMessage]);
 

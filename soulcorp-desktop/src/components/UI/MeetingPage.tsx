@@ -1,16 +1,12 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { MeetingPanel, MEETING_SECTIONS } from "./MeetingPanel";
 import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function MeetingPage() {
-  const [activeSection, setActiveSection] = useState<string>(MEETING_SECTIONS[0].id);
-
-  const scrollToSection = useCallback((sectionId: string) => {
-    setActiveSection(sectionId);
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  // Land on Session (start/advance) — Overview is status-only.
+  const [activeSection, setActiveSection] = useState<string>("session");
 
   return (
     <AppPageShell
@@ -19,10 +15,10 @@ export function MeetingPage() {
       badge={formatWorkflowStepBadge("meeting")}
       navItems={MEETING_SECTIONS.map((section) => ({ id: section.id, label: section.label }))}
       activeNavId={activeSection}
-      onNavSelect={scrollToSection}
+      onNavSelect={setActiveSection}
       headerAction={<WorkflowNextButton panel="meeting" />}
     >
-      <MeetingPanel onSectionFocus={setActiveSection} />
+      <MeetingPanel activeSection={activeSection} onNavigateSection={setActiveSection} />
     </AppPageShell>
   );
 }

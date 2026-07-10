@@ -36,11 +36,11 @@ function formatTokens(value: number): string {
 }
 
 interface FinancePanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
   onNavigateSection?: (sectionId: string) => void;
 }
 
-export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanelProps) {
+export function FinancePanel({ activeSection, onNavigateSection }: FinancePanelProps) {
   const finance = useGameStore((state) => state.finance);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
@@ -155,33 +155,6 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
   useEffect(() => {
     void refreshSnapshot();
   }, [activeCompanyId, refreshSnapshot]);
-
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-tokens-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-tokens-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, departmentRows.length, agentWalletRows.length, ledger.length, agentRecords.length]);
 
   const updateAllocation = async (key: keyof BudgetAllocations, value: number) => {
     try {
@@ -322,6 +295,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
 
   return (
     <div className="finance-panel finance-panel--page" ref={scrollRootRef}>
+      {activeSection === "overview" ? (
       <section
         id="overview"
         className="tokens-card tokens-card--wide"
@@ -389,7 +363,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           </button>
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "allocation" ? (
       <section
         id="allocation"
         className="tokens-card tokens-card--wide"
@@ -426,7 +402,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           ))}
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "departments" ? (
       <section
         id="departments"
         className="tokens-card tokens-card--wide"
@@ -482,7 +460,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "agents" ? (
       <section
         id="agents"
         className="tokens-card tokens-card--wide"
@@ -538,7 +518,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "ledger" ? (
       <section
         id="ledger"
         className="tokens-card tokens-card--wide"
@@ -626,7 +608,9 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           </>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "salaries" ? (
       <section
         id="salaries"
         className="tokens-card tokens-card--wide"
@@ -681,6 +665,7 @@ export function FinancePanel({ onSectionFocus, onNavigateSection }: FinancePanel
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }

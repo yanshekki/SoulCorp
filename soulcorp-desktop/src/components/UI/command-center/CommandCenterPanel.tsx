@@ -24,7 +24,6 @@ import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { useCompanyDepartments } from "../../../hooks/useCompanyDepartments";
 import { PaginationBar } from "../PaginationBar";
 import { SearchableListToolbar } from "../SearchableListToolbar";
-import { AgentRuntimeSection } from "./AgentRuntimeSection";
 import { AutopilotPipelinePanel } from "./AutopilotPipelinePanel";
 import { CoCeoPanel } from "./CoCeoPanel";
 import {
@@ -140,21 +139,33 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
     [agentRecords],
   );
 
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  selectedProjectIdRef.current = selectedProjectId;
+  const loadGenerationRef = useRef(0);
+
   const loadSnapshot = useCallback(
     async (projectId?: string) => {
-      const pid = projectId || selectedProjectId || undefined;
+      const pid = projectId || selectedProjectIdRef.current || undefined;
+      const generation = ++loadGenerationRef.current;
       try {
         const [data, ov] = await Promise.all([
           getScrumSnapshot(pid),
           getCommandCenterOverview(pid),
         ]);
+        // Ignore stale responses so rapid worker ticks don't thrash UI state.
+        if (generation !== loadGenerationRef.current) {
+          return;
+        }
+        // Soft update: replace values only — never clear to null mid-refresh.
         setSnapshot(data);
         setOverview(ov);
       } catch (error) {
-        setStatusMessage(String(error));
+        if (generation === loadGenerationRef.current) {
+          setStatusMessage(String(error));
+        }
       }
     },
-    [selectedProjectId, setStatusMessage],
+    [setStatusMessage],
   );
 
   const syncScrumSnapshot = useCallback(
@@ -174,8 +185,8 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
       skipScrumSyncRef.current = false;
       return;
     }
-    void loadSnapshot(selectedProjectId || undefined);
-  }, [scrumRevision, activeCompanyId, selectedProjectId, loadSnapshot]);
+    void loadSnapshot(selectedProjectIdRef.current || undefined);
+  }, [scrumRevision, activeCompanyId, loadSnapshot]);
 
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -207,9 +218,18 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         }
         setSnapshot(data);
         setOverview(ov);
-        const firstProjectId = data.projects[0]?.id ?? "";
-        setSelectedProjectId(firstProjectId);
-        setTargetRef(firstProjectId);
+        setSelectedProjectId((current) => {
+          if (current && data.projects.some((p) => p.id === current)) {
+            return current;
+          }
+          return data.projects[0]?.id ?? "";
+        });
+        setTargetRef((current) => {
+          if (current && data.projects.some((p) => p.id === current)) {
+            return current;
+          }
+          return data.projects[0]?.id ?? "";
+        });
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(String(error));
@@ -514,6 +534,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         orchestrator_auto_recruit: patch.orchestrator_auto_recruit,
         autopilot_intervention_mode: patch.autopilot_intervention_mode,
         autopilot_full_auto_enabled: patch.autopilot_full_auto_enabled,
+        agent_memory_compress_mode: patch.agent_memory_compress_mode,
+        agent_memory_compress_every_n_tasks: patch.agent_memory_compress_every_n_tasks,
+        agent_memory_max_chars: patch.agent_memory_max_chars,
+        agent_memory_append_after_task: patch.agent_memory_append_after_task,
       },
     });
     setSettings(next);
@@ -1126,36 +1150,22 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         {tab === "policies" ? (
           <section className="command-policies">
             <h4 className="command-panel-heading">Execution policies</h4>
+            <p className="muted command-form-note command-policies-ownership">
+              Run controls (Full Autopilot, Pause, intervention) live on the{" "}
+              <button type="button" className="command-inline-link" onClick={() => setTab("overview")}>
+                Overview
+              </button>{" "}
+              tab. Company execution runtime is configured in{" "}
+              <button
+                type="button"
+                className="command-inline-link"
+                onClick={() => useGameStore.getState().setActivePanel("agents")}
+              >
+                Agent Brains → Execution runtime
+              </button>
+              .
+            </p>
             <div className="command-policies-grid">
-            <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Company Autopilot</h5>
-              <div className="command-form">
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={settings.autopilot_full_auto_enabled ?? true}
-                    onChange={(e) =>
-                      void persistSettings({ autopilot_full_auto_enabled: e.target.checked })
-                    }
-                  />
-                  <span>Full Autopilot (enable all automation policies)</span>
-                </label>
-                <label className="field-label">
-                  Intervention mode
-                  <select
-                    value={settings.autopilot_intervention_mode ?? "auto"}
-                    onChange={(e) =>
-                      void persistSettings({ autopilot_intervention_mode: e.target.value })
-                    }
-                  >
-                    <option value="auto">Auto</option>
-                    <option value="gate_directives">Gate directives</option>
-                    <option value="gate_deliverables">Gate deliverables</option>
-                    <option value="paused">Paused</option>
-                  </select>
-                </label>
-              </div>
-            </div>
             <div className="command-policy-group command-panel-block">
               <h5 className="command-policy-group-title">Scrum automation</h5>
               <div className="command-form">
@@ -1206,7 +1216,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 onChange={(e) => void persistSettings({ scrum_parallel_agents: e.target.checked })}
               />
               <span>
-                Parallel LLM execution (one task per idle agent; LLM calls run outside app lock)
+                Parallel across agents (each agent still serial queue; one task per free agent)
               </span>
             </label>
             <label className="checkbox-row">
@@ -1390,24 +1400,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               </div>
             </div>
             <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Agent runtime</h5>
-              <AgentRuntimeSection
-                settings={settings}
-                onPersist={persistSettings}
-                onStatusMessage={setStatusMessage}
-              />
-            </div>
-            <div className="command-policy-group command-panel-block">
               <h5 className="command-policy-group-title">Execution queue</h5>
               <div className="command-form">
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={settings.scrum_execution_paused ?? false}
-                    onChange={(e) => void persistSettings({ scrum_execution_paused: e.target.checked })}
-                  />
-                  <span>Pause execution queue</span>
-                </label>
+                <p className="muted command-form-note">
+                  Pause / Resume automated execution on the Overview toolbar.
+                </p>
                 <label className="field-label">
                   Min token guard (block auto-run below)
                   <input
@@ -1454,6 +1451,62 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       void persistSettings({ scrum_max_blocked_retries: Number(e.target.value) })
                     }
                   />
+                </label>
+                <h5 className="command-policy-group-title">Agent working memory</h5>
+                <p className="muted command-form-note">
+                  Each agent keeps a compressed <code>memory.md</code> while working. View it under
+                  Agent Brains → Employees.
+                </p>
+                <label className="field-label">
+                  Compress mode
+                  <select
+                    value={settings.agent_memory_compress_mode ?? "hybrid"}
+                    onChange={(e) =>
+                      void persistSettings({ agent_memory_compress_mode: e.target.value })
+                    }
+                  >
+                    <option value="hybrid">Hybrid (every N tasks or size limit)</option>
+                    <option value="every_n_tasks">Every N completed tasks</option>
+                    <option value="every_task">After every task</option>
+                    <option value="size_threshold">Only when size exceeds limit</option>
+                  </select>
+                </label>
+                <label className="field-label">
+                  Compress every N tasks
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={settings.agent_memory_compress_every_n_tasks ?? 3}
+                    onChange={(e) =>
+                      void persistSettings({
+                        agent_memory_compress_every_n_tasks: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field-label">
+                  Max memory chars (before compress / prompt trim)
+                  <input
+                    type="number"
+                    min={500}
+                    max={20000}
+                    step={100}
+                    value={settings.agent_memory_max_chars ?? 4000}
+                    onChange={(e) =>
+                      void persistSettings({ agent_memory_max_chars: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.agent_memory_append_after_task ?? true}
+                    onChange={(e) =>
+                      void persistSettings({ agent_memory_append_after_task: e.target.checked })
+                    }
+                  />
+                  <span>Append task summary to memory.md after each success</span>
                 </label>
                 <p className="command-form-note">
                   Company tokens: {finance.monthly_inflow_tokens.toLocaleString()} inflow configured

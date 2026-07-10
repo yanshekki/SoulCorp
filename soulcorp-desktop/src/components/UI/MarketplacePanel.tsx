@@ -58,11 +58,11 @@ function statusLabel(status: string): string {
 }
 
 interface MarketplacePanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
   onNavigateSection?: (sectionId: string) => void;
 }
 
-export function MarketplacePanel({ onSectionFocus, onNavigateSection }: MarketplacePanelProps) {
+export function MarketplacePanel({ activeSection, onNavigateSection }: MarketplacePanelProps) {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
@@ -101,10 +101,17 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
     return next;
   }, []);
 
+  const hasMarketplaceDataRef = useRef(false);
+
   const refreshGigs = useCallback(async () => {
-    setLoading(true);
+    // Only show full loading when we have nothing to display — keep cards mounted on refresh.
+    const showLoading = !hasMarketplaceDataRef.current;
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const [gigResult, nextContracts] = await Promise.all([listHubGigs(), listGigContracts()]);
+      hasMarketplaceDataRef.current = true;
       setGigs(gigResult.gigs);
       setGigsFromCache(gigResult.from_cache);
       setGigsCacheMessage(gigResult.message ?? null);
@@ -112,40 +119,17 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [setStatusMessage]);
 
   useEffect(() => {
+    hasMarketplaceDataRef.current = false;
     void refreshGigs();
   }, [activeCompanyId, refreshGigs]);
 
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-marketplace-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-marketplace-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, gigs.length, contracts.length]);
 
   const activeContractGigIds = useMemo(
     () =>
@@ -391,6 +375,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
 
   return (
     <div className="marketplace-panel marketplace-panel--page" ref={scrollRootRef}>
+      {activeSection === "overview" ? (
       <section
         id="overview"
         className="marketplace-card marketplace-card--wide"
@@ -488,7 +473,9 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </button>
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "browse" ? (
       <section
         id="browse"
         className="marketplace-card marketplace-card--wide"
@@ -581,7 +568,9 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "contracts" ? (
       <section
         id="contracts"
         className="marketplace-card marketplace-card--wide"
@@ -694,7 +683,9 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "history" ? (
       <section
         id="history"
         className="marketplace-card marketplace-card--wide"
@@ -748,7 +739,9 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "publish" ? (
       <section
         id="publish"
         className="marketplace-card marketplace-card--wide"
@@ -813,6 +806,7 @@ export function MarketplacePanel({ onSectionFocus, onNavigateSection }: Marketpl
           </button>
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

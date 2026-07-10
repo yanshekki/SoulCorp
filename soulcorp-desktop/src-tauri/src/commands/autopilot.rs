@@ -157,6 +157,8 @@ pub fn set_autopilot_intervention_mode(
     }
     let mut state = state.lock().map_err(|e| e.to_string())?;
     state.settings.autopilot_intervention_mode = mode.clone();
+    // Legacy "paused" mode still pauses execution; other modes only change gate policy
+    // and do not force resume (Pause/Resume button owns run/stop).
     if mode == "paused" {
         state.settings.scrum_execution_paused = true;
     }
@@ -182,8 +184,10 @@ pub fn resume_autopilot(
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    // Run/stop is only scrum_execution_paused — preserve CEO gate mode.
     state.settings.scrum_execution_paused = false;
     if state.settings.autopilot_intervention_mode == "paused" {
+        // Legacy: old clients used intervention_mode=paused as the pause switch.
         state.settings.autopilot_intervention_mode = "auto".to_string();
     }
     let snapshot = compute_autopilot_snapshot(&state);
@@ -252,8 +256,9 @@ pub fn pause_autopilot(
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
+    // Pause is a run/stop flag only — do not overwrite intervention gate mode
+    // (avoids duplicating the "When CEO steps in" dropdown).
     state.settings.scrum_execution_paused = true;
-    state.settings.autopilot_intervention_mode = "paused".to_string();
     commit(app, &state)?;
     Ok(compute_autopilot_snapshot(&state))
 }

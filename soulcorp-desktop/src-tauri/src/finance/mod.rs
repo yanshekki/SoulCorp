@@ -14,8 +14,8 @@ pub fn total_monthly_salary(agents: &std::collections::HashMap<String, AgentReco
     agents
         .values()
         .filter(|agent| !is_system_agent(agent))
-        .map(|agent| agent.salary as u64)
-        .sum()
+        .map(|agent| agent.salary.max(0.0) as u64)
+        .fold(0u64, |acc, salary| acc.saturating_add(salary))
 }
 
 pub fn projected_monthly_payroll(agents: &std::collections::HashMap<String, AgentRecord>) -> u64 {

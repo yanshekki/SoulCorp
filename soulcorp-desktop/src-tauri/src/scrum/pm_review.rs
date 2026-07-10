@@ -229,6 +229,7 @@ fn create_revision_task(state: &mut AppState, task_id: &str, feedback: &str) {
         created_at: now.clone(),
         updated_at: now,
         completed_at: None,
+        queued_at: None,
     });
 }
 

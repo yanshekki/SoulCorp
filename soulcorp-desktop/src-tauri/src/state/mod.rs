@@ -75,6 +75,12 @@ pub struct GameSettings {
     pub claude_api_key: String,
     #[serde(default = "default_claude_model")]
     pub claude_model: String,
+    #[serde(default = "default_deepseek_base_url")]
+    pub deepseek_base_url: String,
+    #[serde(default)]
+    pub deepseek_api_key: String,
+    #[serde(default = "default_deepseek_model")]
+    pub deepseek_model: String,
     #[serde(default = "default_meeting_turns_per_agent")]
     pub meeting_turns_per_agent: u32,
     #[serde(default = "default_true")]
@@ -177,10 +183,31 @@ pub struct GameSettings {
     pub autopilot_intervention_mode: String,
     #[serde(default = "default_true")]
     pub autopilot_full_auto_enabled: bool,
+    /// Agent memory.md compress mode: hybrid | every_task | every_n_tasks | size_threshold
+    #[serde(default = "default_agent_memory_compress_mode")]
+    pub agent_memory_compress_mode: String,
+    #[serde(default = "default_agent_memory_compress_every_n")]
+    pub agent_memory_compress_every_n_tasks: u32,
+    #[serde(default = "default_agent_memory_max_chars")]
+    pub agent_memory_max_chars: u32,
+    #[serde(default = "default_true")]
+    pub agent_memory_append_after_task: bool,
 }
 
 fn default_autopilot_intervention_mode() -> String {
     "auto".to_string()
+}
+
+fn default_agent_memory_compress_mode() -> String {
+    "hybrid".to_string()
+}
+
+fn default_agent_memory_compress_every_n() -> u32 {
+    3
+}
+
+fn default_agent_memory_max_chars() -> u32 {
+    4000
 }
 
 fn default_agent_activity_max_events() -> u32 {
@@ -287,6 +314,14 @@ fn default_claude_model() -> String {
     "claude-3-5-sonnet-latest".to_string()
 }
 
+fn default_deepseek_base_url() -> String {
+    "https://api.deepseek.com/v1".to_string()
+}
+
+fn default_deepseek_model() -> String {
+    "deepseek-chat".to_string()
+}
+
 fn default_meeting_turns_per_agent() -> u32 {
     3
 }
@@ -352,6 +387,12 @@ impl<'de> Deserialize<'de> for GameSettings {
             claude_api_key: String,
             #[serde(default = "default_claude_model")]
             claude_model: String,
+            #[serde(default = "default_deepseek_base_url")]
+            deepseek_base_url: String,
+            #[serde(default)]
+            deepseek_api_key: String,
+            #[serde(default = "default_deepseek_model")]
+            deepseek_model: String,
             #[serde(default = "default_meeting_turns_per_agent")]
             meeting_turns_per_agent: u32,
             #[serde(default = "default_true")]
@@ -458,6 +499,14 @@ impl<'de> Deserialize<'de> for GameSettings {
             autopilot_intervention_mode: String,
             #[serde(default = "default_true")]
             autopilot_full_auto_enabled: bool,
+            #[serde(default = "default_agent_memory_compress_mode")]
+            agent_memory_compress_mode: String,
+            #[serde(default = "default_agent_memory_compress_every_n")]
+            agent_memory_compress_every_n_tasks: u32,
+            #[serde(default = "default_agent_memory_max_chars")]
+            agent_memory_max_chars: u32,
+            #[serde(default = "default_true")]
+            agent_memory_append_after_task: bool,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -485,6 +534,9 @@ impl<'de> Deserialize<'de> for GameSettings {
             claude_base_url: helper.claude_base_url,
             claude_api_key: helper.claude_api_key,
             claude_model: helper.claude_model,
+            deepseek_base_url: helper.deepseek_base_url,
+            deepseek_api_key: helper.deepseek_api_key,
+            deepseek_model: helper.deepseek_model,
             meeting_turns_per_agent: helper.meeting_turns_per_agent,
             meeting_llm_fallback: helper.meeting_llm_fallback,
             pure_local_mode: helper.pure_local_mode,
@@ -538,6 +590,10 @@ impl<'de> Deserialize<'de> for GameSettings {
             agent_activity_max_events: helper.agent_activity_max_events.clamp(100, 1000),
             autopilot_intervention_mode: helper.autopilot_intervention_mode,
             autopilot_full_auto_enabled: helper.autopilot_full_auto_enabled,
+            agent_memory_compress_mode: helper.agent_memory_compress_mode,
+            agent_memory_compress_every_n_tasks: helper.agent_memory_compress_every_n_tasks.max(1),
+            agent_memory_max_chars: helper.agent_memory_max_chars.max(500),
+            agent_memory_append_after_task: helper.agent_memory_append_after_task,
         })
     }
 }
@@ -573,6 +629,9 @@ impl Default for GameSettings {
             claude_base_url: default_claude_base_url(),
             claude_api_key: String::new(),
             claude_model: default_claude_model(),
+            deepseek_base_url: default_deepseek_base_url(),
+            deepseek_api_key: String::new(),
+            deepseek_model: default_deepseek_model(),
             meeting_turns_per_agent: default_meeting_turns_per_agent(),
             meeting_llm_fallback: true,
             pure_local_mode: false,
@@ -626,6 +685,10 @@ impl Default for GameSettings {
             agent_activity_max_events: default_agent_activity_max_events(),
             autopilot_intervention_mode: default_autopilot_intervention_mode(),
             autopilot_full_auto_enabled: true,
+            agent_memory_compress_mode: default_agent_memory_compress_mode(),
+            agent_memory_compress_every_n_tasks: default_agent_memory_compress_every_n(),
+            agent_memory_max_chars: default_agent_memory_max_chars(),
+            agent_memory_append_after_task: true,
         }
     }
 }
@@ -1192,6 +1255,113 @@ pub struct AppState {
     pub last_deploy_provider: Option<String>,
     #[serde(default)]
     pub visual_design: visual_design::CompanyVisualDesign,
+    /// Agent skill pack preferences (enable/disable packs independently of HR skill tags).
+    #[serde(default)]
+    pub skill_preferences: SkillPreferences,
+    /// Tasks completed since last memory.md compress, per agent id.
+    #[serde(default)]
+    pub agent_memory_tasks_since_compress: HashMap<String, u32>,
+    /// Last successful memory compress timestamp (RFC3339), per agent id.
+    #[serde(default)]
+    pub agent_memory_last_compressed_at: HashMap<String, String>,
+}
+
+/// Company-level skill pack toggles + Skills Firewall (persisted with AppState).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillPreferences {
+    /// Packs forced off even if risk would allow them.
+    #[serde(default)]
+    pub disabled_packs: Vec<String>,
+    /// Packs forced on (e.g. high/critical after user opts in).
+    #[serde(default)]
+    pub force_enabled_packs: Vec<String>,
+    /// Allow high-risk packs (browser-assist, video, sandbox, post-to-x).
+    #[serde(default)]
+    pub allow_high_risk: bool,
+    /// Allow critical packs (web-comment, account-register, form-submit).
+    #[serde(default)]
+    pub allow_critical: bool,
+    /// Domain allowlist for browser/fetch high-security tools.
+    #[serde(default)]
+    pub domain_allowlist: Vec<String>,
+
+    // ── Skills Firewall ─────────────────────────────────────────────
+    /// Master firewall switch (default on).
+    #[serde(default = "default_true_pref")]
+    pub firewall_enabled: bool,
+    /// Allow network tools (search/fetch). Default true for research.
+    #[serde(default = "default_true_pref")]
+    pub allow_network: bool,
+    /// Allow browser automation tools.
+    #[serde(default)]
+    pub allow_browser: bool,
+    /// Allow script execution (run_script / run_python / custom packs).
+    #[serde(default = "default_true_pref")]
+    pub allow_scripts: bool,
+    /// Allow media generation tools.
+    #[serde(default = "default_true_pref")]
+    pub allow_media_generate: bool,
+    /// Allow social post (x_post).
+    #[serde(default)]
+    pub allow_social_post: bool,
+    /// Force dry-run for high-risk tools.
+    #[serde(default)]
+    pub dry_run_high: bool,
+    /// Force dry-run for critical tools (default true).
+    #[serde(default = "default_true_pref")]
+    pub dry_run_critical: bool,
+    /// Domain policy: open | allowlist | blocklist
+    #[serde(default = "default_domain_mode")]
+    pub domain_mode: String,
+    /// Domain blocklist (used in blocklist mode).
+    #[serde(default)]
+    pub domain_blocklist: Vec<String>,
+    /// Allowed script runtimes (empty = all). Values: python, node, php, sh, rust
+    #[serde(default)]
+    pub allowed_script_runtimes: Vec<String>,
+    /// Explicitly blocked tool ids.
+    #[serde(default)]
+    pub blocked_tools: Vec<String>,
+    /// Explicitly blocked permission strings from SKILL.md.
+    #[serde(default)]
+    pub blocked_permissions: Vec<String>,
+    /// If true, fetch_url/web_search also require domain allowlist match.
+    #[serde(default)]
+    pub require_domain_for_fetch: bool,
+}
+
+fn default_true_pref() -> bool {
+    true
+}
+
+fn default_domain_mode() -> String {
+    "open".into()
+}
+
+impl Default for SkillPreferences {
+    fn default() -> Self {
+        Self {
+            disabled_packs: Vec::new(),
+            force_enabled_packs: Vec::new(),
+            allow_high_risk: false,
+            allow_critical: false,
+            domain_allowlist: Vec::new(),
+            firewall_enabled: true,
+            allow_network: true,
+            allow_browser: false,
+            allow_scripts: true,
+            allow_media_generate: true,
+            allow_social_post: false,
+            dry_run_high: false,
+            dry_run_critical: true,
+            domain_mode: default_domain_mode(),
+            domain_blocklist: Vec::new(),
+            allowed_script_runtimes: Vec::new(),
+            blocked_tools: Vec::new(),
+            blocked_permissions: Vec::new(),
+            require_domain_for_fetch: false,
+        }
+    }
 }
 
 impl Default for AppState {
@@ -1242,6 +1412,9 @@ impl Default for AppState {
             last_deploy_at: None,
             last_deploy_provider: None,
             visual_design: visual_design::CompanyVisualDesign::default(),
+            skill_preferences: SkillPreferences::default(),
+            agent_memory_tasks_since_compress: HashMap::new(),
+            agent_memory_last_compressed_at: HashMap::new(),
         }
     }
 }

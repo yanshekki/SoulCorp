@@ -38,6 +38,8 @@ export function legacyMeetingLabel(id: string): string {
     grok_api: "Grok API (xAI)",
     claude: "Claude API",
     claude_api: "Claude API",
+    deepseek: "DeepSeek API",
+    deepseek_api: "DeepSeek API",
     "soulmd-hub": "soulmd-hub API",
     soulmd_hub: "soulmd-hub API",
   };
@@ -53,6 +55,7 @@ export function legacyMeetingProviderToRegistryId(provider: string): string {
     case "openai_api":
     case "grok_api":
     case "claude_api":
+    case "deepseek_api":
     case "soulmd_hub":
       return key;
     case "openai":
@@ -61,6 +64,8 @@ export function legacyMeetingProviderToRegistryId(provider: string): string {
       return "grok_api";
     case "claude":
       return "claude_api";
+    case "deepseek":
+      return "deepseek_api";
     case "soulmd-hub":
       return "soulmd_hub";
     default:
@@ -85,6 +90,7 @@ export function apiProviderIdForMeetingRegistry(
     "Grok API (xAI)": "grok",
     "Grok API": "grok",
     "Claude API": "claude",
+    "DeepSeek API": "deepseek",
     "soulmd-hub API": "soulmd-hub",
   };
   return reverse[legacy] ?? normalized;

@@ -144,7 +144,7 @@ export async function sendCoCeoDirectiveToStae(input: {
   description: string;
   target_department: string;
 }) {
-  return invoke<Directive>("send_co_ceo_directive_to_stae", { request: input });
+  return invoke<Directive>("send_co_ceo_directive_to_state", { request: input });
 }
 
 export async function createSprint(

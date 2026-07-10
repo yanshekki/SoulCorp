@@ -167,6 +167,12 @@ fn provider_for_active(
             settings.claude_model.clone(),
             "claude".to_string(),
         )),
+        "deepseek" => Arc::new(OpenAiCompatibleProvider::new(
+            settings.deepseek_base_url.clone(),
+            settings.deepseek_api_key.clone(),
+            settings.deepseek_model.clone(),
+            "deepseek".to_string(),
+        )),
         "soulmd-hub" => Arc::new(HubChatProvider::new(
             hub.base_url.clone(),
             hub.api_key.clone(),

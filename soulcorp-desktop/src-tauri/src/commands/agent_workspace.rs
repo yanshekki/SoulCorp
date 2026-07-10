@@ -156,3 +156,31 @@ pub fn agent_workspace_list_activity(
     let service = AgentWorkspaceService::new(&storage);
     service.list_company_activity(&agents, limit.unwrap_or(30).clamp(1, 100) as usize)
 }
+
+#[tauri::command]
+pub fn agent_workspace_get_memory(
+    app: AppHandle,
+    agent_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<crate::workspace::agent_memory::AgentMemoryView, String> {
+    let storage = open_storage(&app, &state)?;
+    let locked = state.lock().map_err(|e| e.to_string())?;
+    crate::workspace::agent_memory::memory_view_for_agent(&locked, &storage, &agent_id)
+}
+
+#[tauri::command]
+pub fn agent_workspace_compress_memory(
+    app: AppHandle,
+    agent_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<crate::workspace::agent_memory::AgentMemoryView, String> {
+    let storage = open_storage(&app, &state)?;
+    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let view = crate::workspace::agent_memory::compress_agent_memory(
+        &mut locked,
+        &storage,
+        &agent_id,
+    )?;
+    crate::db::persistence::commit(app, &locked)?;
+    Ok(view)
+}

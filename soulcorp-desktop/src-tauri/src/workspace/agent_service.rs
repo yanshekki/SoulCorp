@@ -52,8 +52,12 @@ impl<'a> AgentWorkspaceService<'a> {
     }
 
     pub fn ensure_agent_folder(&self, agent: &AgentContext) -> Result<String, String> {
-        self.storage
-            .ensure_agent_folder(&agent.id, &agent.name, &agent.department)
+        let folder_id = self
+            .storage
+            .ensure_agent_folder(&agent.id, &agent.name, &agent.department)?;
+        // Every agent folder gets a memory.md page (lazy-create if missing).
+        let _ = super::agent_memory::ensure_memory_page(self.storage, agent);
+        Ok(folder_id)
     }
 
     pub fn list_folder(&self, agent: &AgentContext) -> Result<WorkspaceFolderChildren, String> {

@@ -20,7 +20,7 @@ Agents are AI employees defined by **SOUL.md** personality files, department ass
 | Brain provider per agent/dept | ✅ | `brain/resolver.rs` |
 | Runtime mode per agent/dept | ✅ | `update_agent_runtime_mode` |
 | Co-CEO spawn + briefing | ✅ | `spawn_co_ceo`, `run_co_ceo_briefing` |
-| Co-CEO directives | ✅ | `apply_co_ceo_directive`, `send_co_ceo_directive_to_stae` |
+| Co-CEO directives | ✅ | `apply_co_ceo_directive`, `send_co_ceo_directive_to_state` |
 | Co-CEO autonomy setting | ✅ | `set_co_ceo_autonomy` |
 | Custom VIP departments | ✅ | `create_custom_department` |
 | Department cascade AI | ✅ | `departments/cascade.rs` |

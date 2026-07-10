@@ -23,6 +23,9 @@ pub struct SettingsUpdate {
     pub claude_base_url: Option<String>,
     pub claude_api_key: Option<String>,
     pub claude_model: Option<String>,
+    pub deepseek_base_url: Option<String>,
+    pub deepseek_api_key: Option<String>,
+    pub deepseek_model: Option<String>,
     pub meeting_turns_per_agent: Option<u32>,
     pub meeting_llm_fallback: Option<bool>,
     pub pure_local_mode: Option<bool>,
@@ -76,6 +79,10 @@ pub struct SettingsUpdate {
     pub agent_activity_max_events: Option<u32>,
     pub autopilot_intervention_mode: Option<String>,
     pub autopilot_full_auto_enabled: Option<bool>,
+    pub agent_memory_compress_mode: Option<String>,
+    pub agent_memory_compress_every_n_tasks: Option<u32>,
+    pub agent_memory_max_chars: Option<u32>,
+    pub agent_memory_append_after_task: Option<bool>,
 }
 
 #[tauri::command]
@@ -155,6 +162,19 @@ pub fn update_game_settings(
     if let Some(model) = update.claude_model {
         if !model.trim().is_empty() {
             state.settings.claude_model = model.trim().to_string();
+        }
+    }
+    if let Some(url) = update.deepseek_base_url {
+        if !url.trim().is_empty() {
+            state.settings.deepseek_base_url = url.trim().to_string();
+        }
+    }
+    if let Some(key) = update.deepseek_api_key {
+        state.settings.deepseek_api_key = key;
+    }
+    if let Some(model) = update.deepseek_model {
+        if !model.trim().is_empty() {
+            state.settings.deepseek_model = model.trim().to_string();
         }
     }
     if let Some(turns) = update.meeting_turns_per_agent {
@@ -329,6 +349,24 @@ pub fn update_game_settings(
         if enabled {
             crate::autopilot::apply_full_autopilot_settings(&mut state, true);
         }
+    }
+    if let Some(mode) = update.agent_memory_compress_mode {
+        let normalized = mode.trim().to_ascii_lowercase();
+        if matches!(
+            normalized.as_str(),
+            "hybrid" | "every_task" | "every_n_tasks" | "size_threshold"
+        ) {
+            state.settings.agent_memory_compress_mode = normalized;
+        }
+    }
+    if let Some(n) = update.agent_memory_compress_every_n_tasks {
+        state.settings.agent_memory_compress_every_n_tasks = n.max(1);
+    }
+    if let Some(max) = update.agent_memory_max_chars {
+        state.settings.agent_memory_max_chars = max.max(500);
+    }
+    if let Some(enabled) = update.agent_memory_append_after_task {
+        state.settings.agent_memory_append_after_task = enabled;
     }
 
     let settings = state.settings.clone();

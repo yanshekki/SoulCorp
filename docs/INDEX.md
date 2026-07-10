@@ -44,7 +44,7 @@ Nine-step ribbon defined in `soulcorp-desktop/src/config/navigation.ts`:
 | 3 | Workspace | [NOTION_LIKE_SYSTEM.md](NOTION_LIKE_SYSTEM.md) |
 | 4 | Departments | [AGENT_SYSTEM.md](AGENT_SYSTEM.md) |
 | 5 | Recruitment | [RECRUITMENT_HR.md](RECRUITMENT_HR.md) |
-| 6 | Agent Brains | [AGENT_RUNTIME.md](AGENT_RUNTIME.md) |
+| 6 | Agent Brains | [AGENT_RUNTIME.md](AGENT_RUNTIME.md), [AGENT_SKILLS.md](AGENT_SKILLS.md) |
 | 7 | Observatory | [OBSERVATORY.md](OBSERVATORY.md) |
 | 8 | Tokens | [FINANCE_BUDGET.md](FINANCE_BUDGET.md) |
 | 9 | Marketplace | [EXPORT_REAL_PRODUCTS.md](EXPORT_REAL_PRODUCTS.md) |
@@ -53,6 +53,7 @@ Nine-step ribbon defined in `soulcorp-desktop/src/config/navigation.ts`:
 |------|---------|
 | [COMPANY_AUTOPILOT.md](COMPANY_AUTOPILOT.md) | Full-company autopilot pipeline, gates, interventions |
 | [AGENT_SYSTEM.md](AGENT_SYSTEM.md) | Agents, SOUL.md, departments, Co-CEO, brain resolution |
+| [AGENT_SKILLS.md](AGENT_SKILLS.md) | Skill packs (web search, media, browser) — OpenClaw/Hermes style |
 
 ---
 

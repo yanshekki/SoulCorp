@@ -35,20 +35,26 @@ export const MEETING_SECTIONS = [
 ] as const;
 
 interface MeetingPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
 function MeetingCard({
   id,
   title,
   description,
+  activeSection,
   children,
 }: {
   id: string;
   title: string;
   description?: string;
+  activeSection: string;
   children: ReactNode;
 }) {
+  if (activeSection !== id) {
+    return null;
+  }
   return (
     <section
       id={id}
@@ -64,7 +70,7 @@ function MeetingCard({
   );
 }
 
-export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
+export function MeetingPanel({ activeSection, onNavigateSection }: MeetingPanelProps) {
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const activeMeeting = useGameStore((state) => state.activeMeeting);
@@ -159,32 +165,6 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
     });
   }, [agentRecords]);
 
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-meeting-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-meeting-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, activeMeeting?.messages.length, activeMeeting?.completed]);
 
   const toggleAgent = (agentId: string) => {
     setSelectedIds((current) => {
@@ -288,8 +268,9 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
     <div className="meeting-panel meeting-panel--page" ref={scrollRootRef}>
       <MeetingCard
         id="overview"
+        activeSection={activeSection}
         title="LLM readiness"
-        description="Active provider routing for meeting turns. Configure LLM brains and execution runtime in Agent Brains."
+        description="Meetings use chat LLMs only (dialogue). Sprint tasks use Execution runtime, which may be OpenClaw or another AI CLI."
       >
         {aiStatus ? (
           <div className="meeting-ai-status">
@@ -300,6 +281,31 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
             {aiStatus.ollama_reachable ? <span className="hub-pill online">Ollama ready</span> : null}
             {aiStatus.hub_reachable ? <span className="hub-pill online">Hub chat ready</span> : null}
             <p className="muted">{aiStatus.message}</p>
+            {!usingLiveLlm ? (
+              <p className="hub-warning" role="status">
+                Meetings are on <strong>mock</strong> (offline scripted dialogue). For live LLM
+                turns, set the company default meeting brain and API keys in Settings → AI
+                providers. OpenClaw / AI CLI are for sprint <em>execution</em>, not meeting speech.
+              </p>
+            ) : null}
+            <div className="panel-actions">
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => onNavigateSection?.("session")}
+              >
+                Start a session
+              </button>
+              {!usingLiveLlm ? (
+                <button type="button" onClick={() => setActivePanel("settings")}>
+                  Open Settings → AI providers
+                </button>
+              ) : (
+                <button type="button" onClick={() => setActivePanel("agents")}>
+                  Agent Brains
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <p className="muted">Loading meeting AI status…</p>
@@ -308,6 +314,7 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
 
       <MeetingCard
         id="session"
+        activeSection={activeSection}
         title="Start or advance"
         description="Pick participants, start a session, and advance turns. Token cost estimates appear before each turn."
       >
@@ -376,9 +383,6 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
                   useAgentActivityStore.getState().selectAgent(liveMeetingSession.agent_id);
                   useAgentActivityStore.getState().selectSession(liveMeetingSession.id);
                   setActivePanel("observatory");
-                  window.setTimeout(() => {
-                    document.getElementById("stream")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }, 120);
                 }}
               >
                 Open Observatory
@@ -413,6 +417,7 @@ export function MeetingPanel({ onSectionFocus }: MeetingPanelProps) {
 
       <MeetingCard
         id="transcript"
+        activeSection={activeSection}
         title="Live transcript"
         description="Messages from each agent turn. Completed meetings sync notes to Workspace."
       >

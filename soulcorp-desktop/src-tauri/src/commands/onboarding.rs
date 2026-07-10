@@ -145,6 +145,9 @@ pub fn persist_single_agent_soul(
     if let Some(soul) = &agent.soul {
         storage.write_agent_soul_file(&agent.id, &soul.raw_content)?;
     }
+    // Create working memory.md alongside soul when the agent joins / is persisted.
+    let agent_ctx = crate::workspace::AgentContext::from_record(agent);
+    let _ = crate::workspace::agent_memory::ensure_memory_page(&storage, &agent_ctx);
     Ok(())
 }
 

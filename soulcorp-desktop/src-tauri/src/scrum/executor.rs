@@ -63,6 +63,8 @@ pub fn execute_task(
     app: &AppHandle,
     work_node_id: &str,
 ) -> Result<ExecutionRun, String> {
+    super::queue::assert_can_execute_now(state, work_node_id)?;
+
     let (task, agent_id) = {
         let task = state
             .work_nodes
@@ -176,7 +178,7 @@ pub fn execute_task(
         &task,
         &agent,
         &project_title,
-        workspace_root,
+        workspace_root.clone(),
         Some(activity),
     );
 
@@ -226,8 +228,21 @@ pub fn execute_task(
                 };
                 run.actual_tokens = tokens;
                 run.deliverable_page_id = Some(page_id);
-                run.summary = summary;
+                run.summary = summary.clone();
                 run.finished_at = Some(now_iso());
+            }
+            // Working memory: append + maybe compress (per-agent memory.md)
+            if let Some(root) = workspace_root.as_ref() {
+                if let Ok(storage) = WorkspaceStorage::new(root.clone()) {
+                    let _ = storage.ensure_seed();
+                    crate::workspace::agent_memory::after_task_success(
+                        state,
+                        &storage,
+                        &agent,
+                        &task.title,
+                        &summary,
+                    );
+                }
             }
             state
                 .execution_runs
@@ -355,17 +370,8 @@ pub fn apply_scrum_execution_tick(state: &mut AppState, app: &AppHandle) -> Opti
         return None;
     }
 
-    let candidate = state
-        .work_nodes
-        .iter()
-        .filter(|n| {
-            n.kind == WorkNodeKind::Task
-                && n.assignee_agent_id.is_some()
-                && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
-                && dependencies_satisfied(state, n)
-        })
-        .max_by(|a, b| a.priority.cmp(&b.priority))
-        .map(|n| n.id.clone())?;
+    // Per-agent serial queue: fair pick of oldest queue head among free agents.
+    let candidate = super::queue::pick_serial_candidate(state)?;
 
     match execute_task(state, app, &candidate) {
         Ok(run) => Some(format!(
@@ -659,6 +665,7 @@ fn parse_llm_decomposition(
             created_at: now.clone(),
             updated_at: now.clone(),
             completed_at: None,
+            queued_at: None,
         };
         created.push(story_node.clone());
         state.work_nodes.push(story_node);
@@ -701,6 +708,7 @@ fn parse_llm_decomposition(
                 created_at: now.clone(),
                 updated_at: now.clone(),
                 completed_at: None,
+                queued_at: None,
             };
             created.push(task_node.clone());
             state.work_nodes.push(task_node);

@@ -61,13 +61,21 @@ pub fn execute_for_task(
                     activity,
                 )
             } else {
-                llm::execute_llm_only(state, task, agent, project_title, activity)
+                llm::execute_llm_only(
+                    state,
+                    task,
+                    agent,
+                    project_title,
+                    workspace_root.as_deref(),
+                    activity,
+                )
             }
         }
         AgentRuntimeMode::Subprocess => {
             let settings = state.settings.clone();
             let company_id = state.company_id.clone();
             let activity_for_fallback = activity.clone();
+            let root_for_fallback = workspace_root.clone();
             match adapters::execute_runtime_for_id(
                 Some(state),
                 &runtime_id,
@@ -84,7 +92,14 @@ pub fn execute_for_task(
                     let label = crate::brain::effective_execution_label(&runtime_id);
                     if settings.agent_runtime_fallback_to_llm {
                         eprintln!("{label} runtime failed ({err}); falling back to LLM.");
-                        llm::execute_llm_only(state, task, agent, project_title, activity_for_fallback)
+                        llm::execute_llm_only(
+                            state,
+                            task,
+                            agent,
+                            project_title,
+                            root_for_fallback.as_deref(),
+                            activity_for_fallback,
+                        )
                     } else {
                         Err(err)
                     }

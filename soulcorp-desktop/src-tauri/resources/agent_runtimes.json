@@ -112,6 +112,20 @@
       "api_provider_id": "claude"
     },
     {
+      "id": "deepseek_api",
+      "label": "DeepSeek API",
+      "category": "meeting",
+      "adapter": "in_app_api",
+      "default_binary": "",
+      "docs_url": "https://api-docs.deepseek.com/",
+      "capabilities": [],
+      "layers": [
+        "meeting"
+      ],
+      "transport": "api",
+      "api_provider_id": "deepseek"
+    },
+    {
       "id": "soulmd_hub",
       "label": "soulmd-hub API",
       "category": "meeting",

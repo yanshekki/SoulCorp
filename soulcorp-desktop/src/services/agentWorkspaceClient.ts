@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { AgentMemoryView } from "../types/game";
 import type {
   AgentWorkspaceActivityEntry,
   AgentWorkspaceContext,
@@ -92,4 +93,12 @@ export async function listAgentWorkspaceActivity(
   return invoke<AgentWorkspaceActivityEntry[]>("agent_workspace_list_activity", {
     limit,
   });
+}
+
+export async function getAgentMemory(agentId: string): Promise<AgentMemoryView> {
+  return invoke<AgentMemoryView>("agent_workspace_get_memory", { agentId });
+}
+
+export async function compressAgentMemory(agentId: string): Promise<AgentMemoryView> {
+  return invoke<AgentMemoryView>("agent_workspace_compress_memory", { agentId });
 }

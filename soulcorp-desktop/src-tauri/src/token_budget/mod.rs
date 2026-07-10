@@ -115,23 +115,70 @@ pub struct ChargeContext {
     pub usage_source: TokenUsageSource,
 }
 
+/// Exclusive hierarchical pool: company unallocated + department unallocated + agent balances.
+/// Each token exists in exactly one of these buckets.
 pub fn total_company_tokens(economy: &TokenEconomy) -> u64 {
     economy
         .company_balance
-        .saturating_add(
-            economy
-                .departments
-                .values()
-                .map(|wallet| wallet.balance)
-                .sum::<u64>(),
-        )
-        .saturating_add(
-            economy
-                .agents
-                .values()
-                .map(|wallet| wallet.balance)
-                .sum::<u64>(),
-        )
+        .saturating_add(sum_department_balances(economy))
+        .saturating_add(sum_agent_balances(economy))
+}
+
+fn sum_department_balances(economy: &TokenEconomy) -> u64 {
+    economy
+        .departments
+        .values()
+        .fold(0u64, |acc, wallet| acc.saturating_add(wallet.balance))
+}
+
+fn sum_agent_balances(economy: &TokenEconomy) -> u64 {
+    economy
+        .agents
+        .values()
+        .fold(0u64, |acc, wallet| acc.saturating_add(wallet.balance))
+}
+
+/// Recover the true exclusive total, deduping the legacy bug where rebalance mirrored
+/// agent balances onto department wallets (same tokens counted twice).
+///
+/// Per-department only: if a department's balance equals the sum of its agents'
+/// balances, treat that dept balance as a mirror and do not count it again.
+/// Coincidental global equality of total depts vs total agents is NOT treated as
+/// a mirror when individual departments do not match their agent sums.
+fn exclusive_token_total_with_agents(state: &AppState) -> u64 {
+    let economy = &state.token_economy;
+    let company = economy.company_balance;
+    let depts = sum_department_balances(economy);
+    let agents = sum_agent_balances(economy);
+
+    if agents == 0 {
+        return company.saturating_add(depts);
+    }
+    if depts == 0 {
+        return company.saturating_add(agents);
+    }
+
+    let mut agents_by_dept: HashMap<String, u64> = HashMap::new();
+    for (agent_id, wallet) in &economy.agents {
+        let dept = state
+            .agents
+            .get(agent_id)
+            .map(|a| a.department.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        let entry = agents_by_dept.entry(dept).or_insert(0);
+        *entry = entry.saturating_add(wallet.balance);
+    }
+
+    let mut total = company.saturating_add(agents);
+    for (dept, wallet) in &economy.departments {
+        let agent_sum = agents_by_dept.get(dept).copied().unwrap_or(0);
+        // Pure mirror of that department's agents → skip.
+        if wallet.balance == agent_sum && agent_sum > 0 {
+            continue;
+        }
+        total = total.saturating_add(wallet.balance);
+    }
+    total
 }
 
 pub fn ensure_department_wallet(economy: &mut TokenEconomy, department: &str) {
@@ -150,14 +197,32 @@ pub fn ensure_agent_wallet(economy: &mut TokenEconomy, agent: &AgentRecord) {
 }
 
 pub fn initialize_wallets_from_agents(state: &mut AppState) {
-    let total = if state.token_economy.company_balance > 0
+    let has_funds = state.token_economy.company_balance > 0
         || !state.token_economy.departments.is_empty()
-    {
-        total_company_tokens(&state.token_economy)
+        || !state.token_economy.agents.is_empty();
+    let total = if has_funds {
+        exclusive_token_total_with_agents(state)
     } else {
         15_000
     };
     state.token_economy.company_balance = total;
+    state.token_economy.departments.clear();
+    state.token_economy.agents.clear();
+    rebalance_token_wallets(state);
+}
+
+/// Fix legacy mirrored / double-counted wallets after load (safe to call every boot).
+pub fn heal_token_economy_on_load(state: &mut AppState) {
+    if state.agents.is_empty() {
+        return;
+    }
+    let raw_total = total_company_tokens(&state.token_economy);
+    let exclusive = exclusive_token_total_with_agents(state);
+    if raw_total == exclusive {
+        return;
+    }
+    // Collapse to exclusive total and re-distribute without double-counting.
+    state.token_economy.company_balance = exclusive.max(1);
     state.token_economy.departments.clear();
     state.token_economy.agents.clear();
     rebalance_token_wallets(state);
@@ -169,7 +234,8 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
         return;
     }
 
-    let total = total_company_tokens(&state.token_economy).max(1);
+    // Exclusive total (dedupes legacy mirrored dept/agent double-count).
+    let total = exclusive_token_total_with_agents(state).max(1);
     let previous_departments = state.token_economy.departments.clone();
     let previous_agents = state.token_economy.agents.clone();
     let mut dept_weights: HashMap<String, f32> = HashMap::new();
@@ -202,7 +268,9 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
 
         let agent_share = dept_total / dept_agents.len().max(1) as u64;
         let previous_dept = previous_departments.get(department);
-        let mut dept_wallet = DepartmentTokenWallet {
+        // Exclusive model: push all department share into agent wallets.
+        // Department balance stays 0 (unallocated pool empty); `allocated` tracks the share.
+        let dept_wallet = DepartmentTokenWallet {
             balance: 0,
             allocated: dept_total,
             spent: previous_dept.map(|wallet| wallet.spent).unwrap_or(0),
@@ -239,7 +307,6 @@ pub fn rebalance_token_wallets(state: &mut AppState) {
                         .and_then(|wallet| wallet.period_started_at.clone()),
                 },
             );
-            dept_wallet.balance = dept_wallet.balance.saturating_add(agent_amount);
         }
 
         state
@@ -265,6 +332,7 @@ pub fn can_afford(state: &AppState, agent_id: &str, cost: u32) -> Result<(), Str
         .ok_or_else(|| format!("Agent '{agent_id}' not found."))?;
     let department = agent.department.clone();
 
+    // Spend from the agent leaf wallet (exclusive pool).
     if let Some(wallet) = economy.agents.get(agent_id) {
         if wallet.balance < cost {
             return Err(format!(
@@ -285,13 +353,8 @@ pub fn can_afford(state: &AppState, agent_id: &str, cost: u32) -> Result<(), Str
         ));
     }
 
+    // Department period caps only — dept.balance is an unallocated pool, not a mirror.
     if let Some(wallet) = economy.departments.get(&department) {
-        if wallet.balance < cost {
-            return Err(format!(
-                "{department} department has insufficient tokens ({} available, {cost} required).",
-                wallet.balance
-            ));
-        }
         period_limit_blocks(
             cost,
             wallet.period_limit,
@@ -322,6 +385,8 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
     let department = ctx.department.clone();
     let agent_id = ctx.agent_id.clone();
 
+    // Debit only the agent leaf wallet (exclusive). Do not also subtract dept/company —
+    // that double/triple-counted spend under the old model.
     if let Some(wallet) = state.token_economy.agents.get_mut(&agent_id) {
         wallet.balance = wallet.balance.saturating_sub(cost);
         wallet.spent = wallet.spent.saturating_add(cost);
@@ -332,8 +397,9 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
             wallet.period_spent = wallet.period_spent.saturating_add(cost);
         }
     }
+
+    // Track department period spend without moving exclusive balances again.
     if let Some(wallet) = state.token_economy.departments.get_mut(&department) {
-        wallet.balance = wallet.balance.saturating_sub(cost);
         wallet.spent = wallet.spent.saturating_add(cost);
         if wallet.period_limit > 0 && wallet.period_type != "none" {
             if wallet.period_started_at.is_none() {
@@ -342,7 +408,6 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
             wallet.period_spent = wallet.period_spent.saturating_add(cost);
         }
     }
-    state.token_economy.company_balance = state.token_economy.company_balance.saturating_sub(cost);
 
     append_ledger(state, ctx);
     apply_enforcement(state);
@@ -510,13 +575,8 @@ pub fn apply_enforcement(state: &mut AppState) {
     let company_depleted = total_company_tokens(&state.token_economy) == 0;
     state.token_economy.company_starved = company_depleted;
 
-    let mut depleted_departments = std::collections::HashSet::new();
-    for (department, wallet) in &state.token_economy.departments {
-        if wallet.balance == 0 {
-            depleted_departments.insert(department.clone());
-        }
-    }
-
+    // Per-agent leaf wallets only. Department balance 0 is normal after rebalance
+    // (all share pushed to agents) and must not mass-throttle the department.
     let mut depleted_agents = std::collections::HashSet::new();
     for (agent_id, wallet) in &state.token_economy.agents {
         if wallet.balance == 0 {
@@ -528,15 +588,13 @@ pub fn apply_enforcement(state: &mut AppState) {
         if agent.status == "meeting" {
             continue;
         }
-        if company_depleted
-            || depleted_departments.contains(&agent.department)
-            || depleted_agents.contains(agent_id)
-        {
+        if company_depleted || depleted_agents.contains(agent_id) {
             agent.status = "throttled".to_string();
             agent.energy = (agent.energy - 0.02).max(0.15);
             agent.morale = (agent.morale - 0.015).max(0.0);
         } else if agent.status == "throttled" {
-            agent.status = "working".to_string();
+            // Back to free pool — not actively executing a task.
+            agent.status = "idle".to_string();
         }
     }
 }
@@ -579,6 +637,7 @@ mod tests {
         let mut state = sample_state();
         let agent_id = "agent-1".to_string();
         let before_agent = state.token_economy.agents[&agent_id].balance;
+        let before_total = total_company_tokens(&state.token_economy);
         charge_tokens(
             &mut state,
             ChargeContext {
@@ -597,6 +656,11 @@ mod tests {
             state.token_economy.agents[&agent_id].balance,
             before_agent - 30
         );
+        assert_eq!(
+            total_company_tokens(&state.token_economy),
+            before_total - 30,
+            "charge must reduce exclusive total by exactly cost"
+        );
     }
 
     #[test]
@@ -614,6 +678,71 @@ mod tests {
         state.token_economy.agents.get_mut("agent-1").unwrap().balance = 0;
         apply_enforcement(&mut state);
         assert!(can_afford(&state, "agent-1", 1).is_err());
+    }
+
+    #[test]
+    fn rebalance_preserves_exclusive_total() {
+        let mut state = sample_state();
+        assert_eq!(total_company_tokens(&state.token_economy), 1000);
+        // After rebalance, all funds sit on agents; dept unallocated is 0.
+        assert_eq!(
+            state.token_economy.departments["Engineering"].balance,
+            0
+        );
+        assert_eq!(state.token_economy.agents["agent-1"].balance, 1000);
+
+        // Second rebalance must not inflate.
+        rebalance_token_wallets(&mut state);
+        assert_eq!(total_company_tokens(&state.token_economy), 1000);
+        rebalance_token_wallets(&mut state);
+        assert_eq!(total_company_tokens(&state.token_economy), 1000);
+    }
+
+    #[test]
+    fn rebalance_dedupes_legacy_mirrored_dept_balances() {
+        let mut state = sample_state();
+        // Simulate old bug: dept balance mirrored agent balance → total would be 2000.
+        state.token_economy.departments.get_mut("Engineering").unwrap().balance = 1000;
+        assert_eq!(
+            exclusive_token_total_with_agents(&state),
+            1000,
+            "mirrored dept must not double-count"
+        );
+        rebalance_token_wallets(&mut state);
+        assert_eq!(total_company_tokens(&state.token_economy), 1000);
+    }
+
+    #[test]
+    fn allocate_department_then_agent_preserves_total() {
+        let mut state = sample_state();
+        // Pull some tokens back to company via top-up for allocation path.
+        top_up_company_tokens(&mut state, 500);
+        assert_eq!(total_company_tokens(&state.token_economy), 1500);
+
+        // Move 200 from company → dept unallocated (agents still hold 1000).
+        // First return 200 from agent to company by manual adjust for a clean path:
+        state.token_economy.agents.get_mut("agent-1").unwrap().balance = 800;
+        state.token_economy.company_balance = 700; // 800 agent + 700 company = 1500
+        allocate_department_tokens(&mut state, "Engineering", 200).unwrap();
+        assert_eq!(total_company_tokens(&state.token_economy), 1500);
+        assert_eq!(state.token_economy.departments["Engineering"].balance, 200);
+
+        allocate_agent_tokens(&mut state, "agent-1", 100).unwrap();
+        assert_eq!(total_company_tokens(&state.token_economy), 1500);
+        assert_eq!(state.token_economy.agents["agent-1"].balance, 900);
+        assert_eq!(state.token_economy.departments["Engineering"].balance, 100);
+    }
+
+    #[test]
+    fn rebalance_does_not_throttle_when_dept_unallocated_is_zero() {
+        let mut state = sample_state();
+        state.agents.get_mut("agent-1").unwrap().status = "idle".to_string();
+        apply_enforcement(&mut state);
+        assert_ne!(
+            state.agents["agent-1"].status,
+            "throttled",
+            "dept balance 0 after rebalance must not throttle funded agents"
+        );
     }
 
 }

@@ -31,10 +31,12 @@ pub fn supported_meeting_provider_ids() -> Vec<String> {
 pub fn legacy_meeting_provider_to_registry_id(provider: &str) -> String {
     let key = provider.trim().to_lowercase();
     match key.as_str() {
-        "mock" | "ollama" | "openai_api" | "grok_api" | "claude_api" | "soulmd_hub" => key,
+        "mock" | "ollama" | "openai_api" | "grok_api" | "claude_api" | "deepseek_api"
+        | "soulmd_hub" => key,
         "openai" => "openai_api".to_string(),
         "grok" => "grok_api".to_string(),
         "claude" => "claude_api".to_string(),
+        "deepseek" => "deepseek_api".to_string(),
         "soulmd-hub" => "soulmd_hub".to_string(),
         other => other.to_string(),
     }

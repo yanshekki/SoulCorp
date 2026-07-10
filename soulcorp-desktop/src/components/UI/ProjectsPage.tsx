@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { formatWorkflowStepBadge } from "../../config/navigation";
 import { AppPageShell } from "./AppPageShell";
 import { ProjectsPanel, PROJECTS_SECTIONS } from "./ProjectsPanel";
@@ -6,11 +6,6 @@ import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function ProjectsPage() {
   const [activeSection, setActiveSection] = useState<string>(PROJECTS_SECTIONS[0].id);
-
-  const scrollToSection = useCallback((sectionId: string) => {
-    setActiveSection(sectionId);
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
 
   return (
     <AppPageShell
@@ -26,10 +21,10 @@ export function ProjectsPage() {
         step: section.step,
       }))}
       activeNavId={activeSection}
-      onNavSelect={scrollToSection}
+      onNavSelect={setActiveSection}
       headerAction={<WorkflowNextButton panel="projects" />}
     >
-      <ProjectsPanel onSectionFocus={setActiveSection} />
+      <ProjectsPanel activeSection={activeSection} onNavigateSection={setActiveSection} />
     </AppPageShell>
   );
 }

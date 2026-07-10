@@ -46,6 +46,7 @@ pub fn provider_label(provider: &str) -> String {
             "openai" => "OpenAI-compatible".to_string(),
             "grok" => "Grok (xAI)".to_string(),
             "claude" => "Claude-compatible".to_string(),
+            "deepseek" => "DeepSeek API".to_string(),
             "soulmd-hub" => "soulmd-hub API".to_string(),
             _ => "Mock (offline)".to_string(),
         })

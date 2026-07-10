@@ -122,7 +122,23 @@ pub fn execute_llm_only_detached(
     agent: &AgentRecord,
     project_title: &str,
 ) -> Result<DetachedExecutionResult, String> {
-    let request = build_execution_request_for_project(task, agent, project_title)?;
+    let mut request = build_execution_request_for_project(task, agent, project_title)?;
+    if let Some(root) = ctx.workspace_root.as_ref() {
+        if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root.clone()) {
+            let max_chars = ctx.settings.agent_memory_max_chars.max(500) as usize;
+            let mem = crate::workspace::agent_memory::prompt_memory_section(
+                Some(&storage),
+                agent,
+                max_chars,
+            );
+            if !mem.trim().is_empty() {
+                request.context = Some(match request.context {
+                    Some(existing) => format!("{existing}{mem}"),
+                    None => mem,
+                });
+            }
+        }
+    }
     let billed = BilledChatRequest {
         request,
         agent_id: agent.id.clone(),

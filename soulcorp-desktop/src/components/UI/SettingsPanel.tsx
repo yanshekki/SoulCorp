@@ -1,11 +1,18 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { patchAudioSettings, setAudioMuted } from "../../hooks/useAudioSettings";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { AudioMuteButton } from "./AudioMuteButton";
-import { fetchSoulBalance, updateHubConfig } from "../../services/hubClient";
+import { updateHubConfig } from "../../services/hubClient";
 import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useGameStore } from "../../stores/gameStore";
 import { DEFAULT_EVENT_CHANCE } from "../../data/playModeOptions";
@@ -16,7 +23,6 @@ import {
 } from "../../config/features";
 import { PlayModePicker, type PlayModeConfig } from "./PlayModePicker";
 import { MeetingBrainPicker } from "./brain/MeetingBrainPicker";
-import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
 import type {
   DeployResult,
   DeployStatus,
@@ -49,8 +55,10 @@ export const SETTINGS_SECTIONS = [
 ] as const;
 
 interface SettingsPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
 }
+
+const SettingsActiveSectionContext = createContext<string>("general");
 
 function SettingsCard({
   id,
@@ -65,6 +73,13 @@ function SettingsCard({
   wide?: boolean;
   children: ReactNode;
 }) {
+  const activeSection = useContext(SettingsActiveSectionContext);
+  // Observatory activity stream sits under AI providers nav (not a separate left item).
+  const visible =
+    activeSection === id || (id === "observatory" && activeSection === "ai");
+  if (!visible) {
+    return null;
+  }
   return (
     <section
       id={id}
@@ -80,13 +95,14 @@ function SettingsCard({
   );
 }
 
-export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
+export function SettingsPanel({ activeSection }: SettingsPanelProps) {
   const { activeCompanyId, companyRevision } = useCompanyScope();
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const setSettings = useGameStore((state) => state.setSettings);
   const setHubStatus = useGameStore((state) => state.setHubStatus);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
+  const setActivePanel = useGameStore((state) => state.setActivePanel);
   const [hubUrl, setHubUrl] = useState(hubStatus.base_url);
   const [apiKey, setApiKey] = useState("");
   const [restorePath, setRestorePath] = useState("");
@@ -102,7 +118,6 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const effectiveApiProvider = effectiveApiProviderForSettings(settings.ai_provider, runtimeCatalog);
   const meetingBrainValue = legacyMeetingProviderToRegistryId(settings.ai_provider);
-  const executionRuntimeValue = settings.agent_runtime_mode ?? "llm_only";
 
   useEffect(() => {
     setHubUrl(hubStatus.base_url);
@@ -179,47 +194,32 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
     }
   };
 
-  const deployStatusRequestedRef = useRef(false);
-
   useEffect(() => {
-    if (!onSectionFocus) {
+    if (activeSection !== "deploy") {
       return;
     }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-settings-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-settings-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
+    let cancelled = false;
+    setDeployBusy(true);
+    void invoke<DeployStatus>("get_deploy_status")
+      .then((status) => {
+        if (!cancelled) {
+          setDeployStatus(status);
         }
-        if (
-          !deployStatusRequestedRef.current &&
-          entries.some(
-            (entry) =>
-              entry.isIntersecting &&
-              entry.target.getAttribute("data-settings-section") === "deploy",
-          )
-        ) {
-          deployStatusRequestedRef.current = true;
-          void invoke<DeployStatus>("get_deploy_status")
-            .then(setDeployStatus)
-            .catch(() => setDeployStatus(null));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDeployStatus(null);
         }
-      },
-      { root, rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDeployBusy(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection]);
 
   const updateSettings = async (patch: Partial<GameSettings>) => {
     try {
@@ -242,6 +242,9 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
           claude_base_url: patch.claude_base_url,
           claude_api_key: patch.claude_api_key,
           claude_model: patch.claude_model,
+          deepseek_base_url: patch.deepseek_base_url,
+          deepseek_api_key: patch.deepseek_api_key,
+          deepseek_model: patch.deepseek_model,
           meeting_turns_per_agent: patch.meeting_turns_per_agent,
           meeting_llm_fallback: patch.meeting_llm_fallback,
           pure_local_mode: patch.pure_local_mode,
@@ -409,17 +412,8 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
     }
   };
 
-  const refreshSoulBalance = async () => {
-    try {
-      const next = await fetchSoulBalance();
-      setHubStatus(next);
-      setStatusMessage(`$SOUL balance: ${next.soul_balance.toFixed(2)} (${next.user_tier})`);
-    } catch (error) {
-      setStatusMessage(String(error));
-    }
-  };
-
   return (
+    <SettingsActiveSectionContext.Provider value={activeSection}>
     <div className="settings-panel settings-panel--page" ref={scrollRootRef}>
       <div className="settings-grid">
         <SettingsCard
@@ -651,16 +645,13 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
             <button type="button" onClick={() => void saveHubConfig()} disabled={settings.pure_local_mode}>
               Save hub credentials
             </button>
-            <button type="button" onClick={() => void refreshSoulBalance()} disabled={settings.pure_local_mode}>
-              Refresh $SOUL balance
-            </button>
           </div>
         </SettingsCard>
 
         <SettingsCard
           id="ai"
           title="AI providers"
-          description="Default meeting brain and execution runtime for company agents."
+          description="API keys and the default company meeting brain. Execution runtime lives under Agent Brains."
         >
           <label className="field-label">
             Default company meeting brain
@@ -677,16 +668,17 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
             />
           </label>
 
-          <label className="field-label">
-            Default company execution runtime
-            <ExecutionRuntimePicker
-              catalog={runtimeCatalog}
-              value={executionRuntimeValue}
-              includeInherit={false}
-              disabled={settings.pure_local_mode}
-              onChange={(runtimeId) => void updateSettings({ agent_runtime_mode: runtimeId })}
-            />
-          </label>
+          <p className="muted">
+            Company execution runtime (subprocess / OpenClaw / CLI) is configured in{" "}
+            <button
+              type="button"
+              className="agents-inline-link"
+              onClick={() => setActivePanel("agents")}
+            >
+              Agent Brains → Execution runtime
+            </button>
+            . Per-agent overrides are also set there.
+          </p>
 
           {(effectiveApiProvider === "ollama" || effectiveApiProvider === "mock") && (
             <>
@@ -802,6 +794,39 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
                   value={settings.claude_model}
                   onChange={(event) => void updateSettings({ claude_model: event.target.value })}
                   disabled={settings.pure_local_mode}
+                />
+              </label>
+            </>
+          )}
+
+          {effectiveApiProvider === "deepseek" && (
+            <>
+              <label className="field-label">
+                DeepSeek base URL
+                <input
+                  type="url"
+                  value={settings.deepseek_base_url}
+                  onChange={(event) => void updateSettings({ deepseek_base_url: event.target.value })}
+                  disabled={settings.pure_local_mode}
+                />
+              </label>
+              <label className="field-label">
+                DeepSeek API key
+                <input
+                  type="password"
+                  value={settings.deepseek_api_key}
+                  onChange={(event) => void updateSettings({ deepseek_api_key: event.target.value })}
+                  disabled={settings.pure_local_mode}
+                />
+              </label>
+              <label className="field-label">
+                DeepSeek model
+                <input
+                  type="text"
+                  value={settings.deepseek_model}
+                  onChange={(event) => void updateSettings({ deepseek_model: event.target.value })}
+                  disabled={settings.pure_local_mode}
+                  placeholder="deepseek-chat"
                 />
               </label>
             </>
@@ -941,6 +966,9 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
           description="Push your exported static site to GitHub, Vercel, or Netlify."
           wide
         >
+          {deployBusy && !deployStatus ? (
+            <p className="muted">Checking deploy tooling…</p>
+          ) : null}
           {deployStatus ? (
             <div className="deploy-status-row">
               <span className={`deploy-pill ${deployStatus.git_available ? "ready" : "missing"}`}>
@@ -1020,5 +1048,6 @@ export function SettingsPanel({ onSectionFocus }: SettingsPanelProps) {
         </SettingsCard>
       </div>
     </div>
+    </SettingsActiveSectionContext.Provider>
   );
 }

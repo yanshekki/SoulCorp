@@ -114,6 +114,10 @@ fn status_message(
             "{scope} will use Claude-compatible API ({}) at {}.",
             settings.claude_model, settings.claude_base_url
         ),
+        "deepseek" => format!(
+            "{scope} will use DeepSeek API ({}) at {}.",
+            settings.deepseek_model, settings.deepseek_base_url
+        ),
         "soulmd-hub" => format!("{scope} will use soulmd-hub chat API."),
         "mock" if settings.ai_provider == "ollama" && !ollama_reachable => {
             "Ollama is unreachable — dialogue will fall back to mock.".to_string()
@@ -145,6 +149,7 @@ fn resolve_active_provider(
         "openai" if !settings.openai_api_key.trim().is_empty() => "openai".to_string(),
         "grok" if !settings.grok_api_key.trim().is_empty() => "grok".to_string(),
         "claude" if !settings.claude_api_key.trim().is_empty() => "claude".to_string(),
+        "deepseek" if !settings.deepseek_api_key.trim().is_empty() => "deepseek".to_string(),
         "soulmd-hub" | "soulmd_hub" | "hub" if hub_configured && hub_reachable => {
             "soulmd-hub".to_string()
         }

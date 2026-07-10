@@ -37,7 +37,8 @@ export const PROJECTS_SECTIONS = [
 ] as const;
 
 interface ProjectsPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
 function KanbanColumn({
@@ -83,7 +84,7 @@ function KanbanColumn({
   );
 }
 
-export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
+export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPanelProps) {
   const activeCompanyId = useGameStore((s) => s.activeCompanyId);
   const scrumRevision = useGameStore((s) => s.scrumRevision);
   const agentRecords = useGameStore((s) => s.agentRecords);
@@ -91,9 +92,14 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
 
   const [snapshot, setSnapshot] = useState<ScrumSnapshot | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  /** True only for first paint / project switch — never for background worker soft-refresh. */
   const [backlogLoading, setBacklogLoading] = useState(false);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const skipScrumSyncRef = useRef(false);
+  const hasSnapshotRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  selectedProjectIdRef.current = selectedProjectId;
 
   const agents = useMemo(
     () =>
@@ -106,27 +112,46 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
   const agentLabels = useMemo(() => agentLabelById(agents), [agents]);
 
   const loadSnapshot = useCallback(
-    async (projectId?: string) => {
-      const pid = projectId || selectedProjectId || undefined;
-      setBacklogLoading(true);
+    async (
+      projectId?: string,
+      options?: {
+        /** Full loading UI (unmount list). Default: only when no data yet. */
+        showLoading?: boolean;
+      },
+    ) => {
+      const pid = projectId || selectedProjectIdRef.current || undefined;
+      const showLoading = options?.showLoading ?? !hasSnapshotRef.current;
+      const generation = ++loadGenerationRef.current;
+      if (showLoading) {
+        setBacklogLoading(true);
+      }
       try {
         const data = await getScrumSnapshot(pid);
+        if (generation !== loadGenerationRef.current) {
+          return;
+        }
         if (activeCompanyId) {
           setCachedScrumSnapshot(activeCompanyId, data);
         }
+        hasSnapshotRef.current = true;
         setSnapshot(data);
       } catch (error) {
-        setStatusMessage(String(error));
+        if (generation === loadGenerationRef.current) {
+          setStatusMessage(String(error));
+        }
       } finally {
-        setBacklogLoading(false);
+        if (generation === loadGenerationRef.current && showLoading) {
+          setBacklogLoading(false);
+        }
       }
     },
-    [activeCompanyId, selectedProjectId, setStatusMessage],
+    [activeCompanyId, setStatusMessage],
   );
 
   const syncScrumSnapshot = useCallback(
     async (projectId?: string) => {
-      await loadSnapshot(projectId);
+      // Soft refresh after local actions — keep current UI mounted.
+      await loadSnapshot(projectId, { showLoading: false });
       skipScrumSyncRef.current = true;
       notifyScrumChanged();
     },
@@ -141,10 +166,12 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
       skipScrumSyncRef.current = false;
       return;
     }
-    void loadSnapshot(selectedProjectId || undefined);
-  }, [scrumRevision, activeCompanyId, selectedProjectId, loadSnapshot]);
+    // Worker ticks / remote changes: update values in place, no flash.
+    void loadSnapshot(selectedProjectIdRef.current || undefined, { showLoading: false });
+  }, [scrumRevision, activeCompanyId, loadSnapshot]);
 
   useEffect(() => {
+    hasSnapshotRef.current = false;
     setSnapshot(null);
     setSelectedProjectId("");
     clearScrumSnapshotCache();
@@ -156,6 +183,7 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
     }
     const cached = getCachedScrumSnapshot(activeCompanyId);
     if (cached) {
+      hasSnapshotRef.current = true;
       setSnapshot(cached);
       setSelectedProjectId(cached.projects[0]?.id ?? "");
       setBacklogLoading(false);
@@ -171,8 +199,9 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
           return;
         }
         setCachedScrumSnapshot(activeCompanyId, data);
+        hasSnapshotRef.current = true;
         setSnapshot(data);
-        setSelectedProjectId(data.projects[0]?.id ?? "");
+        setSelectedProjectId((current) => current || data.projects[0]?.id || "");
       } catch (error) {
         if (!cancelled) {
           setStatusMessage(String(error));
@@ -187,25 +216,6 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
       cancelled = true;
     };
   }, [activeCompanyId, setStatusMessage]);
-
-  useEffect(() => {
-    if (!onSectionFocus) return;
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-projects-section]");
-    if (!root || !sections?.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const id = visible?.target.getAttribute("data-projects-section");
-        if (id) onSectionFocus(id);
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-    sections.forEach((s) => observer.observe(s));
-    return () => observer.disconnect();
-  }, [onSectionFocus, snapshot]);
 
   const project =
     snapshot?.projects.find((p) => p.id === selectedProjectId) ?? snapshot?.projects[0];
@@ -232,7 +242,8 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
 
   const handleProjectChange = (projectId: string) => {
     setSelectedProjectId(projectId);
-    void loadSnapshot(projectId);
+    // Project switch may show a different tree — allow brief loading if empty.
+    void loadSnapshot(projectId, { showLoading: !hasSnapshotRef.current });
   };
 
   const handleAssign = async (nodeId: string, agentId: string | null) => {
@@ -313,13 +324,15 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
 
   return (
     <div className="projects-panel projects-panel--page" ref={scrollRootRef}>
+      {activeSection === "command" ? (
       <CommandCenterPanel
         onJumpToSection={(sectionId) => {
-          onSectionFocus?.(sectionId);
-          document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          onNavigateSection?.(sectionId);
         }}
       />
+      ) : null}
 
+      {activeSection === "backlog" ? (
       <section id="backlog" className="projects-card" data-projects-section="backlog">
         <header className="projects-card-header">
           <p className="workflow-step-badge">2 · Backlog</p>
@@ -341,13 +354,14 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
             onAddTask={handleAddTask}
             onAddStory={handleAddStory}
             onJumpToCommand={() => {
-              onSectionFocus?.("command");
-              document.getElementById("command")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              onNavigateSection?.("command");
             }}
           />
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "sprint" ? (
       <section id="sprint" className="projects-card" data-projects-section="sprint">
         <header className="projects-card-header">
           <p className="workflow-step-badge">3 · Sprint</p>
@@ -422,7 +436,9 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
           ) : null}
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "inbox" ? (
       <section id="inbox" className="projects-card" data-projects-section="inbox">
         <header className="projects-card-header">
           <p className="workflow-step-badge">4 · Assign</p>
@@ -435,6 +451,10 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
               <h4>{entry.agent_name}</h4>
               <p className="muted">
                 {entry.agent_role || "—"} · {entry.department} · {entry.assigned_points} pts
+                {entry.busy ? " · working" : ""}
+                {typeof entry.queued_count === "number" && entry.queued_count > 0
+                  ? ` · ${entry.queued_count} queued`
+                  : ""}
               </p>
               {entry.tasks.length === 0 ? (
                 <p className="muted">No assigned tasks</p>
@@ -451,13 +471,18 @@ export function ProjectsPanel({ onSectionFocus }: ProjectsPanelProps) {
           ))}
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "execution" ? (
+      <div id="execution" data-projects-section="execution">
       <ExecutionLogSection
         runs={runs}
         workNodes={allWorkNodes}
         agentLabels={agentLabels}
         onApprove={handleApprove}
       />
+      </div>
+      ) : null}
     </div>
   );
 }

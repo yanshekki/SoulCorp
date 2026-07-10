@@ -276,6 +276,8 @@ pub fn bootstrap_companies(app: &AppHandle) -> Result<(CompanyRegistry, AppState
         crate::departments::ensure_default_departments(&mut state);
         if !state.agents.is_empty() && state.token_economy.departments.is_empty() {
             crate::token_budget::initialize_wallets_from_agents(&mut state);
+        } else {
+            crate::token_budget::heal_token_economy_on_load(&mut state);
         }
         state.company_id = active_id.clone();
         registry.active_company_id = Some(active_id);

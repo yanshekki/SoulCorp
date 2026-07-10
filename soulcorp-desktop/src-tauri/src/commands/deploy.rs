@@ -7,9 +7,13 @@ use crate::state::AppState;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
+
+/// CLI probes must never hang the UI. npx can download packages for minutes.
+const CLI_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeployStatus {
@@ -66,8 +70,39 @@ fn command_output(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<Str
     }
 }
 
+/// Run a short CLI probe with a hard timeout (kills the process if exceeded).
+fn run_with_timeout(cmd: &str, args: &[&str], timeout: Duration) -> Result<std::process::Output, String> {
+    let mut child = Command::new(cmd)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to run {cmd}: {e}"))?;
+
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|e| format!("Failed to collect output from {cmd}: {e}"));
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("{cmd} timed out after {}s", timeout.as_secs()));
+                }
+                std::thread::sleep(Duration::from_millis(40));
+            }
+            Err(e) => return Err(format!("Failed waiting on {cmd}: {e}")),
+        }
+    }
+}
+
 fn command_available(cmd: &str, args: &[&str]) -> (bool, Option<String>) {
-    match Command::new(cmd).args(args).output() {
+    match run_with_timeout(cmd, args, CLI_PROBE_TIMEOUT) {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout)
                 .trim()
@@ -82,11 +117,61 @@ fn command_available(cmd: &str, args: &[&str]) -> (bool, Option<String>) {
 }
 
 fn gh_authenticated() -> bool {
-    Command::new("gh")
-        .args(["auth", "status"])
-        .output()
+    run_with_timeout("gh", &["auth", "status"], CLI_PROBE_TIMEOUT)
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+/// Prefer installed binaries; never use bare `npx vercel` (can hang downloading packages).
+fn probe_cli_tools() -> (
+    bool,
+    Option<String>,
+    bool,
+    Option<String>,
+    bool,
+    bool,
+    bool,
+    Option<String>,
+    bool,
+) {
+    let (git_available, git_version) = command_available("git", &["--version"]);
+    let (gh_available, gh_version) = command_available("gh", &["--version"]);
+    let gh_auth = gh_available && gh_authenticated();
+    let (npx_available, _) = command_available("npx", &["--version"]);
+
+    // Direct CLIs first (fast). Only fall back to `npx --no-install` so we never trigger downloads.
+    let (vercel_cli_available, vercel_version) = {
+        let direct = command_available("vercel", &["--version"]);
+        if direct.0 {
+            direct
+        } else if npx_available {
+            command_available("npx", &["--no-install", "vercel", "--version"])
+        } else {
+            (false, None)
+        }
+    };
+    let (netlify_cli_available, _) = {
+        let direct = command_available("netlify", &["--version"]);
+        if direct.0 {
+            direct
+        } else if npx_available {
+            command_available("npx", &["--no-install", "netlify", "--version"])
+        } else {
+            (false, None)
+        }
+    };
+
+    (
+        git_available,
+        git_version,
+        gh_available,
+        gh_version,
+        gh_auth,
+        npx_available,
+        vercel_cli_available,
+        vercel_version,
+        netlify_cli_available,
+    )
 }
 
 fn extract_url_from_output(output: &str) -> Option<String> {
@@ -225,9 +310,9 @@ fn run_vercel_publish(staging_dir: &PathBuf) -> Result<DeployResult, String> {
 }
 
 #[tauri::command]
-pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStatus, String> {
-    // Read persisted deploy metadata under a short lock, then probe CLI tools without
-    // holding AppState — npx vercel/netlify can take seconds and would freeze simulation.
+pub async fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStatus, String> {
+    // Read persisted deploy metadata under a short lock, then probe CLI tools off the
+    // main/async runtime so a stuck CLI cannot freeze the UI.
     let (last_deploy_url, last_deploy_at, last_deploy_provider) = {
         let locked = state.lock().map_err(|e| e.to_string())?;
         (
@@ -237,20 +322,21 @@ pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStat
         )
     };
 
-    let (git_available, git_version) = command_available("git", &["--version"]);
-    let (gh_available, gh_version) = command_available("gh", &["--version"]);
-    let gh_authenticated = gh_available && gh_authenticated();
-    let (npx_available, _) = command_available("npx", &["--version"]);
-    let (vercel_cli_available, vercel_version) = if npx_available {
-        command_available("npx", &["vercel", "--version"])
-    } else {
-        (false, None)
-    };
-    let (netlify_cli_available, _) = if npx_available {
-        command_available("npx", &["netlify", "--version"])
-    } else {
-        (false, None)
-    };
+    let probe = tokio::task::spawn_blocking(probe_cli_tools)
+        .await
+        .map_err(|e| format!("Deploy tooling probe failed: {e}"))?;
+
+    let (
+        git_available,
+        git_version,
+        gh_available,
+        gh_version,
+        gh_authenticated,
+        npx_available,
+        vercel_cli_available,
+        vercel_version,
+        netlify_cli_available,
+    ) = probe;
 
     let message = if git_available && gh_available && gh_authenticated && vercel_cli_available {
         "GitHub and Vercel tooling ready for one-click deploy.".to_string()
@@ -258,8 +344,7 @@ pub fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<DeployStat
         "Git and Vercel ready. Install and authenticate GitHub CLI (gh) for one-click repo creation."
             .to_string()
     } else {
-        "Install git, GitHub CLI (gh), and Node.js/npx with Vercel CLI for one-click deploy."
-            .to_string()
+        "Install git, GitHub CLI (gh), and Vercel/Netlify CLIs for one-click deploy.".to_string()
     };
 
     Ok(DeployStatus {

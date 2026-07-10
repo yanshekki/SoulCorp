@@ -28,9 +28,22 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
     setChart(await getOrgChart());
   }, [activeCompanyId]);
 
+  // Only re-fetch when org structure changes — not on every agent status tick from the worker.
+  const orgStructureKey = useMemo(
+    () =>
+      agentRecords
+        .map(
+          (agent) =>
+            `${agent.id}|${agent.department}|${agent.reports_to ?? ""}|${agent.manages_department ?? ""}|${agent.name}`,
+        )
+        .sort()
+        .join(";"),
+    [agentRecords],
+  );
+
   useEffect(() => {
     void refreshChart();
-  }, [refreshChart, agentRecords]);
+  }, [refreshChart, orgStructureKey]);
 
   const allNodes = useMemo(() => {
     if (!chart) return [];

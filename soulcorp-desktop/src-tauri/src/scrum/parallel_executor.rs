@@ -1,4 +1,4 @@
-use super::executor::{dependencies_satisfied, truncate_summary, write_deliverable};
+use super::executor::{truncate_summary, write_deliverable};
 use super::tree::{mark_story_done_if_tasks_complete, now_iso, recompute_project_progress};
 use super::types::{
     ExecutionRun, ExecutionStatus, WorkNode, WorkNodeKind, WorkNodeStatus,
@@ -120,22 +120,10 @@ fn parallel_execution_enabled(state: &AppState) -> bool {
 }
 
 fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<ParallelExecutionJob>> {
-    let busy_agents: HashSet<String> = state
-        .work_nodes
-        .iter()
-        .filter(|n| n.status == WorkNodeStatus::InProgress)
-        .filter_map(|n| n.assignee_agent_id.clone())
-        .collect();
-
-    let idle_agents: Vec<String> = state
-        .agents
-        .values()
-        .filter(|a| !crate::fate::is_system_agent(a))
-        .filter(|a| a.status != "working" && !busy_agents.contains(&a.id))
-        .map(|a| a.id.clone())
-        .collect();
-
     let max_parallel = state.settings.scrum_max_executions_per_tick.max(1) as usize;
+    // One job per free agent from that agent's serial queue head (Kafka partition).
+    let candidates = super::queue::pick_parallel_candidates(state, max_parallel);
+
     let workspace_root = if state.company_id.is_empty() {
         None
     } else {
@@ -154,26 +142,14 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
     };
 
     let mut jobs = Vec::new();
-    let mut reserved_agents = busy_agents;
+    let mut reserved_agents = HashSet::new();
 
-    for agent_id in idle_agents.into_iter().take(max_parallel) {
+    for (agent_id, task_id) in candidates {
         if reserved_agents.contains(&agent_id) {
             continue;
         }
 
-        let candidate = state
-            .work_nodes
-            .iter()
-            .filter(|n| {
-                n.kind == WorkNodeKind::Task
-                    && n.assignee_agent_id.as_deref() == Some(agent_id.as_str())
-                    && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
-                    && dependencies_satisfied(state, n)
-            })
-            .max_by(|a, b| a.priority.cmp(&b.priority))
-            .cloned();
-
-        let Some(task) = candidate else {
+        let Some(task) = state.work_nodes.iter().find(|n| n.id == task_id).cloned() else {
             continue;
         };
 
@@ -509,8 +485,24 @@ fn apply_parallel_llm_result(
                 run.provider = provider;
                 run.actual_tokens = estimated_tokens;
                 run.deliverable_page_id = Some(page_id);
-                run.summary = summary;
+                run.summary = summary.clone();
                 run.finished_at = Some(now_iso());
+            }
+
+            if let Ok(dir) = app.path().app_data_dir() {
+                if !state.company_id.is_empty() {
+                    let root = crate::workspace::company_workspace_root(&dir, &state.company_id);
+                    if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root) {
+                        let _ = storage.ensure_seed();
+                        crate::workspace::agent_memory::after_task_success(
+                            state,
+                            &storage,
+                            &agent,
+                            &task.title,
+                            &summary,
+                        );
+                    }
+                }
             }
 
             let _ = operations::advance_gigs_on_work_delivered(state, estimated_tokens);

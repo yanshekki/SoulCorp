@@ -1,11 +1,15 @@
 use super::types::WorkNode;
 use crate::agent_activity::{
-    emit_step_complete, emit_step_start, ActivityRunContext,
+    emit_step_complete, emit_step_start, emit_worker_message, ActivityRunContext,
 };
 use crate::agent_runtime::detached::{DetachedExecutionResult, DetachedRuntimeContext};
 use crate::ai::provider::ChatRequest;
 use crate::ai::streaming::{chat_stream_billed, StreamContext};
 use crate::ai::{self, BilledChatRequest};
+use crate::skills::{
+    builtin_catalog, dispatch_tool_with_context, enabled_packs, format_skill_catalog_prompt,
+    parse_agent_tool_message, AgentToolMessage, SkillDispatchRequest, SkillPolicy,
+};
 use crate::soul::build_chat_parts_for_agent;
 use crate::state::{AgentRecord, AppState};
 use std::sync::Mutex;
@@ -17,6 +21,7 @@ use crate::workspace::{
 use std::path::Path;
 
 const MAX_TOOL_STEPS: usize = 3;
+const MAX_SKILL_LOOP_STEPS: usize = 10;
 const RESEARCH_PAGE_LIMIT: usize = 3;
 const RESEARCH_SNIPPET_CHARS: usize = 700;
 const JOURNAL_TITLE_MAX_CHARS: usize = 80;
@@ -191,6 +196,19 @@ pub(crate) fn workspace_prompt_addon(
 ) -> Option<String> {
     let search_query = task_search_query(project_title, task);
     let mut parts = Vec::new();
+    if let Some(root) = workspace_root {
+        if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root.to_path_buf()) {
+            let max_chars = 4000usize;
+            let mem = crate::workspace::agent_memory::prompt_memory_section(
+                Some(&storage),
+                agent,
+                max_chars,
+            );
+            if !mem.trim().is_empty() {
+                parts.push(mem.trim().to_string());
+            }
+        }
+    }
     if let Some(context) = build_workspace_prompt_context(workspace_root, agent, &search_query) {
         parts.push(context);
     }
@@ -238,6 +256,206 @@ pub(crate) fn persist_task_deliverable_note(
 const STEP_NAMES: [&str; 3] = ["plan", "draft", "refine"];
 
 pub fn execute_with_tools(
+    state: &mut AppState,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&Path>,
+    activity: Option<ActivityRunContext>,
+) -> Result<String, String> {
+    let policy = SkillPolicy::from_preferences(&state.skill_preferences);
+    let skill_packs = enabled_packs(&policy);
+    if !skill_packs.is_empty() {
+        // Clone AppHandle for fallback messaging without requiring ActivityRunContext: Clone.
+        let activity_app = activity.as_ref().map(|ctx| ctx.app.clone());
+        let activity_session = activity.as_ref().map(|ctx| ctx.session_id.clone());
+        match execute_with_skill_loop(
+            state,
+            task,
+            agent,
+            project_title,
+            workspace_root,
+            activity.as_ref(),
+            &policy,
+            &skill_packs,
+        ) {
+            Ok(content) if !content.trim().is_empty() => return Ok(content),
+            Ok(_) => {}
+            Err(err) => {
+                if let (Some(app), Some(_sid)) = (activity_app.as_ref(), activity_session.as_ref()) {
+                    emit_worker_message(
+                        state,
+                        Some(app),
+                        &format!("Skill loop failed ({err}); falling back to plan/draft/refine."),
+                    );
+                }
+            }
+        }
+    }
+    execute_plan_draft_refine(state, task, agent, project_title, workspace_root, activity)
+}
+
+fn execute_with_skill_loop(
+    state: &mut AppState,
+    task: &WorkNode,
+    agent: &AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&Path>,
+    activity: Option<&ActivityRunContext>,
+    policy: &SkillPolicy,
+    skill_packs: &[crate::skills::SkillPack],
+) -> Result<String, String> {
+    let ac = if task.acceptance_criteria.is_empty() {
+        "Meet the task objective with clear, actionable output.".to_string()
+    } else {
+        task.acceptance_criteria.join("\n- ")
+    };
+    let task_context = format!(
+        "Project: {project_title}\nTask: {}\nDetails: {}\nAcceptance criteria:\n- {}",
+        task.title, task.description, ac
+    );
+    let (persona, context) = build_chat_parts_for_agent(
+        agent.soul.as_ref(),
+        &agent.name,
+        &agent.role,
+        &agent.department,
+        &task_context,
+    );
+    let search_query = task_search_query(project_title, task);
+    let workspace_context = build_workspace_prompt_context(workspace_root, agent, &search_query);
+    let mut context = merge_chat_context(context, workspace_context).unwrap_or_default();
+    let summaries: Vec<_> = skill_packs.iter().map(|p| p.summary(true)).collect();
+    let catalog = format_skill_catalog_prompt(&summaries);
+    context = format!("{context}\n\n--- Skills ---\n{catalog}");
+
+    let mut conversation_notes = String::new();
+    let mut last_final = String::new();
+    let all_packs = builtin_catalog();
+
+    for step_i in 0..MAX_SKILL_LOOP_STEPS {
+        let step_name = format!("skill_step_{}", step_i + 1);
+        let user_prompt = if step_i == 0 {
+            format!(
+                "Complete this task using available skills when helpful.\nTask: {}\nDetails: {}\n\nRespond with JSON only:\n{{\"type\":\"tool_call\",\"tool\":\"<tool_id>\",\"args\":{{...}}}}\nor\n{{\"type\":\"final\",\"content\":\"<deliverable markdown>\"}}",
+                task.title, task.description
+            )
+        } else {
+            format!(
+                "Continue the task. Prior tool results:\n{conversation_notes}\n\nRespond with JSON only: tool_call or final deliverable."
+            )
+        };
+
+        let request = ChatRequest {
+            system_prompt: persona.clone(),
+            context: Some(context.clone()),
+            user_prompt,
+            temperature: 0.4,
+            soul_id: agent.soul_id,
+            conversation_turns: Vec::new(),
+        };
+        let dept_providers = state.department_ai_providers.clone();
+        let billed = BilledChatRequest {
+            request,
+            agent_id: agent.id.clone(),
+            department: agent.department.clone(),
+            source: format!("skill_loop_{}", step_i + 1),
+        };
+
+        let response = if let Some(ctx) = activity {
+            emit_step_start(state, Some(&ctx.app), &ctx.session_id, &agent.id, &step_name);
+            let session_id = ctx.session_id.as_str();
+            let mut stream_ctx = StreamContext {
+                state,
+                app: Some(&ctx.app),
+                session_id,
+                agent_id: &agent.id,
+                step: Some(step_name.as_str()),
+            };
+            let response = chat_stream_billed(
+                &mut stream_ctx,
+                billed,
+                &dept_providers,
+                agent.ai_provider.as_deref(),
+            )?;
+            emit_step_complete(
+                stream_ctx.state,
+                Some(&ctx.app),
+                session_id,
+                &agent.id,
+                &step_name,
+                &response.content,
+            );
+            response
+        } else {
+            ai::chat_with_fallback_billed(
+                state,
+                billed,
+                &dept_providers,
+                agent.ai_provider.as_deref(),
+            )?
+        };
+
+        match parse_agent_tool_message(&response.content) {
+            AgentToolMessage::Final { content } => {
+                last_final = content;
+                break;
+            }
+            AgentToolMessage::ToolCall { tool, args } => {
+                let result = dispatch_tool_with_context(
+                    state,
+                    agent,
+                    workspace_root,
+                    &all_packs,
+                    policy,
+                    &SkillDispatchRequest {
+                        tool: tool.clone(),
+                        args: args.clone(),
+                        dry_run: false,
+                    },
+                );
+                if let Some(ctx) = activity {
+                    emit_worker_message(
+                        state,
+                        Some(&ctx.app),
+                        &format!(
+                            "skill:{} → {} ({})",
+                            tool,
+                            if result.ok { "ok" } else { "err" },
+                            result.message
+                        ),
+                    );
+                }
+                conversation_notes.push_str(&format!(
+                    "\n### tool `{tool}`\nok={}\nmsg={}\ndata={}\n",
+                    result.ok,
+                    result.message,
+                    result.data
+                ));
+                // Bound notes size
+                if conversation_notes.len() > 24_000 {
+                    conversation_notes = conversation_notes
+                        .chars()
+                        .skip(conversation_notes.len() - 20_000)
+                        .collect();
+                }
+            }
+        }
+    }
+
+    if last_final.trim().is_empty() {
+        // Model never emitted final — synthesize from tool notes.
+        if conversation_notes.trim().is_empty() {
+            return Err("Skill loop produced no output.".into());
+        }
+        last_final = format!(
+            "# Task deliverable\n\nTask: {}\n\n## Tool activity\n{conversation_notes}\n",
+            task.title
+        );
+    }
+    Ok(last_final)
+}
+
+fn execute_plan_draft_refine(
     state: &mut AppState,
     task: &WorkNode,
     agent: &AgentRecord,
@@ -583,6 +801,7 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             completed_at: None,
+            queued_at: None,
         };
         let title = journal_title_for_task(&task);
         assert!(title.starts_with("Task — "));

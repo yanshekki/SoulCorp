@@ -1,13 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
-import type { GameSettings } from "../../types/game";
+import type {
+  AgentMemoryView,
+  AgentRecord,
+  CompanyDepartmentsSnapshot,
+  GameSettings,
+  RuntimeCatalog,
+} from "../../types/game";
 import {
   AI_PROVIDER_DEFAULT,
   type DepartmentAiConfig,
   resolveEffectiveAiProviderLabel,
 } from "../../data/aiProviders";
-import type { AgentRecord, CompanyDepartmentsSnapshot, RuntimeCatalog } from "../../types/game";
+import { compressAgentMemory, getAgentMemory } from "../../services/agentWorkspaceClient";
 import { defaultSoulMdForAgent, soulMdForAgent } from "../../utils/agentSoul";
 import { validateSoulMd } from "../../utils/soulMdValidation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -18,6 +24,7 @@ import { AgentWorkspaceActivityFeed } from "./AgentWorkspaceActivityFeed";
 import { AgentWorkspaceBrowser } from "./AgentWorkspaceBrowser";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 import { AgentRuntimeSection } from "./command-center/AgentRuntimeSection";
+import { SkillsCatalogSection } from "./brain/SkillsCatalogSection";
 import { EffectiveBrainPill } from "./brain/EffectiveBrainPill";
 import { AgentActivityPill } from "./observatory/AgentActivityPill";
 import { ExecutionRuntimePicker } from "./brain/ExecutionRuntimePicker";
@@ -33,6 +40,7 @@ import {
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "runtime", label: "Execution runtime" },
+  { id: "skills", label: "Skills" },
   { id: "workspaces", label: "Workspaces" },
   { id: "activity", label: "Activity" },
   { id: "departments", label: "Departments" },
@@ -40,10 +48,12 @@ export const AGENTS_SECTIONS = [
 ] as const;
 
 interface AgentsPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  /** Only this left-nav section is rendered (true pages, not scroll spy). */
+  activeSection: string;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
-export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
+export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelProps) {
   const settings = useGameStore((state) => state.settings);
   const setSettings = useGameStore((state) => state.setSettings);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
@@ -57,10 +67,43 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
   const [soulSavingId, setSoulSavingId] = useState<string | null>(null);
   const [expandedSoulId, setExpandedSoulId] = useState<string | null>(null);
   const [workspaceAgentId, setWorkspaceAgentId] = useState<string | null>(null);
+  const [memoryModalAgentId, setMemoryModalAgentId] = useState<string | null>(null);
+  const [memoryView, setMemoryView] = useState<AgentMemoryView | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryBusy, setMemoryBusy] = useState(false);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
   const [employeeSearchType, setEmployeeSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedEmployeeQuery = useDebouncedValue(employeeSearchQuery);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+
+  const openMemoryModal = async (agentId: string) => {
+    setMemoryModalAgentId(agentId);
+    setMemoryLoading(true);
+    setMemoryView(null);
+    try {
+      const view = await getAgentMemory(agentId);
+      setMemoryView(view);
+    } catch (error) {
+      setStatusMessage(String(error));
+      setMemoryModalAgentId(null);
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  const handleCompressMemory = async () => {
+    if (!memoryModalAgentId) return;
+    setMemoryBusy(true);
+    try {
+      const view = await compressAgentMemory(memoryModalAgentId);
+      setMemoryView(view);
+      setStatusMessage("memory.md compressed.");
+    } catch (error) {
+      setStatusMessage(String(error));
+    } finally {
+      setMemoryBusy(false);
+    }
+  };
 
   const filteredAgentRecords = useMemo(
     () =>
@@ -112,33 +155,6 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
       .then(setRuntimeCatalog)
       .catch(() => setRuntimeCatalog(null));
   }, []);
-
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-agents-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-agents-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, departmentConfigs.length, agentRecords.length]);
 
   const updateDepartmentRuntime = async (department: string, value: string) => {
     try {
@@ -311,6 +327,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
 
   return (
     <div className="agents-panel agents-panel--page" ref={scrollRootRef}>
+      {activeSection === "overview" ? (
       <section
         id="overview"
         className="agents-card agents-card--wide"
@@ -327,7 +344,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
 
         <div className="agents-priority-stack">
           <div className="agents-priority-layer">
-            <p className="agents-priority-layer-label">Meeting brain</p>
+            <p className="agents-priority-layer-label">Meeting brain (dialogue)</p>
             <div className="agents-priority-flow">
               <article>
                 <strong>1. Agent override</strong>
@@ -350,7 +367,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
             </div>
           </div>
           <div className="agents-priority-layer">
-            <p className="agents-priority-layer-label">Execution runtime</p>
+            <p className="agents-priority-layer-label">Execution runtime (sprint tasks)</p>
             <div className="agents-priority-flow">
               <article>
                 <strong>1. Agent override</strong>
@@ -423,17 +440,21 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
           </p>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "runtime" ? (
       <section
         id="runtime"
         className="agents-card agents-card--wide"
         data-agents-section="runtime"
       >
         <header className="agents-card-header agents-card-header--stacked">
-          <h3>Execution runtime</h3>
+          <h3>Execution runtime (sprint tasks)</h3>
           <p className="muted">
-            Company-wide subprocess for sprint task execution. When set to in-app LLM only, tasks
-            use the meeting brain chain below (agent → department → company default).
+            Company-wide engine for sprint task execution (OpenClaw / AI CLI / in-app LLM). This is
+            separate from Meeting brain (dialogue). When set to in-app LLM only, tasks use the
+            meeting-style LLM chain (agent → department → company default). API keys stay in
+            Settings.
           </p>
         </header>
         <AgentRuntimeSection
@@ -442,15 +463,21 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
           onStatusMessage={setStatusMessage}
         />
       </section>
+      ) : null}
 
+      {activeSection === "skills" ? <SkillsCatalogSection /> : null}
+
+      {activeSection === "workspaces" ? (
       <AgentWorkspaceBrowser
         agents={agentRecords}
         selectedAgentId={workspaceAgentId}
         onSelectAgent={setWorkspaceAgentId}
       />
+      ) : null}
 
-      <AgentWorkspaceActivityFeed />
+      {activeSection === "activity" ? <AgentWorkspaceActivityFeed /> : null}
 
+      {activeSection === "departments" ? (
       <section
         id="departments"
         className="agents-card agents-card--wide"
@@ -505,7 +532,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                     </div>
                   </div>
                   <label className="field-label brain-provider-field">
-                    Meeting brain
+                    Meeting brain (dialogue)
                     <MeetingBrainPicker
                       catalog={runtimeCatalog}
                       value={meetingSelected}
@@ -514,8 +541,9 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       onChange={(value) => void updateDepartmentProvider(entry.department, value)}
                     />
                   </label>
+                  <p className="muted agents-field-hint">Used for meetings and chat-style turns.</p>
                   <label className="field-label brain-provider-field">
-                    Execution runtime
+                    Execution runtime (sprint tasks)
                     <ExecutionRuntimePicker
                       catalog={runtimeCatalog}
                       value={executionSelected}
@@ -523,13 +551,18 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       onChange={(value) => void updateDepartmentRuntime(entry.department, value)}
                     />
                   </label>
+                  <p className="muted agents-field-hint">
+                    Used for sprint work — may be OpenClaw or another AI CLI.
+                  </p>
                 </article>
               );
             })}
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "employees" ? (
       <section
         id="employees"
         className="agents-card agents-card--wide"
@@ -616,10 +649,6 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                           agentId={agent.id}
                           onClick={() => {
                             setActivePanel("observatory");
-                            document.getElementById("live")?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
                           }}
                         />
                       </strong>
@@ -644,6 +673,17 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       ? ` · ${agent.soul.hub_file_type === "full_soul_folder" ? "Modular hub" : "Hub"}`
                       : null}
                   </p>
+                  {agent.agent_kind !== "fate" ? (
+                    <div className="panel-actions" style={{ marginBottom: "0.5rem" }}>
+                      <button
+                        type="button"
+                        className="agents-soul-toggle"
+                        onClick={() => void openMemoryModal(agent.id)}
+                      >
+                        View memory.md
+                      </button>
+                    </div>
+                  ) : null}
                   {!soulReadOnly ? (
                     <div className="agents-soul-section">
                       <button
@@ -679,7 +719,7 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                     </div>
                   ) : null}
                   <label className="field-label brain-provider-field">
-                    Meeting brain
+                    Meeting brain (dialogue)
                     <MeetingBrainPicker
                       catalog={runtimeCatalog}
                       value={meetingSelected}
@@ -688,8 +728,9 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       onChange={(value) => void updateAgentProvider(agent.id, value)}
                     />
                   </label>
+                  <p className="muted agents-field-hint">Meetings & dialogue only — not OpenClaw.</p>
                   <label className="field-label brain-provider-field">
-                    Execution runtime
+                    Execution runtime (sprint tasks)
                     <ExecutionRuntimePicker
                       catalog={runtimeCatalog}
                       value={executionSelected}
@@ -698,16 +739,16 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
                       onChange={(value) => void updateAgentRuntime(agent.id, value)}
                     />
                   </label>
+                  <p className="muted agents-field-hint">
+                    Sprint tasks — OpenClaw / AI CLI live here.
+                  </p>
                   {agent.agent_kind !== "fate" ? (
                     <button
                       type="button"
                       className="agents-workspace-jump"
                       onClick={() => {
                         setWorkspaceAgentId(agent.id);
-                        setActivePanel("agents");
-                        document
-                          .getElementById("workspaces")
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        onNavigateSection?.("workspaces");
                       }}
                     >
                       Browse workspace
@@ -720,6 +761,79 @@ export function AgentsPanel({ onSectionFocus }: AgentsPanelProps) {
           </>
         )}
       </section>
+      ) : null}
+
+      {memoryModalAgentId ? (
+        <div
+          className="agents-memory-modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            setMemoryModalAgentId(null);
+            setMemoryView(null);
+          }}
+        >
+          <div
+            className="agents-memory-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Agent working memory"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="agents-memory-modal-header">
+              <div>
+                <h3>memory.md</h3>
+                <p className="muted">
+                  Working memory (compressed while the agent works). soul.md is identity; this is
+                  short-term work context.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMemoryModalAgentId(null);
+                  setMemoryView(null);
+                }}
+              >
+                Close
+              </button>
+            </header>
+            {memoryLoading ? (
+              <p className="muted">Loading memory…</p>
+            ) : memoryView ? (
+              <>
+                <p className="muted agents-memory-meta">
+                  {memoryView.chars.toLocaleString()} chars
+                  {memoryView.last_compressed_at
+                    ? ` · last compressed ${memoryView.last_compressed_at}`
+                    : ""}
+                  {` · ${memoryView.tasks_since_compress} task(s) since compress`}
+                </p>
+                <pre className="agents-memory-body">{memoryView.text}</pre>
+                <div className="panel-actions">
+                  <button
+                    type="button"
+                    disabled={memoryBusy}
+                    onClick={() => void handleCompressMemory()}
+                  >
+                    {memoryBusy ? "Compressing…" : "Compress now"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemoryModalAgentId(null);
+                      setMemoryView(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="muted">No memory available.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

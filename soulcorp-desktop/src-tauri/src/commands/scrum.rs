@@ -156,7 +156,7 @@ pub struct UpdateDirectiveStatusRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SendCoCeoDirectiveToStaeRequest {
+pub struct SendCoCeoDirectiveToStateRequest {
     pub title: String,
     pub description: String,
     pub target_department: String,
@@ -381,6 +381,7 @@ pub fn create_work_node(
         created_at: now.clone(),
         updated_at: now,
         completed_at: None,
+        queued_at: None,
     };
     state.work_nodes.push(node.clone());
     commit(app, &state)?;
@@ -396,6 +397,12 @@ pub fn update_work_node(
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if let Some(deps) = &request.depends_on {
         validate_depends_on_dag(&state.work_nodes, &request.node_id, deps)?;
+    }
+    // Validate assignee before taking a mutable work-node borrow.
+    if let Some(Some(agent_id)) = request.assignee_agent_id.as_ref() {
+        if !state.agents.contains_key(agent_id) {
+            return Err("Agent not found.".to_string());
+        }
     }
     let node = state
         .work_nodes
@@ -424,7 +431,19 @@ pub fn update_work_node(
         node.department = dept;
     }
     if let Some(assignee) = request.assignee_agent_id {
-        node.assignee_agent_id = assignee;
+        match assignee {
+            Some(agent_id) => {
+                // Same serial-queue path as assign_work_node (Kafka partition enqueue).
+                crate::scrum::queue::assign_and_enqueue(node, agent_id);
+                if node.status == WorkNodeStatus::Backlog {
+                    node.status = WorkNodeStatus::Ready;
+                }
+            }
+            None => {
+                node.assignee_agent_id = None;
+                node.queued_at = None;
+            }
+        }
     }
     if let Some(sprint_id) = request.sprint_id {
         node.sprint_id = sprint_id;
@@ -456,11 +475,16 @@ pub fn assign_work_node(
         .find(|n| n.id == request.node_id)
         .ok_or_else(|| "Work node not found.".to_string())?;
     let has_assignee = request.agent_id.is_some();
-    node.assignee_agent_id = request.agent_id;
+    if let Some(agent_id) = request.agent_id {
+        crate::scrum::queue::assign_and_enqueue(node, agent_id);
+    } else {
+        node.assignee_agent_id = None;
+        node.queued_at = None;
+        node.updated_at = crate::scrum::now_iso();
+    }
     if has_assignee && node.status == WorkNodeStatus::Backlog {
         node.status = WorkNodeStatus::Ready;
     }
-    node.updated_at = now_iso();
     let snapshot = node.clone();
     commit(app, &state)?;
     Ok(snapshot)
@@ -752,8 +776,8 @@ pub fn update_directive_status(
 }
 
 #[tauri::command]
-pub fn send_co_ceo_directive_to_stae(
-    request: SendCoCeoDirectiveToStaeRequest,
+pub fn send_co_ceo_directive_to_state(
+    request: SendCoCeoDirectiveToStateRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Directive, String> {
@@ -766,6 +790,16 @@ pub fn send_co_ceo_directive_to_stae(
     )?;
     commit(app, &state)?;
     Ok(directive)
+}
+
+/// Typo alias for [`send_co_ceo_directive_to_state`] (historical invoke name).
+#[tauri::command]
+pub fn send_co_ceo_directive_to_stae(
+    request: SendCoCeoDirectiveToStateRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<Directive, String> {
+    send_co_ceo_directive_to_state(request, state, app)
 }
 
 #[tauri::command]

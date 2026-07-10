@@ -101,13 +101,16 @@ pub fn probe_all_agent_runtimes(state: State<'_, Mutex<AppState>>) -> Result<Vec
     Ok(summaries)
 }
 
+/// Smoke tests must not use the full sprint timeout (often 600s) or the UI looks frozen.
+const SMOKE_TEST_TIMEOUT_SECS: u32 = 45;
+
 #[tauri::command]
-pub fn test_agent_runtime(
+pub async fn test_agent_runtime(
     request: AgentRuntimeTestRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRuntimeTestResult, String> {
-    let (settings, company_id, task, agent, project_title, workspace_root, runtime_label) = {
+    let prepared = {
         let state = state.lock().map_err(|e| e.to_string())?;
         if !crate::agent_runtime::is_subprocess_runtime(&state.settings.agent_runtime_mode) {
             return Ok(AgentRuntimeTestResult {
@@ -182,6 +185,7 @@ pub fn test_agent_runtime(
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
                 completed_at: None,
+                queued_at: None,
             };
             let project_title = state
                 .projects
@@ -201,25 +205,56 @@ pub fn test_agent_runtime(
             ))
         };
 
+        let mut settings = state.settings.clone();
+        // Cap smoke-test wait so the UI never sits silent for 10 minutes.
+        settings.openclaw_timeout_secs = settings
+            .openclaw_timeout_secs
+            .min(SMOKE_TEST_TIMEOUT_SECS)
+            .max(15);
+
+        let key_hint = if settings.agent_runtime_mode == "grok"
+            && !settings.agent_runtime_allow_cli_env_keys
+            && settings.grok_api_key.trim().is_empty()
+        {
+            " Tip: enable “Allow CLI to read stored API keys” or set XAI_API_KEY, and save a Grok key in Settings → AI."
+        } else if settings.agent_runtime_mode == "grok"
+            && !settings.agent_runtime_allow_cli_env_keys
+            && !settings.grok_api_key.trim().is_empty()
+        {
+            " Tip: enable “Allow CLI to read stored API keys” so Grok CLI can use your Settings key."
+        } else {
+            ""
+        };
+
         (
-            state.settings.clone(),
+            settings,
             state.company_id.clone(),
             task,
             agent,
             project_title,
             workspace_root,
             runtime_label,
+            key_hint.to_string(),
         )
     };
 
-    match run_openclaw_for_task(
-        &settings,
-        &company_id,
-        &task,
-        &agent,
-        &project_title,
-        workspace_root.as_deref(),
-    ) {
+    let (settings, company_id, task, agent, project_title, workspace_root, runtime_label, key_hint) =
+        prepared;
+
+    let run_result = tokio::task::spawn_blocking(move || {
+        run_openclaw_for_task(
+            &settings,
+            &company_id,
+            &task,
+            &agent,
+            &project_title,
+            workspace_root.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| format!("Runtime test task failed: {e}"))?;
+
+    match run_result {
         Ok(result) => {
             let preview = if result.content.chars().count() > 240 {
                 format!(
@@ -233,9 +268,9 @@ pub fn test_agent_runtime(
             Ok(AgentRuntimeTestResult {
                 ok: true,
                 transport: Some(transport.clone()),
-                preview,
+                preview: preview.clone(),
                 message: format!(
-                    "{runtime_label} test succeeded via {transport} in {} ms.",
+                    "{runtime_label} test succeeded via {transport} in {} ms. {preview}",
                     result.duration_ms
                 ),
             })
@@ -244,16 +279,16 @@ pub fn test_agent_runtime(
             ok: false,
             transport: None,
             preview: String::new(),
-            message: error,
+            message: format!("{error}{key_hint}"),
         }),
     }
 }
 
 #[tauri::command]
-pub fn test_openclaw_runtime(
+pub async fn test_openclaw_runtime(
     request: OpenClawTestRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<OpenClawTestResult, String> {
-    test_agent_runtime(request, state, app)
+    test_agent_runtime(request, state, app).await
 }

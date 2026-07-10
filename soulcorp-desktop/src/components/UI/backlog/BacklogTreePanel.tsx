@@ -460,11 +460,12 @@ export function BacklogTreePanel({
 
       <p className="muted backlog-hint">
         Stories group work from routed directives. Assign an agent to each task, then Run to generate a deliverable.
-        {loading ? " Loading project backlog…" : ""}
+        {loading && groups.length === 0 ? " Loading project backlog…" : ""}
       </p>
 
-      {loading ? (
-        <p className="muted backlog-loading">Switching project…</p>
+      {/* Only block the UI when we have nothing to show yet — never unmount on soft refresh. */}
+      {loading && groups.length === 0 && orphanTasks.length === 0 ? (
+        <p className="muted backlog-loading">Loading backlog…</p>
       ) : null}
 
       {!loading && groups.length === 0 && orphanTasks.length === 0 ? (
@@ -481,9 +482,11 @@ export function BacklogTreePanel({
         </div>
       ) : null}
 
-      <div className={`backlog-story-list${loading ? " backlog-story-list--loading" : ""}`}>
-        {!loading
-          ? filteredGroups.map((group) => (
+      <div
+        className={`backlog-story-list${loading && groups.length > 0 ? " backlog-story-list--loading" : ""}`}
+        aria-busy={loading || undefined}
+      >
+        {filteredGroups.map((group) => (
           <StoryCard
             key={group.story.id}
             group={group}
@@ -499,11 +502,10 @@ export function BacklogTreePanel({
             onAddTask={handleAddTask}
             forceExpanded={group.forceExpanded ?? false}
           />
-            ))
-          : null}
+        ))}
       </div>
 
-      {!loading && filteredOrphanTasks.length > 0 ? (
+      {filteredOrphanTasks.length > 0 ? (
         <section className="backlog-orphans">
           <header>
             <h4>Unassigned to a story</h4>

@@ -112,6 +112,9 @@ pub struct WorkNode {
     pub updated_at: String,
     #[serde(default)]
     pub completed_at: Option<String>,
+    /// When this task entered the assignee's serial queue (Kafka-like partition).
+    #[serde(default)]
+    pub queued_at: Option<String>,
 }
 
 fn default_priority() -> u8 {
@@ -218,8 +221,8 @@ pub struct ScrumBoardSnapshot {
     pub in_progress: Vec<WorkNode>,
     pub in_review: Vec<WorkNode>,
     pub done: Vec<WorkNode>,
-    pub burndown_remaining: u8,
-    pub burndown_total: u8,
+    pub burndown_remaining: u32,
+    pub burndown_total: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +231,12 @@ pub struct AgentInboxEntry {
     pub agent_name: String,
     pub agent_role: String,
     pub department: String,
-    pub assigned_points: u8,
+    pub assigned_points: u32,
     pub tasks: Vec<WorkNode>,
+    /// Ready/InSprint tasks waiting in this agent's serial queue.
+    #[serde(default)]
+    pub queued_count: u32,
+    /// True when the agent has an InProgress task.
+    #[serde(default)]
+    pub busy: bool,
 }

@@ -95,10 +95,10 @@ function EndingCard({ ending }: { ending: Ending }) {
 }
 
 interface AchievementsPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
 }
 
-export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
+export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
   const { activeCompanyId, companyRevision } = useCompanyScope();
   const achievements = useGameStore((state) => state.achievements);
   const endings = useGameStore((state) => state.endings);
@@ -146,33 +146,6 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
       })
       .catch((error) => setStatusMessage(String(error)));
   }, [activeCompanyId, companyRevision, setAchievements, setEndings, setStatusMessage]);
-
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-achievements-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-achievements-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, achievements.length, endings.length]);
 
   const unlockedCount = useMemo(
     () => achievements.filter((achievement) => achievement.unlocked).length,
@@ -251,62 +224,80 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
     });
   }, [groupedAchievements]);
 
+  const showAll = activeSection === "all";
+  const showEndings = activeSection === "endings" || showAll;
+  const visibleCategories = showAll
+    ? groupedAchievements
+    : groupedAchievements.filter(([category]) => category === activeSection);
+
   return (
     <div className="achievements-panel achievements-panel--page" ref={scrollRootRef}>
-      <div className="achievements-summary" id="all" data-achievements-section="all">
-        <ProgressRing value={achievementPercent} label={`${unlockedCount}/${achievements.length} achievements`} />
-        <ProgressRing value={endingPercent} label={`${unlockedEndings}/${endings.length} endings`} />
-        <div className="achievements-summary-copy">
-          <p>
-            Unlock achievements by growing the company, surviving chaos events, and mastering offline
-            play. Endings reveal alternate futures for your simulation.
-          </p>
-        </div>
-      </div>
-
-      <SearchableListToolbar
-        query={searchQuery}
-        onQueryChange={setSearchQuery}
-        placeholder="Search achievements and endings…"
-        ariaLabel="Search achievements"
-        matchCount={
-          debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
-            ? filteredAchievements.length + filteredEndings.length
-            : undefined
-        }
-        totalCount={scopedAchievements.length + scopedEndings.length}
-        typeFilter={{
-          value: searchType,
-          onChange: setSearchType,
-          options: ACHIEVEMENT_SEARCH_TYPES,
-          ariaLabel: "Filter achievement type",
-          label: "Type",
-        }}
-      />
-
-      {debouncedQuery.trim() &&
-      filteredAchievements.length === 0 &&
-      filteredEndings.length === 0 ? (
-        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
-      ) : null}
-
-      <div className="achievements-category-progress">
-        {categoryProgress.map((entry) => (
-          <div key={entry.category} className="achievements-category-meter">
-            <div className="achievements-category-meter-head">
-              <span>{entry.label}</span>
-              <span className="muted">
-                {entry.unlocked}/{entry.total}
-              </span>
-            </div>
-            <div className="achievements-category-meter-bar">
-              <span style={{ width: `${entry.percent}%` }} />
+      {showAll ? (
+        <>
+          <div className="achievements-summary" id="all" data-achievements-section="all">
+            <ProgressRing
+              value={achievementPercent}
+              label={`${unlockedCount}/${achievements.length} achievements`}
+            />
+            <ProgressRing
+              value={endingPercent}
+              label={`${unlockedEndings}/${endings.length} endings`}
+            />
+            <div className="achievements-summary-copy">
+              <p>
+                Unlock achievements by growing the company, surviving chaos events, and mastering
+                offline play. Endings reveal alternate futures for your simulation.
+              </p>
             </div>
           </div>
-        ))}
-      </div>
 
-      {groupedAchievements.map(([category, items]) => (
+          <SearchableListToolbar
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            placeholder="Search achievements and endings…"
+            ariaLabel="Search achievements"
+            matchCount={
+              debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
+                ? filteredAchievements.length + filteredEndings.length
+                : undefined
+            }
+            totalCount={scopedAchievements.length + scopedEndings.length}
+            typeFilter={{
+              value: searchType,
+              onChange: setSearchType,
+              options: ACHIEVEMENT_SEARCH_TYPES,
+              ariaLabel: "Filter achievement type",
+              label: "Type",
+            }}
+          />
+
+          {debouncedQuery.trim() &&
+          filteredAchievements.length === 0 &&
+          filteredEndings.length === 0 ? (
+            <p className="search-empty-hint muted">
+              No matches for &ldquo;{debouncedQuery}&rdquo;.
+            </p>
+          ) : null}
+
+          <div className="achievements-category-progress">
+            {categoryProgress.map((entry) => (
+              <div key={entry.category} className="achievements-category-meter">
+                <div className="achievements-category-meter-head">
+                  <span>{entry.label}</span>
+                  <span className="muted">
+                    {entry.unlocked}/{entry.total}
+                  </span>
+                </div>
+                <div className="achievements-category-meter-bar">
+                  <span style={{ width: `${entry.percent}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {visibleCategories.map(([category, items]) => (
         <section
           key={category}
           id={category}
@@ -327,23 +318,25 @@ export function AchievementsPanel({ onSectionFocus }: AchievementsPanelProps) {
         </section>
       ))}
 
-      <section
-        id="endings"
-        className="achievements-category-section achievements-endings-section"
-        data-achievements-section="endings"
-      >
-        <header className="achievements-section-header">
-          <h3>Endings</h3>
-          <span className="muted">
-            {unlockedEndings}/{endings.length} discovered
-          </span>
-        </header>
-        <div className="achievements-grid achievements-endings-grid">
-          {filteredEndings.map((ending) => (
-            <EndingCard key={ending.id} ending={ending} />
-          ))}
-        </div>
-      </section>
+      {showEndings ? (
+        <section
+          id="endings"
+          className="achievements-category-section achievements-endings-section"
+          data-achievements-section="endings"
+        >
+          <header className="achievements-section-header">
+            <h3>Endings</h3>
+            <span className="muted">
+              {unlockedEndings}/{endings.length} discovered
+            </span>
+          </header>
+          <div className="achievements-grid achievements-endings-grid">
+            {filteredEndings.map((ending) => (
+              <EndingCard key={ending.id} ending={ending} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

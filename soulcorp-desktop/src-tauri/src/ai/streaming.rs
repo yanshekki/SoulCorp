@@ -138,6 +138,14 @@ fn stream_with_provider(
             "claude".to_string(),
             request,
         ),
+        "deepseek" => stream_openai_compatible(
+            ctx,
+            settings.deepseek_base_url.clone(),
+            settings.deepseek_api_key.clone(),
+            settings.deepseek_model.clone(),
+            "deepseek".to_string(),
+            request,
+        ),
         "soulmd-hub" => {
             let provider = HubChatProvider::new(hub.base_url.clone(), hub.api_key.clone());
             simulate_stream_from_blocking(ctx, &provider, request, "soulmd-hub")

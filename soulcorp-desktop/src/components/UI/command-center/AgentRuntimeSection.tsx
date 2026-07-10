@@ -30,6 +30,8 @@ export function AgentRuntimeSection({
   const [runtimeStatus, setRuntimeStatus] = useState<AgentRuntimeStatus | null>(null);
   const [installedSummary, setInstalledSummary] = useState<RuntimeProbeSummary[]>([]);
   const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [testOk, setTestOk] = useState<boolean | null>(null);
 
   const activeMode = settings.agent_runtime_mode ?? "llm_only";
   const subprocessSelected = isSubprocessRuntime(activeMode);
@@ -71,12 +73,20 @@ export function AgentRuntimeSection({
 
   const handleTest = async () => {
     setTesting(true);
+    setTestMessage(null);
+    setTestOk(null);
+    onStatusMessage(`Testing ${runtimeStatus?.runtime_label ?? "runtime"}…`);
     try {
       const result = await invoke<AgentRuntimeTestResult>("test_agent_runtime", { request: {} });
+      setTestOk(result.ok);
+      setTestMessage(result.message);
       onStatusMessage(result.message);
       await loadRuntimeData();
     } catch (error) {
-      onStatusMessage(String(error));
+      const msg = String(error);
+      setTestOk(false);
+      setTestMessage(msg);
+      onStatusMessage(msg);
     } finally {
       setTesting(false);
     }
@@ -234,9 +244,38 @@ export function AgentRuntimeSection({
             <span>Allow CLI to read stored API keys (e.g. XAI_API_KEY for Grok)</span>
           </label>
 
-          <button type="button" className="btn" disabled={testing} onClick={() => void handleTest()}>
-            {testing ? `Testing ${runtimeStatus?.runtime_label ?? "runtime"}…` : `Test ${runtimeStatus?.runtime_label ?? "runtime"}`}
+          <button
+            type="button"
+            className="btn primary-action"
+            disabled={testing}
+            onClick={() => void handleTest()}
+          >
+            {testing
+              ? `Testing ${runtimeStatus?.runtime_label ?? "runtime"}… (up to ~45s)`
+              : `Test ${runtimeStatus?.runtime_label ?? "runtime"}`}
           </button>
+          {testing ? (
+            <p className="muted command-form-note" role="status">
+              Running a short smoke prompt via the CLI. Do not close this panel…
+            </p>
+          ) : null}
+          {testMessage ? (
+            <p
+              className={testOk ? "command-form-note" : "hub-warning"}
+              role="status"
+              style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+            >
+              {testOk === false ? "Test failed: " : null}
+              {testMessage}
+            </p>
+          ) : null}
+          {activeMode === "grok" && !(settings.agent_runtime_allow_cli_env_keys ?? false) ? (
+            <p className="muted command-form-note">
+              Grok CLI usually needs an API key. Enable “Allow CLI to read stored API keys” above
+              (and set Grok key in Settings → AI), or export <code>XAI_API_KEY</code> in your
+              environment.
+            </p>
+          ) : null}
         </>
       ) : null}
 

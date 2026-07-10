@@ -4,6 +4,7 @@ pub mod executor;
 pub mod parallel_executor;
 pub mod org;
 pub mod pm_review;
+pub mod queue;
 pub mod scheduler;
 pub mod tree;
 pub mod types;

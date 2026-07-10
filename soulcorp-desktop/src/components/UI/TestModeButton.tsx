@@ -50,9 +50,7 @@ export function TestModeButton() {
       setStatusMessage(
         `${result.message} Create a company to begin with real operational data.`,
       );
-      requestAnimationFrame(() => {
-        document.getElementById("command")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      // Projects opens on Command Center section by default (first pipeline step).
     } catch (error) {
       setStatusMessage(String(error));
     } finally {

@@ -38,10 +38,11 @@ function compatibilityLabel(score: number | null | undefined): string {
 }
 
 interface RecruitmentPanelProps {
-  onSectionFocus?: (sectionId: string) => void;
+  activeSection: string;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
-export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
+export function RecruitmentPanel({ activeSection, onNavigateSection }: RecruitmentPanelProps) {
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const finance = useGameStore((state) => state.finance);
@@ -66,8 +67,13 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      // Soft: keep previous candidates visible while filter/company reloads.
+      const showLoading = candidates.length === 0;
+      if (showLoading) {
+        setLoading(true);
+      }
       try {
         const [result, morale, graph, recruitmentAnalytics] = await Promise.all([
           invoke<{
@@ -83,6 +89,9 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
             query: skillFilter.trim() || null,
           }),
         ]);
+        if (cancelled) {
+          return;
+        }
         setCandidates(result.candidates);
         setCandidatesFromCache(result.from_cache);
         setCandidatesCacheMessage(result.message ?? null);
@@ -90,40 +99,23 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
         setRelationshipGraph(graph);
         setAnalytics(recruitmentAnalytics);
       } catch (error) {
-        setStatusMessage(String(error));
+        if (!cancelled) {
+          setStatusMessage(String(error));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled && showLoading) {
+          setLoading(false);
+        }
       }
     };
     void load();
+    return () => {
+      cancelled = true;
+    };
+    // candidates.length intentionally omitted — only used as soft-loading gate
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- soft refresh gate
   }, [activeCompanyId, skillFilter, setStatusMessage]);
 
-  useEffect(() => {
-    if (!onSectionFocus) {
-      return;
-    }
-    const root = scrollRootRef.current?.closest(".app-page-content");
-    const sections = scrollRootRef.current?.querySelectorAll("[data-recruitment-section]");
-    if (!root || !sections?.length) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        const sectionId = visible?.target.getAttribute("data-recruitment-section");
-        if (sectionId) {
-          onSectionFocus(sectionId);
-        }
-      },
-      { root, rootMargin: "-18% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, [onSectionFocus, candidates.length, analytics, heatmap.length, relationshipGraph]);
 
   const analyticsByCandidate = useMemo(() => {
     const map = new Map(
@@ -227,11 +219,12 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
   };
 
   const scrollToCandidates = useCallback(() => {
-    document.getElementById("candidates")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+    onNavigateSection?.("candidates");
+  }, [onNavigateSection]);
 
   return (
     <div className="recruitment-panel recruitment-panel--page" ref={scrollRootRef}>
+      {activeSection === "overview" ? (
       <section
         id="overview"
         className="recruitment-card recruitment-card--wide"
@@ -350,7 +343,9 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
           </button>
         </div>
       </section>
+      ) : null}
 
+      {activeSection === "candidates" ? (
       <section
         id="candidates"
         className="recruitment-card recruitment-card--wide"
@@ -455,8 +450,9 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
           </div>
         )}
       </section>
+      ) : null}
 
-      {showAgentMorale ? (
+      {showAgentMorale && activeSection === "team" ? (
       <section
         id="team"
         className="recruitment-card recruitment-card--wide"
@@ -487,7 +483,7 @@ export function RecruitmentPanel({ onSectionFocus }: RecruitmentPanelProps) {
       </section>
       ) : null}
 
-      {IS_V2 ? (
+      {IS_V2 && activeSection === "relationships" ? (
       <section
         id="relationships"
         className="recruitment-card recruitment-card--wide"

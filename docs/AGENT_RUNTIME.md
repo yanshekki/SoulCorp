@@ -84,6 +84,7 @@ Resolved via `supported_meeting_provider_ids()` — includes Ollama, hub, and re
 ## Related docs
 
 - [AGENT_SYSTEM.md](AGENT_SYSTEM.md)
+- [AGENT_SKILLS.md](AGENT_SKILLS.md) — capability packs (search, media, browser)
 - [OBSERVATORY.md](OBSERVATORY.md)
 - [PROJECTS_SCRUM.md](PROJECTS_SCRUM.md)
 - [WORKSPACE_FOLDERS_TECH_SPEC.md](WORKSPACE_FOLDERS_TECH_SPEC.md)

@@ -9,6 +9,7 @@ export const AI_PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI-compatible" },
   { value: "grok", label: "Grok (xAI)" },
   { value: "claude", label: "Claude-compatible" },
+  { value: "deepseek", label: "DeepSeek" },
   { value: "soulmd-hub", label: "soulmd-hub API" },
 ] as const;
 

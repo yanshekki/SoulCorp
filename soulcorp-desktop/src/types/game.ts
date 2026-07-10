@@ -433,6 +433,8 @@ export interface WorkNode {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
+  /** When the task entered the assignee's serial queue. */
+  queued_at?: string | null;
 }
 
 export interface Sprint {
@@ -546,6 +548,8 @@ export interface AgentInboxEntry {
   department: string;
   assigned_points: number;
   tasks: WorkNode[];
+  queued_count?: number;
+  busy?: boolean;
 }
 
 export interface ScrumSnapshot {
@@ -694,6 +698,9 @@ export interface GameSettings {
   claude_base_url: string;
   claude_api_key: string;
   claude_model: string;
+  deepseek_base_url: string;
+  deepseek_api_key: string;
+  deepseek_model: string;
   meeting_turns_per_agent: number;
   meeting_llm_fallback: boolean;
   pure_local_mode: boolean;
@@ -747,6 +754,21 @@ export interface GameSettings {
   agent_activity_max_events?: number;
   autopilot_intervention_mode?: string;
   autopilot_full_auto_enabled?: boolean;
+  /** hybrid | every_task | every_n_tasks | size_threshold */
+  agent_memory_compress_mode?: string;
+  agent_memory_compress_every_n_tasks?: number;
+  agent_memory_max_chars?: number;
+  agent_memory_append_after_task?: boolean;
+}
+
+export interface AgentMemoryView {
+  agent_id: string;
+  page_id?: string | null;
+  text: string;
+  chars: number;
+  updated_at?: string | null;
+  tasks_since_compress: number;
+  last_compressed_at?: string | null;
 }
 
 export interface AutomationReadinessItem {

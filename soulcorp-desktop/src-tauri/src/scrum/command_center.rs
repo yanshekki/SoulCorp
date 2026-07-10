@@ -29,8 +29,8 @@ pub struct CommandCenterOverview {
     pub throttled_runs: u32,
     pub unassigned_sprint_tasks: u32,
     pub active_sprint_name: Option<String>,
-    pub burndown_remaining: u8,
-    pub burndown_total: u8,
+    pub burndown_remaining: u32,
+    pub burndown_total: u32,
     pub execution_paused: bool,
     pub alerts: Vec<CommandCenterAlert>,
 }

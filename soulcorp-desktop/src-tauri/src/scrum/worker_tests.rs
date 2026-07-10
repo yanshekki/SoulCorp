@@ -35,6 +35,7 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
             completed_at: None,
+            queued_at: None,
         }
     }
 
@@ -105,6 +106,7 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
             completed_at: None,
+            queued_at: None,
         });
         let mut task = sample_task(WorkNodeStatus::InSprint);
         task.parent_id = Some("story-1".into());
