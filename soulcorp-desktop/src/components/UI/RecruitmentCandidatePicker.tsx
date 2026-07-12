@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { quickTagsForPreset } from "../../data/recruitmentSearchTags";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -7,6 +7,7 @@ import { hubFileTypeLabel } from "../../utils/candidateSoul";
 import { RECRUITMENT_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchField } from "./SearchField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const PAGE_SIZE = 4;
 
@@ -21,6 +22,7 @@ export function RecruitmentCandidatePicker({
   selectedCandidateId,
   onSelect,
 }: RecruitmentCandidatePickerProps) {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
   const debouncedQuery = useDebouncedValue(searchQuery);
@@ -59,10 +61,14 @@ export function RecruitmentCandidatePicker({
         setMessage(
           result.message ??
             (result.from_cache
-              ? `Cached hub results${debouncedQuery ? ` for “${debouncedQuery}”` : ""}.`
+              ? t("recruitPicker.cached", {
+                  query: debouncedQuery
+                    ? t("recruitPicker.cachedQuery", { query: debouncedQuery })
+                    : "",
+                })
               : debouncedQuery
-                ? `Results for “${debouncedQuery}”.`
-                : "Search or tap a tag to browse hub souls."),
+                ? t("recruitPicker.resultsFor", { query: debouncedQuery })
+                : t("recruitPicker.browseHint")),
         );
       } catch (error) {
         if (!cancelled) {
@@ -134,8 +140,8 @@ export function RecruitmentCandidatePicker({
             setActiveTag(null);
             setSearchQuery(value);
           }}
-          placeholder="Name, skill, description…"
-          ariaLabel="Search hub souls"
+          placeholder={t("recruitPicker.searchPh")}
+          ariaLabel={t("recruitPicker.searchAria")}
           loading={loading}
           matchCount={
             searchQuery.trim() || loading || searchType !== SEARCH_TYPE_ALL
@@ -146,14 +152,14 @@ export function RecruitmentCandidatePicker({
             value: searchType,
             onChange: setSearchType,
             options: RECRUITMENT_SEARCH_TYPES,
-            ariaLabel: "Filter recruitment search field",
-            label: "Field",
+            ariaLabel: t("recruitPicker.filterAria"),
+            label: t("recruitPicker.field"),
           }}
         />
       </div>
 
       <div className="recruitment-candidate-picker-tags">
-        <span className="recruitment-candidate-picker-tags-label muted">Quick tags</span>
+        <span className="recruitment-candidate-picker-tags-label muted">{t("recruitPicker.quickTags")}</span>
         <div className="skill-tags recruitment-quick-tags">
           {quickTags.map((tag) => (
             <button
@@ -169,12 +175,12 @@ export function RecruitmentCandidatePicker({
       </div>
 
       <p className="recruitment-candidate-picker-status muted">
-        {loading ? "Searching soulmd-hub…" : message}
+        {loading ? t("recruitPicker.searching") : message}
       </p>
 
       {pageCandidates.length === 0 ? (
         <p className="muted recruitment-candidate-picker-empty">
-          {loading ? "Loading…" : "No candidates match this search."}
+          {loading ? t("recruitPicker.loading") : t("recruitPicker.empty")}
         </p>
       ) : (
         <>
@@ -203,8 +209,8 @@ export function RecruitmentCandidatePicker({
                   </header>
                   <p className="recruit-hub-card-description">{candidate.headline}</p>
                   <footer className="recruit-hub-card-footer">
-                    <span>{candidate.department_fit ?? "Flexible dept"}</span>
-                    {candidate.verified ? <span className="recruit-hub-verified">Verified</span> : null}
+                    <span>{candidate.department_fit ?? t("recruitPicker.flexibleDept")}</span>
+                    {candidate.verified ? <span className="recruit-hub-verified">{t("recruitPicker.verified")}</span> : null}
                   </footer>
                   {candidate.skills.length > 0 ? (
                     <div className="skill-tags recruit-hub-card-tags">

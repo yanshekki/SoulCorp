@@ -1,3 +1,5 @@
+import { useI18n } from "../../i18n/I18nProvider";
+
 interface PaginationBarProps {
   page: number;
   totalPages: number;
@@ -15,6 +17,7 @@ export function PaginationBar({
   label,
   className = "",
 }: PaginationBarProps) {
+  const { t } = useI18n();
   if (totalPages <= 1) {
     return null;
   }
@@ -25,25 +28,26 @@ export function PaginationBar({
     <div
       className={`pagination-bar${className ? ` ${className}` : ""}`}
       role="navigation"
-      aria-label={label ? `${label} pagination` : "Pagination"}
+      aria-label={label ? t("pagination.ariaLabeled", { label }) : t("pagination.aria")}
     >
       <button
         type="button"
         disabled={disabled || safePage <= 0}
         onClick={() => onPageChange(Math.max(0, safePage - 1))}
       >
-        Previous
+        {t("common.previous")}
       </button>
       <span className="pagination-bar-status muted">
-        {label ? `${label} · ` : ""}
-        Page {safePage + 1} of {totalPages}
+        {label
+          ? t("pagination.pageOfLabeled", { label, current: safePage + 1, total: totalPages })
+          : t("pagination.pageOf", { current: safePage + 1, total: totalPages })}
       </span>
       <button
         type="button"
         disabled={disabled || safePage >= totalPages - 1}
         onClick={() => onPageChange(Math.min(totalPages - 1, safePage + 1))}
       >
-        Next
+        {t("common.next")}
       </button>
     </div>
   );

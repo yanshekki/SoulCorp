@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 
 export type AutopilotInterventionMode = "auto" | "gate_directives" | "gate_deliverables" | "paused";
 

@@ -223,6 +223,10 @@ mod tests {
             error: None,
             started_at: "2026-01-01T00:00:00Z".to_string(),
             finished_at: Some("2026-01-01T00:01:00Z".to_string()),
+            cli_input: None,
+            cli_command: None,
+            cli_prompt_path: None,
+            workspace_info: None,
         });
         backfill_if_needed(&mut state);
         assert!(state.agent_activity.backfill_done);

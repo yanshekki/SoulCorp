@@ -1,3 +1,5 @@
+import { languageFromSettings, translate } from "../i18n";
+import { useGameStore } from "../stores/gameStore";
 import type { SidebarPanel } from "../types/game";
 import {
   showAchievements,
@@ -75,7 +77,10 @@ const BASE_NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "System",
-    panels: [{ id: "settings", label: "Settings" }],
+    panels: [
+      { id: "settings", label: "Settings" },
+      { id: "logs", label: "Logs" },
+    ],
   },
 ];
 
@@ -95,6 +100,7 @@ const V2_NAV_TAIL: NavGroup[] = [
     label: "System",
     panels: [
       { id: "settings", label: "Settings" },
+      { id: "logs", label: "Logs" },
       { id: "god_mode", label: "God Mode" },
     ],
   },
@@ -135,8 +141,11 @@ export function formatWorkflowStepBadge(panel: SidebarPanel, suffix?: string): s
   if (step == null) {
     return suffix;
   }
-  const base = `Step ${step}`;
-  return suffix ? `${base} · ${suffix}` : base;
+  const language = languageFromSettings(useGameStore.getState().settings);
+  if (suffix) {
+    return translate(language, "chrome.stepBadgeWithSuffix", { step, suffix });
+  }
+  return translate(language, "chrome.stepBadge", { step });
 }
 
 export function getWorkflowPanelLabel(panel: SidebarPanel): string {
@@ -210,6 +219,7 @@ export const IMMERSIVE_PANELS = new Set<SidebarPanel>([
   "workspace",
   "design_studio",
   "settings",
+  "logs",
   "god_mode",
   "achievements",
   "departments",

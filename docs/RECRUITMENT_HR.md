@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Recruitment** (CEO step 5) lets the CEO browse candidates, run interviews, and hire agents into departments. Hiring triggers **workspace org folder sync** and updates payroll projections. Optional hub integration can fetch marketplace souls; local candidates work offline.
+**Recruitment** (CEO step 5) is an HR hire desk: browse **real hub candidates** (or create a **custom hire** offline), choose **department + role**, pick or edit **soul.md**, then confirm. Hiring triggers **workspace org folder sync** and updates payroll projections. Pro/VIP tier language is not shown on this page (v1 product surface).
 
 ---
 
@@ -16,7 +16,12 @@
 | Fetch candidate SOUL | ✅ | `fetch_recruitment_candidate_soul` |
 | Record interview | ✅ | `record_recruitment_interview` |
 | Hire candidate | ✅ | `hire_candidate`, `commands/recruitment.rs` |
-| Recruitment analytics | ✅ | `get_recruitment_analytics` |
+| Hire desk (dept + soul.md) | ✅ | `RecruitmentPanel.tsx`, `RecruitAgentDetailPanel` |
+| Custom hire (HR self-hire) | ✅ | `buildCustomHireCandidate`, hire desk |
+| Local starter candidates (offline / pure local) | ✅ | `local_seed_candidates` in `recruitment.rs` |
+| Hire `display_name` | ✅ | `HireCandidateRequest.display_name` |
+| Department soul templates | ✅ | `utils/departmentSoulTemplates.ts` |
+| Recruitment analytics | ✅ | `get_recruitment_analytics` (no Pro/VIP gating UI) |
 | Relationship graph | ✅ | `get_agent_relationship_graph` |
 | Org folder sync on hire | ✅ | `sync_workspace_organization_cmd` |
 | Auto-recruit (V1 ops) | ✅ | `operations/auto_recruit.rs` |
@@ -32,8 +37,9 @@
 
 ```mermaid
 flowchart LR
-  C[Candidate list] --> I[Interview]
-  I --> H[hire_candidate]
+  C[Candidate pool / Custom hire] --> D[Hire desk]
+  D --> Soul[Dept template or hub soul.md]
+  Soul --> H[hire_candidate]
   H --> A[AgentRecord created]
   H --> S[sync_workspace_organization_cmd]
   S --> W[Dept folders in workspace]
@@ -48,7 +54,7 @@ flowchart LR
 
 ### Analytics
 
-`get_recruitment_analytics` returns funnel stats (views, interviews, hires) for the Recruitment panel KPIs.
+`get_recruitment_analytics` returns funnel stats (team size, hires, interviews, skill gaps, compatibility scores). `priority_matching` is retained for serde compatibility but is not used in the UI.
 
 ---
 

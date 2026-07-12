@@ -9,7 +9,9 @@ import {
 } from "../../services/workspaceClient";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceFilePathResponse } from "../../types/workspace";
+import { confirmDialog } from "../../utils/nativeDialog";
 import { fileKindIcon, formatFileSize } from "../../utils/workspaceFileTypes";
+import { useI18n } from "../../i18n/I18nProvider";
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso);
@@ -20,6 +22,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 export function FileViewer() {
+  const { t } = useI18n();
   const tree = useWorkspaceStore((state) => state.tree);
   const selectedFile = useWorkspaceStore((state) => state.selectedFile);
   const openingFileId = useWorkspaceStore((state) => state.openingFileId);
@@ -112,7 +115,9 @@ export function FileViewer() {
   const previewUrl = pathInfo ? convertFileSrc(pathInfo.absolute_path) : null;
 
   const deleteFile = async () => {
-    const confirmed = window.confirm(`Delete "${selectedFile.name}"? This cannot be undone.`);
+    const confirmed = await confirmDialog(
+      `Delete "${selectedFile.name}"? This cannot be undone.`,
+    );
     if (!confirmed) {
       return;
     }
@@ -143,12 +148,12 @@ export function FileViewer() {
         <header className="ws-editor-topbar">
           <div className="ws-editor-topbar-left">
             {folderPath ? <span className="ws-editor-breadcrumb">{folderPath}</span> : null}
-            <span className="ws-save-pill ws-save-pill--saved">File</span>
+            <span className="ws-save-pill ws-save-pill--saved">{t("file.pill")}</span>
             {fileOpenError ? <span className="ws-save-error-inline">{fileOpenError}</span> : null}
           </div>
           <div className="ws-editor-topbar-actions">
             <button type="button" className="ws-topbar-btn" disabled={busy} onClick={() => void openExternal()}>
-              Open externally
+              {t("file.openExternal")}
             </button>
             <button
               type="button"
@@ -171,7 +176,10 @@ export function FileViewer() {
                 <h1 className="ws-file-title">{selectedFile.name}</h1>
                 <p className="ws-file-meta">
                   {selectedFile.extension.toUpperCase()} · {formatFileSize(selectedFile.size_bytes)} ·{" "}
-                  uploaded {formatRelativeTime(selectedFile.uploaded_at)} by {selectedFile.uploaded_by}
+                  {t("file.uploadedMeta", {
+                    when: formatRelativeTime(selectedFile.uploaded_at),
+                    who: selectedFile.uploaded_by,
+                  })}
                 </p>
               </div>
             </div>
@@ -207,9 +215,7 @@ export function FileViewer() {
             {!previewUrl && !textPreview ? (
               <div className="ws-file-preview ws-file-preview--generic">
                 <p>
-                  Preview is not available for this file type in-app. Use <strong>Open externally</strong> to
-                  view it with your system app.
-                </p>
+                  {t("file.previewUnavailable")}</p>
               </div>
             ) : null}
           </article>

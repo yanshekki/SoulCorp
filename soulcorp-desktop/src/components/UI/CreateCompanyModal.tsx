@@ -26,8 +26,10 @@ import {
   toProjectSetupPayload,
   type ProjectSetupState,
 } from "./ProjectSetupStep";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function CreateCompanyModal() {
+  const { t } = useI18n();
   const showCreateCompany = useGameStore((state) => state.showCreateCompany);
   const setShowCreateCompany = useGameStore((state) => state.setShowCreateCompany);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
@@ -60,15 +62,15 @@ export function CreateCompanyModal() {
 
   const submit = async () => {
     if (companyName.trim().length < 2) {
-      setStatusMessage("Enter a company name with at least 2 characters.");
+      setStatusMessage(t("createCompany.needName"));
       return;
     }
     if (!isAgentRosterValid(agentRoster, pureLocalMode)) {
-      setStatusMessage("Complete all three agent slots with valid soul.md content.");
+      setStatusMessage(t("createCompany.needAgents"));
       return;
     }
     if (!isProjectSetupValid(projectSetup)) {
-      setStatusMessage("Enter a project title with at least 2 characters.");
+      setStatusMessage(t("createCompany.needProject"));
       return;
     }
     setSubmitting(true);
@@ -123,14 +125,14 @@ export function CreateCompanyModal() {
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="create-company-title">
       <div className="onboarding-wizard onboarding-wizard-wide create-company-modal">
         <header className="onboarding-header">
-          <p className="modal-eyebrow">Multi-company</p>
-          <h2 id="create-company-title">Start another company</h2>
-          <p className="muted">Each company keeps its own agents, finance, and workspace.</p>
+          <p className="modal-eyebrow">{t("createCompany.eyebrow")}</p>
+          <h2 id="create-company-title">{t("createCompany.title")}</h2>
+          <p className="muted">{t("createCompany.desc")}</p>
         </header>
 
         <section className="onboarding-step">
           <label className="field-label">
-            Company name
+            {t("createCompany.name")}
             <input
               type="text"
               value={companyName}
@@ -140,29 +142,29 @@ export function CreateCompanyModal() {
             />
           </label>
           <label className="field-label">
-            Industry
+            {t("createCompany.industry")}
             <input
               type="text"
               value={industry}
               onChange={(event) => setIndustry(event.target.value)}
               maxLength={64}
-              placeholder="e.g. AI SaaS, Game Studio, Consulting"
+              placeholder={t("createCompany.industryPh")}
             />
           </label>
           <label className="field-label">
-            Tagline / mission
+            {t("createCompany.tagline")}
             <input
               type="text"
               value={tagline}
               onChange={(event) => setTagline(event.target.value)}
               maxLength={120}
-              placeholder="What does this company aim to build?"
+              placeholder={t("createCompany.taglinePh")}
             />
           </label>
 
           {showPlayModeSettings ? (
             <>
-              <h3>Play style</h3>
+              <h3>{t("createCompany.playStyle")}</h3>
               <PlayModePicker compact value={playModeConfig} onChange={setPlayModeConfig} />
             </>
           ) : null}
@@ -173,13 +175,13 @@ export function CreateCompanyModal() {
               checked={pureLocalMode}
               onChange={(event) => setPureLocalMode(event.target.checked)}
             />
-            Pure Local Mode (offline-only for this company)
+            {t("createCompany.pureLocal")}
           </label>
 
           {showDesignStudio ? (
             <>
-              <h3>3D campus look</h3>
-              <p className="muted">Optional preset for buildings and campus theme.</p>
+              <h3>{t("createCompany.campusLook")}</h3>
+              <p className="muted">{t("createCompany.campusHint")}</p>
               <DesignPresetPicker
                 compact
                 selectedId={designPresetId}
@@ -192,7 +194,7 @@ export function CreateCompanyModal() {
                   checked={openDesignStudioAfter}
                   onChange={(event) => setOpenDesignStudioAfter(event.target.checked)}
                 />
-                Open 3D Design Studio after creating this company
+                {t("createCompany.openDesign")}
               </label>
             </>
           ) : null}
@@ -212,7 +214,7 @@ export function CreateCompanyModal() {
 
         <footer className="onboarding-actions">
           <button type="button" className="onboarding-skip" onClick={close} disabled={submitting}>
-            Cancel
+            {t("createCompany.cancel")}
           </button>
           <button
             type="button"
@@ -220,7 +222,7 @@ export function CreateCompanyModal() {
             onClick={() => void submit()}
             disabled={submitting}
           >
-            {submitting ? "Creating..." : "Create company"}
+            {submitting ? t("createCompany.creating") : t("createCompany.create")}
           </button>
         </footer>
       </div>

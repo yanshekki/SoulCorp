@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompanyListResponse {
     pub active_company_id: Option<String>,
@@ -65,7 +66,7 @@ pub fn list_companies(
     app: AppHandle,
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<CompanyListResponse, String> {
-    let locked = app_state.lock().map_err(|e| e.to_string())?;
+    let locked = app_state.lock_or_recover()?;
     let mut registry = load_registry(&app)?;
 
     if registry.companies.is_empty() && !locked.company_id.is_empty() {
@@ -104,7 +105,7 @@ pub fn create_company(
     let industry = normalize_optional_field(&request.industry, 64, "Industry")?;
     let tagline = normalize_optional_field(&request.tagline, 120, "Tagline")?;
 
-    let current = app_state.lock().map_err(|e| e.to_string())?;
+    let current = app_state.lock_or_recover()?;
     if !current.company_id.is_empty() {
         commit(app.clone(), &current)?;
     }
@@ -135,7 +136,7 @@ pub fn create_company(
     persist_agent_roster_workspace(&app, &state)?;
 
     reset_commit_debounce(&company_id);
-    let mut locked = app_state.lock().map_err(|e| e.to_string())?;
+    let mut locked = app_state.lock_or_recover()?;
     *locked = state;
     crate::autopilot::bootstrap_first_cycle(&mut locked, &app);
     commit(app.clone(), &locked)?;
@@ -153,7 +154,7 @@ pub fn switch_company(
     app: AppHandle,
 ) -> Result<SwitchCompanyResponse, String> {
     let next = {
-        let current = app_state.lock().map_err(|e| e.to_string())?;
+        let current = app_state.lock_or_recover()?;
         if current.company_id == company_id {
             return Ok(SwitchCompanyResponse {
                 active_company_id: company_id,
@@ -165,7 +166,7 @@ pub fn switch_company(
     };
     let summary = summary_from_state(&next);
     reset_commit_debounce(&next.company_id);
-    *app_state.lock().map_err(|e| e.to_string())? = next;
+    *app_state.lock_or_recover()? = next;
 
     Ok(SwitchCompanyResponse {
         active_company_id: company_id,
@@ -189,7 +190,7 @@ pub fn delete_company(
 
     delete_company_snapshot(&app, &company_id)?;
 
-    let current_id = app_state.lock().map_err(|e| e.to_string())?.company_id.clone();
+    let current_id = app_state.lock_or_recover()?.company_id.clone();
     if current_id == company_id {
         let fallback_id = registry
             .companies
@@ -199,9 +200,9 @@ pub fn delete_company(
         registry.active_company_id = Some(fallback_id.clone());
         save_registry(&app, &registry)?;
 
-        let current = app_state.lock().map_err(|e| e.to_string())?;
+        let current = app_state.lock_or_recover()?;
         let next = switch_active_company(&app, &current, &fallback_id)?;
-        *app_state.lock().map_err(|e| e.to_string())? = next;
+        *app_state.lock_or_recover()? = next;
     } else {
         save_registry(&app, &registry)?;
     }
@@ -230,7 +231,7 @@ pub fn update_company_vision(
     app: AppHandle,
 ) -> Result<UpdateCompanyVisionResponse, String> {
     let vision = normalize_optional_field(&request.vision, 500, "Vision")?;
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     if state.company_id.is_empty() {
         return Err("No active company.".to_string());
     }

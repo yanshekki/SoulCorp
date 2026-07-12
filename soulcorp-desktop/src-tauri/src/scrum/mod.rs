@@ -25,8 +25,8 @@ pub use scheduler::{
 pub use worker::spawn_scrum_worker;
 pub use command_center::{
     build_overview, issue_co_ceo_directive, issue_marketplace_directive,
-    issue_meeting_directive_and_route, preview_route_directive,
-    CommandCenterOverview, DirectivePreviewNode,
+    issue_meeting_directive_and_route, preview_route_directive, spawn_meeting_work,
+    CommandCenterOverview, DirectivePreviewNode, MeetingSpawnResult,
 };
 pub use tree::{build_work_tree, new_node_id, now_iso, validate_depends_on_dag, validate_parent_child};
 pub use types::*;

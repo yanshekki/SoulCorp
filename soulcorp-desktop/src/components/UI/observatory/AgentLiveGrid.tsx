@@ -7,6 +7,7 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { EMPLOYEE_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import type { AgentActivitySession } from "../../../types/agentActivity";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 interface AgentLiveGridProps {
   onSelectAgent: (agentId: string, sessionId?: string) => void;
@@ -27,22 +28,26 @@ function transportForActivity(
   return undefined;
 }
 
-function sourceLabel(source: AgentActivitySession["source"]): string {
+function sourceLabel(
+  source: AgentActivitySession["source"],
+  t: (key: string, params?: Record<string, string | number | undefined | null>) => string,
+): string {
   switch (source) {
     case "meeting":
-      return "Meeting";
+      return t("observatory.source.meeting");
     case "execution":
-      return "Execution";
+      return t("observatory.source.execution");
     case "worker":
-      return "Worker";
+      return t("observatory.source.worker");
     case "workspace":
-      return "Workspace";
+      return t("observatory.source.workspace");
     default:
       return source;
   }
 }
 
 export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
+  const { t } = useI18n();
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const sessions = useAgentActivityStore((state) => state.sessions);
@@ -84,17 +89,14 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
   if (activeSessions.length === 0) {
     return (
       <div className="observatory-empty-state">
-        <p className="muted">No agents are thinking right now.</p>
-        <p className="muted">
-          Start a meeting turn, run a sprint task, or enable auto-execute in Command Center to
-          populate live sessions.
-        </p>
+        <p className="muted">{t("observatory.emptyLive")}</p>
+        <p className="muted">{t("observatory.emptyLiveHint")}</p>
         <div className="observatory-quick-links">
           <button type="button" className="primary-action" onClick={() => setActivePanel("meeting")}>
-            Start Meeting
+            {t("observatory.startMeeting")}
           </button>
           <button type="button" className="secondary-action" onClick={() => setActivePanel("projects")}>
-            Projects & execution
+            {t("observatory.openProjects")}
           </button>
         </div>
       </div>
@@ -116,9 +118,9 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
                 <div className="observatory-live-item-head">
                   <span className="observatory-live-pill">
                     <span className="observatory-live-dot" aria-hidden="true" />
-                    LIVE
+                    {t("observatory.liveBadge")}
                   </span>
-                  <span className="hub-pill online">{sourceLabel(session.source)}</span>
+                  <span className="hub-pill online">{sourceLabel(session.source, t)}</span>
                   <strong>{session.agent_name}</strong>
                 </div>
                 <p className="muted observatory-live-item-meta">
@@ -143,23 +145,23 @@ export function AgentLiveGrid({ onSelectAgent }: AgentLiveGridProps) {
             className="observatory-idle-toggle"
             onClick={() => setShowIdle((current) => !current)}
           >
-            {showIdle ? "Hide" : "Show"} idle employees ({idleAgents.length})
+            {showIdle ? t("observatory.hideIdle", { n: idleAgents.length }) : t("observatory.showIdle", { n: idleAgents.length })}
           </button>
           {showIdle ? (
             <>
               <SearchableListToolbar
                 query={searchQuery}
                 onQueryChange={setSearchQuery}
-                placeholder="Search idle employees…"
-                ariaLabel="Search idle employees"
+                placeholder={t("observatory.searchIdle")}
+                ariaLabel={t("observatory.searchIdleAria")}
                 matchCount={debouncedQuery.trim() ? filteredIdleAgents.length : undefined}
                 totalCount={idleAgents.length}
                 typeFilter={{
                   value: searchType,
                   onChange: setSearchType,
                   options: EMPLOYEE_SEARCH_TYPES,
-                  ariaLabel: "Filter idle employee search field",
-                  label: "Field",
+                  ariaLabel: t("observatory.filterIdleAria"),
+                  label: t("workspace.filterField"),
                 }}
               />
               <ul className="observatory-idle-list">

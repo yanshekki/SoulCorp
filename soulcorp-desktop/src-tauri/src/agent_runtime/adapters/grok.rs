@@ -1,9 +1,10 @@
 use super::run_subprocess_for_agent;
 use crate::agent_activity::ActivityRunContext;
+use crate::agent_runtime::prompt_file::PromptFile;
+use crate::agent_runtime::registry::prompt_delivery_for_adapter;
 use crate::agent_runtime::security::{self, SubprocessRequest};
-use crate::agent_runtime::task_prompt::build_compact_prompt;
-use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
+use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState, GameSettings};
 use serde_json::Value;
@@ -29,32 +30,46 @@ pub fn execute(
         &entry.default_binary,
         &entry.label,
     )?;
+    // No deep research dump for CLI — keeps prompt size reasonable.
     let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
         workspace_root,
         agent,
         project_title,
         task,
-        true,
+        false,
     );
-    let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
-    let timeout_secs = settings.openclaw_timeout_secs.max(30);
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt_lang(
+        task,
+        agent,
+        project_title,
+        workspace_addon.as_deref(),
+        Some(&lang_block),
+    );
+    let delivery = prompt_delivery_for_adapter(&entry.adapter);
+    let prompt_file = PromptFile::write(&entry.id, &prompt)?;
+
+    // User-facing timeout (default/max 1 hour). Real kill enforced in security runner.
+    let timeout_secs = settings.openclaw_timeout_secs.max(30).min(3600);
+
+    let args = headless_argv(
+        &prompt_file.path_str(),
+        workspace_root,
+        /* always_approve */ true,
+    );
 
     let request = SubprocessRequest {
         binary,
-        args: vec![
-            "--no-auto-update".to_string(),
-            "-p".to_string(),
-            prompt,
-            "--output-format".to_string(),
-            "json".to_string(),
-            "--no-alt-screen".to_string(),
-        ],
+        args,
+        // Also set process cwd; --cwd flag is the source of truth for Grok workspace tools.
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: None,
+        stdin: prompt_file.stdin_for(&delivery),
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: grok_env(settings),
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
+    // prompt_file Drop cleans temp dir after process exits
+    drop(prompt_file);
 
     if output.exit_code.unwrap_or(1) != 0 {
         return Err(format!(
@@ -64,6 +79,65 @@ pub fn execute(
     }
 
     parse_grok_json(&output.stdout, output.duration_ms)
+}
+
+/// Argv for headless Grok (must match `format_execution_cli_command` preview).
+///
+/// Order matches Grok Build TUI: global flags, `--prompt-file PATH`, output/headless flags,
+/// optional `--cwd` for workspace tools. Never puts the prompt body on argv.
+pub fn headless_argv(
+    prompt_file_path: &str,
+    workspace_root: Option<&Path>,
+    always_approve: bool,
+) -> Vec<String> {
+    let mut args = vec![
+        "--no-auto-update".to_string(),
+        "--prompt-file".to_string(),
+        prompt_file_path.to_string(),
+        "--output-format".to_string(),
+        "json".to_string(),
+        "--no-alt-screen".to_string(),
+    ];
+    if always_approve {
+        // Unattended task runs must not hang on tool permission prompts.
+        args.push("--always-approve".to_string());
+        args.push("--permission-mode".to_string());
+        args.push("dontAsk".to_string());
+    }
+    if let Some(cwd) = workspace_root {
+        args.push("--cwd".to_string());
+        args.push(cwd.display().to_string());
+    }
+    args
+}
+
+/// Shell-safe preview line for observability (prompt path is absolute or a clear placeholder).
+pub fn headless_command_preview(
+    binary: &str,
+    prompt_file_path: &str,
+    workspace_root: Option<&Path>,
+    always_approve: bool,
+) -> String {
+    let args = headless_argv(prompt_file_path, workspace_root, always_approve);
+    let mut parts = Vec::with_capacity(args.len() + 1);
+    parts.push(shell_quote(binary));
+    for arg in args {
+        parts.push(shell_quote(&arg));
+    }
+    parts.join(" ")
+}
+
+fn shell_quote(value: &str) -> String {
+    if value.is_empty() {
+        return "''".to_string();
+    }
+    if value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '/' | '.' | '_' | '-' | '=' | ':' | '+'))
+    {
+        return value.to_string();
+    }
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn grok_env(settings: &GameSettings) -> Vec<(String, String)> {
@@ -161,9 +235,44 @@ fn base_probe(
         agent_command_available,
         gateway_healthy: false,
         message: if agent_command_available {
-            format!("{} ready — headless mode available.", entry.label)
+            format!(
+                "{} ready — headless via --prompt-file.",
+                entry.label
+            )
         } else {
             format!("{} binary found but headless CLI probe failed.", entry.label)
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_runtime::prompt_file::PromptDelivery;
+
+    #[test]
+    fn grok_args_use_prompt_file_not_body() {
+        let delivery = PromptDelivery::from_adapter("grok_headless");
+        let pf = PromptFile::write("grok-test", "FULL_BODY_SHOULD_NOT_BE_IN_ARGV").unwrap();
+        let args = headless_argv(&pf.path_str(), Some(Path::new("/tmp/ws")), true);
+        assert!(args.iter().any(|a| a == "--prompt-file"));
+        assert!(args.iter().any(|a| a == "--always-approve"));
+        assert!(args.iter().any(|a| a == "--cwd"));
+        assert!(!args.iter().any(|a| a.contains("FULL_BODY")));
+        assert!(!args.iter().any(|a| a == "-p" || a == "--single"));
+        let _ = delivery;
+    }
+
+    #[test]
+    fn headless_preview_quotes_paths_with_spaces() {
+        let preview = headless_command_preview(
+            "grok",
+            "/tmp/soulcorp-cli/prompt.md",
+            Some(Path::new("/home/user/My Company/workspace")),
+            true,
+        );
+        assert!(preview.contains("--prompt-file"));
+        assert!(preview.contains("'/home/user/My Company/workspace'") || preview.contains("My Company"));
+        assert!(!preview.contains("$PROMPT_FILE"));
     }
 }

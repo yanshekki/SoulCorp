@@ -1,16 +1,16 @@
 use super::run_subprocess_for_agent;
 use crate::agent_activity::ActivityRunContext;
+use crate::agent_runtime::prompt_file::{PromptDelivery, PromptFile};
+use crate::agent_runtime::registry::prompt_delivery_for_adapter;
 use crate::agent_runtime::security::{self, SubprocessRequest};
-use crate::agent_runtime::task_prompt::{build_task_message, materialize_soul_file, resolve_agent_id};
-use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
+use crate::agent_runtime::task_prompt::{materialize_soul_file, resolve_agent_id};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
+use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState, GameSettings};
 use serde::Deserialize;
-use std::fs;
 use std::path::Path;
 use std::time::{Duration, Instant};
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct ClawJsonResponse {
@@ -126,6 +126,7 @@ pub fn execute(
         run_legacy_stdin(
             state,
             entry,
+            settings,
             &binary,
             task,
             agent,
@@ -149,10 +150,7 @@ fn run_agent_cli(
     activity: Option<ActivityRunContext>,
 ) -> Result<RuntimeResult, String> {
     let started = Instant::now();
-    let temp_dir = std::env::temp_dir().join(format!("soulcorp-{}-{}", entry.id, Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-
-    let message_path = temp_dir.join("task.md");
+    let temp_dir = PromptFile::alloc_dir(&entry.id)?;
     let soul_path = materialize_soul_file(&temp_dir, agent, workspace_root)?;
     let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
         workspace_root,
@@ -161,14 +159,17 @@ fn run_agent_cli(
         task,
         true,
     );
-    let message = build_task_message(
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let message = crate::agent_runtime::task_prompt::build_task_message_lang(
         task,
         agent,
         project_title,
         soul_path.as_deref(),
         workspace_addon.as_deref(),
+        Some(&lang_block),
     );
-    fs::write(&message_path, message).map_err(|e| e.to_string())?;
+    let delivery = prompt_delivery_for_adapter(&entry.adapter);
+    let prompt_file = PromptFile::write_into(temp_dir, "prompt.md", &message)?;
 
     let agent_id = resolve_agent_id(&settings.openclaw_default_agent_id, agent);
     let session_key = if company_id.is_empty() {
@@ -185,13 +186,14 @@ fn run_agent_cli(
         "agent".to_string(),
         "--agent".to_string(),
         agent_id,
-        "--message-file".to_string(),
-        message_path.display().to_string(),
+    ];
+    args.extend(prompt_file.delivery_args(&delivery));
+    args.extend([
         "--json".to_string(),
         "--timeout".to_string(),
         timeout_secs.to_string(),
         "--no-color".to_string(),
-    ];
+    ]);
 
     if let Some(session_key) = session_key {
         args.push("--session-key".to_string());
@@ -206,13 +208,12 @@ fn run_agent_cli(
         binary: binary.to_string(),
         args,
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: None,
+        stdin: prompt_file.stdin_for(&delivery),
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
-
-    let _ = fs::remove_dir_all(&temp_dir);
+    drop(prompt_file);
 
     if output.exit_code.unwrap_or(1) != 0 {
         return Err(format!(
@@ -234,6 +235,7 @@ fn run_agent_cli(
 fn run_legacy_stdin(
     state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
+    settings: &GameSettings,
     binary: &str,
     task: &WorkNode,
     agent: &AgentRecord,
@@ -249,22 +251,28 @@ fn run_legacy_stdin(
         task,
         true,
     );
-    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt(
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt_lang(
         task,
         agent,
         project_title,
         workspace_addon.as_deref(),
+        Some(&lang_block),
     );
+    // Always materialize to disk first; deliver via stdin (never full body in argv).
+    let prompt_file = PromptFile::write(&entry.id, &prompt)?;
+    let delivery = PromptDelivery::Stdin;
 
     let request = SubprocessRequest {
         binary: binary.to_string(),
         args: vec!["--stdin-task".to_string()],
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: Some(prompt),
+        stdin: prompt_file.stdin_for(&delivery),
         timeout: Duration::from_secs(600),
         env_keys: vec![],
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
+    drop(prompt_file);
 
     if output.exit_code.unwrap_or(1) != 0 {
         return Err(format!(

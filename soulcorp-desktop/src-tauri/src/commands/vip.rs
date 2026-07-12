@@ -16,6 +16,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateCustomDepartmentRequest {
     pub name: String,
@@ -121,7 +122,7 @@ fn require_v2_simulation(feature: &str) -> Result<(), String> {
 pub fn list_company_departments(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_default_departments(&mut state);
     Ok(list_company_departments_from_state(&state))
 }
@@ -138,7 +139,7 @@ pub fn update_department_ai_provider(
     }
 
     let ai_provider = normalize_ai_provider_override(request.ai_provider.as_deref())?;
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if let Some(provider) = ai_provider.clone() {
         state
             .department_ai_providers
@@ -183,7 +184,7 @@ pub fn delete_custom_department(
     app: AppHandle,
 ) -> Result<CompanyDepartmentsSnapshot, String> {
     let transfer_to = {
-        let mut locked = state.lock().map_err(|e| e.to_string())?;
+        let mut locked = state.lock_or_recover()?;
         ensure_default_departments(&mut locked);
         locked
             .departments
@@ -223,7 +224,7 @@ pub fn assign_agent_department(
 
 #[tauri::command]
 pub fn get_co_ceo_status(state: State<'_, Mutex<AppState>>) -> Result<CoCeoStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(co_ceo_status_from_state(&state))
 }
 
@@ -232,7 +233,7 @@ pub fn spawn_co_ceo(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
 
     if let Some(agent_id) = state.co_ceo.agent_id.clone() {
         if state.agents.contains_key(&agent_id) {
@@ -280,7 +281,7 @@ pub async fn run_co_ceo_briefing(
     app: AppHandle,
 ) -> Result<CoCeoBriefing, String> {
     let (_settings, _hub, context, co_ceo_id, co_ceo_department, co_ceo_provider, department_providers) = {
-        let state = state.lock().map_err(|e| e.to_string())?;
+        let state = state.lock_or_recover()?;
         let co_ceo_id = state
             .co_ceo
             .agent_id
@@ -322,23 +323,33 @@ pub async fn run_co_ceo_briefing(
     let co_ceo_id_for_call = co_ceo_id.clone();
     let co_ceo_department_for_call = co_ceo_department.clone();
     let department_providers_for_call = department_providers.clone();
-    let response = tokio::task::spawn_blocking(move || {
+    // Snapshot credentials, then chat WITHOUT holding AppState (UI freeze otherwise).
+    let (settings_snap, hub_snap) = {
         let state_mutex = app_for_blocking.state::<std::sync::Mutex<crate::state::AppState>>();
-        let mut guard = state_mutex.lock().map_err(|e| e.to_string())?;
-        ai::chat_with_fallback_billed(
-            &mut guard,
+        let guard = state_mutex.lock_or_recover()?;
+        (guard.settings.clone(), guard.hub.clone())
+    };
+    let response = tokio::task::spawn_blocking(move || {
+        let (response, charge) = ai::chat_detached(
+            &settings_snap,
+            &hub_snap,
+            &department_providers_for_call,
             BilledChatRequest {
                 request: chat_request,
                 agent_id: co_ceo_id_for_call,
                 department: co_ceo_department_for_call,
                 source: "co_ceo_briefing".into(),
             },
-            &department_providers_for_call,
             provider_override.as_deref(),
-        )
+        )?;
+        Ok::<_, String>((response, charge))
     })
     .await
     .map_err(|e| e.to_string())??;
+    let (response, charge) = response;
+    if let Some(charge) = charge {
+        apply_token_charge(&app, charge);
+    }
 
     let directives = parse_directives_from_briefing(&response.content, &context.departments);
     let briefing = CoCeoBriefing {
@@ -348,7 +359,7 @@ pub async fn run_co_ceo_briefing(
         generated_at: Utc::now().to_rfc3339(),
     };
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.co_ceo.last_briefing_at = Some(briefing.generated_at.clone());
     state.co_ceo.last_directive = briefing.directives.first().map(|directive| directive.title.clone());
     if let Some(agent) = state.agents.get_mut(&co_ceo_id) {
@@ -360,13 +371,21 @@ pub async fn run_co_ceo_briefing(
     Ok(briefing)
 }
 
+fn apply_token_charge(app: &AppHandle, charge: crate::token_budget::ChargeContext) {
+    let state_mutex = app.state::<Mutex<AppState>>();
+    let Ok(mut guard) = state_mutex.lock_or_recover() else {
+        return;
+    };
+    let _ = crate::token_budget::charge_tokens(&mut guard, charge);
+}
+
 #[tauri::command]
 pub fn apply_co_ceo_directive(
     request: ApplyCoCeoDirectiveRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     require_v2_simulation("Apply directive (morale & progress)")?;
 
     let project_index = state
@@ -421,7 +440,7 @@ pub fn set_co_ceo_autonomy(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CoCeoStatus, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     require_v2_simulation("Co-CEO autonomy")?;
     state.co_ceo.autonomy_enabled = enabled;
     let status = co_ceo_status_from_state(&state);

@@ -2,11 +2,13 @@
 
 pub mod adapters;
 pub mod openclaw;
+pub mod prompt_file;
 pub mod registry;
 pub mod security;
 pub mod task_prompt;
 pub mod types;
 
+pub use prompt_file::{PromptDelivery, PromptFile};
 pub use registry::{active_runtime, catalog, is_subprocess_runtime, runtime_by_id};
 pub use types::{RuntimeCatalog, RuntimeProbe, RuntimeProbeSummary, RuntimeResult};
 
@@ -91,7 +93,7 @@ pub fn execute_for_task(
                 Err(err) => {
                     let label = crate::brain::effective_execution_label(&runtime_id);
                     if settings.agent_runtime_fallback_to_llm {
-                        eprintln!("{label} runtime failed ({err}); falling back to LLM.");
+                        crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::Ai, "agent_runtime", format!("{label} runtime failed ({err}); falling back to LLM."), None);
                         llm::execute_llm_only(
                             state,
                             task,

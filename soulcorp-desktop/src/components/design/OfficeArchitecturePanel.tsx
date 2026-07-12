@@ -7,8 +7,10 @@ import {
 } from "../../types/visualDesign";
 import { officeArchitecture, wallsOnFloor } from "../../utils/officeArchitecture";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function OfficeArchitecturePanel() {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const draft = useDesignStudioStore((state) => state.draft);
@@ -32,8 +34,8 @@ export function OfficeArchitecturePanel() {
   return (
     <section className="design-architecture-panel">
       <header>
-        <h3>Freeform architecture</h3>
-        <p className="muted">Optional RoomSketcher-style walls · up to {OFFICE_ARCHITECTURE_FLOOR_MAX} floors</p>
+        <h3>{t("design.freeformArch")}</h3>
+        <p className="muted">{t("design.freeformArchDesc", { max: OFFICE_ARCHITECTURE_FLOOR_MAX })}</p>
       </header>
 
       <label className="design-architecture-toggle">
@@ -48,13 +50,13 @@ export function OfficeArchitecturePanel() {
             }
           }}
         />
-        <span>Enable freeform walls</span>
+        <span>{t("design.enableFreeform")}</span>
       </label>
 
       {architecture.freeform_enabled ? (
         <>
           <div className="design-architecture-floors">
-            <span className="design-architecture-label">Floors</span>
+            <span className="design-architecture-label">{t("design.floors")}</span>
             <input
               type="range"
               min={OFFICE_ARCHITECTURE_FLOOR_MIN}
@@ -69,12 +71,12 @@ export function OfficeArchitecturePanel() {
                   setActiveArchitectureFloor(floorCount - 1);
                 }
               }}
-              aria-label="Floor count"
+              aria-label={t("design.floorCount")}
             />
-            <strong>{architecture.floor_count} floors</strong>
+            <strong>{t("design.floorsN", { n: architecture.floor_count })}</strong>
           </div>
 
-          <div className="design-architecture-floor-tabs" role="group" aria-label="Edit floor">
+          <div className="design-architecture-floor-tabs" role="group" aria-label={t("design.editFloor")}>
             {Array.from({ length: architecture.floor_count }, (_, floor) => (
               <button
                 key={floor}
@@ -87,32 +89,33 @@ export function OfficeArchitecturePanel() {
             ))}
           </div>
 
-          <div className="design-architecture-tools" role="group" aria-label="Floor plan tools">
+          <div className="design-architecture-tools" role="group" aria-label={t("design.floorPlanTools")}>
             <button
               type="button"
               className={planTool === "furniture" ? "active" : ""}
               onClick={() => setPlanTool("furniture")}
-            >
-              Furniture
-            </button>
+            >{t("design.tool.furniture")}</button>
             <button
               type="button"
               className={planTool === "wall" ? "active" : ""}
               onClick={() => setPlanTool("wall")}
             >
-              Draw wall
+              {t("design.drawWall")}
             </button>
           </div>
 
           <p className="muted design-architecture-hint">
             {planTool === "wall"
-              ? `Click two points on the floor plan to draw walls (${activeArchitectureFloor + 1}F · ${wallsThisFloor.length} segments)`
-              : "Switch to Draw wall to add wall segments on the floor plan"}
+              ? t("design.wallHint", {
+                  floor: activeArchitectureFloor + 1,
+                  n: wallsThisFloor.length,
+                })
+              : t("design.switchToWall")}
           </p>
         </>
       ) : (
         <p className="muted">
-          Default lobby / corridor / office zones still apply; enable to layer custom walls on top.
+          {t("design.defaultZonesNote")}
         </p>
       )}
     </section>

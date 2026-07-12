@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepartmentBrainConfig {
     pub department: String,
@@ -45,7 +46,7 @@ pub fn update_agent_runtime_mode(
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
     let runtime_mode = normalize_execution_override(request.agent_runtime_mode.as_deref())?;
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let agent = state
         .agents
         .get_mut(&request.agent_id)
@@ -68,7 +69,7 @@ pub fn update_department_runtime_mode(
     }
 
     let runtime_mode = normalize_execution_override(request.agent_runtime_mode.as_deref())?;
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if let Some(mode) = runtime_mode.clone() {
         state
             .department_agent_runtimes
@@ -91,7 +92,7 @@ pub fn get_brain_resolution_preview(
     agent_id: Option<String>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<BrainResolutionPreview>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let agents: Vec<AgentRecord> = if let Some(id) = agent_id {
         state
             .agents

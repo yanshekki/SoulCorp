@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { validateSoulMd } from "../../utils/soulMdValidation";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface SoulMdEditorProps {
   value: string;
@@ -14,6 +15,7 @@ export function SoulMdEditor({
   readOnly = false,
   minRows = 12,
 }: SoulMdEditorProps) {
+  const { t } = useI18n();
   const validation = useMemo(() => validateSoulMd(value), [value]);
 
   return (
@@ -35,7 +37,7 @@ export function SoulMdEditor({
         readOnly={readOnly}
         rows={minRows}
         spellCheck={false}
-        aria-label="Edit soul.md"
+        aria-label={t("soulMd.editAria")}
       />
     </div>
   );

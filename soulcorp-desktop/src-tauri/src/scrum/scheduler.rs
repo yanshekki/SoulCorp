@@ -72,6 +72,7 @@ pub fn route_directive_rule_based(
     let story_id = new_node_id();
     let now = now_iso();
 
+    let lang = crate::i18n::language_from_settings(&state.settings);
     let story = WorkNode {
         id: story_id.clone(),
         parent_id: None,
@@ -90,10 +91,7 @@ pub fn route_directive_rule_based(
         department: project.owner_department.clone(),
         sprint_id: None,
         depends_on: Vec::new(),
-        acceptance_criteria: vec![
-            "Deliverable documented in Workspace.".to_string(),
-            "Acceptance criteria reviewed by PM.".to_string(),
-        ],
+        acceptance_criteria: crate::i18n::story_acceptance_criteria(lang),
         linked_workspace_page_id: None,
         linked_gig_contract_id: None,
         awaiting_ceo_gate: false,
@@ -103,7 +101,8 @@ pub fn route_directive_rule_based(
         queued_at: None,
     };
 
-    let tasks = decompose_story_to_tasks(&story, &directive, &pm_id, dept_head.as_deref(), &now);
+    let tasks =
+        decompose_story_to_tasks(lang, &story, &directive, &pm_id, dept_head.as_deref(), &now);
     let mut created = vec![story];
     created.extend(tasks);
 
@@ -120,30 +119,37 @@ pub fn route_directive_rule_based(
 }
 
 fn decompose_story_to_tasks(
+    lang: crate::i18n::AppLanguage,
     story: &WorkNode,
     directive: &Directive,
     pm_id: &Option<String>,
     dept_head: Option<&str>,
     now: &str,
 ) -> Vec<WorkNode> {
-    let templates = [
-        ("Research & scope", 2u8, "Gather context and constraints."),
-        ("Implementation", 3u8, "Build the core deliverable."),
-        ("Review & handoff", 1u8, "PM review and Workspace publish."),
-    ];
+    // Engineering stories get code-first implementation criteria; others keep doc-friendly copy.
+    let eng = {
+        let d = story.department.to_ascii_lowercase();
+        d.contains("engineer")
+            || d.contains("engineering")
+            || d.contains("dev")
+            || d.contains("工程")
+            || d.contains("技術")
+            || d.contains("技术")
+    };
+    let templates = crate::i18n::default_task_phases(lang, eng);
     templates
-        .iter()
+        .into_iter()
         .enumerate()
-        .map(|(index, (title, points, desc))| WorkNode {
+        .map(|(index, phase)| WorkNode {
             id: new_node_id(),
             parent_id: Some(story.id.clone()),
             project_id: story.project_id.clone(),
             kind: WorkNodeKind::Task,
-            title: format!("{title}: {}", directive.title),
-            description: desc.to_string(),
+            title: format!("{}: {}", phase.phase, directive.title),
+            description: phase.description,
             status: WorkNodeStatus::Backlog,
             priority: story.priority,
-            story_points: *points,
+            story_points: phase.points,
             backlog_rank: index as u32,
             assignee_agent_id: None,
             assigned_by_manager_id: dept_head.map(|id| id.to_string()),
@@ -152,7 +158,7 @@ fn decompose_story_to_tasks(
             department: story.department.clone(),
             sprint_id: None,
             depends_on: Vec::new(),
-            acceptance_criteria: vec![desc.to_string()],
+            acceptance_criteria: phase.acceptance,
             linked_workspace_page_id: None,
             linked_gig_contract_id: None,
             awaiting_ceo_gate: false,
@@ -162,6 +168,146 @@ fn decompose_story_to_tasks(
             queued_at: None,
         })
         .collect()
+}
+
+/// Route a meeting directive into a story + one task per extracted action item.
+pub fn route_directive_with_action_items(
+    state: &mut AppState,
+    directive_id: &str,
+    project_id: &str,
+    action_items: &[String],
+    _participant_ids: &[String],
+) -> Result<Vec<WorkNode>, String> {
+    let directive = state
+        .directives
+        .iter()
+        .find(|d| d.id == directive_id)
+        .cloned()
+        .ok_or_else(|| "Directive not found.".to_string())?;
+    let project = state
+        .projects
+        .iter()
+        .find(|p| p.id == project_id)
+        .cloned()
+        .ok_or_else(|| "Project not found.".to_string())?;
+
+    let pm_id = resolve_pm_agent_id(state, Some(project_id));
+    let dept_head = department_head_for(state, &project.owner_department);
+    let rank = super::tree::next_backlog_rank(&state.work_nodes, project_id, None);
+    let story_id = new_node_id();
+    let now = now_iso();
+
+    let story = WorkNode {
+        id: story_id.clone(),
+        parent_id: None,
+        project_id: project_id.to_string(),
+        kind: WorkNodeKind::Story,
+        title: directive.title.clone(),
+        description: directive.description.clone(),
+        status: WorkNodeStatus::Ready,
+        priority: 3,
+        story_points: (action_items.len() as u8).clamp(2, 8),
+        backlog_rank: rank,
+        assignee_agent_id: None,
+        assigned_by_manager_id: dept_head.clone(),
+        owner_pm_agent_id: pm_id.clone(),
+        retry_count: 0,
+        department: project.owner_department.clone(),
+        sprint_id: None,
+        depends_on: Vec::new(),
+        acceptance_criteria: action_items.iter().take(4).cloned().collect(),
+        linked_workspace_page_id: None,
+        linked_gig_contract_id: None,
+        awaiting_ceo_gate: false,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+        completed_at: None,
+        queued_at: None,
+    };
+
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let tasks: Vec<WorkNode> = action_items
+        .iter()
+        .take(8)
+        .enumerate()
+        .map(|(index, item)| {
+            let dept = infer_department_from_action(item, &project.owner_department);
+            WorkNode {
+                id: new_node_id(),
+                parent_id: Some(story_id.clone()),
+                project_id: project_id.to_string(),
+                kind: WorkNodeKind::Task,
+                title: truncate_title(item, 80),
+                description: crate::i18n::meeting_action_task_description(lang, item),
+                status: WorkNodeStatus::Ready,
+                priority: 3,
+                story_points: 2,
+                backlog_rank: index as u32,
+                assignee_agent_id: None,
+                assigned_by_manager_id: dept_head.clone(),
+                owner_pm_agent_id: pm_id.clone(),
+                retry_count: 0,
+                department: dept,
+                sprint_id: None,
+                depends_on: Vec::new(),
+                acceptance_criteria: vec![crate::i18n::meeting_action_acceptance(lang)],
+                linked_workspace_page_id: None,
+                linked_gig_contract_id: None,
+                awaiting_ceo_gate: false,
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                completed_at: None,
+                queued_at: Some(now.clone()),
+            }
+        })
+        .collect();
+
+    let mut created = vec![story];
+    created.extend(tasks);
+    for node in &created {
+        state.work_nodes.push(node.clone());
+    }
+    if let Some(directive) = state.directives.iter_mut().find(|d| d.id == directive_id) {
+        directive.status = DirectiveStatus::Routed;
+        directive.spawned_node_ids = created.iter().map(|n| n.id.clone()).collect();
+    }
+    Ok(created)
+}
+
+fn truncate_title(text: &str, max: usize) -> String {
+    let trimmed = text.trim().trim_start_matches(['-', '*', '•', ' ']);
+    let chars: Vec<char> = trimmed.chars().collect();
+    if chars.len() <= max {
+        trimmed.to_string()
+    } else {
+        format!("{}…", chars.into_iter().take(max.saturating_sub(1)).collect::<String>())
+    }
+}
+
+fn infer_department_from_action(item: &str, fallback: &str) -> String {
+    let lower = item.to_lowercase();
+    if lower.contains("frontend") || lower.contains("ui") || lower.contains("screen") {
+        return "Engineering".into();
+    }
+    if lower.contains("backend") || lower.contains("api") || lower.contains("server") {
+        return "Engineering".into();
+    }
+    if lower.contains("qa") || lower.contains("test") || lower.contains("validate") {
+        return "Engineering".into();
+    }
+    if lower.contains("hire") || lower.contains("hr") || lower.contains("recruit") {
+        return "Human Resources".into();
+    }
+    if lower.contains("budget") || lower.contains("finance") || lower.contains("invoice") {
+        return "Finance".into();
+    }
+    if lower.contains("market") || lower.contains("brand") || lower.contains("campaign") {
+        return "Marketing".into();
+    }
+    if lower.contains("pm") || lower.contains("demo") || lower.contains("sprint") {
+        return "Executive".into();
+    }
+    fallback.to_string()
 }
 
 /// Department heads assign unowned sprint tasks to subordinates.
@@ -199,25 +345,37 @@ pub fn apply_department_head_delegation(state: &mut AppState) -> u32 {
             .iter()
             .find(|(_, dept)| dept == &task.department)
             .map(|(id, _)| id.clone())
-            .or_else(|| task.assigned_by_manager_id.clone());
+            .or_else(|| task.assigned_by_manager_id.clone())
+            .or_else(|| department_head_for(state, &task.department));
 
-        let Some(manager_id) = manager_id else {
-            continue;
+        // Prefer manager's reports; if org chart is empty, fall back to any eligible agent.
+        let candidate_pool: Vec<AgentRecord> = if let Some(ref mid) = manager_id {
+            let subs = subordinates_of(state, mid);
+            if !subs.is_empty() {
+                state
+                    .agents
+                    .values()
+                    .filter(|a| subs.contains(&a.id))
+                    .cloned()
+                    .collect()
+            } else {
+                state
+                    .agents
+                    .values()
+                    .filter(|a| !crate::fate::is_system_agent(a))
+                    .cloned()
+                    .collect()
+            }
+        } else {
+            state
+                .agents
+                .values()
+                .filter(|a| !crate::fate::is_system_agent(a))
+                .cloned()
+                .collect()
         };
 
-        let subs = subordinates_of(state, &manager_id);
-        if subs.is_empty() {
-            continue;
-        }
-
-        let agents: Vec<AgentRecord> = state
-            .agents
-            .values()
-            .filter(|a| subs.contains(&a.id))
-            .cloned()
-            .collect();
-
-        let best = agents
+        let best = candidate_pool
             .iter()
             .filter(|agent| agent_eligible_for_task(&task, agent, state))
             .map(|agent| {
@@ -234,9 +392,28 @@ pub fn apply_department_head_delegation(state: &mut AppState) -> u32 {
             continue;
         };
 
+        let parent_sprint = task.parent_id.as_ref().and_then(|pid| {
+            state
+                .work_nodes
+                .iter()
+                .find(|n| n.id == *pid)
+                .and_then(|n| n.sprint_id.clone())
+        });
+
         if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
             super::queue::assign_and_enqueue(node, agent_id);
-            node.assigned_by_manager_id = Some(manager_id);
+            if let Some(mid) = manager_id {
+                node.assigned_by_manager_id = Some(mid);
+            }
+            if node.sprint_id.is_none() {
+                if let Some(ref sid) = parent_sprint {
+                    node.sprint_id = Some(sid.clone());
+                }
+            }
+            if matches!(node.status, WorkNodeStatus::Ready) && node.sprint_id.is_some() {
+                node.status = WorkNodeStatus::InSprint;
+            }
+            node.updated_at = now_iso();
             delegated += 1;
         }
     }
@@ -310,6 +487,10 @@ pub fn plan_sprint(state: &mut AppState, sprint_id: &str) -> Result<u32, String>
         }
     }
 
+    // Stories already InSprint never re-enter the loop above — still assign orphan Ready
+    // children (e.g. PM revision tasks created after the story was planned).
+    assigned_count += assign_unassigned_sprint_children(state, sprint_id, &agents);
+
     if let Some(sprint_mut) = state.sprints.iter_mut().find(|s| s.id == sprint_id) {
         sprint_mut.committed_story_ids = state
             .work_nodes
@@ -320,6 +501,58 @@ pub fn plan_sprint(state: &mut AppState, sprint_id: &str) -> Result<u32, String>
     }
 
     Ok(assigned_count)
+}
+
+/// Assign Ready/InSprint tasks under InSprint stories that still have no agent.
+fn assign_unassigned_sprint_children(
+    state: &mut AppState,
+    sprint_id: &str,
+    agents: &[AgentRecord],
+) -> u32 {
+    let story_ids: Vec<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| {
+            n.kind == WorkNodeKind::Story
+                && (n.sprint_id.as_deref() == Some(sprint_id)
+                    || n.status == WorkNodeStatus::InSprint)
+        })
+        .map(|n| n.id.clone())
+        .collect();
+
+    let mut assigned = 0u32;
+    let orphan_ids: Vec<String> = state
+        .work_nodes
+        .iter()
+        .filter(|n| {
+            n.kind == WorkNodeKind::Task
+                && n.assignee_agent_id.is_none()
+                && matches!(n.status, WorkNodeStatus::Ready | WorkNodeStatus::InSprint)
+                && n.parent_id
+                    .as_ref()
+                    .is_some_and(|pid| story_ids.iter().any(|sid| sid == pid))
+        })
+        .map(|n| n.id.clone())
+        .collect();
+
+    for task_id in orphan_ids {
+        let Some(task) = state.work_nodes.iter().find(|n| n.id == task_id).cloned() else {
+            continue;
+        };
+        let Some(agent_id) = pick_best_agent(state, &task, agents, &state.work_nodes) else {
+            continue;
+        };
+        if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task_id) {
+            super::queue::assign_and_enqueue(node, agent_id);
+            node.status = WorkNodeStatus::InSprint;
+            if node.sprint_id.is_none() {
+                node.sprint_id = Some(sprint_id.to_string());
+            }
+            node.updated_at = now_iso();
+            assigned += 1;
+        }
+    }
+    assigned
 }
 
 fn pick_best_agent(

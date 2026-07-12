@@ -1,29 +1,41 @@
 {
-  "version": 2,
+  "version": 3,
   "adapters": [
     {
       "id": "claw_agent_cli",
-      "label": "Claw agent CLI"
+      "label": "Claw agent CLI",
+      "prompt_delivery": "message_file",
+      "prompt_file_flag": "--message-file"
     },
     {
       "id": "grok_headless",
-      "label": "Grok headless"
+      "label": "Grok headless",
+      "prompt_delivery": "prompt_file",
+      "prompt_file_flag": "--prompt-file"
     },
     {
       "id": "prompt_flag",
-      "label": "Prompt flag (-p)"
+      "label": "Prompt via file (--prompt-file)",
+      "prompt_delivery": "prompt_file",
+      "prompt_file_flag": "--prompt-file"
     },
     {
       "id": "codex_noninteractive",
-      "label": "Codex non-interactive"
+      "label": "Codex non-interactive",
+      "prompt_delivery": "stdin",
+      "prompt_file_flag": null
     },
     {
       "id": "aider_message",
-      "label": "Message file"
+      "label": "Message file",
+      "prompt_delivery": "message_file",
+      "prompt_file_flag": "--message-file"
     },
     {
       "id": "legacy_stdin",
-      "label": "Legacy stdin"
+      "label": "Legacy stdin",
+      "prompt_delivery": "stdin",
+      "prompt_file_flag": null
     }
   ],
   "runtimes": [

@@ -15,9 +15,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 struct ScrumSnapshotCache {
     company_id: String,
     project_id: Option<String>,
@@ -200,7 +201,7 @@ pub struct WorkExecutionCostEstimate {
 
 #[tauri::command]
 pub fn list_projects(state: State<'_, Mutex<AppState>>) -> Result<Vec<InternalProject>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.projects.clone())
 }
 
@@ -210,7 +211,7 @@ pub fn create_project(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<InternalProject, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if request.title.trim().len() < 2 {
         return Err("Project title must be at least 2 characters.".to_string());
     }
@@ -240,7 +241,7 @@ pub fn update_project(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<InternalProject, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let project = state
         .projects
         .iter_mut()
@@ -275,7 +276,7 @@ pub fn get_scrum_snapshot(
     state: State<'_, Mutex<AppState>>,
     _app: AppHandle,
 ) -> Result<ScrumSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let fingerprint = scrum_state_fingerprint(&state, project_id.as_deref());
     if let Ok(guard) = scrum_cache_slot().lock() {
         if let Some(entry) = guard.as_ref() {
@@ -305,7 +306,7 @@ pub fn get_work_tree(
     project_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkTreeSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(build_work_tree(&project_id, &state.work_nodes))
 }
 
@@ -315,7 +316,7 @@ pub fn create_work_node(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<WorkNode, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if !state.projects.iter().any(|p| p.id == request.project_id) {
         return Err("Project not found.".to_string());
     }
@@ -394,7 +395,7 @@ pub fn update_work_node(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<WorkNode, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if let Some(deps) = &request.depends_on {
         validate_depends_on_dag(&state.work_nodes, &request.node_id, deps)?;
     }
@@ -463,7 +464,7 @@ pub fn assign_work_node(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<WorkNode, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if let Some(agent_id) = &request.agent_id {
         if !state.agents.contains_key(agent_id) {
             return Err("Agent not found.".to_string());
@@ -496,7 +497,7 @@ pub fn issue_directive(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Directive, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if request.title.trim().len() < 2 {
         return Err("Directive title must be at least 2 characters.".to_string());
     }
@@ -521,7 +522,7 @@ pub fn issue_directive(
 
 #[tauri::command]
 pub fn list_directives(state: State<'_, Mutex<AppState>>) -> Result<Vec<Directive>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.directives.clone())
 }
 
@@ -531,7 +532,7 @@ pub fn route_directive(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Vec<WorkNode>, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let created = if request.use_llm {
         route_directive_llm(&mut state, &request.directive_id, &request.project_id)?
     } else {
@@ -555,7 +556,7 @@ pub fn create_sprint(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Sprint, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let cycle = state
         .projects
         .iter()
@@ -591,7 +592,7 @@ pub fn start_sprint(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Sprint, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let sprint = state
         .sprints
         .iter_mut()
@@ -615,7 +616,7 @@ pub fn close_sprint(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Sprint, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let sprint = state
         .sprints
         .iter_mut()
@@ -637,7 +638,7 @@ pub fn plan_sprint_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<u32, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let assigned = plan_sprint(&mut state, &sprint_id)?;
     commit(app, &state)?;
     Ok(assigned)
@@ -649,7 +650,7 @@ pub fn set_default_pm_agent(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Option<String>, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if let Some(id) = &agent_id {
         if !state.agents.contains_key(id) {
             return Err("Agent not found.".to_string());
@@ -665,7 +666,7 @@ pub fn estimate_work_execution_cost(
     work_node_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkExecutionCostEstimate, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let estimate = estimate_execution(&state, &work_node_id)?;
     Ok(WorkExecutionCostEstimate {
         estimated_tokens: estimate.estimated_tokens,
@@ -680,14 +681,23 @@ pub fn run_work_execution(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<ExecutionRun, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    let run = execute_task(&mut state, &app, &work_node_id)?;
-    if run.status == crate::scrum::ExecutionStatus::Succeeded {
-        let _ = crate::operations::advance_gigs_on_work_delivered(&mut state, run.actual_tokens);
-        let _ = crate::operations::try_scrum_auto_execute_after_work(&mut state, &app);
-    }
-    commit(app, &state)?;
-    Ok(run)
+    use crate::app_log::{LogCategory, LogErr};
+    let result = (|| {
+        // Never hold AppState across LLM/CLI — that freezes the whole desktop.
+        let run = execute_task(&app, &work_node_id)?;
+        if run.status == crate::scrum::ExecutionStatus::Succeeded {
+            {
+                let mut locked = state.lock_or_recover()?;
+                let _ =
+                    crate::operations::advance_gigs_on_work_delivered(&mut locked, run.actual_tokens);
+                commit(app.clone(), &locked)?;
+            }
+            // Unlocked follow-on executes (own short locks).
+            let _ = crate::operations::try_scrum_auto_execute_after_work(&app);
+        }
+        Ok(run)
+    })();
+    result.log_err(&app, LogCategory::Execution, "run_work_execution")
 }
 
 #[tauri::command]
@@ -696,23 +706,231 @@ pub fn approve_deliverable(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<WorkNode, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    crate::scrum::approve_deliverable_core(&mut state, &work_node_id)?;
-    let snapshot = state
-        .work_nodes
-        .iter()
-        .find(|n| n.id == work_node_id)
-        .cloned()
-        .ok_or_else(|| "Work node not found.".to_string())?;
-    crate::scrum::update_directive_lifecycle(&mut state);
-    let _ = crate::operations::try_scrum_auto_execute_after_work(&mut state, &app);
-    commit(app, &state)?;
+    let snapshot = {
+        let mut state = state.lock_or_recover()?;
+        crate::scrum::approve_deliverable_core(&mut state, &work_node_id)?;
+        let snapshot = state
+            .work_nodes
+            .iter()
+            .find(|n| n.id == work_node_id)
+            .cloned()
+            .ok_or_else(|| "Work node not found.".to_string())?;
+        crate::scrum::update_directive_lifecycle(&mut state);
+        commit(app.clone(), &state)?;
+        snapshot
+    };
+    // Unlocked — must not hold AppState across auto-execute LLM/CLI.
+    let _ = crate::operations::try_scrum_auto_execute_after_work(&app);
     Ok(snapshot)
 }
 
 #[tauri::command]
+pub fn get_execution_run(
+    app: AppHandle,
+    run_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<ExecutionRun, String> {
+    let mut state = state.lock_or_recover()?;
+    ensure_cli_input_on_run(&mut state, &app, &run_id)?;
+    state
+        .execution_runs
+        .iter()
+        .find(|r| r.id == run_id)
+        .cloned()
+        .ok_or_else(|| "Execution run not found.".to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionCliView {
+    pub run_id: String,
+    pub command: String,
+    pub prompt: String,
+    #[serde(default)]
+    pub prompt_path: Option<String>,
+    #[serde(default)]
+    pub workspace: Option<crate::scrum::types::ExecutionWorkspaceInfo>,
+}
+
+/// Returns command line + prompt + workspace paths for a run (rebuilds if not stored / stale).
+#[tauri::command]
+pub fn get_execution_cli_input(
+    app: AppHandle,
+    run_id: String,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<ExecutionCliView, String> {
+    let mut state = state.lock_or_recover()?;
+    ensure_cli_input_on_run(&mut state, &app, &run_id)?;
+    let run = state
+        .execution_runs
+        .iter()
+        .find(|r| r.id == run_id)
+        .ok_or_else(|| "Execution run not found.".to_string())?;
+    let prompt = run
+        .cli_input
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| {
+            "Could not rebuild CLI input — task or agent for this run is missing.".to_string()
+        })?;
+    let command = run
+        .cli_command
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| {
+            "# Command not stored for this run — prompt body only.\n# Re-run after upgrade to capture full argv.".into()
+        });
+    Ok(ExecutionCliView {
+        run_id: run_id.clone(),
+        command,
+        prompt,
+        prompt_path: run.cli_prompt_path.clone(),
+        workspace: run.workspace_info.clone(),
+    })
+}
+
+/// True when a stored `cli_command` is a pre-fix / intermediate fake shell line
+/// (e.g. `cd … && XAI_API_KEY=*** (set) \ grok -w … -p 1 --prompt-file /tmp/…`)
+/// rather than the real headless argv we spawn today.
+fn cli_command_is_stale(cmd: &str) -> bool {
+    let s = cmd.trim();
+    if s.is_empty() {
+        return true;
+    }
+    // Pre-fix wildcard / env placeholders
+    if s.contains("*/prompt.md")
+        || s.contains("--prompt-file *")
+        || s.contains("$PROMPT_FILE")
+        || s.contains("XAI_API_KEY=***")
+        || s.contains("# notes:")
+    {
+        return true;
+    }
+    // Intermediate fake shell wrapper: `cd … && XAI_API_KEY=… \`
+    if s.contains("cd ") && s.contains(" && ") && s.contains("XAI_API_KEY=") {
+        return true;
+    }
+    // Old `-p <body>` style without modern file delivery
+    if (s.contains(" -p ") || s.contains(" -p\\") || s.contains("\n-p "))
+        && !s.contains("--prompt-file")
+        && !s.contains("--message-file")
+    {
+        return true;
+    }
+    // Old short `-w` without real headless flags (`--cwd` / `--no-auto-update`)
+    if s.contains(" -w ") && !s.contains("--cwd") && !s.contains("--no-auto-update") {
+        return true;
+    }
+    // Shell one-liner without current metadata block
+    if s.starts_with("cd ") && !s.contains("# --- metadata") {
+        return true;
+    }
+    false
+}
+
+fn cli_prompt_path_is_stale(path: &str) -> bool {
+    let s = path.trim();
+    if s.is_empty() {
+        return true;
+    }
+    // Intermediate NamedTempFile-style path without prompt.md
+    if s.contains("soulcorp-cli-prompt-") && !s.ends_with("prompt.md") {
+        return true;
+    }
+    // Wildcard / placeholder
+    if s.contains('*') || s == "(prompt-file path unavailable)" {
+        return true;
+    }
+    false
+}
+
+fn ensure_cli_input_on_run(
+    state: &mut AppState,
+    app: &AppHandle,
+    run_id: &str,
+) -> Result<(), String> {
+    let Some(index) = state.execution_runs.iter().position(|r| r.id == run_id) else {
+        return Err("Execution run not found.".to_string());
+    };
+    let needs_prompt = state.execution_runs[index]
+        .cli_input
+        .as_ref()
+        .map(|s| s.trim().is_empty())
+        .unwrap_or(true);
+    let needs_command = state.execution_runs[index]
+        .cli_command
+        .as_ref()
+        .map(|s| cli_command_is_stale(s))
+        .unwrap_or(true);
+    let needs_path = state.execution_runs[index]
+        .cli_prompt_path
+        .as_ref()
+        .map(|s| cli_prompt_path_is_stale(s))
+        .unwrap_or(true);
+    // When command is rebuilt, always refresh path so --prompt-file matches the kept file.
+    let needs_path = needs_path || needs_command;
+    let needs_ws = state.execution_runs[index].workspace_info.is_none();
+    if !needs_prompt && !needs_command && !needs_path && !needs_ws {
+        return Ok(());
+    }
+    let run = state.execution_runs[index].clone();
+    if let Some((prompt, command, prompt_path, workspace)) =
+        reconstruct_cli_bundle(state, app, &run)
+    {
+        if needs_prompt {
+            state.execution_runs[index].cli_input = Some(prompt);
+        }
+        if needs_command {
+            state.execution_runs[index].cli_command = Some(command);
+        }
+        if needs_path {
+            state.execution_runs[index].cli_prompt_path = prompt_path;
+        }
+        if needs_ws {
+            state.execution_runs[index].workspace_info = Some(workspace);
+        }
+        let _ = commit(app.clone(), state);
+    }
+    Ok(())
+}
+
+fn reconstruct_cli_bundle(
+    state: &AppState,
+    app: &AppHandle,
+    run: &ExecutionRun,
+) -> Option<(
+    String,
+    String,
+    Option<String>,
+    crate::scrum::types::ExecutionWorkspaceInfo,
+)> {
+    let task = state.work_nodes.iter().find(|n| n.id == run.work_node_id)?;
+    let agent = state.agents.get(&run.agent_id)?;
+    let project_title = state
+        .projects
+        .iter()
+        .find(|p| p.id == task.project_id)
+        .map(|p| p.title.clone())
+        .unwrap_or_else(|| "Company project".to_string());
+    let workspace_root = if state.company_id.is_empty() {
+        None
+    } else {
+        app.path()
+            .app_data_dir()
+            .ok()
+            .map(|dir| crate::workspace::company_workspace_root(&dir, &state.company_id))
+    };
+    Some(crate::scrum::executor::build_execution_cli_bundle(
+        state,
+        task,
+        agent,
+        &project_title,
+        workspace_root.as_deref(),
+    ))
+}
+
+#[tauri::command]
 pub fn list_execution_runs(state: State<'_, Mutex<AppState>>) -> Result<Vec<ExecutionRun>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.execution_runs.clone())
 }
 
@@ -721,7 +939,7 @@ pub fn get_command_center_overview(
     project_id: Option<String>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<CommandCenterOverview, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(build_overview(&state, project_id.as_deref()))
 }
 
@@ -730,7 +948,7 @@ pub fn preview_route_directive_cmd(
     request: PreviewRouteDirectiveRequest,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<DirectivePreviewNode>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     preview_route_directive(
         &state,
         &request.directive_id,
@@ -745,7 +963,7 @@ pub fn cancel_directive(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Directive, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let directive = state
         .directives
         .iter_mut()
@@ -763,7 +981,7 @@ pub fn update_directive_status(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Directive, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let directive = state
         .directives
         .iter_mut()
@@ -781,7 +999,7 @@ pub fn send_co_ceo_directive_to_state(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Directive, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let directive = issue_co_ceo_directive(
         &mut state,
         &request.title,
@@ -808,7 +1026,7 @@ pub fn run_batch_executions(
     app: AppHandle,
 ) -> Result<BatchExecutionResult, String> {
     let parallel = {
-        let state = state.lock().map_err(|e| e.to_string())?;
+        let state = state.lock_or_recover()?;
         if state.settings.scrum_execution_paused {
             return Err("Execution queue is paused.".to_string());
         }
@@ -827,16 +1045,16 @@ pub fn run_batch_executions(
             result.succeeded = batch.executed;
             result.messages = batch.messages;
         }
-        let mut state = state.lock().map_err(|e| e.to_string())?;
-        if let Some(note) = crate::operations::try_scrum_auto_execute_after_work(&mut state, &app) {
+        if let Some(note) = crate::operations::try_scrum_auto_execute_after_work(&app) {
             result.messages.push(note);
         }
-        commit(app, &state)?;
         return Ok(result);
     }
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    let max_runs = state.settings.scrum_max_executions_per_tick.max(1);
+    let max_runs = {
+        let state = state.lock_or_recover()?;
+        state.settings.scrum_max_executions_per_tick.max(1)
+    };
     let mut result = BatchExecutionResult {
         attempted: 0,
         succeeded: 0,
@@ -845,26 +1063,35 @@ pub fn run_batch_executions(
     };
 
     for _ in 0..max_runs {
-        let candidate = state
-            .work_nodes
-            .iter()
-            .filter(|n| {
-                n.kind == WorkNodeKind::Task
-                    && n.assignee_agent_id.is_some()
-                    && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
-            })
-            .max_by(|a, b| a.priority.cmp(&b.priority))
-            .map(|n| n.id.clone());
-        let Some(node_id) = candidate else {
+        let node_id = {
+            let state = state.lock_or_recover()?;
+            state
+                .work_nodes
+                .iter()
+                .filter(|n| {
+                    n.kind == WorkNodeKind::Task
+                        && n.assignee_agent_id.is_some()
+                        && matches!(n.status, WorkNodeStatus::InSprint | WorkNodeStatus::Ready)
+                })
+                .max_by(|a, b| a.priority.cmp(&b.priority))
+                .map(|n| n.id.clone())
+        };
+        let Some(node_id) = node_id else {
             break;
         };
         result.attempted += 1;
-        match execute_task(&mut state, &app, &node_id) {
+        // Unlocked execute — AppState free during LLM/CLI.
+        match execute_task(&app, &node_id) {
             Ok(run) => {
                 if run.status == crate::scrum::ExecutionStatus::Succeeded {
                     result.succeeded += 1;
-                    let _ =
-                        crate::operations::advance_gigs_on_work_delivered(&mut state, run.actual_tokens);
+                    if let Ok(mut state) = state.lock_or_recover() {
+                        let _ = crate::operations::advance_gigs_on_work_delivered(
+                            &mut state,
+                            run.actual_tokens,
+                        );
+                        let _ = commit(app.clone(), &state);
+                    }
                 } else {
                     result.failed += 1;
                 }
@@ -881,10 +1108,9 @@ pub fn run_batch_executions(
         }
     }
 
-    if let Some(note) = crate::operations::try_scrum_auto_execute_after_work(&mut state, &app) {
+    if let Some(note) = crate::operations::try_scrum_auto_execute_after_work(&app) {
         result.messages.push(note);
     }
-    commit(app, &state)?;
     Ok(result)
 }
 
@@ -895,7 +1121,7 @@ pub fn link_work_node_to_gig(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<WorkNode, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if !state.gig_contracts.iter().any(|c| c.contract_id == contract_id) {
         return Err("Gig contract not found.".to_string());
     }
@@ -934,7 +1160,7 @@ pub struct AutomationStatus {
 
 #[tauri::command]
 pub fn get_automation_status(state: State<'_, Mutex<AppState>>) -> Result<AutomationStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let openclaw = crate::agent_runtime::probe_active_runtime(&state.settings);
     let active_execution_runtimes: Vec<String> = state
         .agents

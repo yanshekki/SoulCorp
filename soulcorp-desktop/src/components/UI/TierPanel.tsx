@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useState } from "react";
 import { fetchSoulBalance } from "../../services/hubClient";
 import {
@@ -10,6 +10,7 @@ import {
   type NearUpgradeTier,
 } from "../../services/nearWallet";
 import { useGameStore } from "../../stores/gameStore";
+import { useI18n } from "../../i18n/I18nProvider";
 import type { ClaimNearUpgradeResult, NearUpgradeConfig, TierBenefits } from "../../types/game";
 
 interface UpgradeTierResult {
@@ -22,6 +23,7 @@ interface UpgradeTierResult {
 }
 
 export function TierPanel() {
+  const { t } = useI18n();
   const hubStatus = useGameStore((state) => state.hubStatus);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
   const settings = useGameStore((state) => state.settings);
@@ -54,7 +56,7 @@ export function TierPanel() {
     try {
       const accountId = await connectNearWallet(hubStatus.near_wallet_address);
       setNearWalletAccount(accountId);
-      setStatusMessage(`NEAR wallet connected: ${accountId}`);
+      setStatusMessage(t("tier.walletConnectedStatus", { account: accountId }));
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -111,16 +113,16 @@ export function TierPanel() {
 
   const payNearInApp = async (targetTier: NearUpgradeTier, token: NearUpgradeToken) => {
     if (!nearConfig) {
-      setStatusMessage("NEAR upgrade config not loaded yet.");
+      setStatusMessage(t("tier.configNotLoaded"));
       return;
     }
     if (!hubStatus.near_wallet_address) {
-      setStatusMessage("Bind a NEAR wallet on soulmd-hub before paying on-chain.");
+      setStatusMessage(t("tier.bindWalletPay"));
       return;
     }
 
     setNearPaying(true);
-    setStatusMessage(`Initializing NEAR wallet for ${token.toUpperCase()} payment...`);
+    setStatusMessage(t("tier.initNear", { token: token.toUpperCase() }));
 
     try {
       const payResult = await payNearFtUpgrade({
@@ -149,72 +151,69 @@ export function TierPanel() {
     }
   };
 
-  const upgradeHint =
-    "All features are included. Upgrade tier to lower platform fees on marketplace payouts.";
-
   return (
     <section className="panel-card tier-panel">
-      <h2>Pro / VIP</h2>
+      <h2>{t("tier.title")}</h2>
       <div className="hub-status-row">
         <span className={`hub-pill tier tier-${tierBenefits.tier}`}>
           {tierBenefits.tier.toUpperCase()}
         </span>
         <span className="hub-pill balance">${hubStatus.soul_balance.toFixed(2)} SOUL</span>
         {hubStatus.soul_staked > 0 ? (
-          <span className="hub-pill balance">{hubStatus.soul_staked.toFixed(0)} staked</span>
+          <span className="hub-pill balance">{t("tier.staked", { n: hubStatus.soul_staked.toFixed(0) })}</span>
         ) : null}
       </div>
 
       {hubStatus.near_wallet_address ? (
-        <p className="muted near-wallet-line">NEAR: {hubStatus.near_wallet_address}</p>
+        <p className="muted near-wallet-line">{t("tier.nearLine", { address: hubStatus.near_wallet_address })}</p>
       ) : (
-        <p className="muted">Bind a NEAR wallet on soulmd-hub to use on-chain tier upgrades.</p>
+        <p className="muted">{t("tier.bindWallet")}</p>
       )}
 
       <div className="tier-benefits-grid">
         <article>
-          <span>Platform fee</span>
+          <span>{t("tier.platformFee")}</span>
           <strong>{tierBenefits.platform_fee_percent.toFixed(0)}%</strong>
         </article>
         <article>
-          <span>Agent cap</span>
-          <strong>{tierBenefits.max_agents ?? "Unlimited"}</strong>
+          <span>{t("tier.agentCap")}</span>
+          <strong>{tierBenefits.max_agents ?? t("tier.unlimited")}</strong>
         </article>
         <article>
-          <span>Cloud sync</span>
-          <strong>{tierBenefits.cloud_sync_enabled ? "Yes" : "No"}</strong>
+          <span>{t("tier.cloudSync")}</span>
+          <strong>{tierBenefits.cloud_sync_enabled ? t("tier.yes") : t("tier.no")}</strong>
         </article>
         <article>
-          <span>Priority gigs</span>
-          <strong>{tierBenefits.priority_gig_matching ? "Yes" : "No"}</strong>
+          <span>{t("tier.priorityGigs")}</span>
+          <strong>{tierBenefits.priority_gig_matching ? t("tier.yes") : t("tier.no")}</strong>
         </article>
         <article>
-          <span>Event foresight</span>
-          <strong>{tierBenefits.event_foresight_days} days</strong>
+          <span>{t("tier.eventForesight")}</span>
+          <strong>{t("tier.eventForesightDays", { n: tierBenefits.event_foresight_days })}</strong>
         </article>
         <article>
-          <span>White-label export</span>
-          <strong>{tierBenefits.white_label_export ? "Yes" : "No"}</strong>
+          <span>{t("tier.whiteLabel")}</span>
+          <strong>{tierBenefits.white_label_export ? t("tier.yes") : t("tier.no")}</strong>
         </article>
         <article>
-          <span>Custom departments</span>
-          <strong>{tierBenefits.custom_departments ? "Yes" : "No"}</strong>
+          <span>{t("tier.customDepts")}</span>
+          <strong>{tierBenefits.custom_departments ? t("tier.yes") : t("tier.no")}</strong>
         </article>
         <article>
-          <span>AI Co-CEO</span>
-          <strong>{tierBenefits.ai_co_ceo ? "Yes" : "No"}</strong>
+          <span>{t("tier.aiCoCeo")}</span>
+          <strong>{tierBenefits.ai_co_ceo ? t("tier.yes") : t("tier.no")}</strong>
         </article>
       </div>
 
-      <p className="muted">{upgradeHint}</p>
+      <p className="muted">{t("tier.upgradeHint")}</p>
 
       {!settings.pure_local_mode && tierBenefits.tier === "free" ? (
         <div className="panel-actions stacked">
           <button type="button" onClick={() => void upgradeTier("pro")}>
-            Upgrade to Pro (stake 100 $SOUL)
+            {t("tier.upgradePro")}
           </button>
           <button type="button" onClick={() => void upgradeTier("vip")}>
-            Upgrade to VIP (stake 500 $SOUL)
+            {t("tier.upgradeVip")}
           </button>
         </div>
       ) : null}
@@ -222,23 +221,25 @@ export function TierPanel() {
       {!settings.pure_local_mode && tierBenefits.tier === "pro" ? (
         <div className="panel-actions">
           <button type="button" onClick={() => void upgradeTier("vip")}>
-            Upgrade to VIP (stake 500 $SOUL)
+            {t("tier.upgradeVip")}
           </button>
         </div>
       ) : null}
 
       {!settings.pure_local_mode && nearConfig ? (
         <div className="near-upgrade-block">
-          <h3>NEAR On-Chain Upgrade</h3>
+          <h3>{t("tier.nearTitle")}</h3>
           <p className="muted">
-            Pay ${nearConfig.vip_amount_usd} USDT/USDC for VIP or ${nearConfig.pro_amount_usd} for Pro
-            in-app via ft_transfer_call, or use the hub page in your browser.
+            {t("tier.nearDesc", {
+              vip: nearConfig.vip_amount_usd,
+              pro: nearConfig.pro_amount_usd,
+            })}
           </p>
           {nearWalletAccount ? (
-            <p className="muted near-wallet-line">Wallet connected: {nearWalletAccount}</p>
+            <p className="muted near-wallet-line">{t("tier.walletConnected", { account: nearWalletAccount })}</p>
           ) : (
             <button type="button" className="near-connect-btn" onClick={() => void connectWallet()}>
-              Connect NEAR Wallet
+              {t("tier.connectNear")}
             </button>
           )}
           <div className="near-pay-grid">
@@ -247,39 +248,39 @@ export function TierPanel() {
               disabled={nearPaying}
               onClick={() => void payNearInApp("vip", "usdt")}
             >
-              Pay VIP (USDT)
+              {t("tier.payVipUsdt")}
             </button>
             <button
               type="button"
               disabled={nearPaying}
               onClick={() => void payNearInApp("vip", "usdc")}
             >
-              Pay VIP (USDC)
+              {t("tier.payVipUsdc")}
             </button>
             <button
               type="button"
               disabled={nearPaying}
               onClick={() => void payNearInApp("pro", "usdt")}
             >
-              Pay Pro (USDT)
+              {t("tier.payProUsdt")}
             </button>
             <button
               type="button"
               disabled={nearPaying}
               onClick={() => void payNearInApp("pro", "usdc")}
             >
-              Pay Pro (USDC)
+              {t("tier.payProUsdc")}
             </button>
           </div>
           <div className="panel-actions stacked">
             <button type="button" onClick={() => void openHubUpgrade()}>
-              Open Hub Upgrade Page (browser fallback)
+              {t("tier.openHubUpgrade")}
             </button>
             <button type="button" disabled={nearPaying} onClick={() => void claimNearUpgrade("vip", "usdt")}>
-              Claim VIP (already paid on-chain)
+              {t("tier.claimVip")}
             </button>
             <button type="button" disabled={nearPaying} onClick={() => void claimNearUpgrade("pro", "usdt")}>
-              Claim Pro (already paid on-chain)
+              {t("tier.claimPro")}
             </button>
           </div>
         </div>

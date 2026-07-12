@@ -2,21 +2,26 @@ use crate::agent_activity::{
     emit_deliverable_ready, emit_error, end_session, resolve_brain_labels, start_session,
     ActivityRunContext, ActivitySource, BrainLayer, NewSessionParams, SessionStatus,
 };
-use crate::agent_runtime::execute_for_task;
+use crate::agent_runtime::detached::{execute_for_task_detached, DetachedRuntimeContext};
 use super::org::resolve_pm_agent_id;
 use super::tree::{mark_story_done_if_tasks_complete, now_iso, recompute_project_progress};
 use super::types::{
-    DirectiveStatus, ExecutionRun, ExecutionStatus, WorkNode, WorkNodeKind, WorkNodeStatus,
+    DirectiveStatus, ExecutionRun, ExecutionStatus, ExecutionWorkspaceInfo,
+    ExecutionWorkspacePagePath, WorkNode, WorkNodeKind, WorkNodeStatus,
 };
 use crate::ai::provider::ChatRequest;
 use crate::ai::{self, BilledChatRequest};
 use crate::ai::token_estimate;
+use crate::db::persistence::commit;
+use crate::lock_util::MutexExt;
 use crate::soul::build_chat_parts_for_agent;
-use crate::state::AppState;
+use crate::state::{AgentRecord, AppState};
+use crate::token_budget::charge_tokens;
 use crate::workspace::{
     agent_service::{AgentContext, AgentWorkspaceService},
     storage::{company_workspace_root, WorkspaceStorage},
 };
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -24,6 +29,286 @@ pub struct WorkExecutionEstimate {
     pub estimated_tokens: u64,
     pub affordable: bool,
     pub message: String,
+}
+
+/// Dual-address workspace info for UI + Grok (logical folder id + absolute paths).
+pub fn build_execution_workspace_info(
+    state: &AppState,
+    agent: &crate::state::AgentRecord,
+    workspace_root: Option<&std::path::Path>,
+) -> ExecutionWorkspaceInfo {
+    let folder_id = AgentWorkspaceService::agent_folder_id(&agent.id);
+    let root_str = workspace_root
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let mut info = ExecutionWorkspaceInfo {
+        company_id: state.company_id.clone(),
+        company_workspace_root: root_str.clone(),
+        agent_folder_id: folder_id.clone(),
+        agent_folder_name: agent.name.clone(),
+        agent_memory_page_id: None,
+        agent_memory_md_path: None,
+        page_paths: Vec::new(),
+        cwd: root_str.clone(),
+        access_notes: vec![
+            "CLI cwd is the company workspace root (not chrooted to the agent folder).".into(),
+            "Agent folder id is for SoulCorp Workspace UI; page files live under pages/.".into(),
+            "Prefer absolute .md paths below if your tools can open local files.".into(),
+        ],
+    };
+
+    let Some(root) = workspace_root else {
+        info.access_notes
+            .push("No company workspace root resolved for this run.".into());
+        return info;
+    };
+
+    let Ok(storage) = WorkspaceStorage::new(root.to_path_buf()) else {
+        return info;
+    };
+    let agent_ctx = AgentContext::from_record(agent);
+    let service = AgentWorkspaceService::new(&storage);
+    let _ = service.ensure_agent_folder(&agent_ctx);
+
+    if let Ok(( _text, page_id, _)) =
+        crate::workspace::agent_memory::read_memory_text(&storage, &agent_ctx)
+    {
+        info.agent_memory_page_id = page_id.clone();
+        if let Some(pid) = page_id {
+            let md = root.join("pages").join(format!("{pid}.md"));
+            info.agent_memory_md_path = Some(md.display().to_string());
+        }
+    }
+
+    if let Ok(folder) = service.list_folder(&agent_ctx) {
+        if !folder.folder_id.is_empty() {
+            info.agent_folder_id = folder.folder_id;
+        }
+        for page in folder.pages.into_iter().take(12) {
+            let md = root.join("pages").join(format!("{}.md", page.id));
+            info.page_paths.push(ExecutionWorkspacePagePath {
+                title: page.title,
+                page_id: page.id,
+                md_path: md.display().to_string(),
+            });
+        }
+    }
+
+    info
+}
+
+/// Prompt body shown to the user as "CLI input" (same builder Grok compact path uses).
+pub fn build_execution_cli_input(
+    task: &WorkNode,
+    agent: &crate::state::AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&std::path::Path>,
+) -> String {
+    build_execution_cli_input_lang(task, agent, project_title, workspace_root, None)
+}
+
+pub fn build_execution_cli_input_lang(
+    task: &WorkNode,
+    agent: &crate::state::AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&std::path::Path>,
+    language_block: Option<&str>,
+) -> String {
+    let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
+        workspace_root,
+        agent,
+        project_title,
+        task,
+        false,
+    );
+    crate::agent_runtime::task_prompt::build_compact_prompt_lang(
+        task,
+        agent,
+        project_title,
+        workspace_addon.as_deref(),
+        language_block,
+    )
+}
+
+/// Prompt + command + prompt-file path + workspace info for observability (View CLI input).
+pub fn build_execution_cli_bundle(
+    state: &AppState,
+    task: &WorkNode,
+    agent: &crate::state::AgentRecord,
+    project_title: &str,
+    workspace_root: Option<&std::path::Path>,
+) -> (String, String, Option<String>, ExecutionWorkspaceInfo) {
+    let workspace_info = build_execution_workspace_info(state, agent, workspace_root);
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(
+        &state.settings,
+    ));
+    let prompt = build_execution_cli_input_lang(
+        task,
+        agent,
+        project_title,
+        workspace_root,
+        Some(&lang_block),
+    );
+    let (command, prompt_path) =
+        format_execution_cli_command(state, agent, &prompt, workspace_root, &workspace_info);
+    (prompt, command, prompt_path, workspace_info)
+}
+
+/// Returns (display command, absolute prompt file path if materialized).
+fn format_execution_cli_command(
+    state: &AppState,
+    agent: &crate::state::AgentRecord,
+    prompt: &str,
+    workspace_root: Option<&std::path::Path>,
+    workspace_info: &ExecutionWorkspaceInfo,
+) -> (String, Option<String>) {
+    let runtime_id = crate::brain::resolve_execution_runtime(
+        &state.settings,
+        &state.department_agent_runtimes,
+        &agent.department,
+        agent,
+    );
+    let timeout = state.settings.openclaw_timeout_secs.max(30).min(3600);
+    let cwd = workspace_root
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "(process default cwd)".into());
+
+    let key_set = !state.settings.grok_api_key.trim().is_empty();
+    let key_allowed = state.settings.agent_runtime_allow_cli_env_keys;
+    let key_note = match (key_set, key_allowed) {
+        (true, true) => "XAI_API_KEY=injected from Settings → AI (Grok)".to_string(),
+        (true, false) => {
+            "XAI_API_KEY=NOT injected — enable Agent Brains → “Allow CLI to read API keys”"
+                .to_string()
+        }
+        (false, _) => {
+            "XAI_API_KEY=missing — set Grok key in Settings → AI providers".to_string()
+        }
+    };
+
+    let memory_line = workspace_info
+        .agent_memory_md_path
+        .as_deref()
+        .unwrap_or("(none)");
+
+    // Materialize a real absolute prompt.md so View CLI never shows a fake `*` path.
+    let prompt_path = crate::agent_runtime::PromptFile::write_kept(
+        &format!("view-{}", runtime_id.replace(['/', ' '], "-")),
+        prompt,
+    )
+    .map(|f| f.path_str())
+    .ok();
+
+    let meta = format!(
+        "# --- metadata (not part of argv) ---\n\
+         # cwd: {cwd}\n\
+         # timeout: {timeout}s\n\
+         # env: {key_note}\n\
+         # runtime_id: {runtime_id}\n\
+         # agent: {} · {}\n\
+         # agent_folder_id: {}\n\
+         # agent_folder_name: {}\n\
+         # memory_md: {memory_line}\n\
+         # company_workspace_root: {}\n\
+         # prompt_file: {}\n\
+         # Full prompt body is in the “Prompt body” section below (never on argv).",
+        agent.name,
+        agent.department,
+        workspace_info.agent_folder_id,
+        workspace_info.agent_folder_name,
+        workspace_info.company_workspace_root,
+        prompt_path
+            .as_deref()
+            .unwrap_or("(failed to write temp prompt file)")
+    );
+
+    if runtime_id == "llm_only" || runtime_id.is_empty() {
+        return (
+            format!(
+                "# In-app LLM (no subprocess)\n# agent={}\n# department={}\n{meta}",
+                agent.name, agent.department
+            ),
+            None,
+        );
+    }
+
+    let binary = resolve_cli_binary_label(state, &runtime_id);
+    let delivery = crate::agent_runtime::registry::prompt_delivery_for_runtime_id(&runtime_id);
+    let path_for_argv = prompt_path
+        .clone()
+        .unwrap_or_else(|| "(prompt-file path unavailable)".into());
+
+    let cmdline = match delivery {
+        crate::agent_runtime::PromptDelivery::PromptFile { flag: _ }
+        | crate::agent_runtime::PromptDelivery::MessageFile { flag: _ }
+        | crate::agent_runtime::PromptDelivery::FileFlag { flag: _ }
+            if runtime_id == "grok"
+                || binary.ends_with("grok")
+                || binary.contains("/grok")
+                || matches!(
+                    crate::agent_runtime::runtime_by_id(&runtime_id).map(|e| e.adapter.as_str()),
+                    Some("grok_headless")
+                ) =>
+        {
+            crate::agent_runtime::adapters::grok::headless_command_preview(
+                &binary,
+                &path_for_argv,
+                workspace_root,
+                true,
+            )
+        }
+        crate::agent_runtime::PromptDelivery::PromptFile { flag }
+        | crate::agent_runtime::PromptDelivery::MessageFile { flag }
+        | crate::agent_runtime::PromptDelivery::FileFlag { flag } => {
+            if matches!(
+                crate::agent_runtime::runtime_by_id(&runtime_id).map(|e| e.adapter.as_str()),
+                Some("claw_agent_cli")
+            ) {
+                format!(
+                    "{binary} agent --agent <id> {flag} {path_for_argv} --json --timeout {timeout} --no-color"
+                )
+            } else {
+                format!("{binary} {flag} {path_for_argv}")
+            }
+        }
+        crate::agent_runtime::PromptDelivery::Stdin => {
+            format!("{binary}   # prompt via stdin; file also at {path_for_argv}")
+        }
+    };
+
+    (
+        format!(
+            "{cmdline}\n\
+             {meta}"
+        ),
+        prompt_path,
+    )
+}
+
+fn resolve_cli_binary_label(state: &AppState, runtime_id: &str) -> String {
+    let configured = state.settings.openclaw_binary_path.trim();
+    if !configured.is_empty() {
+        return configured.to_string();
+    }
+    let default_binary = crate::agent_runtime::runtime_by_id(runtime_id)
+        .map(|entry| {
+            if entry.default_binary.is_empty() {
+                runtime_id.to_string()
+            } else {
+                entry.default_binary.clone()
+            }
+        })
+        .unwrap_or_else(|| {
+            if runtime_id == "grok" || runtime_id.contains("grok") {
+                "grok".to_string()
+            } else {
+                runtime_id.to_string()
+            }
+        });
+
+    // Prefer absolute path so the preview / spawn match (GUI apps often lack ~/.local/bin on PATH).
+    crate::agent_runtime::security::resolve_binary("", &default_binary, runtime_id)
+        .unwrap_or(default_binary)
 }
 
 pub fn estimate_execution(state: &AppState, work_node_id: &str) -> Result<WorkExecutionEstimate, String> {
@@ -47,51 +332,171 @@ pub fn estimate_execution(state: &AppState, work_node_id: &str) -> Result<WorkEx
     let request = build_execution_request(state, task, agent)?;
     let estimate = token_estimate::estimate_request(&request) as u64;
     let affordable = crate::token_budget::can_afford(state, &agent_id, estimate as u32).is_ok();
+    let agent_bal = state
+        .token_economy
+        .agents
+        .get(&agent_id)
+        .map(|w| w.balance)
+        .unwrap_or(0);
     Ok(WorkExecutionEstimate {
         estimated_tokens: estimate,
         affordable,
         message: if affordable {
             format!("Execution will use about {estimate} tokens.")
         } else {
-            "Insufficient token budget for this execution.".to_string()
+            format!(
+                "Insufficient token budget for this execution \
+                 (~{estimate} needed, agent has {agent_bal}). \
+                 Open Tokens → Overview (set company pool) or Agents → Allocate (0 = unlimited pack), then retry."
+            )
         },
     })
 }
 
-pub fn execute_task(
+/// Prepared job for one task execution (LLM/CLI runs **without** holding AppState).
+struct PreparedExecution {
+    run_id: String,
+    session_id: String,
+    task: WorkNode,
+    agent: AgentRecord,
+    project_title: String,
+    estimated_tokens: u64,
+    runtime: DetachedRuntimeContext,
+    /// When set, execution was skipped (throttled) and this run is already final.
+    early_run: Option<ExecutionRun>,
+}
+
+/// Execute a work task without holding AppState across LLM/CLI.
+///
+/// Holding the global mutex during network/subprocess freezes the entire UI
+/// (every other command also needs AppState). Always use this path for UI/worker.
+pub fn execute_task(app: &AppHandle, work_node_id: &str) -> Result<ExecutionRun, String> {
+    let result = execute_task_unlocked(app, work_node_id);
+    if let Err(ref err) = result {
+        let msg = format!("Task {work_node_id} failed: {err}");
+        // Queue order / paused / assign — expected UX, not a crash.
+        let lower = err.to_ascii_lowercase();
+        let expected = lower.contains("not at the head of the agent's queue")
+            || lower.contains("paused")
+            || lower.contains("assign an agent")
+            || lower.contains("already completed")
+            || lower.contains("awaiting review");
+        if expected {
+            crate::app_log::log_warn(
+                app,
+                crate::app_log::LogCategory::Execution,
+                "execute_task",
+                msg,
+            );
+        } else {
+            crate::app_log::log_error(
+                app,
+                crate::app_log::LogCategory::Execution,
+                "execute_task",
+                msg,
+            );
+        }
+    }
+    result
+}
+
+fn execute_task_unlocked(app: &AppHandle, work_node_id: &str) -> Result<ExecutionRun, String> {
+    let prepared = {
+        let state_mutex = app.state::<Mutex<AppState>>();
+        let mut state = state_mutex.lock_or_recover()?;
+        prepare_execution(&mut state, app, work_node_id)?
+    };
+
+    if let Some(run) = prepared.early_run {
+        let state_mutex = app.state::<Mutex<AppState>>();
+        if let Ok(state) = state_mutex.lock_or_recover() {
+            let _ = commit(app.clone(), &state);
+        }
+        return Ok(run);
+    }
+
+    let activity = ActivityRunContext {
+        session_id: prepared.session_id.clone(),
+        app: app.clone(),
+    };
+
+    // CRITICAL: no AppState lock here — Grok CLI / HTTP can take minutes.
+    let llm_result = execute_for_task_detached(
+        &prepared.runtime,
+        &prepared.task,
+        &prepared.agent,
+        &prepared.project_title,
+        Some(activity),
+    );
+
+    let state_mutex = app.state::<Mutex<AppState>>();
+    let mut state = state_mutex.lock_or_recover()?;
+    let run = apply_execution_result(&mut state, app, &prepared, llm_result)?;
+    let _ = commit(app.clone(), &state);
+    Ok(run)
+}
+
+fn prepare_execution(
     state: &mut AppState,
     app: &AppHandle,
     work_node_id: &str,
-) -> Result<ExecutionRun, String> {
+) -> Result<PreparedExecution, String> {
     super::queue::assert_can_execute_now(state, work_node_id)?;
 
-    let (task, agent_id) = {
-        let task = state
-            .work_nodes
-            .iter()
-            .find(|n| n.id == work_node_id)
-            .cloned()
-            .ok_or_else(|| "Work item not found.".to_string())?;
-        if task.kind != WorkNodeKind::Task {
-            return Err("Only tasks can be executed.".to_string());
-        }
-        if matches!(task.status, WorkNodeStatus::Done | WorkNodeStatus::InReview) {
-            return Err("Task is already completed or awaiting review.".to_string());
-        }
-        let agent_id = task
-            .assignee_agent_id
-            .clone()
-            .ok_or_else(|| "Assign an agent before executing.".to_string())?;
-        (task, agent_id)
-    };
-
+    let task = state
+        .work_nodes
+        .iter()
+        .find(|n| n.id == work_node_id)
+        .cloned()
+        .ok_or_else(|| "Work item not found.".to_string())?;
+    if task.kind != WorkNodeKind::Task {
+        return Err("Only tasks can be executed.".to_string());
+    }
+    if matches!(task.status, WorkNodeStatus::Done | WorkNodeStatus::InReview) {
+        return Err("Task is already completed or awaiting review.".to_string());
+    }
+    let agent_id = task
+        .assignee_agent_id
+        .clone()
+        .ok_or_else(|| "Assign an agent before executing.".to_string())?;
     let agent = state
         .agents
         .get(&agent_id)
         .cloned()
         .ok_or_else(|| "Assignee not found.".to_string())?;
 
+    crate::token_budget::fund_agent_for_execution(state, &agent_id, 50_000);
     let estimate = estimate_execution(state, work_node_id)?;
+    let project_title = state
+        .projects
+        .iter()
+        .find(|p| p.id == task.project_id)
+        .map(|p| p.title.clone())
+        .unwrap_or_else(|| "Company project".to_string());
+    let workspace_root = if state.company_id.is_empty() {
+        None
+    } else {
+        app.path()
+            .app_data_dir()
+            .ok()
+            .map(|dir| company_workspace_root(&dir, &state.company_id))
+    };
+    let runtime = DetachedRuntimeContext {
+        settings: state.settings.clone(),
+        hub: state.hub.clone(),
+        department_providers: state.department_ai_providers.clone(),
+        department_runtimes: state.department_agent_runtimes.clone(),
+        company_id: state.company_id.clone(),
+        workspace_root: workspace_root.clone(),
+    };
+    let (cli_prompt, cli_command, cli_prompt_path, workspace_info) = build_execution_cli_bundle(
+        state,
+        &task,
+        &agent,
+        &project_title,
+        workspace_root.as_deref(),
+    );
+
     if !estimate.affordable {
         let run = ExecutionRun {
             id: format!("exec-{}", Uuid::new_v4()),
@@ -106,9 +511,22 @@ pub fn execute_task(
             error: Some(estimate.message.clone()),
             started_at: now_iso(),
             finished_at: Some(now_iso()),
+            cli_input: Some(cli_prompt),
+            cli_command: Some(cli_command),
+            cli_prompt_path,
+            workspace_info: Some(workspace_info),
         };
         state.execution_runs.push(run.clone());
-        return Ok(run);
+        return Ok(PreparedExecution {
+            run_id: run.id.clone(),
+            session_id: String::new(),
+            task,
+            agent,
+            project_title,
+            estimated_tokens: estimate.estimated_tokens,
+            runtime,
+            early_run: Some(run),
+        });
     }
 
     let run_id = format!("exec-{}", Uuid::new_v4());
@@ -125,6 +543,10 @@ pub fn execute_task(
         error: None,
         started_at: now_iso(),
         finished_at: None,
+        cli_input: Some(cli_prompt),
+        cli_command: Some(cli_command),
+        cli_prompt_path,
+        workspace_info: Some(workspace_info),
     });
 
     if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == work_node_id) {
@@ -152,56 +574,55 @@ pub fn execute_task(
             run_id: Some(run_id.clone()),
         },
     );
-    let activity = ActivityRunContext {
-        session_id: session_id.clone(),
-        app: app.clone(),
-    };
 
-    let project_title = state
-        .projects
-        .iter()
-        .find(|p| p.id == task.project_id)
-        .map(|p| p.title.clone())
-        .unwrap_or_else(|| "Company project".to_string());
+    Ok(PreparedExecution {
+        run_id,
+        session_id,
+        task,
+        agent,
+        project_title,
+        estimated_tokens: estimate.estimated_tokens,
+        runtime,
+        early_run: None,
+    })
+}
 
-    let workspace_root = if state.company_id.is_empty() {
-        None
-    } else {
-        app.path()
-            .app_data_dir()
-            .ok()
-            .map(|dir| company_workspace_root(&dir, &state.company_id))
-    };
+fn apply_execution_result(
+    state: &mut AppState,
+    app: &AppHandle,
+    prepared: &PreparedExecution,
+    llm_result: Result<crate::agent_runtime::detached::DetachedExecutionResult, String>,
+) -> Result<ExecutionRun, String> {
+    let work_node_id = prepared.task.id.as_str();
+    let agent_id = prepared.agent.id.as_str();
+    let session_id = prepared.session_id.as_str();
+    let run_id = prepared.run_id.as_str();
+    let workspace_root = prepared.runtime.workspace_root.clone();
 
-    let response_content = execute_for_task(
-        state,
-        &task,
-        &agent,
-        &project_title,
-        workspace_root.clone(),
-        Some(activity),
-    );
-
-    let result = match response_content {
-        Ok(content) => {
-            let page_id = write_deliverable(app, state, &task, &agent, &content)?;
+    match llm_result {
+        Ok(detached) => {
+            let content = detached.content;
+            let page_id = write_deliverable(app, state, &prepared.task, &prepared.agent, &content)?;
             let summary = truncate_summary(&content);
             emit_deliverable_ready(
                 state,
                 Some(app),
-                &session_id,
-                &agent_id,
+                session_id,
+                agent_id,
                 &page_id,
                 &summary,
             );
             end_session(
                 state,
                 Some(app),
-                &session_id,
+                session_id,
                 SessionStatus::Completed,
                 Some(summary.clone()),
             );
-            let tokens = estimate.estimated_tokens;
+            if let Some(charge) = detached.charge {
+                let _ = charge_tokens(state, charge);
+            }
+            let tokens = prepared.estimated_tokens;
             let gate_deliverable = crate::autopilot::gates_deliverables(state);
             if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == work_node_id) {
                 node.status = WorkNodeStatus::InReview;
@@ -209,37 +630,32 @@ pub fn execute_task(
                 node.awaiting_ceo_gate = gate_deliverable;
                 node.updated_at = now_iso();
             }
-            let parent_id = task.parent_id.clone();
-            let project_id = task.project_id.clone();
+            let parent_id = prepared.task.parent_id.clone();
+            let project_id = prepared.task.project_id.clone();
             if let Some(story_id) = parent_id {
                 mark_story_done_if_tasks_complete(&mut state.work_nodes, &story_id);
             }
             let nodes_snapshot = state.work_nodes.clone();
             recompute_project_progress(&mut state.projects, &nodes_snapshot, &project_id);
-            if let Some(agent_mut) = state.agents.get_mut(&agent_id) {
+            if let Some(agent_mut) = state.agents.get_mut(agent_id) {
                 agent_mut.status = "idle".to_string();
             }
             if let Some(run) = state.execution_runs.iter_mut().find(|r| r.id == run_id) {
                 run.status = ExecutionStatus::Succeeded;
-                run.provider = if state.settings.scrum_use_agent_tools {
-                    "agent-tools".to_string()
-                } else {
-                    "llm".to_string()
-                };
+                run.provider = detached.provider;
                 run.actual_tokens = tokens;
                 run.deliverable_page_id = Some(page_id);
                 run.summary = summary.clone();
                 run.finished_at = Some(now_iso());
             }
-            // Working memory: append + maybe compress (per-agent memory.md)
             if let Some(root) = workspace_root.as_ref() {
                 if let Ok(storage) = WorkspaceStorage::new(root.clone()) {
                     let _ = storage.ensure_seed();
                     crate::workspace::agent_memory::after_task_success(
                         state,
                         &storage,
-                        &agent,
-                        &task.title,
+                        &prepared.agent,
+                        &prepared.task.title,
                         &summary,
                     );
                 }
@@ -252,11 +668,11 @@ pub fn execute_task(
                 .ok_or_else(|| "Execution run missing.".to_string())
         }
         Err(error) => {
-            emit_error(state, Some(app), &session_id, &agent_id, &error);
+            emit_error(state, Some(app), session_id, agent_id, &error);
             end_session(
                 state,
                 Some(app),
-                &session_id,
+                session_id,
                 SessionStatus::Failed,
                 Some(error.clone()),
             );
@@ -264,7 +680,7 @@ pub fn execute_task(
                 node.status = WorkNodeStatus::Blocked;
                 node.updated_at = now_iso();
             }
-            if let Some(agent_mut) = state.agents.get_mut(&agent_id) {
+            if let Some(agent_mut) = state.agents.get_mut(agent_id) {
                 agent_mut.status = "idle".to_string();
             }
             if let Some(run) = state.execution_runs.iter_mut().find(|r| r.id == run_id) {
@@ -272,11 +688,15 @@ pub fn execute_task(
                 run.error = Some(error.clone());
                 run.finished_at = Some(now_iso());
             }
-            Err(error)
+            // Return the failed run so UI can show it (don't Err out after state is updated).
+            state
+                .execution_runs
+                .iter()
+                .find(|r| r.id == run_id)
+                .cloned()
+                .ok_or(error)
         }
-    };
-
-    result
+    }
 }
 
 pub fn build_execution_request_for_project(
@@ -301,8 +721,19 @@ pub fn build_execution_request_for_project(
         &agent.department,
         &task_context,
     );
+    let mode = crate::agent_runtime::task_prompt::infer_task_work_mode(task, &agent.department);
+    // In-app LLM has no shell tools — require path= fenced code for implement mode.
+    let mode_block =
+        crate::agent_runtime::task_prompt::work_mode_instructions(mode, /* has_tools */ false);
     let user_prompt = format!(
-        "You are executing a work task for project '{project_title}'.\n\nTask: {}\nDetails: {}\n\nAcceptance criteria:\n- {}\n\nProduce a concise deliverable: summary, key decisions, and next steps. Write in markdown-friendly plain text.",
+        "You are executing a work task for project '{project_title}'.\n\n\
+Task: {}\nDetails: {}\n\nAcceptance criteria:\n- {}\n\n\
+{mode_block}\n\n\
+Hard rules:\n\
+- Never return only process chatter (“I'll review…”, “先檢視…”).\n\
+- For IMPLEMENT CODE: emit real source in fenced blocks with path=… so files can be written.\n\
+- Prefer shipping code over meta-documentation.\n\n\
+Follow the Output language section in the system/context instructions if present.",
         task.title, task.description, ac
     );
 
@@ -327,7 +758,17 @@ pub(crate) fn build_execution_request(
         .find(|p| p.id == task.project_id)
         .map(|p| p.title.clone())
         .unwrap_or_else(|| "Company project".to_string());
-    build_execution_request_for_project(task, agent, &project)
+    let mut request = build_execution_request_for_project(task, agent, &project)?;
+    let lang = crate::i18n::language_instruction(crate::i18n::language_from_settings(
+        &state.settings,
+    ));
+    request.system_prompt = format!("{lang}\n\n{}", request.system_prompt);
+    request.user_prompt = format!(
+        "{}\n\n{}",
+        request.user_prompt.trim_end(),
+        "Write the deliverable fully in the company language specified above."
+    );
+    Ok(request)
 }
 
 pub(crate) fn write_deliverable(
@@ -341,12 +782,28 @@ pub(crate) fn write_deliverable(
         return Err("Company not loaded.".to_string());
     }
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let storage = WorkspaceStorage::new(company_workspace_root(&dir, &state.company_id))?;
+    let root = company_workspace_root(&dir, &state.company_id);
+    let storage = WorkspaceStorage::new(root.clone())?;
     storage.ensure_seed()?;
+
+    // Materialize fenced code blocks (path=…) into real files under the company workspace.
+    let written_files =
+        crate::agent_runtime::task_prompt::materialize_code_files(&root, content);
+    let mut page_body = content.to_string();
+    if !written_files.is_empty() {
+        page_body.push_str("\n\n## Files written to workspace\n");
+        for path in &written_files {
+            page_body.push_str(&format!("- `{path}`\n"));
+        }
+    }
+
     let service = AgentWorkspaceService::new(&storage);
     let agent_ctx = AgentContext::from_record(agent);
-    let page_title = format!("Deliverable — {}", task.title);
-    let page = service.write_deliverable(&agent_ctx, &page_title, content)?;
+    let page_title = format!(
+        "Deliverable — {}",
+        super::tree::collapse_revision_prefixes(&task.title)
+    );
+    let page = service.write_deliverable(&agent_ctx, &page_title, &page_body)?;
     Ok(page.id)
 }
 
@@ -359,21 +816,29 @@ pub(crate) fn truncate_summary(content: &str) -> String {
     }
 }
 
-pub fn apply_scrum_execution_tick(state: &mut AppState, app: &AppHandle) -> Option<String> {
-    if !state.settings.scrum_auto_execute || state.settings.scrum_execution_paused {
-        return None;
-    }
+/// Pick one task and execute it **without** holding a caller-owned AppState lock.
+/// Callers that currently hold `AppState` must drop it first (or use this only).
+pub fn apply_scrum_execution_tick(app: &AppHandle) -> Option<String> {
+    let candidate = {
+        let state_mutex = app.state::<Mutex<AppState>>();
+        let Ok(mut state) = state_mutex.lock_or_recover() else {
+            return None;
+        };
+        if !state.settings.scrum_auto_execute || state.settings.scrum_execution_paused {
+            return None;
+        }
+        if !crate::ai::auto_work_should_run(&state.settings) {
+            return None;
+        }
+        if crate::token_budget::total_company_tokens(&state.token_economy)
+            < state.settings.scrum_min_tokens_guard
+        {
+            return None;
+        }
+        super::queue::pick_serial_candidate(&mut state)
+    }?;
 
-    if crate::token_budget::total_company_tokens(&state.token_economy)
-        < state.settings.scrum_min_tokens_guard
-    {
-        return None;
-    }
-
-    // Per-agent serial queue: fair pick of oldest queue head among free agents.
-    let candidate = super::queue::pick_serial_candidate(state)?;
-
-    match execute_task(state, app, &candidate) {
+    match execute_task(app, &candidate) {
         Ok(run) => Some(format!(
             "Work execution {} for task {}.",
             match run.status {
@@ -532,8 +997,17 @@ pub fn route_directive_llm(
         .into_iter()
         .collect();
 
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let lang_req = crate::i18n::decompose_language_requirement(lang);
+    let lang_block = crate::i18n::language_instruction(lang);
     let prompt = format!(
-        "Break down this CEO directive into 1-2 stories with 3-6 tasks as JSON array.\nDirective: {}\nDetails: {}\nTeam skills: {}\nDepartments: {}\n\nUse cross-department tasks when needed. Order tasks so later items depend on earlier ones.\nEach story MUST include acceptance_criteria (array of at least 2 measurable strings). Each task SHOULD include acceptance_criteria when applicable.\nReturn ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Criterion 1\",\"Criterion 2\"],\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Task criterion\"]}}]}}]",
+        "{lang_block}\n\n\
+Break down this CEO directive into 1-2 stories with 3-6 tasks as JSON array.\n\
+Directive: {}\nDetails: {}\nTeam skills: {}\nDepartments: {}\n\n\
+{lang_req}\n\
+Use cross-department tasks when needed. Order tasks so later items depend on earlier ones.\n\
+Each story MUST include acceptance_criteria (array of at least 2 measurable strings). Each task SHOULD include acceptance_criteria when applicable.\n\
+Return ONLY JSON like [{{\"kind\":\"story\",\"title\":\"...\",\"points\":5,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Criterion 1\",\"Criterion 2\"],\"tasks\":[{{\"title\":\"...\",\"points\":2,\"department\":\"Engineering\",\"acceptance_criteria\":[\"Task criterion\"]}}]}}]",
         directive.title,
         directive.description,
         team_skills.join(", "),
@@ -548,7 +1022,7 @@ pub fn route_directive_llm(
         "PM planning and backlog decomposition",
     );
     let request = ChatRequest {
-        system_prompt: persona,
+        system_prompt: format!("{lang_block}\n\n{persona}"),
         context: Some(ctx),
         user_prompt: prompt,
         temperature: 0.4,

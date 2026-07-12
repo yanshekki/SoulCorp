@@ -38,7 +38,8 @@ import type {
 let openPageGeneration = 0;
 let openFileGeneration = 0;
 let summariesLoadGeneration = 0;
-let folderChildrenGeneration = 0;
+/** Per-folder generation so concurrent loads do not discard each other. */
+const folderChildrenGenerationById = new Map<string, number>();
 
 const PAGE_CACHE_MAX = 20;
 const pageContentCache = new Map<string, WorkspacePage>();
@@ -295,13 +296,17 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     if (!force && get().folderChildren[folderId]) {
       return;
     }
-    const generation = ++folderChildrenGeneration;
+    if (!force && get().folderChildrenLoading[folderId]) {
+      return;
+    }
+    const generation = (folderChildrenGenerationById.get(folderId) ?? 0) + 1;
+    folderChildrenGenerationById.set(folderId, generation);
     set((state) => ({
       folderChildrenLoading: { ...state.folderChildrenLoading, [folderId]: true },
     }));
     try {
       const children: WorkspaceFolderChildren = await listWorkspaceFolderChildren(folderId);
-      if (generation !== folderChildrenGeneration) {
+      if (folderChildrenGenerationById.get(folderId) !== generation) {
         return;
       }
       get().setFolderChildren(folderId, {
@@ -309,9 +314,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         files: children.files,
       });
     } finally {
-      set((state) => ({
-        folderChildrenLoading: { ...state.folderChildrenLoading, [folderId]: false },
-      }));
+      if (folderChildrenGenerationById.get(folderId) === generation) {
+        set((state) => ({
+          folderChildrenLoading: { ...state.folderChildrenLoading, [folderId]: false },
+        }));
+      }
     }
   },
   loadViewData: async (view) => {
@@ -485,7 +492,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     openPageGeneration += 1;
     openFileGeneration += 1;
     summariesLoadGeneration += 1;
-    folderChildrenGeneration += 1;
+    folderChildrenGenerationById.clear();
     clearPageCache();
     set((state) => ({
       tree: {

@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../../stores/gameStore";
-import { getOrgChart, updateAgentOrg } from "../../../services/departmentsClient";
-import type { OrgChartNode, OrgChartSnapshot } from "../../../types/game";
+import {
+  assignOrgWithAi,
+  getOrgChart,
+  updateAgentOrg,
+} from "../../../services/departmentsClient";
+import type { AgentRecord, OrgChartNode, OrgChartSnapshot } from "../../../types/game";
+import {
+  finishProgress,
+  reportLocalProgress,
+  useProgressStore,
+} from "../../../stores/progressStore";
 import { formatAgentOptionLabel } from "../../../utils/agentLabel";
+import { confirmDialog } from "../../../utils/nativeDialog";
+import { invoke } from "../../../utils/tauriInvoke";
+import { useI18n } from "../../../i18n/I18nProvider";
 import { agentInitials, countTreeNodes, flattenOrgNodes } from "./departmentUtils";
 import { OrgTreeNode } from "./OrgTreeNode";
 
@@ -12,6 +24,7 @@ interface OrgChartTabProps {
 }
 
 export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
@@ -75,9 +88,44 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
       setAgentRecords(agentRecords.map((agent) => (agent.id === updated.id ? updated : agent)));
       await refreshChart();
       await onChanged();
-      setStatusMessage("Reporting line updated.");
+      setStatusMessage(t("dept.msg.reportingUpdated"));
     } catch (error) {
       setStatusMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAssignOrgWithAi = async () => {
+    if (busy) return;
+    if (departmentOptions.length === 0) {
+      setStatusMessage(t("dept.msg.needTeamsFirst"));
+      return;
+    }
+    // Must await Tauri-native confirm — bare window.confirm is async and always truthy if not awaited.
+    const ok = await confirmDialog(t("dept.confirm.reassignAll"), {
+      title: t("dept.autoAssignPeople"),
+      kind: "warning",
+    });
+    if (!ok) return;
+
+    const opId = "assign_org_with_ai";
+    setBusy(true);
+    setStatusMessage(t("dept.msg.assigning"));
+    reportLocalProgress(opId, t("dept.progress.assigning"), -1, "llm");
+    useProgressStore.getState().setLlmLiveOpen(true);
+    try {
+      const result = await assignOrgWithAi();
+      const agents = await invoke<AgentRecord[]>("list_agents");
+      setAgentRecords(agents);
+      setChart(result.snapshot);
+      await onChanged();
+      setSelectedAgentId(null);
+      setStatusMessage(result.message);
+      finishProgress(opId, result.message, "done");
+    } catch (error) {
+      setStatusMessage(String(error));
+      finishProgress(opId, String(error), "error");
     } finally {
       setBusy(false);
     }
@@ -86,7 +134,7 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
   if (!chart) {
     return (
       <div className="dept-empty-state">
-        <p className="muted">Load a company to design your org chart.</p>
+        <p className="muted">{t("dept.loadCompanyOrg")}</p>
       </div>
     );
   }
@@ -96,13 +144,26 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
   return (
     <div className="dept-split-layout">
       <section className="dept-split-main">
-        <header className="dept-panel-toolbar">
-          <div>
-            <h3>Reporting tree</h3>
+        <header className="dept-context-toolbar">
+          <div className="dept-context-toolbar-copy">
+            <h3>{t("dept.people")}</h3>
             <p className="muted">
-              {treeCount} in hierarchy
-              {chart.unassigned.length > 0 ? ` · ${chart.unassigned.length} need manager` : ""}
+              {t("dept.inHierarchy", { n: treeCount })}
+              {chart.unassigned.length > 0
+                ? t("dept.needManager", { n: chart.unassigned.length })
+                : ""}
             </p>
+          </div>
+          <div className="dept-context-toolbar-actions">
+            <button
+              type="button"
+              className="dept-ai-btn dept-ai-btn--warn"
+              disabled={busy}
+              onClick={() => void handleAssignOrgWithAi()}
+              title={t("dept.autoAssignTitle")}
+            >
+              {busy ? t("dept.autoAssignBusy") : t("dept.autoAssignPeople")}
+            </button>
           </div>
         </header>
 
@@ -119,13 +180,15 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
           </ul>
         ) : (
           <div className="dept-empty-state dept-empty-state--inset">
-            <p>No top-level leaders yet. Select an agent on the right to set their manager.</p>
+            <p className="muted">
+              {t("dept.noRoots")}
+            </p>
           </div>
         )}
 
         {chart.unassigned.length > 0 ? (
           <div className="dept-org-unassigned">
-            <h4>Needs reporting line</h4>
+            <h4>{t("dept.needsReporting")}</h4>
             <ul className="dept-org-tree dept-org-tree--flat">
               {chart.unassigned.map((node) => (
                 <OrgTreeNode
@@ -152,8 +215,8 @@ export function OrgChartTab({ departmentOptions, onChanged }: OrgChartTabProps) 
           />
         ) : (
           <div className="dept-side-placeholder">
-            <p className="dept-side-placeholder-title">Select an agent</p>
-            <p className="muted">Click someone in the tree to edit their department and reporting line.</p>
+            <p className="dept-side-placeholder-title">{t("dept.selectPersonTitle")}</p>
+            <p className="muted">{t("dept.selectPersonBody")}</p>
           </div>
         )}
       </aside>
@@ -180,6 +243,7 @@ function AgentOrgInspector({
   }) => Promise<void>;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="dept-agent-inspector">
       <header className="dept-agent-inspector-header">
@@ -188,23 +252,23 @@ function AgentOrgInspector({
           <h3>{node.name}</h3>
           <p className="muted">{node.role}</p>
         </div>
-        <button type="button" className="tiny-btn" onClick={onClose} aria-label="Close">
-          Close
+        <button type="button" className="tiny-btn" onClick={onClose} aria-label={t("dept.close")}>
+          {t("dept.close")}
         </button>
       </header>
 
       <div className="dept-agent-inspector-meta">
         <span className="dept-org-pill">{node.department}</span>
         {node.manages_department ? (
-          <span className="dept-meta-chip">Head of {node.manages_department}</span>
+          <span className="dept-meta-chip">{t("dept.headOf", { name: node.manages_department })}</span>
         ) : null}
         {node.children.length > 0 ? (
-          <span className="dept-meta-chip">{node.children.length} direct reports</span>
+          <span className="dept-meta-chip">{t("dept.directReports", { n: node.children.length })}</span>
         ) : null}
       </div>
 
       <label className="field-label">
-        Department
+        {t("dept.department")}
         <select
           value={node.department}
           disabled={busy}
@@ -219,13 +283,13 @@ function AgentOrgInspector({
       </label>
 
       <label className="field-label">
-        Reports to
+        {t("dept.reportsTo")}
         <select
           value={node.reports_to ?? ""}
           disabled={busy}
           onChange={(event) => void onUpdate({ reports_to: event.target.value || null })}
         >
-          <option value="">Top level (no manager)</option>
+          <option value="">{t("dept.topLevel")}</option>
           {managerOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -235,7 +299,7 @@ function AgentOrgInspector({
       </label>
 
       <label className="field-label">
-        Manages department
+        {t("dept.managesDept")}
         <select
           value={node.manages_department ?? ""}
           disabled={busy}
@@ -243,7 +307,7 @@ function AgentOrgInspector({
             void onUpdate({ manages_department: event.target.value || null })
           }
         >
-          <option value="">Not a department head</option>
+          <option value="">{t("dept.notDeptHead")}</option>
           {departmentOptions.map((department) => (
             <option key={department} value={department}>
               {department}

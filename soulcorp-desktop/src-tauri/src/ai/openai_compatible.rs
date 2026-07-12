@@ -15,7 +15,9 @@ pub struct OpenAiCompatibleProvider {
 impl OpenAiCompatibleProvider {
     pub fn new(base_url: String, api_key: String, model: String, label: String) -> Self {
         let client = Client::builder()
-            .timeout(Duration::from_secs(120))
+            // Keep short: long hangs freeze the UI when worker holds AppState around LLM calls.
+            .timeout(Duration::from_secs(45))
+            .connect_timeout(Duration::from_secs(8))
             .build()
             .unwrap_or_else(|_| Client::new());
 
@@ -80,13 +82,27 @@ impl AiProvider for OpenAiCompatibleProvider {
         }
 
         let payload: serde_json::Value = response.json().map_err(|e| e.to_string())?;
-        let content = payload
+        // DeepSeek V4 (and similar) may put the answer in reasoning_content with empty content.
+        let message = payload
             .get("choices")
             .and_then(|choices| choices.get(0))
-            .and_then(|choice| choice.get("message"))
-            .and_then(|message| message.get("content"))
+            .and_then(|choice| choice.get("message"));
+        let content = message
+            .and_then(|m| m.get("content"))
             .and_then(|value| value.as_str())
-            .ok_or_else(|| format!("{label} response missing choices[0].message.content", label = self.label))?;
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| {
+                message
+                    .and_then(|m| m.get("reasoning_content"))
+                    .and_then(|value| value.as_str())
+                    .filter(|s| !s.trim().is_empty())
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{label} response missing choices[0].message.content/reasoning_content",
+                    label = self.label
+                )
+            })?;
 
         let usage = if let Some(usage_value) = payload.get("usage") {
             let prompt_tokens = usage_value

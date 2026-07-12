@@ -9,6 +9,7 @@ use crate::workspace::{
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 fn agent_context_from_state(state: &AppState, agent_id: &str) -> Result<AgentContext, String> {
     let agent = state
         .agents
@@ -18,7 +19,7 @@ fn agent_context_from_state(state: &AppState, agent_id: &str) -> Result<AgentCon
 }
 
 fn open_storage(app: &AppHandle, state: &State<'_, Mutex<AppState>>) -> Result<WorkspaceStorage, String> {
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     if locked.company_id.is_empty() {
         return Err("Create a company before using the agent workspace.".to_string());
     }
@@ -37,7 +38,7 @@ pub fn agent_workspace_list_folder(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceFolderChildren, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.list_folder(&agent)
@@ -50,7 +51,7 @@ pub fn agent_workspace_get_context(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<AgentWorkspaceContext, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.get_context(&agent)
@@ -63,7 +64,7 @@ pub fn agent_workspace_read_page(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<AgentWorkspacePageView, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.read_page(&agent, &request.page_id)
@@ -76,7 +77,7 @@ pub fn agent_workspace_search(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<SearchResult>, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     let limit = request.limit.unwrap_or(20).clamp(1, 50) as usize;
@@ -90,7 +91,7 @@ pub fn agent_workspace_create_page(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.create_page(&agent, &request.title, request.content.as_deref())
@@ -103,7 +104,7 @@ pub fn agent_workspace_append_page(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.append_to_page(&agent, &request.page_id, &request.heading, &request.lines)
@@ -116,7 +117,7 @@ pub fn agent_workspace_append_journal(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.append_journal(
@@ -134,7 +135,7 @@ pub fn agent_workspace_write_deliverable(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agent = agent_context_from_state(&locked, &request.agent_id)?;
     let service = AgentWorkspaceService::new(&storage);
     service.write_deliverable(&agent, &request.title, &request.content)
@@ -147,7 +148,7 @@ pub fn agent_workspace_list_activity(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<AgentWorkspaceActivityEntry>, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     let agents: Vec<AgentContext> = locked
         .agents
         .values()
@@ -164,7 +165,7 @@ pub fn agent_workspace_get_memory(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<crate::workspace::agent_memory::AgentMemoryView, String> {
     let storage = open_storage(&app, &state)?;
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     crate::workspace::agent_memory::memory_view_for_agent(&locked, &storage, &agent_id)
 }
 
@@ -175,7 +176,7 @@ pub fn agent_workspace_compress_memory(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<crate::workspace::agent_memory::AgentMemoryView, String> {
     let storage = open_storage(&app, &state)?;
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     let view = crate::workspace::agent_memory::compress_agent_memory(
         &mut locked,
         &storage,

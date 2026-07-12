@@ -1,10 +1,10 @@
 import {
   DEFAULT_EVENT_CHANCE,
   EVENT_CHANCE_PRESETS,
-  FATE_EXAMPLE_EVENT,
-  PLAY_MODE_COLUMNS,
+    PLAY_MODE_COLUMNS,
 } from "../../data/playModeOptions";
 import type { PlayMode } from "../../types/game";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export type PlayModeConfig = {
   playMode: PlayMode;
@@ -19,6 +19,7 @@ type PlayModePickerProps = {
 };
 
 export function PlayModePicker({ value, onChange, compact = false }: PlayModePickerProps) {
+  const { t } = useI18n();
   const selectMode = (mode: PlayMode) => {
     if (mode === "work") {
       onChange({
@@ -41,9 +42,10 @@ export function PlayModePicker({ value, onChange, compact = false }: PlayModePic
     <div className={`play-mode-picker ${compact ? "compact" : ""}`}>
       {!compact ? (
         <p className="play-mode-intro muted">
-          Pick how much narrative chaos you want. <strong>Work Mode</strong> never rolls random
-          events. <strong>Game Mode</strong> lets Fate — your Director of Chance — generate
-          context-aware events via AI.
+          {t("playMode.intro", {
+            work: t("playMode.workStrong"),
+            game: t("playMode.gameStrong"),
+          })}
         </p>
       ) : null}
 
@@ -56,11 +58,11 @@ export function PlayModePicker({ value, onChange, compact = false }: PlayModePic
             onClick={() => selectMode(column.id)}
             aria-pressed={value.playMode === column.id}
           >
-            <strong>{column.title}</strong>
-            <span>{column.tagline}</span>
+            <strong>{t(column.titleKey)}</strong>
+            <span>{t(column.taglineKey)}</span>
             <ul>
-              {column.highlights.map((item) => (
-                <li key={item}>{item}</li>
+              {column.highlightKeys.map((item) => (
+                <li key={item}>{t(item)}</li>
               ))}
             </ul>
           </button>
@@ -80,12 +82,12 @@ export function PlayModePicker({ value, onChange, compact = false }: PlayModePic
                 })
               }
             />
-            <span>Enable Fate random events</span>
+            <span>{t("playMode.fateEvents")}</span>
           </label>
 
           <div className="play-mode-chance">
             <div className="play-mode-chance-header">
-              <span>Event chance per roll</span>
+              <span>{t("playMode.eventChance")}</span>
               <strong>{chancePercent}%</strong>
             </div>
             <input
@@ -123,7 +125,7 @@ export function PlayModePicker({ value, onChange, compact = false }: PlayModePic
           </div>
 
           <p className="play-mode-example muted">
-            <strong>Example:</strong> {FATE_EXAMPLE_EVENT}
+            <strong>{t("playMode.example")}</strong> {t("playMode.fateExample")}
           </p>
           <p className="play-mode-billing muted">
             Each Fate event uses your default AI provider and bills your token wallets. You can
@@ -132,9 +134,7 @@ export function PlayModePicker({ value, onChange, compact = false }: PlayModePic
         </section>
       ) : (
         <p className="play-mode-work-note muted">
-          Work Mode keeps Fate dormant. Your team runs meetings, workspace docs, marketplace gigs,
-          and token billing without narrative surprises.
-        </p>
+          {t("playMode.workFooter")}</p>
       )}
     </div>
   );

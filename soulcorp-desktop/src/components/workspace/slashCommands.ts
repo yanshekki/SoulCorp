@@ -2,6 +2,9 @@ import type { Editor, Range } from "@tiptap/core";
 
 export interface SlashCommandItem {
   id: string;
+  titleKey: string;
+  descriptionKey: string;
+  /** English fallbacks for filter matching when UI language differs. */
   title: string;
   description: string;
   icon: string;
@@ -22,6 +25,8 @@ function runBlockCommand(
 export const SLASH_COMMANDS: SlashCommandItem[] = [
   {
     id: "paragraph",
+    titleKey: "slash.paragraph.title",
+    descriptionKey: "slash.paragraph.desc",
     title: "Text",
     description: "Plain paragraph",
     icon: "¶",
@@ -32,6 +37,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "heading-1",
+    titleKey: "slash.heading-1.title",
+    descriptionKey: "slash.heading-1.desc",
     title: "Heading 1",
     description: "Large section title",
     icon: "H1",
@@ -42,6 +49,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "heading-2",
+    titleKey: "slash.heading-2.title",
+    descriptionKey: "slash.heading-2.desc",
     title: "Heading 2",
     description: "Medium section title",
     icon: "H2",
@@ -52,6 +61,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "heading-3",
+    titleKey: "slash.heading-3.title",
+    descriptionKey: "slash.heading-3.desc",
     title: "Heading 3",
     description: "Small section title",
     icon: "H3",
@@ -62,6 +73,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "bullet-list",
+    titleKey: "slash.bullet-list.title",
+    descriptionKey: "slash.bullet-list.desc",
     title: "Bullet list",
     description: "Unordered list",
     icon: "•",
@@ -72,6 +85,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "ordered-list",
+    titleKey: "slash.ordered-list.title",
+    descriptionKey: "slash.ordered-list.desc",
     title: "Numbered list",
     description: "Ordered list",
     icon: "1.",
@@ -82,6 +97,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "task-list",
+    titleKey: "slash.task-list.title",
+    descriptionKey: "slash.task-list.desc",
     title: "Task list",
     description: "Checklist with boxes",
     icon: "☑",
@@ -92,6 +109,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "blockquote",
+    titleKey: "slash.blockquote.title",
+    descriptionKey: "slash.blockquote.desc",
     title: "Quote",
     description: "Indented quotation",
     icon: "❝",
@@ -102,6 +121,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "code-block",
+    titleKey: "slash.code-block.title",
+    descriptionKey: "slash.code-block.desc",
     title: "Code block",
     description: "Monospace code snippet",
     icon: "{ }",
@@ -112,6 +133,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "divider",
+    titleKey: "slash.divider.title",
+    descriptionKey: "slash.divider.desc",
     title: "Divider",
     description: "Horizontal rule",
     icon: "—",
@@ -122,6 +145,8 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: "table",
+    titleKey: "slash.table.title",
+    descriptionKey: "slash.table.desc",
     title: "Table",
     description: "3×3 table with header row",
     icon: "⊞",
@@ -144,6 +169,9 @@ export function filterSlashCommands(query: string): SlashCommandItem[] {
       return true;
     }
     if (item.description.toLowerCase().includes(normalized)) {
+      return true;
+    }
+    if (item.id.toLowerCase().includes(normalized)) {
       return true;
     }
     return item.keywords.some((keyword) => keyword.includes(normalized));

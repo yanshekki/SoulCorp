@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NearTxPayload {
     pub receiver_id: String,
@@ -43,7 +44,7 @@ pub struct ClaimNearUpgradeResult {
 pub fn get_near_upgrade_config(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<NearUpgradeConfig, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let base = state.hub.base_url.trim_end_matches('/');
     Ok(NearUpgradeConfig {
         soul_contract_id: "soulmd-hub.near".to_string(),
@@ -60,7 +61,7 @@ pub fn get_near_upgrade_config(
 
 #[tauri::command]
 pub fn open_hub_upgrade_page(app: AppHandle, state: State<'_, Mutex<AppState>>) -> Result<String, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let url = format!("{}/upgrade.php", state.hub.base_url.trim_end_matches('/'));
     app.opener()
         .open_url(&url, None::<&str>)
@@ -75,7 +76,7 @@ pub async fn claim_near_tier_upgrade(
     app: AppHandle,
 ) -> Result<ClaimNearUpgradeResult, String> {
     let client = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         if state.settings.pure_local_mode {
             return Err("NEAR tier upgrades require soulmd-hub connection.".to_string());
         }
@@ -110,7 +111,7 @@ pub async fn claim_near_tier_upgrade(
             .to_string());
     }
 
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state.hub.user_tier = tier.clone();
     state.hub.connected = true;
     let message = body

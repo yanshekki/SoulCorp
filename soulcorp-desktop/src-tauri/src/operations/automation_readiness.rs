@@ -28,12 +28,8 @@ pub fn compute_automation_readiness(state: &AppState) -> AutomationReadiness {
         .values()
         .filter(|a| !crate::fate::is_system_agent(a))
         .count();
-    let llm_configured = state.settings.pure_local_mode
-        || (state.settings.ai_provider != "mock"
-            && (!state.settings.openai_api_key.is_empty()
-                || !state.settings.grok_api_key.is_empty()
-                || !state.settings.claude_api_key.is_empty()
-                || state.settings.ai_provider == "ollama"));
+    // Must match ai::health::company_llm_credentials_ready (includes deepseek, hub, etc.).
+    let llm_configured = crate::ai::health::company_llm_credentials_ready(&state.settings);
     let worker_on = state.settings.scrum_worker_enabled && !state.settings.scrum_execution_paused;
     let orchestrator_on = state.settings.orchestrator_enabled;
     let token_pool = total_company_tokens(&state.token_economy);
@@ -222,5 +218,27 @@ mod tests {
         state.settings.orchestrator_enabled = true;
         let report = compute_automation_readiness(&state);
         assert!(report.items.iter().find(|i| i.id == "project").unwrap().ok);
+    }
+
+    #[test]
+    fn meeting_brain_recognizes_deepseek_api_key() {
+        let mut state = AppState::default();
+        state.settings.pure_local_mode = false;
+        state.settings.ai_provider = "deepseek".into();
+        state.settings.deepseek_api_key = "sk-test-deepseek-key".into();
+        state.settings.openai_api_key.clear();
+        state.settings.grok_api_key.clear();
+        state.settings.claude_api_key.clear();
+        let report = compute_automation_readiness(&state);
+        let brain = report
+            .items
+            .iter()
+            .find(|i| i.id == "meeting_brain")
+            .expect("meeting_brain item");
+        assert!(
+            brain.ok,
+            "DeepSeek key must satisfy Meeting brain readiness: {}",
+            brain.detail
+        );
     }
 }

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import type { AgentMemoryView } from "../types/game";
 import type {
   AgentWorkspaceActivityEntry,

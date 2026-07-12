@@ -8,6 +8,7 @@ import {
   itemToPlanCoords,
   rotatedFootprint,
 } from "../../utils/furnitureEditor";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const PADDING = 0.8;
 
@@ -24,6 +25,7 @@ export function FallbackFloorPlan({
   agents = [],
   accentColor = "#5ec8ff",
 }: FallbackFloorPlanProps) {
+  const { t } = useI18n();
   const config = useMemo(
     () => normalizeOfficeVisual(office, buildingId),
     [office, buildingId],
@@ -35,7 +37,7 @@ export function FallbackFloorPlan({
   const deskItems = config.furniture.filter((item) => item.catalog_id.startsWith("desk_"));
 
   return (
-    <svg className="fallback-floor-plan-svg" viewBox={viewBox} role="img" aria-label="Office floor plan">
+    <svg className="fallback-floor-plan-svg" viewBox={viewBox} role="img" aria-label={t("world.floorPlanAria")}>
       {layout.zones.map((zone) => (
         <g key={zone.id}>
           <rect
@@ -69,7 +71,7 @@ export function FallbackFloorPlan({
             className="fallback-floor-furniture"
             transform={`rotate(${(item.rotation_y * 180) / Math.PI} ${coords.x} ${coords.y})`}
           >
-            <title>{entry.label}</title>
+            <title>{t(`furniture.${entry.id}`)}</title>
           </rect>
         );
       })}

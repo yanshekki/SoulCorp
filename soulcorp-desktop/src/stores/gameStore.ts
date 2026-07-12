@@ -172,6 +172,7 @@ export const useGameStore = create<GameStore>((set) => ({
   },
   finance: EMPTY_FINANCE,
   settings: {
+    app_language: "en",
     play_mode: IS_V1 ? "work" : "game",
     random_events_enabled: !IS_V1,
     random_event_chance: 0.15,

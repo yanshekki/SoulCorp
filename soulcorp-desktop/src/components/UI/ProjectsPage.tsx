@@ -1,25 +1,31 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatWorkflowStepBadge } from "../../config/navigation";
+import { useI18n } from "../../i18n/I18nProvider";
+import { mapSections } from "../../i18n/sectionLabels";
 import { AppPageShell } from "./AppPageShell";
 import { ProjectsPanel, PROJECTS_SECTIONS } from "./ProjectsPanel";
 import { WorkflowNextButton } from "./WorkflowNextButton";
 
 export function ProjectsPage() {
+  const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<string>(PROJECTS_SECTIONS[0].id);
+  const navItems = useMemo(
+    () =>
+      mapSections(t, "projects", PROJECTS_SECTIONS).map((section, index) => ({
+        ...section,
+        step: PROJECTS_SECTIONS[index]?.step,
+      })),
+    [t],
+  );
 
   return (
     <AppPageShell
-      title="Projects"
-      subtitle="Directive → sprint → execute"
+      title={t("page.projects.title")}
+      subtitle={t("page.projects.subtitle")}
       badge={formatWorkflowStepBadge("projects")}
-      navTitle="Pipeline"
+      navTitle={t("projects.navTitle")}
       navVariant="pipeline"
-      navItems={PROJECTS_SECTIONS.map((section) => ({
-        id: section.id,
-        label: section.label,
-        hint: section.hint,
-        step: section.step,
-      }))}
+      navItems={navItems}
       activeNavId={activeSection}
       onNavSelect={setActiveSection}
       headerAction={<WorkflowNextButton panel="projects" />}

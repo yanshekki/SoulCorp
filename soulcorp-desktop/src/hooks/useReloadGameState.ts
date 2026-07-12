@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { getHubStatus } from "../services/hubClient";
 import { getOnboardingState } from "../services/onboardingClient";
 import { listCompanies } from "../services/companyClient";
@@ -28,6 +28,7 @@ import type {
   GameEvent,
   GameSettings,
   HubStatus,
+  MeetingHistoryItem,
   MeetingSnapshot,
   TierBenefits,
 } from "../types/game";
@@ -37,6 +38,7 @@ import {
 } from "../services/workspaceClient";
 
 import { clearScrumSnapshotCache } from "../stores/scrumSnapshotCache";
+import { languageFromSettings, translate } from "../i18n";
 
 const BOOTSTRAP_OP = "bootstrap";
 
@@ -238,9 +240,29 @@ export async function reloadGameState(
       setEvents(events);
       setAchievements(achievements.achievements);
       setEndings(achievements.endings);
-      setActiveMeeting(activeMeeting);
+      // Prefer live (incomplete) meeting; else restore most recent completed recap so it survives reload.
+      if (activeMeeting) {
+        setActiveMeeting(activeMeeting);
+      } else {
+        try {
+          const history = await invoke<MeetingHistoryItem[]>("list_meetings", {
+            limit: 1,
+          });
+          const latestId = history[0]?.id;
+          if (latestId) {
+            const last = await invoke<MeetingSnapshot>("get_meeting", {
+              meetingId: latestId,
+            });
+            setActiveMeeting(last);
+          } else {
+            setActiveMeeting(null);
+          }
+        } catch {
+          setActiveMeeting(null);
+        }
+      }
     } catch (error) {
-      setStatusMessage(`Could not load simulation state: ${String(error)}`);
+      setStatusMessage(translate(languageFromSettings(useGameStore.getState().settings), "status.loadSimFailed", { error: String(error) }));
     }
 
     try {
@@ -251,7 +273,7 @@ export async function reloadGameState(
       useWorkspaceStore.getState().preloadFromBootstrap(snapshot, summaries);
     } catch (error) {
       useWorkspaceStore.getState().reset();
-      setStatusMessage(`Workspace load failed: ${String(error)}`);
+      setStatusMessage(translate(languageFromSettings(useGameStore.getState().settings), "status.workspaceLoadFailed", { error: String(error) }));
     }
     const normalizedPanel = normalizePanelForEdition(useGameStore.getState().activePanel);
     if (normalizedPanel !== useGameStore.getState().activePanel) {

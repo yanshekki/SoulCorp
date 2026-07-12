@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { SearchTypeFilter, type SearchTypeFilterProps } from "./SearchTypeFilter";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface SearchFieldProps {
   value: string;
@@ -18,7 +19,7 @@ interface SearchFieldProps {
 export function SearchField({
   value,
   onChange,
-  placeholder = "Search…",
+  placeholder,
   ariaLabel,
   loading = false,
   matchCount,
@@ -28,18 +29,20 @@ export function SearchField({
   onKeyDown,
   typeFilter,
 }: SearchFieldProps) {
+  const { t } = useI18n();
   const inputId = useId();
+  const resolvedPlaceholder = placeholder ?? t("search.placeholder");
   const hasQuery = value.trim().length > 0;
   const showMeta = hasQuery && (loading || matchCount !== undefined || totalCount !== undefined);
 
   let metaText: string | null = null;
   if (loading) {
-    metaText = "Searching…";
+    metaText = t("search.searching");
   } else if (hasQuery && matchCount !== undefined && totalCount !== undefined) {
-    metaText = `${matchCount} of ${totalCount}`;
+    metaText = t("search.matchOf", { match: matchCount, total: totalCount });
   } else if (hasQuery && matchCount !== undefined) {
     metaText =
-      matchCount === 1 ? "1 match" : `${matchCount} matches`;
+      matchCount === 1 ? t("search.matchOne") : t("search.matchMany", { n: matchCount });
   }
 
   return (
@@ -56,7 +59,7 @@ export function SearchField({
           type="search"
           className="search-field-input"
           value={value}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           aria-label={ariaLabel}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
@@ -66,7 +69,7 @@ export function SearchField({
           <button
             type="button"
             className="search-field-clear"
-            aria-label="Clear search"
+            aria-label={t("search.clear")}
             onClick={() => onChange("")}
           >
             ×

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { useEffect, useRef } from "react";
 import { showAchievements, showPauseMenu, simulationAutoRun } from "../config/features";
 import { useGameStore } from "../stores/gameStore";

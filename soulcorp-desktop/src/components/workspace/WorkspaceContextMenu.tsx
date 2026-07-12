@@ -6,6 +6,8 @@ import {
 } from "../../services/workspaceClient";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceListItem } from "../../types/workspaceNav";
+import { confirmDialog } from "../../utils/nativeDialog";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface WorkspaceContextMenuProps {
   item: WorkspaceListItem;
@@ -15,6 +17,7 @@ interface WorkspaceContextMenuProps {
 }
 
 export function WorkspaceContextMenu({ item, x, y, onClose }: WorkspaceContextMenuProps) {
+  const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
   const togglePin = useWorkspaceStore((state) => state.togglePin);
   const openWorkspaceItem = useWorkspaceStore((state) => state.openWorkspaceItem);
@@ -46,7 +49,7 @@ export function WorkspaceContextMenu({ item, x, y, onClose }: WorkspaceContextMe
   }, [onClose]);
 
   const handleDelete = async () => {
-    const confirmed = window.confirm(
+    const confirmed = await confirmDialog(
       `Delete ${item.kind === "file" ? "file" : "page"} "${item.title}"? This cannot be undone.`,
     );
     if (!confirmed) {
@@ -86,7 +89,7 @@ export function WorkspaceContextMenu({ item, x, y, onClose }: WorkspaceContextMe
           onClose();
         }}
       >
-        Open
+        {t("workspace.ctx.open")}
       </button>
       <button
         type="button"
@@ -96,7 +99,7 @@ export function WorkspaceContextMenu({ item, x, y, onClose }: WorkspaceContextMe
           onClose();
         }}
       >
-        {isPinned ? "Unpin" : "Pin"}
+        {isPinned ? t("workspace.unpin") : t("workspace.pin")}
       </button>
       <button
         type="button"
@@ -106,15 +109,15 @@ export function WorkspaceContextMenu({ item, x, y, onClose }: WorkspaceContextMe
           onClose();
         }}
       >
-        Show in Browse
+        {t("workspace.ctx.showBrowse")}
       </button>
       {item.kind === "file" ? (
         <button type="button" role="menuitem" onClick={() => void handleOpenExternal()}>
-          Open externally
+          {t("workspace.ctx.openExternal")}
         </button>
       ) : null}
       <button type="button" role="menuitem" className="danger" onClick={() => void handleDelete()}>
-        Delete
+        {t("workspace.ctx.delete")}
       </button>
     </div>
   );

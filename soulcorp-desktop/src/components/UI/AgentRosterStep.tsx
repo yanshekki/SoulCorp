@@ -13,6 +13,7 @@ import { validateSoulMd } from "../../utils/soulMdValidation";
 import { RecruitAgentDetailPanel } from "./RecruitAgentDetailPanel";
 import { RecruitmentCandidatePicker } from "./RecruitmentCandidatePicker";
 import { SoulMdEditor } from "./SoulMdEditor";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface AgentRosterStepProps {
   pureLocalMode: boolean;
@@ -43,6 +44,7 @@ export function isAgentRosterValid(slots: AgentRosterSlotState[], pureLocalMode:
 }
 
 export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterStepProps) {
+  const { t } = useI18n();
   const [selectedCandidates, setSelectedCandidates] = useState<
     Record<string, RecruitmentCandidate | null>
   >({});
@@ -125,11 +127,8 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
 
   return (
     <section className="onboarding-step agent-roster-step">
-      <h3>Build your founding team</h3>
-      <p className="muted">
-        Use a preset with editable soul.md, or recruit from soulmd-hub — read the description first,
-        then fine-tune soul.md before they join.
-      </p>
+      <h3>{t("roster.title")}</h3>
+      <p className="muted">{t("roster.desc")}</p>
 
       <div className="agent-roster-grid">
         {value.map((slot) => {
@@ -144,9 +143,9 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
             <article key={slot.preset_id} className="agent-roster-card">
               <header className="agent-roster-card-header">
                 <div>
-                  <h4>{preset.name} slot</h4>
+                  <h4>{t("roster.slot", { name: preset.name })}</h4>
                   <p className="muted">
-                    Default: {preset.role} · {preset.department}
+                    {t("roster.default", { role: preset.role, department: preset.department })}
                   </p>
                 </div>
                 <p className="agent-roster-summary">{preset.summary}</p>
@@ -158,19 +157,19 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
                   className={`onboarding-choice ${slot.mode === "preset" ? "selected" : ""}`}
                   onClick={() => setMode(slot.preset_id, "preset")}
                 >
-                  <strong>Use preset</strong>
-                  <span>Start from {preset.name}&apos;s default soul.md.</span>
+                  <strong>{t("roster.usePreset")}</strong>
+                  <span>{t("roster.usePresetDesc", { name: preset.name })}</span>
                 </button>
                 <button
                   type="button"
                   className={`onboarding-choice ${slot.mode === "recruit" ? "selected" : ""}`}
                   onClick={() => setMode(slot.preset_id, "recruit")}
                 >
-                  <strong>Recruit from hub</strong>
+                  <strong>{t("roster.recruitHub")}</strong>
                   <span>
                     {pureLocalMode
-                      ? "Paste a custom soul.md for this role."
-                      : "Browse descriptions, then edit soul.md."}
+                      ? t("roster.recruitLocal")
+                      : t("roster.recruitBrowse")}
                   </span>
                 </button>
               </div>
@@ -206,12 +205,10 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
                     </>
                   ) : (
                     <div className="recruit-agent-detail">
-                      <p className="muted">
-                        Pure Local Mode — write a custom soul.md for this recruit.
-                      </p>
+                      <p className="muted">{t("roster.pureLocal")}</p>
                       <div className="agent-roster-recruit-fields">
                         <label className="field-label">
-                          Role
+                          {t("roster.role")}
                           <input
                             type="text"
                             value={slot.role}
@@ -222,7 +219,7 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
                           />
                         </label>
                         <label className="field-label">
-                          Department
+                          {t("roster.department")}
                           <select
                             value={slot.department}
                             onChange={(event) =>
@@ -255,12 +252,9 @@ export function AgentRosterStep({ pureLocalMode, value, onChange }: AgentRosterS
       </div>
 
       {!rosterValid ? (
-        <p className="agent-roster-hint muted">
-          Complete all three slots — hub recruits need a selected candidate, description-backed
-          soul.md, role, and department.
-        </p>
+        <p className="agent-roster-hint muted">{t("roster.incomplete")}</p>
       ) : (
-        <p className="agent-roster-hint valid-copy">Founding team is ready.</p>
+        <p className="agent-roster-hint valid-copy">{t("roster.ready")}</p>
       )}
     </section>
   );

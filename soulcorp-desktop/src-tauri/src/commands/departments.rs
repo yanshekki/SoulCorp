@@ -1,17 +1,20 @@
 use crate::db::persistence::commit;
 use crate::departments::{
-    build_org_chart, clear_department_head_references, create_department_record,
-    department_exists, ensure_default_departments, list_departments_snapshot, max_departments,
-    rename_department_references, transfer_department_members, would_create_reporting_cycle,
-    DepartmentsSnapshot, OrgChartSnapshot,
+    apply_department_specs, build_org_chart, clear_department_head_references,
+    create_department_record, department_exists, ensure_default_departments,
+    heuristic_department_specs, list_departments_snapshot, max_departments, normalize_specs,
+    rename_department_references, transfer_department_members, try_llm_department_specs,
+    would_create_reporting_cycle, AssignOrgResult, DepartmentsSnapshot, GenerateDepartmentsResult,
+    OrgChartSnapshot,
 };
 use crate::fate::is_system_agent;
 use crate::state::{AgentRecord, AppState};
 use crate::token_budget::ensure_department_wallet;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDepartmentRequest {
     pub name: String,
@@ -54,6 +57,17 @@ pub struct UpdateAgentOrgRequest {
     pub manages_department: Option<Option<String>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GenerateDepartmentsRequest {
+    /// When true (default), only add missing department names (never delete).
+    #[serde(default = "default_true")]
+    pub merge: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
 fn prepare_department_state(state: &mut AppState) {
     ensure_default_departments(state);
 }
@@ -67,14 +81,197 @@ fn find_department_index(state: &AppState, department_id: &str) -> Option<usize>
 
 #[tauri::command]
 pub fn list_departments(state: State<'_, Mutex<AppState>>) -> Result<DepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
     Ok(list_departments_snapshot(&state))
 }
 
+/// Bulk-assign agents to departments + reporting lines.
+///
+/// Uses smart role/department heuristics under a **short** AppState lock.
+/// Does **not** call LLM while holding the global mutex (that froze the desktop).
+/// Optional unlocked LLM refine: set `SOULCORP_ORG_ASSIGN_LLM=1`.
+#[tauri::command]
+pub async fn assign_org_with_ai(app: AppHandle) -> Result<AssignOrgResult, String> {
+    let progress =
+        crate::progress::ProgressReporter::new(app.clone(), "assign_org_with_ai");
+    progress.emit_indeterminate(
+        "Assigning agents to departments and reporting lines…",
+        Some("llm"),
+    );
+
+    let use_llm = matches!(
+        std::env::var("SOULCORP_ORG_ASSIGN_LLM")
+            .ok()
+            .as_deref()
+            .map(str::trim),
+        Some("1") | Some("true") | Some("yes")
+    );
+
+    let app_for_blocking = app.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        // --- Phase 1: short lock — prepare + heuristic (always) ---
+        let (heuristic_raw, llm_ctx) = {
+            let state_mutex = app_for_blocking.state::<Mutex<AppState>>();
+            let mut state = state_mutex.lock_or_recover()?;
+            prepare_department_state(&mut state);
+            let heuristic = crate::departments::org_assign::heuristic_assignments(&state)?;
+            if !use_llm {
+                let sanitized =
+                    crate::departments::org_assign::sanitize_assignments(&state, heuristic)?;
+                if sanitized.is_empty() {
+                    return Err::<AssignOrgResult, String>(
+                        "No valid assignments produced.".into(),
+                    );
+                }
+                let mut result =
+                    crate::departments::org_assign::apply_assignments(&mut state, &sanitized);
+                result.source = "heuristic".into();
+                result.message = format!("{} (smart rules)", result.message);
+                commit(app_for_blocking.clone(), &state)?;
+                return Ok::<AssignOrgResult, String>(result);
+            }
+            // Snapshot everything needed for unlocked LLM, then drop the lock.
+            let context = crate::departments::org_assign::build_assign_context(&state);
+            let (agent_id, department) = {
+                let (a, d) = crate::departments::org_assign::pick_billing_agent_public(&state);
+                (a, d)
+            };
+            let settings = state.settings.clone();
+            let hub = state.hub.clone();
+            let providers = state.department_ai_providers.clone();
+            (
+                heuristic,
+                Some((context, agent_id, department, settings, hub, providers)),
+            )
+        }; // AppState unlocked here
+
+        // --- Phase 2: optional LLM without holding AppState ---
+        let raw = if let Some((context, agent_id, department, settings, hub, providers)) = llm_ctx {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let ctx = context.clone();
+            std::thread::spawn(move || {
+                let out = crate::departments::org_assign::try_llm_assignments_detached(
+                    &settings,
+                    &hub,
+                    &providers,
+                    &ctx,
+                    agent_id,
+                    department,
+                );
+                let _ = tx.send(out);
+            });
+            match rx.recv_timeout(std::time::Duration::from_secs(15)) {
+                Ok(Some((list, _charge))) => list,
+                _ => heuristic_raw,
+            }
+        } else {
+            heuristic_raw
+        };
+
+        // --- Phase 3: short lock — sanitize + apply ---
+        let state_mutex = app_for_blocking.state::<Mutex<AppState>>();
+        let mut state = state_mutex.lock_or_recover()?;
+        prepare_department_state(&mut state);
+        let sanitized = crate::departments::org_assign::sanitize_assignments(&state, raw)?;
+        if sanitized.is_empty() {
+            return Err::<AssignOrgResult, String>("No valid assignments produced.".into());
+        }
+        let mut result =
+            crate::departments::org_assign::apply_assignments(&mut state, &sanitized);
+        result.source = if use_llm {
+            "llm-or-heuristic".into()
+        } else {
+            "heuristic".into()
+        };
+        result.message = format!("{} ({})", result.message, result.source);
+        commit(app_for_blocking.clone(), &state)?;
+        Ok::<AssignOrgResult, String>(result)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    progress.finish(&outcome.message);
+    progress.clear();
+    Ok(outcome)
+}
+
+/// LLM (or heuristic) generation of a full department org from current projects.
+#[tauri::command]
+pub async fn generate_departments_from_projects(
+    request: GenerateDepartmentsRequest,
+    _app_state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<GenerateDepartmentsResult, String> {
+    let _ = request.merge; // v1 always merges; reserved for future replace mode
+
+    let progress = crate::progress::ProgressReporter::new(
+        app.clone(),
+        "generate_departments_from_projects",
+    );
+    progress.emit_indeterminate("Designing company departments from projects…", Some("llm"));
+
+    let app_for_blocking = app.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let state_mutex = app_for_blocking.state::<Mutex<AppState>>();
+        let mut state = state_mutex.lock_or_recover()?;
+        prepare_department_state(&mut state);
+
+        if state.departments.len() >= max_departments() {
+            return Err(format!(
+                "Company already has the maximum of {} departments.",
+                max_departments()
+            ));
+        }
+
+        let (raw_specs, source) = match try_llm_department_specs(&mut state) {
+            Some(specs) => (specs, "llm"),
+            None => (heuristic_department_specs(&state), "heuristic"),
+        };
+
+        let (normalized, skipped_existing) = normalize_specs(raw_specs, &state);
+        if normalized.is_empty() {
+            let snapshot = list_departments_snapshot(&state);
+            return Ok(GenerateDepartmentsResult {
+                snapshot,
+                created: Vec::new(),
+                skipped_existing,
+                source: source.to_string(),
+                message: "No new departments to add — org already covers project hints.".into(),
+            });
+        }
+
+        let created = apply_department_specs(&mut state, &normalized);
+        let snapshot = list_departments_snapshot(&state);
+        commit(app_for_blocking.clone(), &state)?;
+        let message = if created.is_empty() {
+            "No new departments created.".into()
+        } else {
+            format!(
+                "Created {} department(s) from project portfolio ({source}): {}.",
+                created.len(),
+                created.join(", ")
+            )
+        };
+        Ok(GenerateDepartmentsResult {
+            snapshot,
+            created,
+            skipped_existing,
+            source: source.to_string(),
+            message,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    progress.finish(&outcome.message);
+    progress.clear();
+    Ok(outcome)
+}
+
 #[tauri::command]
 pub fn get_org_chart(state: State<'_, Mutex<AppState>>) -> Result<OrgChartSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
     Ok(build_org_chart(&state))
 }
@@ -85,7 +282,7 @@ pub fn create_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<DepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
 
     let name = request.name.trim();
@@ -126,7 +323,7 @@ pub fn update_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<DepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
 
     let index = find_department_index(&state, &request.department_id)
@@ -177,7 +374,7 @@ pub fn rename_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<DepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
 
     let new_name = request.new_name.trim();
@@ -211,7 +408,7 @@ pub fn delete_department(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<DepartmentsSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
 
     if state.departments.len() <= 1 {
@@ -250,7 +447,7 @@ pub fn update_agent_org(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     prepare_department_state(&mut state);
 
     let agent = state

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { DesignPresetPicker } from "../design/DesignPresetPicker";
 import { presetDesignFor } from "../../data/presetDesigns";
@@ -29,38 +29,42 @@ import {
   toProjectSetupPayload,
   type ProjectSetupState,
 } from "./ProjectSetupStep";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const V1_STEPS = ["welcome", "agents", "projects", "connectivity"] as const;
 const V2_STEPS = ["welcome", "style", "agents", "projects", "connectivity", "design", "tour"] as const;
 
-const STEP_LABELS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], string> = {
-  welcome: "Company",
-  style: "Mode",
-  agents: "Agents",
-  projects: "Projects",
-  connectivity: "Connect",
-  design: "Design",
-  tour: "Tour",
+type OnboardingStepId = (typeof V1_STEPS)[number] | (typeof V2_STEPS)[number];
+
+const STEP_LABEL_KEYS: Record<OnboardingStepId, string> = {
+  welcome: "onboarding.step.welcome",
+  style: "onboarding.step.style",
+  agents: "onboarding.step.agents",
+  projects: "onboarding.step.projects",
+  connectivity: "onboarding.step.connectivity",
+  design: "onboarding.step.design",
+  tour: "onboarding.step.tour",
 };
 
-const STEP_HINTS: Record<(typeof V1_STEPS)[number] | (typeof V2_STEPS)[number], string> = {
-  welcome: "Enter your company profile to continue.",
-  style: "Choose how you want to run this company.",
-  agents: "Pick preset agents or recruit from hub — edit each soul.md before they join.",
-  projects: "Name your first project — backlog and sprints start empty.",
-  connectivity: "Choose cloud-connected or pure local operation.",
-  design: "Optional starting look for your 3D campus.",
-  tour: "Quick tour of your command center.",
+const STEP_HINT_KEYS: Record<OnboardingStepId, string> = {
+  welcome: "onboarding.desc.welcome",
+  style: "onboarding.desc.style",
+  agents: "onboarding.desc.agents",
+  projects: "onboarding.desc.projects",
+  connectivity: "onboarding.desc.connectivity",
+  design: "onboarding.desc.design",
+  tour: "onboarding.desc.tour",
 };
 
 const TOUR_ITEMS = [
-  { panel: "Office", detail: "Watch agents move through the 3D office and track KPIs." },
-  { panel: "Workspace", detail: "Write meeting notes, journals, and company docs." },
-  { panel: "Marketplace", detail: "Accept gigs, deliver work, and collect USDT payouts." },
-  { panel: "Meeting", detail: "Run multi-agent meetings that affect morale and revenue." },
+  { panelKey: "nav.office", detailKey: "onboarding.tour.office" },
+  { panelKey: "nav.workspace", detailKey: "onboarding.tour.workspace" },
+  { panelKey: "nav.marketplace", detailKey: "onboarding.tour.marketplace" },
+  { panelKey: "nav.meeting", detailKey: "onboarding.tour.meeting" },
 ];
 
 export function OnboardingWizard() {
+  const { t } = useI18n();
   const onboardingCompleted = useGameStore((state) => state.onboardingCompleted);
   const onboardingReady = useGameStore((state) => state.onboardingReady);
   const setOnboardingCompleted = useGameStore((state) => state.setOnboardingCompleted);
@@ -113,15 +117,15 @@ export function OnboardingWizard() {
 
   const goNext = () => {
     if (step === "welcome" && companyName.trim().length < 2) {
-      setStatusMessage("Enter a company name with at least 2 characters.");
+      setStatusMessage(t("createCompany.needName"));
       return;
     }
     if (step === "agents" && !isAgentRosterValid(agentRoster, pureLocalMode)) {
-      setStatusMessage("Complete all three agent slots with valid soul.md content.");
+      setStatusMessage(t("createCompany.needAgents"));
       return;
     }
     if (step === "projects" && !isProjectSetupValid(projectSetup)) {
-      setStatusMessage("Enter a project title with at least 2 characters.");
+      setStatusMessage(t("createCompany.needProject"));
       return;
     }
     setStepIndex((current) => Math.min(current + 1, steps.length - 1));
@@ -133,15 +137,15 @@ export function OnboardingWizard() {
 
   const finish = async () => {
     if (companyName.trim().length < 2) {
-      setStatusMessage("Enter a company name with at least 2 characters.");
+      setStatusMessage(t("createCompany.needName"));
       return;
     }
     if (!isAgentRosterValid(agentRoster, pureLocalMode)) {
-      setStatusMessage("Complete all three agent slots with valid soul.md content.");
+      setStatusMessage(t("createCompany.needAgents"));
       return;
     }
     if (!isProjectSetupValid(projectSetup)) {
-      setStatusMessage("Enter a project title with at least 2 characters.");
+      setStatusMessage(t("createCompany.needProject"));
       return;
     }
     setSubmitting(true);
@@ -209,60 +213,62 @@ export function OnboardingWizard() {
         }`}
       >
         <header className="onboarding-header">
-          <p className="modal-eyebrow">First launch setup</p>
-          <h2 id="onboarding-title">Set up your first company</h2>
+          <p className="modal-eyebrow">{t("onboarding.firstLaunch")}</p>
+          <h2 id="onboarding-title">{t("onboarding.setupTitle")}</h2>
           <p className="muted">
-            Step {stepIndex + 1} of {steps.length} — {STEP_LABELS[step]}: {STEP_HINTS[step]}
+            Step {stepIndex + 1} of {steps.length} — {t(STEP_LABEL_KEYS[step])}:{" "}
+            {t(STEP_HINT_KEYS[step])}
           </p>
         </header>
 
-        <div className="onboarding-progress onboarding-progress-labeled" aria-label="Onboarding progress">
+        <div
+          className="onboarding-progress onboarding-progress-labeled"
+          aria-label={t("onboarding.progress")}
+        >
           {steps.map((item, index) => (
             <span
               key={item}
               className={`onboarding-progress-item ${index <= stepIndex ? "active" : ""}`}
             >
               <span className="onboarding-dot" aria-hidden="true" />
-              <span className="onboarding-progress-label">{STEP_LABELS[item]}</span>
+              <span className="onboarding-progress-label">{t(STEP_LABEL_KEYS[item])}</span>
             </span>
           ))}
         </div>
 
         {step === "welcome" ? (
           <section className="onboarding-step">
-            <h3>Company profile</h3>
-            <p className="muted">
-              Tell us about the company you want to run. You can create more companies later.
-            </p>
+            <h3>{t("onboarding.companyProfile")}</h3>
+            <p className="muted">{t("onboarding.companyProfileDesc")}</p>
             <label className="field-label">
-              Company name
+              {t("onboarding.companyName")}
               <input
                 type="text"
                 value={companyName}
                 onChange={(event) => setCompanyNameInput(event.target.value)}
                 maxLength={48}
                 autoFocus
-                placeholder="e.g. Nova Labs"
+                placeholder={t("onboarding.namePh")}
               />
             </label>
             <label className="field-label">
-              Industry
+              {t("onboarding.industry")}
               <input
                 type="text"
                 value={industry}
                 onChange={(event) => setIndustry(event.target.value)}
                 maxLength={64}
-                placeholder="e.g. AI SaaS, Game Studio"
+                placeholder={t("onboarding.industryPh")}
               />
             </label>
             <label className="field-label">
-              Tagline / mission
+              {t("onboarding.tagline")}
               <input
                 type="text"
                 value={tagline}
                 onChange={(event) => setTagline(event.target.value)}
                 maxLength={120}
-                placeholder="What is this company trying to build?"
+                placeholder={t("createCompany.taglinePh")}
               />
             </label>
           </section>
@@ -270,7 +276,7 @@ export function OnboardingWizard() {
 
         {step === "style" ? (
           <section className="onboarding-step onboarding-step-style">
-            <h3>Game Mode or Work Mode?</h3>
+            <h3>{t("onboarding.modeQuestion")}</h3>
             <PlayModePicker value={playModeConfig} onChange={setPlayModeConfig} />
           </section>
         ) : null}
@@ -278,26 +284,23 @@ export function OnboardingWizard() {
         {step === "agents" ? (
           <>
             <div className="onboarding-step onboarding-step-inline-choice">
-              <p className="muted">
-                Recruitment uses soulmd-hub when connected. Switch to Pure Local if you want custom
-                soul.md only.
-              </p>
+              <p className="muted">{t("onboarding.recruitNote")}</p>
               <div className="onboarding-choice-grid agent-roster-mode-grid">
                 <button
                   type="button"
                   className={`onboarding-choice ${!pureLocalMode ? "selected" : ""}`}
                   onClick={() => setPureLocalMode(false)}
                 >
-                  <strong>Hub recruitment</strong>
-                  <span>Browse hub candidates for recruit slots.</span>
+                  <strong>{t("onboarding.hubRecruit")}</strong>
+                  <span>{t("onboarding.hubRecruitDesc")}</span>
                 </button>
                 <button
                   type="button"
                   className={`onboarding-choice ${pureLocalMode ? "selected" : ""}`}
                   onClick={() => setPureLocalMode(true)}
                 >
-                  <strong>Pure Local recruit</strong>
-                  <span>Paste custom soul.md for recruit slots.</span>
+                  <strong>{t("onboarding.localRecruit")}</strong>
+                  <span>{t("onboarding.localRecruitDesc")}</span>
                 </button>
               </div>
             </div>
@@ -319,11 +322,8 @@ export function OnboardingWizard() {
 
         {step === "connectivity" ? (
           <section className="onboarding-step">
-            <h3>Cloud or local?</h3>
-            <p className="muted">
-              soulmd-hub powers marketplace gigs, recruitment, and cloud sync. Pure Local Mode keeps
-              everything on your machine with mock AI dialogue.
-            </p>
+            <h3>{t("onboarding.cloudOrLocal")}</h3>
+            <p className="muted">{t("onboarding.cloudOrLocalDesc")}</p>
             {!showOffice3D ? (
               <p className="muted onboarding-llm-hint">
                 After setup, open <strong>Settings → AI Provider</strong> to connect Ollama or an API
@@ -337,22 +337,22 @@ export function OnboardingWizard() {
                 className={`onboarding-choice ${!pureLocalMode ? "selected" : ""}`}
                 onClick={() => setPureLocalMode(false)}
               >
-                <strong>Connected (recommended)</strong>
-                <span>Marketplace, recruitment, and optional cloud sync.</span>
+                <strong>{t("onboarding.connected")}</strong>
+                <span>{t("onboarding.connectedDesc")}</span>
               </button>
               <button
                 type="button"
                 className={`onboarding-choice ${pureLocalMode ? "selected" : ""}`}
                 onClick={() => setPureLocalMode(true)}
               >
-                <strong>Pure Local Mode</strong>
-                <span>Offline-only play. Marketplace uses your last hub sync cache.</span>
+                <strong>{t("onboarding.pureLocalChoice")}</strong>
+                <span>{t("onboarding.pureLocalChoiceDesc")}</span>
               </button>
             </div>
             {!pureLocalMode ? (
               <>
                 <label className="field-label">
-                  Meeting brain (optional)
+                  {t("onboarding.meetingBrainOpt")}
                   <MeetingBrainPicker
                     catalog={runtimeCatalog}
                     value={meetingBrainId}
@@ -361,7 +361,7 @@ export function OnboardingWizard() {
                   />
                 </label>
                 <label className="field-label">
-                  Execution runtime (optional)
+                  {t("onboarding.executionRuntimeOpt")}
                   <ExecutionRuntimePicker
                     catalog={runtimeCatalog}
                     value={executionRuntimeId}
@@ -369,9 +369,7 @@ export function OnboardingWizard() {
                     onChange={setExecutionRuntimeId}
                   />
                 </label>
-                <p className="muted">
-                  Defaults to Ollama meetings and in-app LLM execution. Change anytime in Settings.
-                </p>
+                <p className="muted">{t("onboarding.defaultsNote")}</p>
               </>
             ) : null}
           </section>
@@ -379,11 +377,8 @@ export function OnboardingWizard() {
 
         {step === "design" ? (
           <section className="onboarding-step">
-            <h3>Design your 3D campus</h3>
-            <p className="muted">
-              Pick a starting look for buildings and campus theme. You can fully customize departments,
-              offices, and agent appearances later in <strong>3D Design</strong>.
-            </p>
+            <h3>{t("onboarding.designCampus")}</h3>
+            <p className="muted">{t("onboarding.designCampusDesc")}</p>
             <DesignPresetPicker
               compact
               selectedId={designPresetId}
@@ -409,42 +404,41 @@ export function OnboardingWizard() {
               />
             ) : null}
             {designPresetId ? (
-              <p className="onboarding-ready-copy">Selected preset: {designPresetId}</p>
+              <p className="onboarding-ready-copy">
+                {t("onboarding.selectedPreset", { id: designPresetId })}
+              </p>
             ) : (
-              <p className="muted">Optional — skip with Next to keep the classic campus.</p>
+              <p className="muted">{t("onboarding.skipDesign")}</p>
             )}
           </section>
         ) : null}
 
         {step === "tour" ? (
           <section className="onboarding-step">
-            <h3>Your command center</h3>
-            <p className="muted">
-              Use the top navigation to switch panels while agents work in the 3D office.
-            </p>
+            <h3>{t("onboarding.commandCenter")}</h3>
+            <p className="muted">{t("onboarding.commandCenterDesc")}</p>
             <ul className="onboarding-tour-list">
               {TOUR_ITEMS.map((item) => (
-                <li key={item.panel}>
-                  <strong>{item.panel}</strong>
-                  <span>{item.detail}</span>
+                <li key={item.panelKey}>
+                  <strong>{t(item.panelKey)}</strong>
+                  <span>{t(item.detailKey)}</span>
                 </li>
               ))}
             </ul>
             <p className="onboarding-ready-copy">
-              {companyName.trim()} is ready. Your founding agents join with the soul.md profiles you
-              configured
-              {playModeConfig.playMode === "game" ? ", and Fate will watch from the Meta office" : ""}.
+              {t("onboarding.companyReady", { name: companyName.trim() || "—" })}
+              {playModeConfig.playMode === "game" ? "" : ""}
             </p>
           </section>
         ) : null}
 
         <footer className="onboarding-actions">
           <button type="button" onClick={goBack} disabled={stepIndex === 0 || submitting}>
-            Back
+            {t("common.previous")}
           </button>
           {!isLastStep ? (
             <button type="button" className="primary-action" onClick={goNext}>
-              Next
+              {t("common.next")}
             </button>
           ) : (
             <button
@@ -453,7 +447,11 @@ export function OnboardingWizard() {
               onClick={() => void finish()}
               disabled={submitting}
             >
-              {submitting ? "Starting..." : showOffice3D ? "Start simulation" : "Get started"}
+              {submitting
+                ? t("onboarding.starting")
+                : showOffice3D
+                  ? t("onboarding.startSim")
+                  : t("onboarding.getStarted")}
             </button>
           )}
         </footer>

@@ -11,10 +11,12 @@ import {
   type RenderStatus,
 } from "./world/ThreeOfficeRenderer";
 import { probeWebGL } from "./world/webglDiagnostics";
+import { useI18n } from "../i18n/I18nProvider";
 
 type SceneMode = "3d" | "fallback";
 
 export function GameScene() {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLElement>(null);
   const size = useContainerSize(containerRef);
   const pixelFilter = useGameStore((state) => state.settings.pixel_filter_enabled);
@@ -98,7 +100,7 @@ export function GameScene() {
       className={`game-scene ${pixelFilter ? "pixel-filter" : ""}${
         worldView === "interior" ? " game-scene--interior" : " game-scene--campus"
       }`}
-      aria-label="Isometric office world"
+      aria-label={t("world.officeAria")}
     >
       <div className="game-scene-sky" style={{ background: skyBackground }} aria-hidden />
       {!ready ? (
@@ -120,10 +122,10 @@ export function GameScene() {
           <p>{errorMessage}</p>
           <div className="scene-render-error-actions">
             <button type="button" onClick={handleRetry3d}>
-              Retry 3D
+              {t("world.retry3d")}
             </button>
             <button type="button" onClick={() => setForcedFallback(true)}>
-              Use map view
+              {t("world.useMapView")}
             </button>
           </div>
         </div>

@@ -1,12 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { audioDirector } from "../audio/AudioDirector";
 import { useEffect, useState } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { totalCompanyTokens } from "../utils/companyState";
 import { openAgentWorkspace, openDepartmentWorkspace } from "../utils/openWorkspacePage";
 import type { InternalProject } from "../types/game";
+import { useI18n } from "../i18n/I18nProvider";
 
 export function BuildingModal() {
+  const { t } = useI18n();
   const selectedBuilding = useGameStore((state) => state.selectedBuilding);
   const worldView = useGameStore((state) => state.worldView);
   const selectBuilding = useGameStore((state) => state.selectBuilding);
@@ -61,12 +63,12 @@ export function BuildingModal() {
             <h2>{selectedBuilding.name}</h2>
           </div>
           <button type="button" onClick={() => selectBuilding(null)}>
-            Back to campus
+            {t("building.backToCampus")}
           </button>
         </header>
         <p>{selectedBuilding.description}</p>
         <p className="muted building-zoom-hint">
-          Click the door on campus or use Enter building below. Back to campus closes this panel.
+          {t("building.zoomHint")}
         </p>
 
         <div className="building-modal-actions">
@@ -80,7 +82,7 @@ export function BuildingModal() {
               enterInterior(selectedBuilding.id);
             }}
           >
-            Enter building
+            {t("building.enterBuilding")}
           </button>
           <button
             type="button"
@@ -92,43 +94,43 @@ export function BuildingModal() {
               )
             }
           >
-            Open department workspace
+            {t("building.openDeptWorkspace")}
           </button>
         </div>
 
         <section className="building-stats-grid">
           <article>
-            <span>Agents</span>
+            <span>{t("building.agents")}</span>
             <strong>{departmentRecords.length}</strong>
           </article>
           <article>
-            <span>Working now</span>
+            <span>{t("building.workingNow")}</span>
             <strong>{workingAgents}</strong>
           </article>
           <article>
-            <span>Avg morale</span>
+            <span>{t("building.avgMorale")}</span>
             <strong>{(avgMorale * 100).toFixed(0)}%</strong>
           </article>
           <article>
-            <span>Active projects</span>
+            <span>{t("building.activeProjects")}</span>
             <strong>{projectsError ? "—" : activeProjects}</strong>
           </article>
           <article>
-            <span>Company tokens</span>
+            <span>{t("building.companyTokens")}</span>
             <strong>{totalCompanyTokens(finance).toLocaleString()}</strong>
           </article>
         </section>
 
         {projectsError ? (
           <p className="hub-warning" role="status">
-            Could not load projects: {projectsError}
+            {t("building.projectsLoadError", { error: projectsError })}
           </p>
         ) : null}
 
         <section>
-          <h3>Agents in this area</h3>
+          <h3>{t("building.agentsInArea")}</h3>
           {departmentRecords.length === 0 ? (
-            <p className="muted">No agents assigned yet.</p>
+            <p className="muted">{t("building.noAgents")}</p>
           ) : (
             <ul>
               {departmentRecords.map((record) => {
@@ -145,7 +147,7 @@ export function BuildingModal() {
                       className="building-agent-workspace-link"
                       onClick={() => void openAgentWorkspace(record.id, record.name)}
                     >
-                      Workspace
+                      {t("building.workspace")}
                     </button>
                   </li>
                 );

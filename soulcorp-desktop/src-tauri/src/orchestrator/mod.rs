@@ -3,7 +3,10 @@
 use crate::ai::{self, provider::ChatRequest, BilledChatRequest};
 use crate::commands::tier::ensure_agent_capacity;
 use crate::meeting::run_automated_meeting;
-use crate::scrum::{issue_co_ceo_directive, types::DirectiveStatus, types::WorkNodeStatus};
+use crate::scrum::{
+    issue_co_ceo_directive,
+    types::{DirectiveStatus, WorkNodeKind, WorkNodeStatus},
+};
 use crate::soul::parse_soul_content;
 use crate::state::{AgentRecord, AppState};
 use crate::token_budget::total_company_tokens;
@@ -81,14 +84,50 @@ pub fn apply_orchestrator_tick(
 
     state.orchestrator.last_tick_at = Some(now.to_rfc3339());
 
+    // Skip automated LLM meetings while AppState is locked (worker tick) — multi-turn
+    // chat_with_fallback freezes the UI. Use manual / unlocked meeting paths instead.
     if state.settings.orchestrator_auto_meeting && blocked_tasks >= 2 {
-        try_auto_meeting(state, app, blocked_tasks, &mut report);
+        report.messages.push(format!(
+            "Orchestrator noted {blocked_tasks} blocked task(s) — open a meeting from Meeting panel (auto LLM meeting disabled under lock)."
+        ));
     }
 
     if open_directives > 0 && blocked_tasks < 2 {
-        report
-            .messages
-            .push("Orchestrator waiting for open directives to clear.".into());
+        let unassigned_ready = state
+            .work_nodes
+            .iter()
+            .filter(|n| {
+                n.kind == WorkNodeKind::Task
+                    && n.assignee_agent_id.is_none()
+                    && matches!(n.status, WorkNodeStatus::Ready | WorkNodeStatus::InSprint)
+            })
+            .count();
+        let msg = if unassigned_ready > 0 {
+            format!(
+                "Orchestrator holding: {open_directives} open directive(s); {unassigned_ready} unassigned task(s) — worker should assign/schedule before issuing more."
+            )
+        } else {
+            format!(
+                "Orchestrator holding: {open_directives} open directive(s) still executing — waiting for tasks to finish."
+            )
+        };
+        // Avoid flooding recent_log with the same line every force tick.
+        let already = state
+            .orchestrator
+            .recent_log
+            .last()
+            .is_some_and(|last| last == &msg || last.starts_with("Orchestrator holding:") || last.starts_with("Orchestrator waiting for open directives"));
+        if !already || force {
+            // On force/stall, log once per distinct situation (replace spam with one diagnostic).
+            if !state
+                .orchestrator
+                .recent_log
+                .last()
+                .is_some_and(|last| last == &msg)
+            {
+                report.messages.push(msg);
+            }
+        }
         push_orchestrator_log(state, &report.messages);
         return report;
     }
@@ -202,17 +241,9 @@ struct PlannedDirective {
 }
 
 fn generate_directives(state: &mut AppState) -> Vec<PlannedDirective> {
-    let use_llm =
-        !state.settings.pure_local_mode && state.settings.ai_provider != "mock";
-
-    if use_llm {
-        if let Some(co_ceo_id) = state.co_ceo.agent_id.clone() {
-            if let Ok(directives) = run_briefing_sync(state, &co_ceo_id) {
-                return directives;
-            }
-        }
-    }
-
+    // IMPORTANT: This function is called while AppState is locked (worker tick).
+    // Never call LLM here — chat_with_fallback_billed freezes the entire UI.
+    // LLM briefings belong in an unlocked path if re-enabled later.
     rule_based_directives(state)
 }
 
@@ -257,11 +288,16 @@ fn run_briefing_sync(state: &mut AppState, co_ceo_id: &str) -> Result<Vec<Planne
 }
 
 fn rule_based_directives(state: &AppState) -> Vec<PlannedDirective> {
+    let lang = crate::i18n::language_from_settings(&state.settings);
     let departments = crate::departments::department_names(state);
     let fallback = departments
         .first()
         .cloned()
-        .unwrap_or_else(|| "Engineering".to_string());
+        .unwrap_or_else(|| match lang {
+            crate::i18n::AppLanguage::En => "Engineering".to_string(),
+            crate::i18n::AppLanguage::ZhHant => "工程".to_string(),
+            crate::i18n::AppLanguage::ZhHans => "工程".to_string(),
+        });
 
     let project = state
         .projects
@@ -272,30 +308,24 @@ fn rule_based_directives(state: &AppState) -> Vec<PlannedDirective> {
                 .then(a.progress.partial_cmp(&b.progress).unwrap_or(std::cmp::Ordering::Equal))
         });
 
-    let vision_hint = if state.company_vision.trim().is_empty() {
-        String::new()
-    } else {
-        format!(" Align with company vision: {}.", state.company_vision.trim())
-    };
+    let vision_hint = crate::i18n::vision_hint_suffix(lang, &state.company_vision);
 
     let Some(project) = project else {
         return vec![PlannedDirective {
-            title: "Define company roadmap".into(),
-            description: format!(
-                "Create the first internal project and assign a PM.{vision_hint}"
-            ),
+            title: crate::i18n::orchestrator_define_roadmap_title(lang),
+            description: crate::i18n::orchestrator_define_roadmap_body(lang, &vision_hint),
             target_department: fallback,
         }];
     };
 
     vec![PlannedDirective {
-        title: format!("Advance {}", project.title),
-        description: format!(
-            "Push {} toward delivery. Current progress {:.0}%. Owner department: {}.{}",
-            project.title,
+        title: crate::i18n::orchestrator_advance_title(lang, &project.title),
+        description: crate::i18n::orchestrator_advance_description(
+            lang,
+            &project.title,
             project.progress * 100.0,
-            project.owner_department,
-            vision_hint
+            &project.owner_department,
+            &vision_hint,
         ),
         target_department: project.owner_department.clone(),
     }]

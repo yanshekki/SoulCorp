@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::lock_util::MutexExt;
 struct WorkspaceCtx {
     company_id: String,
     app_data_dir: PathBuf,
@@ -99,7 +100,7 @@ fn storage_for_app(
 }
 
 fn storage_for_app_handle(app: &AppHandle, state: &State<'_, Mutex<AppState>>) -> Result<WorkspaceStorage, String> {
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     storage_for_app(app, &locked, false)
 }
 
@@ -107,7 +108,7 @@ fn storage_for_app_handle_sync(
     app: &AppHandle,
     state: &State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceStorage, String> {
-    let locked = state.lock().map_err(|e| e.to_string())?;
+    let locked = state.lock_or_recover()?;
     storage_for_app(app, &locked, true)
 }
 
@@ -117,7 +118,7 @@ pub async fn sync_workspace_organization_cmd(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSnapshot, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, true)?
     };
     run_workspace_read(ctx, |storage| storage.list_snapshot()).await
@@ -131,7 +132,7 @@ pub async fn init_workspace(
     let progress = ProgressReporter::new(app.clone(), "workspace_init");
     progress.emit_percent("Syncing workspace folders…", 40.0, Some("folders"));
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, true)?
     };
     progress.emit_percent("Building workspace index…", 80.0, Some("index"));
@@ -147,7 +148,7 @@ pub async fn list_workspace_snapshot(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSnapshot, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, false)?
     };
     run_workspace_read(ctx, |storage| storage.list_snapshot()).await
@@ -159,7 +160,7 @@ pub async fn list_workspace_summaries(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSummaries, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, false)?
     };
     run_workspace_read(ctx, |storage| storage.list_summaries()).await
@@ -172,7 +173,7 @@ pub async fn list_workspace_folder_children(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceFolderChildren, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, false)?
     };
     run_workspace_read(ctx, move |storage| storage.list_folder_children(&folder_id)).await
@@ -185,7 +186,7 @@ pub async fn resolve_workspace_items(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceSummaries, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, false)?
     };
     run_workspace_read(ctx, move |storage| storage.resolve_items(&request)).await
@@ -197,7 +198,7 @@ pub async fn list_workspace_tree(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspaceTree, String> {
     let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         WorkspaceCtx::from_state(&app, &locked, false)?
     };
     run_workspace_read(ctx, |storage| storage.list_tree()).await
@@ -209,23 +210,28 @@ pub async fn get_workspace_page(
     page_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
-    let company_id = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
-        if locked.company_id.is_empty() {
-            return Err("Create a company before using the workspace.".to_string());
+    use crate::app_log::{LogCategory, LogErr};
+    let result = async {
+        let company_id = {
+            let locked = state.lock_or_recover()?;
+            if locked.company_id.is_empty() {
+                return Err("Create a company before using the workspace.".to_string());
+            }
+            locked.company_id.clone()
+        };
+        if let Some(page) = get_cached_page(&company_id, &page_id) {
+            return Ok(page);
         }
-        locked.company_id.clone()
-    };
-    if let Some(page) = get_cached_page(&company_id, &page_id) {
-        return Ok(page);
+        let ctx = {
+            let locked = state.lock_or_recover()?;
+            WorkspaceCtx::from_state(&app, &locked, false)?
+        };
+        let page = run_workspace_read(ctx, move |storage| storage.get_page(&page_id)).await?;
+        put_cached_page(&company_id, &page);
+        Ok(page)
     }
-    let ctx = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
-        WorkspaceCtx::from_state(&app, &locked, false)?
-    };
-    let page = run_workspace_read(ctx, move |storage| storage.get_page(&page_id)).await?;
-    put_cached_page(&company_id, &page);
-    Ok(page)
+    .await;
+    result.log_err(&app, LogCategory::Workspace, "get_workspace_page")
 }
 
 #[tauri::command]
@@ -236,7 +242,7 @@ pub fn create_workspace_page(
 ) -> Result<WorkspacePage, String> {
     let storage = storage_for_app_handle_sync(&app, &state)?;
     let page = storage.create_page(&request, "player")?;
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.stats.pages_created += 1;
     commit(app.clone(), &state)?;
     Ok(page)
@@ -249,7 +255,7 @@ pub fn update_workspace_page(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<WorkspacePage, String> {
     let company_id = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         locked.company_id.clone()
     };
     let storage = storage_for_app_handle(&app, &state)?;
@@ -259,6 +265,131 @@ pub fn update_workspace_page(
         put_cached_page(&company_id, &page);
     }
     Ok(page)
+}
+
+/// LLM-translate a single workspace page into `target_language` (or company app language).
+/// Runs off the async runtime; never holds AppState during the LLM HTTP call.
+#[tauri::command]
+pub async fn translate_workspace_page_cmd(
+    app: AppHandle,
+    page_id: String,
+    target_language: Option<String>,
+) -> Result<WorkspacePage, String> {
+    let app2 = app.clone();
+    let page_id2 = page_id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state_mutex = app2.state::<Mutex<AppState>>();
+        let storage = {
+            let locked = state_mutex.lock_or_recover()?;
+            if locked.company_id.is_empty() {
+                return Err("Create a company before using the workspace.".to_string());
+            }
+            let dir = app2.path().app_data_dir().map_err(|e| e.to_string())?;
+            WorkspaceStorage::new(company_workspace_root(&dir, &locked.company_id))?
+        };
+
+        let (runtime, target, company_id) = {
+            let locked = state_mutex.lock_or_recover()?;
+            let target = target_language
+                .as_deref()
+                .map(crate::i18n::parse_language)
+                .unwrap_or_else(|| crate::i18n::language_from_settings(&locked.settings));
+            let runtime = crate::i18n::snapshot_translate_runtime(&locked);
+            if !locked.settings.pure_local_mode {
+                crate::token_budget::can_afford(&locked, &runtime.agent_id, 2_000)?;
+            }
+            (runtime, target, locked.company_id.clone())
+        };
+        let (page, charges) = crate::i18n::translate_workspace_page_detached(
+            &storage, &runtime, &page_id2, target,
+        )?;
+        {
+            let mut locked = state_mutex.lock_or_recover()?;
+            for charge in charges {
+                let _ = crate::token_budget::charge_tokens(&mut locked, charge);
+            }
+            if !company_id.is_empty() {
+                invalidate_cached_page(&company_id, &page_id2);
+                put_cached_page(&company_id, &page);
+            }
+            let _ = commit(app2.clone(), &locked);
+        }
+        Ok(page)
+    })
+    .await
+    .map_err(|e| format!("Translate task failed: {e}"))?
+}
+
+/// LLM-translate free text (notes, SQL-exported prose, pasted content).
+#[tauri::command]
+pub async fn translate_text_content_cmd(
+    app: AppHandle,
+    text: String,
+    title: Option<String>,
+    target_language: Option<String>,
+) -> Result<crate::i18n::TranslatedDocument, String> {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state_mutex = app2.state::<Mutex<AppState>>();
+        let (runtime, target) = {
+            let locked = state_mutex.lock_or_recover()?;
+            let target = target_language
+                .as_deref()
+                .map(crate::i18n::parse_language)
+                .unwrap_or_else(|| crate::i18n::language_from_settings(&locked.settings));
+            let runtime = crate::i18n::snapshot_translate_runtime(&locked);
+            if !locked.settings.pure_local_mode {
+                crate::token_budget::can_afford(&locked, &runtime.agent_id, 2_000)?;
+            }
+            (runtime, target)
+        };
+        let (doc, charges) = crate::i18n::translate_document_with_runtime(
+            &runtime,
+            title.as_deref().unwrap_or(""),
+            &text,
+            target,
+        )?;
+        {
+            let mut locked = state_mutex.lock_or_recover()?;
+            for charge in charges {
+                let _ = crate::token_budget::charge_tokens(&mut locked, charge);
+            }
+        }
+        Ok(doc)
+    })
+    .await
+    .map_err(|e| format!("Translate task failed: {e}"))?
+}
+
+/// Translate multiple workspace page IDs (max 20 per call).
+#[tauri::command]
+pub async fn translate_workspace_pages_batch_cmd(
+    app: AppHandle,
+    page_ids: Vec<String>,
+    target_language: Option<String>,
+) -> Result<Vec<WorkspacePage>, String> {
+    if page_ids.is_empty() {
+        return Err("No page ids provided.".to_string());
+    }
+    let mut results = Vec::new();
+    for page_id in page_ids.into_iter().take(20) {
+        match translate_workspace_page_cmd(app.clone(), page_id, target_language.clone()).await {
+            Ok(page) => results.push(page),
+            Err(err) => {
+                crate::app_log::log_global(
+                    crate::app_log::LogLevel::Warn,
+                    crate::app_log::LogCategory::Ai,
+                    "content_translate",
+                    format!("Batch page failed: {err}"),
+                    None,
+                );
+            }
+        }
+    }
+    if results.is_empty() {
+        return Err("No pages could be translated.".to_string());
+    }
+    Ok(results)
 }
 
 #[tauri::command]
@@ -275,7 +406,7 @@ pub fn search_workspace(
 pub fn list_linkable_entities(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<LinkableEntity>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let mut entities = Vec::new();
 
     for agent in state.agents.values() {
@@ -388,7 +519,7 @@ pub fn create_page_from_template_cmd(
         request.title.as_deref(),
         "player",
     )?;
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.stats.pages_created += 1;
     commit(app, &state)?;
     Ok(page)
@@ -469,7 +600,7 @@ pub fn clear_workspace_presence(
 pub fn get_workspace_database(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<WorkspaceDatabaseView>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
 
     let project_rows: Vec<Vec<String>> = state
         .projects
@@ -535,8 +666,8 @@ pub fn generate_meeting_notes(
     meeting_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<WorkspacePage>, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-    let pages = write_meeting_notes_from_state(&app, &mut state, &meeting_id)?;
+    let mut state = state.lock_or_recover()?;
+    let pages = write_meeting_notes_from_state(&app, &mut state, &meeting_id, None)?;
     commit(app, &state)?;
     Ok(pages)
 }

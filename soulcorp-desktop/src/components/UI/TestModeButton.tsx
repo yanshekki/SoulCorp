@@ -4,17 +4,20 @@ import { clearAllTestData } from "../../services/testModeClient";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { confirmDialog } from "../../utils/nativeDialog";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function TestModeButton() {
-  if (!import.meta.env.DEV) {
-    return null;
-  }
-
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setOnboardingReady = useGameStore((state) => state.setOnboardingReady);
+
+  if (!import.meta.env.DEV) {
+    return null;
+  }
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -32,9 +35,7 @@ export function TestModeButton() {
   };
 
   const handleClear = async () => {
-    const confirmed = window.confirm(
-      "Clear all local companies, saves, workspace, and design data? This cannot be undone.",
-    );
+    const confirmed = await confirmDialog(t("testMode.clearConfirm"));
     if (!confirmed) {
       return;
     }
@@ -47,9 +48,7 @@ export function TestModeButton() {
       await reloadGameState();
       useGameStore.getState().setActivePanel("projects");
       useGameStore.getState().bumpScrumRevision();
-      setStatusMessage(
-        `${result.message} Create a company to begin with real operational data.`,
-      );
+      setStatusMessage(`${result.message}${t("testMode.clearedSuffix")}`);
       // Projects opens on Command Center section by default (first pipeline step).
     } catch (error) {
       setStatusMessage(String(error));
@@ -68,20 +67,20 @@ export function TestModeButton() {
         disabled={busy}
         onClick={() => setOpen((value) => !value)}
       >
-        {busy ? "Working…" : "Test mode"}
+        {busy ? t("testMode.working") : t("testMode.label")}
         <span className="test-mode-chevron" aria-hidden>
           {open ? "▾" : "▸"}
         </span>
       </button>
       {open ? (
-        <div id="test-mode-actions" className="test-mode-actions" role="group" aria-label="Test mode actions">
+        <div id="test-mode-actions" className="test-mode-actions" role="group" aria-label={t("testMode.actionsAria")}>
           <button
             type="button"
             className="test-mode-action test-mode-action--danger"
             disabled={busy}
             onClick={() => void handleClear()}
           >
-            Clear all data
+            {t("testMode.clearAll")}
           </button>
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/I18nProvider";
 import type { RelationshipGraph, RelationshipGraphNode } from "../../types/game";
 
 interface RelationshipGraphViewProps {
@@ -27,6 +28,7 @@ function nodeById(nodes: RelationshipGraphNode[], agentId: string) {
 }
 
 export function RelationshipGraphView({ graph }: RelationshipGraphViewProps) {
+  const { t } = useI18n();
   const size = 280;
   const center = size / 2;
   const radius = 96;
@@ -38,12 +40,12 @@ export function RelationshipGraphView({ graph }: RelationshipGraphViewProps) {
   );
 
   if (graph.nodes.length === 0) {
-    return <p className="muted">No agents to map yet.</p>;
+    return <p className="muted">{t("graph.empty")}</p>;
   }
 
   return (
     <div className="relationship-graph">
-      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Agent relationship graph">
+      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={t("graph.aria")}>
         {graph.edges.map((edge) => {
           const from = positions.get(edge.from_agent_id);
           const to = positions.get(edge.to_agent_id);

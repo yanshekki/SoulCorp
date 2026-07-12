@@ -6,8 +6,10 @@ import type { InteriorZone } from "../../types/visualDesign";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { BuildModeHud } from "./BuildModeHud";
 import { FurnitureDetailPanel } from "./FurnitureDetailPanel";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function InteriorOverlay() {
+  const { t } = useI18n();
   const worldView = useGameStore((state) => state.worldView);
   const interiorBuildingId = useGameStore((state) => state.interiorBuildingId);
   const buildings = useGameStore((state) => state.buildings);
@@ -35,40 +37,40 @@ export function InteriorOverlay() {
   const hoveredCatalogId = hoveredItem?.catalog_id ?? null;
 
   const walkZones: Array<{ id: InteriorZone; label: string }> = [
-    { id: "lobby", label: "Lobby" },
-    { id: "corridor", label: "Corridor" },
-    { id: "office", label: "Office" },
+    { id: "lobby", label: t("world.zone.lobby") },
+    { id: "corridor", label: t("world.zone.corridor") },
+    { id: "office", label: t("world.zone.office") },
   ];
 
   const playHint =
     buildMode === "play"
       ? hoveredCatalogId
         ? furnitureInteractionHint(hoveredCatalogId)
-        : "Click agents · right-click agent for workspace"
+        : t("world.playHintDefault")
       : null;
 
   return (
     <>
       <header className="interior-topbar">
         <div className="interior-topbar-title">
-          <span className="interior-topbar-eyebrow">{building?.department ?? "Department"}</span>
-          <h2>{building?.name ?? "Interior"}</h2>
+          <span className="interior-topbar-eyebrow">{building?.department ?? t("world.department")}</span>
+          <h2>{building?.name ?? t("world.interior")}</h2>
           {buildMode === "build" && buildDirty ? (
-            <span className="interior-topbar-badge">Unsaved</span>
+            <span className="interior-topbar-badge">{t("world.unsaved")}</span>
           ) : playHint ? (
             <span className="interior-topbar-hint">{playHint}</span>
           ) : null}
           <span className="interior-topbar-hint muted">
             {interiorCameraMode === "walk"
-              ? "Walk: WASD move · right-drag rotate · scroll zoom · walls auto-fade"
+              ? t("world.camera.walkHint")
               : interiorCameraMode === "render"
-                ? "Render: SSAO clarity · drag pan · right-drag rotate · scroll zoom · PNG screenshot"
-                : "Iso: drag pan · scroll zoom · right-drag rotate · double-click reset"}
+                ? t("world.camera.renderHint")
+                : t("world.camera.isoHint")}
           </span>
         </div>
         <div className="interior-topbar-actions">
           {buildMode === "play" && interiorCameraMode === "walk" ? (
-            <div className="interior-walk-zones" role="group" aria-label="Walk zones">
+            <div className="interior-walk-zones" role="group" aria-label={t("world.walkZones")}>
               {walkZones.map((zone) => (
                 <button
                   key={zone.id}
@@ -93,11 +95,11 @@ export function InteriorOverlay() {
                 requestInteriorScreenshot();
               }}
             >
-              Screenshot
+              {t("world.screenshot")}
             </button>
           ) : null}
           {buildMode === "play" ? (
-            <div className="interior-camera-toggle" role="group" aria-label="Camera mode">
+            <div className="interior-camera-toggle" role="group" aria-label={t("world.cameraMode")}>
               <button
                 type="button"
                 className={interiorCameraMode === "iso" ? "active" : ""}
@@ -105,9 +107,7 @@ export function InteriorOverlay() {
                   audioDirector.playSfx("ui_click");
                   setInteriorCameraMode("iso");
                 }}
-              >
-                Iso
-              </button>
+              >{t("world.camera.iso")}</button>
               <button
                 type="button"
                 className={interiorCameraMode === "walk" ? "active" : ""}
@@ -115,9 +115,7 @@ export function InteriorOverlay() {
                   audioDirector.playSfx("ui_click");
                   setInteriorCameraMode("walk");
                 }}
-              >
-                Walk
-              </button>
+              >{t("world.camera.walk")}</button>
               <button
                 type="button"
                 className={interiorCameraMode === "render" ? "active" : ""}
@@ -125,18 +123,16 @@ export function InteriorOverlay() {
                   audioDirector.playSfx("ui_click");
                   setInteriorCameraMode("render");
                 }}
-              >
-                Render
-              </button>
+              >{t("world.camera.render")}</button>
             </div>
           ) : null}
-          <div className="interior-zoom-controls" aria-label="Zoom controls">
+          <div className="interior-zoom-controls" aria-label={t("world.zoomControls")}>
             <button
               type="button"
               className="interior-zoom-btn"
               onClick={() => nudgeInteriorZoom(-0.12)}
-              title="Zoom out"
-              aria-label="Zoom out"
+              title={t("world.zoomOut")}
+              aria-label={t("world.zoomOut")}
             >
               −
             </button>
@@ -144,8 +140,8 @@ export function InteriorOverlay() {
               type="button"
               className="interior-zoom-btn"
               onClick={() => nudgeInteriorZoom(0.12)}
-              title="Zoom in"
-              aria-label="Zoom in"
+              title={t("world.zoomIn")}
+              aria-label={t("world.zoomIn")}
             >
               +
             </button>
@@ -168,9 +164,7 @@ export function InteriorOverlay() {
               audioDirector.playSfx("door_close");
               void tryExitInterior();
             }}
-          >
-            Campus
-          </button>
+          >{t("common.campus")}</button>
         </div>
       </header>
 

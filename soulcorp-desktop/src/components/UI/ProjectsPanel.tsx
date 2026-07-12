@@ -27,6 +27,13 @@ import { agentLabelById } from "../../utils/agentLabel";
 import { openWorkspaceFolder, openWorkspacePage } from "../../utils/openWorkspacePage";
 import { PROJECTS_FOLDER_ID } from "../../utils/workspaceFolderIds";
 import { notifyScrumChanged } from "../../utils/scrumSync";
+import {
+  finishProgress,
+  reportLocalProgress,
+  useProgressStore,
+} from "../../stores/progressStore";
+import { confirmDialog } from "../../utils/nativeDialog";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export const PROJECTS_SECTIONS = [
   { id: "command", label: "Directive", step: 1, hint: "Issue CEO orders" },
@@ -52,12 +59,13 @@ function KanbanColumn({
   agentLabels: Map<string, string>;
   onOpenWorkspace: (pageId: string, label: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="projects-kanban-col">
       <h4>
         {title} <span className="projects-count-pill">{items.length}</span>
       </h4>
-      {items.length === 0 ? <p className="muted">Empty</p> : null}
+      {items.length === 0 ? <p className="muted">{t("projects.emptyColumn")}</p> : null}
       {items.map((item) => (
         <article key={item.id} className="projects-kanban-card">
           <strong>{item.title}</strong>
@@ -66,7 +74,9 @@ function KanbanColumn({
           </p>
           {item.assignee_agent_id ? (
             <p className="muted">
-              Assignee: {agentLabels.get(item.assignee_agent_id) ?? item.assignee_agent_id}
+              {t("projects.assignee", {
+                name: agentLabels.get(item.assignee_agent_id) ?? item.assignee_agent_id,
+              })}
             </p>
           ) : null}
           {item.linked_workspace_page_id ? (
@@ -75,7 +85,7 @@ function KanbanColumn({
               className="projects-kanban-workspace-link"
               onClick={() => onOpenWorkspace(item.linked_workspace_page_id!, item.title)}
             >
-              Open deliverable
+              {t("projects.openDeliverable")}
             </button>
           ) : null}
         </article>
@@ -85,6 +95,7 @@ function KanbanColumn({
 }
 
 export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPanelProps) {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((s) => s.activeCompanyId);
   const scrumRevision = useGameStore((s) => s.scrumRevision);
   const agentRecords = useGameStore((s) => s.agentRecords);
@@ -249,7 +260,7 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
   const handleAssign = async (nodeId: string, agentId: string | null) => {
     try {
       await assignWorkNode(nodeId, agentId);
-      setStatusMessage(agentId ? "Task assigned." : "Task unassigned.");
+      setStatusMessage(agentId ? t("status.taskAssigned") : t("status.taskUnassigned"));
       await syncScrumSnapshot(project?.id);
     } catch (error) {
       setStatusMessage(String(error));
@@ -257,24 +268,58 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
   };
 
   const handleExecute = async (nodeId: string) => {
+    const task = allWorkNodes.find((node) => node.id === nodeId);
+    const taskLabel = task?.title?.trim() || "task";
+    const opId = `run_work_${nodeId}`;
     try {
       const estimate = await estimateWorkExecutionCost(nodeId);
       if (!estimate.affordable) {
-        setStatusMessage(estimate.message);
+        setStatusMessage(estimate.message || t("status.notEnoughTokens"));
         return;
       }
+      const ok = await confirmDialog(
+        t("status.runAgentConfirm", {
+          task: taskLabel,
+          tokens: estimate.estimated_tokens.toLocaleString(),
+          detail: estimate.message || t("status.runProgressDefault"),
+        }),
+        { title: t("status.runAgentTitle"), kind: "info" },
+      );
+      if (!ok) {
+        setStatusMessage(t("status.runCancelled"));
+        return;
+      }
+      setStatusMessage(t("status.runningAgent", { task: taskLabel }));
+      reportLocalProgress(
+        opId,
+        t("status.runningAgentProgress", { task: taskLabel }),
+        -1,
+        "llm",
+      );
+      useProgressStore.getState().setLlmLiveOpen(true);
       const run = await runWorkExecution(nodeId);
-      setStatusMessage(`Execution ${run.status}: ${run.summary || run.error || "done"}`);
+      const summary =
+        run.summary?.trim() ||
+        run.error?.trim() ||
+        (run.status === "succeeded" ? t("status.deliverableReady") : run.status);
+      const message = t("status.executionStatus", { status: run.status, summary });
+      setStatusMessage(message);
+      finishProgress(opId, message, run.status === "succeeded" ? "done" : "error");
       await syncScrumSnapshot(project?.id);
+      if (run.deliverable_page_id) {
+        // Soft offer: do not force navigation; status already explains outcome.
+      }
     } catch (error) {
-      setStatusMessage(String(error));
+      const message = String(error);
+      setStatusMessage(message);
+      finishProgress(opId, message, "error");
     }
   };
 
   const handleApprove = async (nodeId: string) => {
     try {
       await approveDeliverable(nodeId);
-      setStatusMessage("Deliverable approved.");
+      setStatusMessage(t("status.deliverableApproved"));
       await syncScrumSnapshot(project?.id);
     } catch (error) {
       setStatusMessage(String(error));
@@ -283,7 +328,7 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
 
   const handleAddTask = async (storyId: string, title: string) => {
     if (!project) {
-      setStatusMessage("Select a project first.");
+      setStatusMessage(t("status.selectProjectFirst"));
       return;
     }
     try {
@@ -295,7 +340,7 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
         department: project.owner_department,
         story_points: 1,
       });
-      setStatusMessage(`Task "${title}" added.`);
+      setStatusMessage(t("status.taskAdded", { title }));
       await syncScrumSnapshot(project.id);
     } catch (error) {
       setStatusMessage(String(error));
@@ -304,7 +349,7 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
 
   const handleAddStory = async (title: string) => {
     if (!project) {
-      setStatusMessage("Select a project first.");
+      setStatusMessage(t("status.selectProjectFirst"));
       return;
     }
     try {
@@ -315,7 +360,7 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
         department: project.owner_department,
         story_points: 3,
       });
-      setStatusMessage(`Story "${title}" added.`);
+      setStatusMessage(t("status.storyAdded", { title }));
       await syncScrumSnapshot(project.id);
     } catch (error) {
       setStatusMessage(String(error));
@@ -335,9 +380,9 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
       {activeSection === "backlog" ? (
       <section id="backlog" className="projects-card" data-projects-section="backlog">
         <header className="projects-card-header">
-          <p className="workflow-step-badge">2 · Backlog</p>
-          <h3>Backlog Tree</h3>
-          <p className="muted">Stories and tasks decomposed from CEO directives.</p>
+          <p className="workflow-step-badge">{t("projects.stepBadge", { step: 2, label: t("projects.section.backlog") })}</p>
+          <h3>{t("projects.backlogTree")}</h3>
+          <p className="muted">{t("projects.backlogTreeDesc")}</p>
         </header>
         <div className="projects-card-body">
           <BacklogTreePanel
@@ -364,17 +409,17 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
       {activeSection === "sprint" ? (
       <section id="sprint" className="projects-card" data-projects-section="sprint">
         <header className="projects-card-header">
-          <p className="workflow-step-badge">3 · Sprint</p>
-          <h3>Sprint Board</h3>
+          <p className="workflow-step-badge">{t("projects.stepBadge", { step: 3, label: t("projects.section.sprint") })}</p>
+          <h3>{t("projects.sprintBoard")}</h3>
           {board?.active_sprint ? (
             <p className="muted">
               {board.active_sprint.name} · {board.active_sprint.status}
               {showSimulationChrome
-                ? ` · Day ${board.active_sprint.start_day}–${board.active_sprint.end_day}`
-                : ` · Sprint window ${board.active_sprint.start_day}–${board.active_sprint.end_day}`}
+                ? ` · ${t("projects.sprintDayRange", { start: board.active_sprint.start_day, end: board.active_sprint.end_day })}`
+                : ` · ${t("projects.sprintWindow", { start: board.active_sprint.start_day, end: board.active_sprint.end_day })}`}
             </p>
           ) : (
-            <p className="muted">No active sprint — click Plan Sprint in Command Center.</p>
+            <p className="muted">{t("projects.noActiveSprint")}</p>
           )}
         </header>
         <div className="projects-card-body">
@@ -384,10 +429,10 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
                 <button
                   type="button"
                   className="projects-burndown-link"
-                  onClick={() => void openWorkspaceFolder(PROJECTS_FOLDER_ID, "Projects")}
-                  title="Open project docs in Workspace"
+                  onClick={() => void openWorkspaceFolder(PROJECTS_FOLDER_ID, t("projects.folder"))}
+                  title={t("projects.openDocs")}
                 >
-                  Burndown: {board.burndown_remaining} / {board.burndown_total} pts remaining
+                  {t("projects.burndown", { remaining: board.burndown_remaining, total: board.burndown_total })}
                 </button>
                 <div className="projects-burndown-bar">
                   <div
@@ -402,31 +447,31 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
               </div>
               <div className="projects-kanban">
                 <KanbanColumn
-                  title="Backlog"
+                  title={t("projects.col.backlog")}
                   items={board.backlog}
                   agentLabels={agentLabels}
                   onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
                 />
                 <KanbanColumn
-                  title="Sprint"
+                  title={t("projects.col.sprint")}
                   items={board.sprint_items}
                   agentLabels={agentLabels}
                   onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
                 />
                 <KanbanColumn
-                  title="In Progress"
+                  title={t("projects.col.inProgress")}
                   items={board.in_progress}
                   agentLabels={agentLabels}
                   onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
                 />
                 <KanbanColumn
-                  title="Review"
+                  title={t("projects.col.review")}
                   items={board.in_review}
                   agentLabels={agentLabels}
                   onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
                 />
                 <KanbanColumn
-                  title="Done"
+                  title={t("projects.col.done")}
                   items={board.done}
                   agentLabels={agentLabels}
                   onOpenWorkspace={(pageId, label) => void openWorkspacePage(pageId, label)}
@@ -441,28 +486,32 @@ export function ProjectsPanel({ activeSection, onNavigateSection }: ProjectsPane
       {activeSection === "inbox" ? (
       <section id="inbox" className="projects-card" data-projects-section="inbox">
         <header className="projects-card-header">
-          <p className="workflow-step-badge">4 · Assign</p>
-          <h3>Agent Inbox</h3>
-          <p className="muted">Per-employee assigned tasks and workload points.</p>
+          <p className="workflow-step-badge">{t("projects.stepBadge", { step: 4, label: t("projects.section.inbox") })}</p>
+          <h3>{t("projects.agentInbox")}</h3>
+          <p className="muted">{t("projects.agentInboxDesc")}</p>
         </header>
         <div className="projects-card-body projects-inbox-grid">
           {inboxes.map((entry) => (
             <article key={entry.agent_id} className="projects-inbox-card">
               <h4>{entry.agent_name}</h4>
               <p className="muted">
-                {entry.agent_role || "—"} · {entry.department} · {entry.assigned_points} pts
-                {entry.busy ? " · working" : ""}
+                {t("projects.inboxMeta", {
+                  role: entry.agent_role || "—",
+                  dept: entry.department,
+                  pts: entry.assigned_points,
+                })}
+                {entry.busy ? t("projects.inboxWorking") : ""}
                 {typeof entry.queued_count === "number" && entry.queued_count > 0
-                  ? ` · ${entry.queued_count} queued`
+                  ? t("projects.inboxQueued", { n: entry.queued_count })
                   : ""}
               </p>
               {entry.tasks.length === 0 ? (
-                <p className="muted">No assigned tasks</p>
+                <p className="muted">{t("projects.noAssignedTasks")}</p>
               ) : (
                 <ul>
-                  {entry.tasks.map((t) => (
-                    <li key={t.id}>
-                      {t.title} · {t.status}
+                  {entry.tasks.map((task) => (
+                    <li key={task.id}>
+                      {task.title} · {task.status}
                     </li>
                   ))}
                 </ul>

@@ -64,8 +64,12 @@ pub fn infer_relationship_type(score: f32) -> &'static str {
     }
 }
 
-pub fn ensure_relationship_backfill(_state: &mut AppState) {
-    // Relationship edges are created from real agent interactions, not seeded defaults.
+pub fn ensure_relationship_backfill(state: &mut AppState) {
+    // When the company has agents but no edges yet (e.g. older saves / v1 hire path),
+    // seed a minimal collab graph so Relationships UI is not empty.
+    if state.agent_relationships.is_empty() {
+        seed_default_relationships(state);
+    }
 }
 
 pub fn seed_default_relationships(state: &mut AppState) {

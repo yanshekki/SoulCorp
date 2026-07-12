@@ -6,9 +6,12 @@ use crate::agent_activity::{emit_terminal_line, ActivityRunContext};
 use crate::agent_runtime::registry::{active_runtime, active_runtime_for_id, effective_adapter_id};
 use crate::agent_runtime::security::{self, SubprocessRequest, SubprocessOutput};
 use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
+use crate::lock_util::MutexExt;
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState, GameSettings};
 use std::path::Path;
+use std::sync::Mutex;
+use tauri::Manager;
 
 pub fn probe_runtime_for_id(runtime_id: &str, settings: &GameSettings) -> RuntimeProbe {
     let Some(entry) = active_runtime_for_id(runtime_id) else {
@@ -39,20 +42,30 @@ pub fn run_subprocess_for_agent(
     activity: Option<ActivityRunContext>,
     agent_id: &str,
 ) -> Result<SubprocessOutput, String> {
-    if let (Some(state), Some(act)) = (state, activity) {
-        security::run_subprocess_observed(request, &mut |stream, line| {
+    // Prefer activity-driven streaming with *brief* AppState locks per line.
+    // Holding a mutable AppState borrow for the entire CLI lifetime freezes the desktop.
+    if let Some(act) = activity {
+        let agent_id = agent_id.to_string();
+        let session_id = act.session_id.clone();
+        let app = act.app.clone();
+        return security::run_subprocess_observed(request, &mut |stream, line| {
+            let state_mutex = app.state::<Mutex<AppState>>();
+            let Ok(mut guard) = state_mutex.lock_or_recover() else {
+                return;
+            };
             emit_terminal_line(
-                state,
-                Some(&act.app),
-                &act.session_id,
-                agent_id,
+                &mut guard,
+                Some(&app),
+                &session_id,
+                &agent_id,
                 line,
                 stream,
             );
-        })
-    } else {
-        security::run_subprocess(request)
+            // guard dropped here — AppState free between stream lines
+        });
     }
+    let _ = state;
+    security::run_subprocess(request)
 }
 
 pub fn execute_runtime_for_id(

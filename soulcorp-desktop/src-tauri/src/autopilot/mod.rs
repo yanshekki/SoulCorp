@@ -56,6 +56,8 @@ pub fn apply_full_autopilot_settings(state: &mut crate::state::AppState, enabled
         state.settings.scrum_auto_retry_blocked = true;
         state.settings.orchestrator_auto_meeting = true;
         state.settings.scrum_execution_paused = false;
+        // Leave CEO gate modes so PM auto-approve and execute keep flowing.
+        state.settings.autopilot_intervention_mode = "auto".to_string();
         apply_autopilot_runtime_defaults(state);
     }
 }

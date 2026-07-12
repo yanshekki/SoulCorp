@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../../utils/tauriInvoke";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showSimulationChrome, simulationAutoRun } from "../../../config/features";
 import { useGameStore } from "../../../stores/gameStore";
@@ -43,13 +43,19 @@ import {
   updateDirectiveStatus,
   updateProject,
 } from "../../../services/scrumClient";
+import { useI18n } from "../../../i18n/I18nProvider";
+import { alertMessage, readinessDetail, readinessLabel } from "../../../i18n/commandMessages";
+import {
+  autopilotPhaseLabel,
+  workerLogLine,
+} from "../../../i18n/autopilotMessages";
 
-const DIRECTIVE_TEMPLATES = [
-  { label: "Ship feature", title: "Ship feature", body: "Deliver a shippable increment this sprint." },
-  { label: "Fix production", title: "Fix production issue", body: "Resolve critical bug and document root cause." },
-  { label: "Research spike", title: "Research spike", body: "Investigate options and produce recommendation doc." },
-  { label: "Hire & onboard", title: "Hire and onboard", body: "Recruit and onboard agent for upcoming workload." },
-  { label: "Cost reduction", title: "Reduce token burn", body: "Optimize workflows to lower LLM token usage." },
+const DIRECTIVE_TEMPLATE_KEYS = [
+  { id: "ship", labelKey: "command.tpl.ship.label", titleKey: "command.tpl.ship.title", bodyKey: "command.tpl.ship.body" },
+  { id: "fix", labelKey: "command.tpl.fix.label", titleKey: "command.tpl.fix.title", bodyKey: "command.tpl.fix.body" },
+  { id: "research", labelKey: "command.tpl.research.label", titleKey: "command.tpl.research.title", bodyKey: "command.tpl.research.body" },
+  { id: "hire", labelKey: "command.tpl.hire.label", titleKey: "command.tpl.hire.title", bodyKey: "command.tpl.hire.body" },
+  { id: "cost", labelKey: "command.tpl.cost.label", titleKey: "command.tpl.cost.title", bodyKey: "command.tpl.cost.body" },
 ] as const;
 
 type CommandTab = "overview" | "directives" | "co_ceo" | "projects" | "sprint" | "policies";
@@ -58,16 +64,16 @@ interface CommandCenterPanelProps {
   onJumpToSection?: (sectionId: string) => void;
 }
 
-function sourceLabel(source: string): string {
+function sourceLabelKey(source: string): string {
   switch (source) {
     case "meeting":
-      return "Meeting";
+      return "command.source.meeting";
     case "co_ceo":
-      return "Co-CEO";
+      return "command.source.coCeo";
     case "marketplace":
-      return "Marketplace";
+      return "command.source.marketplace";
     default:
-      return "CEO";
+      return "command.source.ceo";
   }
 }
 
@@ -89,6 +95,7 @@ function PreviewTree({ nodes, depth = 0 }: { nodes: DirectivePreviewNode[]; dept
 }
 
 export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps) {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((s) => s.activeCompanyId);
   const scrumRevision = useGameStore((s) => s.scrumRevision);
   const simulationDay = useGameStore((s) => s.simulation.dayNumber);
@@ -289,12 +296,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         directive.description ?? "",
         directive.status,
         directive.source,
-        sourceLabel(directive.source),
+        t(sourceLabelKey(directive.source)),
         directive.target,
         directive.target_ref,
         directive.id,
       ]),
-    [statusFilteredDirectives, debouncedDirectiveQuery],
+    [statusFilteredDirectives, debouncedDirectiveQuery, t],
   );
 
   const {
@@ -319,7 +326,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
 
   const handleSaveDraft = async () => {
     if (directiveTitle.trim().length < 2) {
-      setStatusMessage("Enter a directive title.");
+      setStatusMessage(t("command.enterTitle"));
       return;
     }
     setBusy(true);
@@ -336,7 +343,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         target: targetType,
         target_ref: ref,
       });
-      setStatusMessage("Directive saved as draft.");
+      setStatusMessage(t("command.draftSaved"));
       setPreview(null);
       await syncScrumSnapshot();
     } catch (error) {
@@ -371,7 +378,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
       const nodes = await previewRouteDirective(directiveId, projectId, useLlm);
       setPreview(nodes);
       setSelectedDirectiveId(directiveId);
-      setStatusMessage("Decomposition preview ready.");
+      setStatusMessage(t("command.previewReady"));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -382,7 +389,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   const handleRoute = async (withPlan = false) => {
     const projectId = resolveRouteProjectId();
     if (!projectId || directiveTitle.trim().length < 2) {
-      setStatusMessage("Select project and enter directive title.");
+      setStatusMessage(t("command.selectProjectTitle"));
       return;
     }
     setBusy(true);
@@ -407,7 +414,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
       setDirectiveTitle("");
       setDirectiveBody("");
       setPreview(null);
-      setStatusMessage(withPlan ? "Directive routed and sprint planned." : "Directive routed.");
+      setStatusMessage(withPlan ? t("command.routedPlanned") : t("command.routed"));
       await syncScrumSnapshot(projectId);
     } catch (error) {
       setStatusMessage(String(error));
@@ -448,7 +455,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         default_cycle_days: editProjectCycle,
         pm_agent_id: editProjectPm || null,
       });
-      setStatusMessage("Project updated.");
+      setStatusMessage(t("command.projectUpdated"));
       await syncScrumSnapshot(project.id);
     } catch (error) {
       setStatusMessage(String(error));
@@ -561,12 +568,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   };
 
   const commandTabs = [
-    ["overview", "Overview"],
-    ["directives", "Directives"],
-    ["co_ceo", "Co-CEO"],
-    ["projects", "Projects"],
-    ["sprint", "Sprint"],
-    ["policies", "Policies"],
+    ["overview", "command.tab.overview"],
+    ["directives", "command.tab.directives"],
+    ["co_ceo", "command.tab.co_ceo"],
+    ["projects", "command.tab.projects"],
+    ["sprint", "command.tab.sprint"],
+    ["policies", "command.tab.policies"],
   ] as const;
 
   const subprocessSelected = isSubprocessRuntime(settings.agent_runtime_mode);
@@ -574,16 +581,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
   return (
     <section id="command" className="projects-card command-center" data-projects-section="command">
       <header className="command-center-toolbar">
-        <h3 className="command-center-title">Command Center</h3>
-        <nav className="command-center-tabs" aria-label="Command Center sections">
-          {commandTabs.map(([id, label]) => (
+        <h3 className="command-center-title">{t("command.title")}</h3>
+        <nav className="command-center-tabs" aria-label={t("command.tabsAria")}>
+          {commandTabs.map(([id, labelKey]) => (
             <button
               key={id}
               type="button"
               className={`command-center-tab${tab === id ? " is-active" : ""}`}
               onClick={() => setTab(id)}
             >
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </nav>
@@ -591,63 +598,66 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
 
       <div className="command-center-body">
         {tab === "overview" && !overview ? (
-          <p className="muted">Loading company overview…</p>
+          <p className="muted">{t("command.loadingOverview")}</p>
         ) : null}
         {tab === "overview" && overview ? (
           <div className="command-overview">
             <div className="command-panel-block autopilot-panel-block">
-              <h4 className="command-panel-heading">Company Autopilot</h4>
+              <h4 className="command-panel-heading">{t("command.autopilotHeading")}</h4>
               <AutopilotPipelinePanel onJumpToSection={onJumpToSection} />
             </div>
             <div className="command-kpi-strip">
               {showSimulationChrome ? (
                 <>
                   <article className="command-kpi">
-                    <span className="command-kpi-label">Day</span>
+                    <span className="command-kpi-label">{t("command.day")}</span>
                     <strong className="command-kpi-value">{overview.day_number}</strong>
                   </article>
                   <article className="command-kpi">
-                    <span className="command-kpi-label">Team morale</span>
+                    <span className="command-kpi-label">{t("command.kpi.teamMorale")}</span>
                     <strong className="command-kpi-value">{(overview.avg_morale * 100).toFixed(0)}%</strong>
                   </article>
                 </>
               ) : null}
               <article className="command-kpi">
-                <span className="command-kpi-label">Token pool</span>
+                <span className="command-kpi-label">{t("command.kpi.tokenPool")}</span>
                 <strong className="command-kpi-value">{overview.token_pool.toLocaleString()}</strong>
               </article>
               <article className="command-kpi">
-                <span className="command-kpi-label">Monthly burn</span>
+                <span className="command-kpi-label">{t("command.kpi.monthlyBurn")}</span>
                 <strong className="command-kpi-value">{overview.monthly_burn.toLocaleString()}</strong>
               </article>
               <article className="command-kpi">
-                <span className="command-kpi-label">Payroll</span>
+                <span className="command-kpi-label">{t("command.kpi.payroll")}</span>
                 <strong className="command-kpi-value">{overview.monthly_payroll.toLocaleString()}</strong>
               </article>
               <article className="command-kpi">
-                <span className="command-kpi-label">Open directives</span>
+                <span className="command-kpi-label">{t("command.kpi.openDirectives")}</span>
                 <strong className="command-kpi-value">{overview.open_directives}</strong>
               </article>
               <article className="command-kpi command-kpi--wide">
-                <span className="command-kpi-label">Sprint</span>
+                <span className="command-kpi-label">{t("command.kpi.sprint")}</span>
                 <strong className="command-kpi-value">{overview.active_sprint_name ?? "—"}</strong>
                 <span className="command-kpi-sub">
-                  {overview.burndown_remaining}/{overview.burndown_total} pts left
+                  {t("command.ptsLeft", {
+                    remaining: overview.burndown_remaining,
+                    total: overview.burndown_total,
+                  })}
                 </span>
               </article>
             </div>
             <div className="command-overview-columns">
               <div className="command-readiness-checklist command-panel-block">
                 <h4 className="command-panel-heading">
-                  Automation readiness{" "}
+                  {t("command.automationReadiness")}{" "}
                   {automation?.readiness?.ready ? (
-                    <span className="command-readiness-ok">Ready</span>
+                    <span className="command-readiness-ok">{t("command.ready")}</span>
                   ) : (
-                    <span className="command-readiness-warn">Setup needed</span>
+                    <span className="command-readiness-warn">{t("command.setupNeeded")}</span>
                   )}
                   {automation?.readiness?.autopilot_phase ? (
                     <span className="command-readiness-phase">
-                      · Phase: {automation.readiness.autopilot_phase}
+                      · {t("command.phase", { phase: autopilotPhaseLabel(t, automation.readiness.autopilot_phase) })}
                     </span>
                   ) : null}
                 </h4>
@@ -657,28 +667,28 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       key={item.id}
                       className={item.ok ? "command-readiness-item--ok" : "command-readiness-item--warn"}
                     >
-                      <strong>{item.label}</strong>
-                      <span className="command-readiness-detail">{item.detail}</span>
+                      <strong>{readinessLabel(t, item)}</strong>
+                      <span className="command-readiness-detail">{readinessDetail(t, item)}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="command-alerts command-panel-block">
-                <h4 className="command-panel-heading">Alerts</h4>
+                <h4 className="command-panel-heading">{t("command.alerts")}</h4>
                 {overview.alerts.length === 0 ? (
-                  <p className="command-empty-hint">No alerts — operations nominal.</p>
+                  <p className="command-empty-hint">{t("command.noAlerts")}</p>
                 ) : (
                   <ul className="command-alert-list">
                     {overview.alerts.map((alert, i) => (
                       <li key={i} className={`command-alert command-alert--${alert.severity}`}>
-                        <span className="command-alert-text">{alert.message}</span>
+                        <span className="command-alert-text">{alertMessage(t, alert)}</span>
                         {alert.action_ref && onJumpToSection ? (
                           <button
                             type="button"
                             className="command-alert-jump"
                             onClick={() => onJumpToSection(alert.action_ref!.includes("dir-") ? "directives" : alert.action_ref!)}
                           >
-                            View
+                            {t("command.view")}
                           </button>
                         ) : null}
                       </li>
@@ -689,76 +699,76 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
             </div>
             <div className="command-automation-log command-panel-block">
               <div className="command-panel-heading-row">
-                <h4 className="command-panel-heading">Automation activity</h4>
+                <h4 className="command-panel-heading">{t("command.automationActivity")}</h4>
                 <button
                   type="button"
                   className="command-inline-link"
                   onClick={() => useGameStore.getState().setActivePanel("observatory")}
                 >
-                  Open Observatory
+                  {t("command.openObservatory")}
                 </button>
               </div>
               <dl className="command-automation-meta">
                 <div className="command-automation-meta-item">
-                  <dt>Directives issued</dt>
+                  <dt>{t("command.directivesIssued")}</dt>
                   <dd>{automation?.orchestrator_directives_total ?? 0}</dd>
                 </div>
                 <div className="command-automation-meta-item">
-                  <dt>Hub queue</dt>
+                  <dt>{t("command.hubQueue")}</dt>
                   <dd>{automation?.sync_queue_pending ?? 0}</dd>
                 </div>
                 <div className="command-automation-meta-item">
-                  <dt>Parallel LLM</dt>
-                  <dd>{automation?.parallel_llm_enabled ? "On" : "Off"}</dd>
+                  <dt>{t("command.parallelLlm")}</dt>
+                  <dd>{automation?.parallel_llm_enabled ? t("coCeo.on") : t("coCeo.off")}</dd>
                 </div>
                 {automation?.autopilot ? (
                   <>
                     <div className="command-automation-meta-item">
-                      <dt>Autopilot phase</dt>
-                      <dd>{automation.autopilot.phase_label}</dd>
+                      <dt>{t("command.autopilotPhase")}</dt>
+                      <dd>{autopilotPhaseLabel(t, automation.autopilot.phase, automation.autopilot.phase_label)}</dd>
                     </div>
                     <div className="command-automation-meta-item">
-                      <dt>Deliverables (week)</dt>
+                      <dt>{t("command.deliverablesWeek")}</dt>
                       <dd>{automation.autopilot.deliverables_this_week}</dd>
                     </div>
                     {automation.autopilot.gigs_advanced_this_week > 0 ? (
                       <div className="command-automation-meta-item">
-                        <dt>Gigs advanced</dt>
+                        <dt>{t("command.gigsAdvanced")}</dt>
                         <dd>{automation.autopilot.gigs_advanced_this_week}</dd>
                       </div>
                     ) : null}
                   </>
                 ) : null}
                 <div className="command-automation-meta-item command-automation-meta-item--time">
-                  <dt>Worker tick</dt>
+                  <dt>{t("command.workerTick")}</dt>
                   <dd title={automation?.scrum_worker_last_tick_at ?? undefined}>
                     {formatTimestamp(automation?.scrum_worker_last_tick_at, "compact")}
                   </dd>
                 </div>
                 <div className="command-automation-meta-item command-automation-meta-item--time">
-                  <dt>Orchestrator</dt>
+                  <dt>{t("command.orchestrator")}</dt>
                   <dd title={automation?.orchestrator_last_tick_at ?? undefined}>
                     {formatTimestamp(automation?.orchestrator_last_tick_at, "compact")}
                   </dd>
                 </div>
                 <div className="command-automation-meta-item command-automation-meta-item--time">
-                  <dt>Hub pull</dt>
+                  <dt>{t("command.hubPull")}</dt>
                   <dd title={automation?.hub_last_pull_at ?? undefined}>
                     {formatTimestamp(automation?.hub_last_pull_at, "compact")}
                   </dd>
                 </div>
                 <div className="command-automation-meta-item command-automation-meta-item--wide">
-                  <dt>Agent runtime</dt>
+                  <dt>{t("command.agentRuntime")}</dt>
                   <dd title={
                     subprocessSelected
                       ? automation?.openclaw_available
-                        ? automation.openclaw_version ?? "Ready"
+                        ? automation.openclaw_version ?? t("autopilot.ready")
                         : automation?.openclaw_message ?? undefined
                       : undefined
                   }>
                     {subprocessSelected
                       ? automation?.openclaw_available
-                        ? `${runtimeModeLabel(settings.agent_runtime_mode)} · ${automation.openclaw_version ?? "Ready"}`
+                        ? `${runtimeModeLabel(settings.agent_runtime_mode)} · ${automation.openclaw_version ?? t("autopilot.ready")}`
                         : `${runtimeModeLabel(settings.agent_runtime_mode)} · ${automation?.openclaw_message ?? "—"}`
                       : runtimeModeLabel(settings.agent_runtime_mode)}
                   </dd>
@@ -767,11 +777,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               {(automation?.scrum_worker_log.length ?? 0) > 0 ? (
                 <ul className="command-activity-list">
                   {automation?.scrum_worker_log.slice(-6).map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line}>{workerLogLine(t, line)}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="command-empty-hint">Background worker has not logged activity yet.</p>
+                <p className="command-empty-hint">{t("command.noWorkerLog")}</p>
               )}
             </div>
           </div>
@@ -784,12 +794,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         {tab === "directives" ? (
           <div className="command-directives-layout">
             <aside className="command-inbox-sidebar command-panel-block">
-              <h4 className="command-panel-heading">Directive Inbox</h4>
+              <h4 className="command-panel-heading">{t("command.directiveInbox")}</h4>
               <SearchableListToolbar
                 query={directiveSearchQuery}
                 onQueryChange={setDirectiveSearchQuery}
-                placeholder="Search directives…"
-                ariaLabel="Search directives"
+                placeholder={t("command.searchDirectives")}
+                ariaLabel={t("command.searchDirectives")}
                 matchCount={
                   debouncedDirectiveQuery.trim() || directiveFilter !== SEARCH_TYPE_ALL
                     ? filteredDirectives.length
@@ -800,13 +810,13 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   value: directiveFilter,
                   onChange: setDirectiveFilter,
                   options: DIRECTIVE_SEARCH_TYPES,
-                  ariaLabel: "Filter directive status",
-                  label: "Status",
+                  ariaLabel: t("command.filterDirectiveStatus"),
+                  label: t("command.filterStatus"),
                 }}
               />
               {debouncedDirectiveQuery.trim() && filteredDirectives.length === 0 ? (
                 <p className="search-empty-hint command-empty-hint">
-                  No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.
+                  {t("command.noMatches", { query: debouncedDirectiveQuery })}
                 </p>
               ) : null}
               <ul className="command-directive-list">
@@ -822,11 +832,13 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       }}
                     >
                       <span className="command-directive-row-top">
-                        <span className="command-source-pill">{sourceLabel(d.source)}</span>
+                        <span className="command-source-pill">{t(sourceLabelKey(d.source))}</span>
                         <span className="command-directive-status">{d.status}</span>
                       </span>
                       <strong className="command-directive-title">{d.title}</strong>
-                      <span className="command-directive-meta">{d.spawned_node_ids.length} nodes</span>
+                      <span className="command-directive-meta">
+                        {t("command.nodesCount", { n: d.spawned_node_ids.length })}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -834,40 +846,40 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               <PaginationBar
                 page={directiveSafePage}
                 totalPages={directiveTotalPages}
-                label="Directives"
+                label={t("command.directives")}
                 onPageChange={setDirectiveListPage}
               />
             </aside>
 
             <div className="command-directives-main">
               <div className="command-composer command-form-section">
-                <h4 className="command-panel-heading">New directive</h4>
+                <h4 className="command-panel-heading">{t("command.newDirective")}</h4>
                 <div className="command-form command-form--compact">
                   <div className="command-template-row">
-                    {DIRECTIVE_TEMPLATES.map((t) => (
+                    {DIRECTIVE_TEMPLATE_KEYS.map((tpl) => (
                       <button
-                        key={t.label}
+                        key={tpl.id}
                         type="button"
                         onClick={() => {
-                          setDirectiveTitle(t.title);
-                          setDirectiveBody(t.body);
+                          setDirectiveTitle(t(tpl.titleKey));
+                          setDirectiveBody(t(tpl.bodyKey));
                         }}
                       >
-                        {t.label}
+                        {t(tpl.labelKey)}
                       </button>
                     ))}
                   </div>
                   <div className="command-form-grid">
                     <label className="field-label">
-                      Target type
+                      {t("command.targetType")}
                       <select value={targetType} onChange={(e) => setTargetType(e.target.value as DirectiveTarget)}>
-                        <option value="project">Project</option>
-                        <option value="department">Department</option>
-                        <option value="agent">Agent</option>
+                        <option value="project">{t("command.target.project")}</option>
+                        <option value="department">{t("command.target.department")}</option>
+                        <option value="agent">{t("command.target.agent")}</option>
                       </select>
                     </label>
                     <label className="field-label">
-                      Target
+                      {t("command.target")}
                       <select value={targetRef} onChange={(e) => setTargetRef(e.target.value)}>
                         {targetType === "project"
                           ? (snapshot?.projects ?? []).map((p: InternalProject) => (
@@ -883,41 +895,41 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       </select>
                     </label>
                     <label className="field-label command-form-grid-span2">
-                      Title
+                      {t("command.directiveTitle")}
                       <input value={directiveTitle} onChange={(e) => setDirectiveTitle(e.target.value)} />
                     </label>
                     <label className="field-label command-form-grid-span2">
-                      Details
+                      {t("command.directiveDetails")}
                       <textarea value={directiveBody} onChange={(e) => setDirectiveBody(e.target.value)} rows={2} />
                     </label>
                   </div>
                   <div className="command-form-options">
                     <label className="checkbox-row">
                       <input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)} />
-                      <span>LLM decomposition</span>
+                      <span>{t("command.llmDecomp")}</span>
                     </label>
                     <label className="checkbox-row">
                       <input type="checkbox" checked={planAfterRoute} onChange={(e) => setPlanAfterRoute(e.target.checked)} />
-                      <span>Plan sprint after route</span>
+                      <span>{t("command.planAfterRoute")}</span>
                     </label>
                   </div>
                   <div className="panel-actions command-panel-actions">
                     <button type="button" disabled={busy} onClick={() => void handleSaveDraft()}>
-                      Save draft
+                      {t("command.saveDraft")}
                     </button>
                     <button type="button" disabled={busy} onClick={() => void handlePreview()}>
-                      Preview
+                      {t("command.preview")}
                     </button>
                     <button type="button" className="primary-action" disabled={busy} onClick={() => void handleRoute(false)}>
-                      Route
+                      {t("command.route")}
                     </button>
                     <button type="button" disabled={busy} onClick={() => void handleRoute(true)}>
-                      Route + Plan
+                      {t("command.routePlan")}
                     </button>
                   </div>
                   {preview && preview.length > 0 ? (
                     <div className="command-preview-box">
-                      <h5>Preview decomposition</h5>
+                      <h5>{t("command.previewDecomp")}</h5>
                       <PreviewTree nodes={preview} />
                     </div>
                   ) : null}
@@ -928,16 +940,19 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 <div className="command-directive-detail command-panel-block">
                   <h4 className="command-panel-heading">{selectedDirective.title}</h4>
                   <p className="command-directive-detail-body">
-                    {selectedDirective.description || "No details."}
+                    {selectedDirective.description || t("command.noDetails")}
                   </p>
                   <p className="command-directive-detail-meta">
-                    {sourceLabel(selectedDirective.source)} · {selectedDirective.status} · Target:{" "}
-                    {selectedDirective.target} / {selectedDirective.target_ref}
+                    {t(sourceLabelKey(selectedDirective.source))} · {selectedDirective.status} ·{" "}
+                    {t("command.targetMeta", {
+                      target: selectedDirective.target,
+                      ref: selectedDirective.target_ref,
+                    })}
                   </p>
                   <div className="panel-actions command-panel-actions">
                     {selectedDirective.status === "open" ? (
                       <button type="button" disabled={busy} onClick={() => void handleRoute(planAfterRoute)}>
-                        Route
+                        {t("command.route")}
                       </button>
                     ) : null}
                     {selectedDirective.status !== "cancelled" && selectedDirective.status !== "done" ? (
@@ -946,7 +961,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                         disabled={busy}
                         onClick={() => void cancelDirective(selectedDirective.id).then(() => syncScrumSnapshot())}
                       >
-                        Cancel
+                        {t("command.cancel")}
                       </button>
                     ) : null}
                     {selectedDirective.status === "routed" ? (
@@ -956,14 +971,14 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                           void updateDirectiveStatus(selectedDirective.id, "done").then(() => syncScrumSnapshot())
                         }
                       >
-                        Mark done
+                        {t("command.markDone")}
                       </button>
                     ) : null}
                   </div>
                 </div>
               ) : (
                 <p className="command-empty-hint command-directive-placeholder">
-                  Select a directive from the inbox to view details and actions.
+                  {t("command.selectDirective")}
                 </p>
               )}
             </div>
@@ -973,14 +988,14 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
         {tab === "projects" ? (
           <div className="command-projects-layout">
             <section className="command-form-section">
-              <h4>Create project</h4>
+              <h4>{t("command.createProject")}</h4>
               <div className="command-form">
                 <label className="field-label">
-                  Title
+                  {t("common.title")}
                   <input value={newProjectTitle} onChange={(e) => setNewProjectTitle(e.target.value)} />
                 </label>
                 <label className="field-label">
-                  Department
+                  {t("command.department")}
                   <select value={newProjectDept} onChange={(e) => setNewProjectDept(e.target.value)}>
                     {departments.map((d) => (
                       <option key={d} value={d}>{d}</option>
@@ -994,17 +1009,17 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     disabled={busy}
                     onClick={() => void handleCreateProject()}
                   >
-                    Create
+                    {t("command.create")}
                   </button>
                 </div>
               </div>
             </section>
             {project ? (
               <section className="command-form-section">
-                <h4>Edit: {project.title}</h4>
+                <h4>{t("command.editProject", { title: project.title })}</h4>
                 <div className="command-form">
                   <label className="field-label">
-                    Active project
+                    {t("command.activeProject")}
                     <select
                       value={selectedProjectId || project.id}
                       onChange={(e) => handleProjectSelect(e.target.value)}
@@ -1015,11 +1030,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     </select>
                   </label>
                   <label className="field-label">
-                    Description
+                    {t("common.description")}
                     <textarea value={editProjectDesc} onChange={(e) => setEditProjectDesc(e.target.value)} rows={2} />
                   </label>
                   <label className="field-label">
-                    Priority (1=highest)
+                    {t("command.priority")}
                     <input
                       type="number"
                       min={1}
@@ -1029,7 +1044,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     />
                   </label>
                   <label className="field-label">
-                    Sprint cycle (days)
+                    {t("command.sprintCycle")}
                     <input
                       type="number"
                       min={1}
@@ -1038,21 +1053,21 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     />
                   </label>
                   <label className="field-label">
-                    Project PM
+                    {t("command.projectPm")}
                     <select value={editProjectPm} onChange={(e) => setEditProjectPm(e.target.value)}>
-                      <option value="">Inherit global PM</option>
+                      <option value="">{t("command.inheritPm")}</option>
                       {agents.map((a) => (
                         <option key={a.id} value={a.id}>{formatAgentOptionLabel(a)}</option>
                       ))}
                     </select>
                   </label>
                   <label className="field-label">
-                    Global default PM
+                    {t("command.globalPm")}
                     <select
                       value={snapshot?.default_pm_agent_id ?? ""}
                       onChange={(e) => void setDefaultPmAgent(e.target.value || null).then(() => syncScrumSnapshot())}
                     >
-                      <option value="">Auto-detect</option>
+                      <option value="">{t("command.autoDetect")}</option>
                       {agents.map((a) => (
                         <option key={a.id} value={a.id}>{formatAgentOptionLabel(a)}</option>
                       ))}
@@ -1065,10 +1080,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       disabled={busy}
                       onClick={() => void handleUpdateProject()}
                     >
-                      Save project
+                      {t("command.saveProject")}
                     </button>
                   </div>
-                  <p className="muted command-form-note">Progress: {(project.progress * 100).toFixed(0)}%</p>
+                  <p className="muted command-form-note">
+                    {t("command.progress", { pct: (project.progress * 100).toFixed(0) })}
+                  </p>
                 </div>
               </section>
             ) : null}
@@ -1083,26 +1100,29 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   <h4 className="command-panel-heading">
                     {activeSprint.name} · {activeSprint.status}
                   </h4>
-                  <p className="command-sprint-goal">{activeSprint.goal || "No sprint goal set."}</p>
+                  <p className="command-sprint-goal">
+                    {activeSprint.goal || t("command.noSprintGoal")}
+                  </p>
                   <p className="command-sprint-meta">
-                    {showSimulationChrome ? "Day" : "Window"} {activeSprint.start_day}–{activeSprint.end_day} · velocity{" "}
+                    {showSimulationChrome ? t("command.day") : t("command.window")}{" "}
+                    {activeSprint.start_day}–{activeSprint.end_day} · velocity{" "}
                     {activeSprint.velocity_target}
                   </p>
                 </div>
               ) : (
-                <p className="command-empty-hint">No active sprint for this project.</p>
+                <p className="command-empty-hint">{t("command.noActiveSprint")}</p>
               )}
               <div className="command-form">
                 <label className="field-label">
-                  Sprint name
-                  <input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="Sprint 2" />
+                  {t("command.sprintName")}
+                  <input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder={t("command.sprintPh")} />
                 </label>
                 <label className="field-label">
-                  Goal
+                  {t("command.goal")}
                   <input value={sprintGoal} onChange={(e) => setSprintGoal(e.target.value)} />
                 </label>
                 <label className="field-label">
-                  Velocity target (pts)
+                  {t("command.velocity")}
                   <input
                     type="number"
                     min={1}
@@ -1112,10 +1132,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 </label>
                 <div className="panel-actions">
                   <button type="button" disabled={busy} onClick={() => void handleSprintAction("create")}>
-                    Create sprint
+                    {t("command.createSprint")}
                   </button>
                   <button type="button" disabled={busy} onClick={() => void handleSprintAction("start")}>
-                    Start
+                    {t("command.start")}
                   </button>
                   <button
                     type="button"
@@ -1123,16 +1143,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     disabled={busy}
                     onClick={() => void handleSprintAction("plan")}
                   >
-                    Plan sprint
+                    {t("command.planSprint")}
                   </button>
                   <button type="button" disabled={busy} onClick={() => void handleSprintAction("close")}>
-                    Close sprint
+                    {t("command.closeSprint")}
                   </button>
                 </div>
               </div>
             </section>
             <div className="command-capacity command-panel-block">
-              <h4 className="command-panel-heading">Team capacity</h4>
+              <h4 className="command-panel-heading">{t("command.teamCapacity")}</h4>
               <div className="command-capacity-grid">
                 {(snapshot?.inboxes ?? []).map((entry) => (
                   <article key={entry.agent_id} className="command-capacity-card">
@@ -1149,25 +1169,25 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
 
         {tab === "policies" ? (
           <section className="command-policies">
-            <h4 className="command-panel-heading">Execution policies</h4>
+            <h4 className="command-panel-heading">{t("command.executionPolicies")}</h4>
             <p className="muted command-form-note command-policies-ownership">
-              Run controls (Full Autopilot, Pause, intervention) live on the{" "}
+              {t("command.policiesOwnershipBefore")}{" "}
               <button type="button" className="command-inline-link" onClick={() => setTab("overview")}>
-                Overview
+                {t("command.tab.overview")}
               </button>{" "}
-              tab. Company execution runtime is configured in{" "}
+              {t("command.policiesOwnershipMid")}{" "}
               <button
                 type="button"
                 className="command-inline-link"
                 onClick={() => useGameStore.getState().setActivePanel("agents")}
               >
-                Agent Brains → Execution runtime
+                {t("nav.agents")} → {t("agents.section.runtime")}
               </button>
-              .
+              {t("command.policiesOwnershipEnd")}
             </p>
             <div className="command-policies-grid">
             <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Scrum automation</h5>
+              <h5 className="command-policy-group-title">{t("command.policy.scrum")}</h5>
               <div className="command-form">
             <label className="checkbox-row">
               <input
@@ -1175,7 +1195,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_auto_schedule ?? true}
                 onChange={(e) => void persistSettings({ scrum_auto_schedule: e.target.checked })}
               />
-              <span>Auto schedule on directive route</span>
+              <span>{t("command.policy.autoSchedule")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1183,7 +1203,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_worker_enabled ?? true}
                 onChange={(e) => void persistSettings({ scrum_worker_enabled: e.target.checked })}
               />
-              <span>Background scrum worker (auto route, execute, approve)</span>
+              <span>{t("command.policy.scrumWorker")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1191,7 +1211,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_auto_route ?? true}
                 onChange={(e) => void persistSettings({ scrum_auto_route: e.target.checked })}
               />
-              <span>Auto route open directives</span>
+              <span>{t("command.policy.autoRoute")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1199,7 +1219,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_auto_approve ?? true}
                 onChange={(e) => void persistSettings({ scrum_auto_approve: e.target.checked })}
               />
-              <span>PM auto-approve deliverables (remark Done)</span>
+              <span>{t("command.policy.autoApprove")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1207,7 +1227,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_auto_execute ?? true}
                 onChange={(e) => void persistSettings({ scrum_auto_execute: e.target.checked })}
               />
-              <span>Auto execute assigned tasks</span>
+              <span>{t("command.policy.autoExecute")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1215,9 +1235,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_parallel_agents ?? false}
                 onChange={(e) => void persistSettings({ scrum_parallel_agents: e.target.checked })}
               />
-              <span>
-                Parallel across agents (each agent still serial queue; one task per free agent)
-              </span>
+              <span>{t("command.policy.parallelAgents")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1227,7 +1245,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ scrum_auto_retry_blocked: e.target.checked })
                 }
               />
-              <span>Auto-retry blocked tasks</span>
+              <span>{t("command.policy.autoRetry")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1235,12 +1253,12 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.scrum_use_agent_tools ?? false}
                 onChange={(e) => void persistSettings({ scrum_use_agent_tools: e.target.checked })}
               />
-              <span>Multi-step agent tools (plan → draft → refine)</span>
+              <span>{t("command.policy.agentTools")}</span>
             </label>
               </div>
             </div>
             <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Company orchestrator</h5>
+              <h5 className="command-policy-group-title">{t("command.policy.orchestrator")}</h5>
               <div className="command-form">
             <label className="checkbox-row">
               <input
@@ -1248,7 +1266,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.orchestrator_enabled ?? true}
                 onChange={(e) => void persistSettings({ orchestrator_enabled: e.target.checked })}
               />
-              <span>Auto strategic loop (Co-CEO briefings → directives)</span>
+              <span>{t("command.policy.strategicLoop")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1256,7 +1274,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                 checked={settings.orchestrator_auto_meeting ?? true}
                 onChange={(e) => void persistSettings({ orchestrator_auto_meeting: e.target.checked })}
               />
-              <span>Auto escalation meetings when tasks are blocked</span>
+              <span>{t("command.policy.autoMeeting")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1266,10 +1284,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_spawn_co_ceo: e.target.checked })
                 }
               />
-              <span>Auto-spawn AI Co-CEO if missing</span>
+              <span>{t("command.policy.autoSpawnCoCeo")}</span>
             </label>
             <label className="field-label">
-              Orchestrator interval — active work (seconds)
+              {t("command.policy.orchIntervalActive")}
               <input
                 type="number"
                 min={60}
@@ -1281,7 +1299,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               />
             </label>
             <label className="field-label">
-              Orchestrator interval — idle (seconds)
+              {t("command.policy.orchIntervalIdle")}
               <input
                 type="number"
                 min={60}
@@ -1293,7 +1311,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               />
             </label>
             <label className="field-label">
-              Orchestrator interval — blocked / urgent (seconds)
+              {t("command.policy.orchIntervalUrgent")}
               <input
                 type="number"
                 min={60}
@@ -1305,7 +1323,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               />
             </label>
             <label className="field-label">
-              Max directives per orchestrator cycle
+              {t("command.policy.maxDirectives")}
               <input
                 type="number"
                 min={1}
@@ -1321,7 +1339,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               </div>
             </div>
             <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Marketplace automation</h5>
+              <h5 className="command-policy-group-title">{t("command.policy.marketplace")}</h5>
               <div className="command-form">
             <label className="checkbox-row">
               <input
@@ -1331,10 +1349,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_hub_pull: e.target.checked })
                 }
               />
-              <span>Auto-pull hub listings (no manual sync required)</span>
+              <span>{t("command.policy.autoHubPull")}</span>
             </label>
             <label className="field-label">
-              Hub auto-pull interval (seconds)
+              {t("command.policy.hubPullInterval")}
               <input
                 type="number"
                 min={60}
@@ -1353,7 +1371,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_accept_gigs: e.target.checked })
                 }
               />
-              <span>Auto-accept open marketplace gigs (from cached hub listings)</span>
+              <span>{t("command.policy.autoAcceptGigs")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1363,7 +1381,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_start_gigs: e.target.checked })
                 }
               />
-              <span>Auto-start accepted gigs (issue marketplace directive)</span>
+              <span>{t("command.policy.autoStartGigs")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1373,7 +1391,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_complete_gigs: e.target.checked })
                 }
               />
-              <span>Auto-complete gigs after QC approval</span>
+              <span>{t("command.policy.autoCompleteGigs")}</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -1383,10 +1401,10 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   void persistSettings({ orchestrator_auto_recruit: e.target.checked })
                 }
               />
-              <span>Auto-recruit when unassigned sprint work piles up</span>
+              <span>{t("command.policy.autoRecruit")}</span>
             </label>
             <label className="field-label">
-              Max active gig contracts
+              {t("command.policy.maxActiveGigs")}
               <input
                 type="number"
                 min={1}
@@ -1400,13 +1418,11 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
               </div>
             </div>
             <div className="command-policy-group command-panel-block">
-              <h5 className="command-policy-group-title">Execution queue</h5>
+              <h5 className="command-policy-group-title">{t("command.policy.executionQueue")}</h5>
               <div className="command-form">
-                <p className="muted command-form-note">
-                  Pause / Resume automated execution on the Overview toolbar.
-                </p>
+                <p className="muted command-form-note">{t("command.policy.pauseNote")}</p>
                 <label className="field-label">
-                  Min token guard (block auto-run below)
+                  {t("command.policy.minTokenGuard")}
                   <input
                     type="number"
                     min={0}
@@ -1417,7 +1433,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   />
                 </label>
                 <label className="field-label">
-                  Max executions per batch
+                  {t("command.policy.maxExecBatch")}
                   <input
                     type="number"
                     min={1}
@@ -1429,7 +1445,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   />
                 </label>
                 <label className="field-label">
-                  Worker interval (seconds)
+                  {t("command.policy.workerInterval")}
                   <input
                     type="number"
                     min={5}
@@ -1441,7 +1457,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   />
                 </label>
                 <label className="field-label">
-                  Max blocked retries
+                  {t("command.policy.maxBlockedRetries")}
                   <input
                     type="number"
                     min={1}
@@ -1452,27 +1468,24 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                     }
                   />
                 </label>
-                <h5 className="command-policy-group-title">Agent working memory</h5>
-                <p className="muted command-form-note">
-                  Each agent keeps a compressed <code>memory.md</code> while working. View it under
-                  Agent Brains → Employees.
-                </p>
+                <h5 className="command-policy-group-title">{t("command.policy.agentMemory")}</h5>
+                <p className="muted command-form-note">{t("command.policy.memoryNote")}</p>
                 <label className="field-label">
-                  Compress mode
+                  {t("command.policy.compressMode")}
                   <select
                     value={settings.agent_memory_compress_mode ?? "hybrid"}
                     onChange={(e) =>
                       void persistSettings({ agent_memory_compress_mode: e.target.value })
                     }
                   >
-                    <option value="hybrid">Hybrid (every N tasks or size limit)</option>
-                    <option value="every_n_tasks">Every N completed tasks</option>
-                    <option value="every_task">After every task</option>
-                    <option value="size_threshold">Only when size exceeds limit</option>
+                    <option value="hybrid">{t("command.policy.compressHybrid")}</option>
+                    <option value="every_n_tasks">{t("command.policy.compressEveryN")}</option>
+                    <option value="every_task">{t("command.policy.compressEveryTask")}</option>
+                    <option value="size_threshold">{t("command.policy.compressSize")}</option>
                   </select>
                 </label>
                 <label className="field-label">
-                  Compress every N tasks
+                  {t("command.policy.compressEveryNLabel")}
                   <input
                     type="number"
                     min={1}
@@ -1486,7 +1499,7 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                   />
                 </label>
                 <label className="field-label">
-                  Max memory chars (before compress / prompt trim)
+                  {t("command.policy.maxMemoryChars")}
                   <input
                     type="number"
                     min={500}
@@ -1506,14 +1519,16 @@ export function CommandCenterPanel({ onJumpToSection }: CommandCenterPanelProps)
                       void persistSettings({ agent_memory_append_after_task: e.target.checked })
                     }
                   />
-                  <span>Append task summary to memory.md after each success</span>
+                  <span>{t("command.policy.appendMemory")}</span>
                 </label>
                 <p className="command-form-note">
-                  Company tokens: {finance.monthly_inflow_tokens.toLocaleString()} inflow configured
+                  {t("command.tokensInflow", {
+                    n: finance.monthly_inflow_tokens.toLocaleString(),
+                  })}
                 </p>
                 <div className="panel-actions command-panel-actions">
                   <button type="button" className="primary-action" disabled={busy} onClick={() => void handleBatchRun()}>
-                    Run batch executions
+                    {t("command.runBatch")}
                   </button>
                 </div>
               </div>

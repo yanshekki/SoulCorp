@@ -1,5 +1,16 @@
+import { languageFromSettings, translate } from "../i18n";
+import { useGameStore } from "../stores/gameStore";
 import type { RuntimeCatalog, RuntimeCatalogEntry } from "../types/game";
 
+const RUNTIME_CATEGORY_KEYS: Record<string, string> = {
+  builtin: "runtime.cat.builtin",
+  claw: "runtime.cat.claw",
+  platform: "runtime.cat.platform",
+  opensource: "runtime.cat.opensource",
+  custom: "runtime.cat.custom",
+};
+
+/** English fallbacks (tests / reverse maps). Prefer runtimeCategoryLabel() in UI. */
 export const RUNTIME_CATEGORY_LABELS: Record<string, string> = {
   builtin: "Built-in",
   claw: "Claw ecosystem",
@@ -7,6 +18,19 @@ export const RUNTIME_CATEGORY_LABELS: Record<string, string> = {
   opensource: "Open source",
   custom: "Custom",
 };
+
+function tRuntime(key: string, params?: Record<string, string | number>): string {
+  const language = languageFromSettings(useGameStore.getState().settings);
+  return translate(language, key, params);
+}
+
+export function runtimeCategoryLabel(category: string): string {
+  const key = RUNTIME_CATEGORY_KEYS[category];
+  if (key) {
+    return tRuntime(key);
+  }
+  return RUNTIME_CATEGORY_LABELS[category] ?? category;
+}
 
 export type BrainLayer = "meeting" | "execution";
 
@@ -22,28 +46,32 @@ export function isSubprocessRuntime(mode?: string | null): boolean {
 }
 
 export function meetingBrainLabel(id?: string | null, catalog?: RuntimeCatalog | null): string {
-  if (!id || id === "default") return "Inherit default";
+  if (!id || id === "default") return tRuntime("provider.inheritDefault");
   const entry = catalog?.runtimes.find((r) => r.id === id);
   if (entry) return entry.label;
   return legacyMeetingLabel(id);
 }
 
 export function legacyMeetingLabel(id: string): string {
-  const map: Record<string, string> = {
-    mock: "Mock (offline)",
-    ollama: "Ollama (local)",
-    openai: "OpenAI API",
-    openai_api: "OpenAI API",
-    grok: "Grok API",
-    grok_api: "Grok API (xAI)",
-    claude: "Claude API",
-    claude_api: "Claude API",
-    deepseek: "DeepSeek API",
-    deepseek_api: "DeepSeek API",
-    "soulmd-hub": "soulmd-hub API",
-    soulmd_hub: "soulmd-hub API",
+  const keyMap: Record<string, string> = {
+    mock: "provider.mock",
+    ollama: "provider.ollama",
+    openai: "provider.openaiApi",
+    openai_api: "provider.openaiApi",
+    grok: "provider.grokApi",
+    grok_api: "provider.grokApiXai",
+    claude: "provider.claudeApi",
+    claude_api: "provider.claudeApi",
+    deepseek: "provider.deepseekApi",
+    deepseek_api: "provider.deepseekApi",
+    "soulmd-hub": "provider.soulmdHub",
+    soulmd_hub: "provider.soulmdHub",
   };
-  return map[id] ?? id.replace(/_/g, " ");
+  const key = keyMap[id];
+  if (key) {
+    return tRuntime(key);
+  }
+  return id.replace(/_/g, " ");
 }
 
 /** Maps legacy `settings.ai_provider` values to runtime catalog meeting brain ids. */
@@ -82,18 +110,21 @@ export function apiProviderIdForMeetingRegistry(
   if (entry?.api_provider_id) {
     return entry.api_provider_id;
   }
-  const legacy = legacyMeetingLabel(normalized);
-  const reverse: Record<string, string> = {
-    "Mock (offline)": "mock",
-    "Ollama (local)": "ollama",
-    "OpenAI API": "openai",
-    "Grok API (xAI)": "grok",
-    "Grok API": "grok",
-    "Claude API": "claude",
-    "DeepSeek API": "deepseek",
-    "soulmd-hub API": "soulmd-hub",
+  const reverseById: Record<string, string> = {
+    mock: "mock",
+    ollama: "ollama",
+    openai: "openai",
+    openai_api: "openai",
+    grok: "grok",
+    grok_api: "grok",
+    claude: "claude",
+    claude_api: "claude",
+    deepseek: "deepseek",
+    deepseek_api: "deepseek",
+    "soulmd-hub": "soulmd-hub",
+    soulmd_hub: "soulmd-hub",
   };
-  return reverse[legacy] ?? normalized;
+  return reverseById[normalized] ?? normalized;
 }
 
 export function effectiveApiProviderForSettings(
@@ -172,7 +203,7 @@ export function groupCatalogEntries(catalog: RuntimeCatalog) {
   }
   return Array.from(groups.entries()).map(([category, runtimes]) => ({
     category,
-    label: RUNTIME_CATEGORY_LABELS[category] ?? category,
+    label: runtimeCategoryLabel(category),
     runtimes,
   }));
 }

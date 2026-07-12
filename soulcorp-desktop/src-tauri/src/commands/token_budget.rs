@@ -3,12 +3,14 @@ use crate::db::persistence::commit;
 use crate::state::{AppState, TokenEconomy, TokenUsageEntry};
 use crate::token_budget::{
     allocate_agent_tokens, allocate_department_tokens, rebalance_token_wallets,
-    total_company_tokens, update_agent_token_budget, update_department_token_budget,
+    resolve_alloc_amount, top_up_company_tokens, total_company_tokens,
+    update_agent_token_budget, update_department_token_budget, UNLIMITED_ALLOC_PACK,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenEconomySnapshot {
     pub economy: TokenEconomy,
@@ -56,7 +58,7 @@ pub struct MeetingTurnCostEstimate {
 
 #[tauri::command]
 pub fn get_token_economy(state: State<'_, Mutex<AppState>>) -> Result<TokenEconomySnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(TokenEconomySnapshot {
         total_tokens: total_company_tokens(&state.token_economy),
         economy: state.token_economy.clone(),
@@ -70,7 +72,7 @@ pub fn get_token_usage_ledger(
     agent_id: Option<String>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<TokenUsageEntry>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state
         .token_ledger
         .iter()
@@ -90,17 +92,46 @@ pub fn get_token_usage_ledger(
         .collect())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationResult {
+    pub economy: TokenEconomy,
+    pub amount_applied: u64,
+    /// True when the UI sent 0 and we applied the unlimited pack.
+    pub used_unlimited_pack: bool,
+    pub message: String,
+}
+
 #[tauri::command]
 pub fn allocate_department_tokens_cmd(
     request: DepartmentAllocationRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<TokenEconomy, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+) -> Result<AllocationResult, String> {
+    let mut state = state.lock_or_recover()?;
+    let used_unlimited_pack = request.amount == 0;
+    let amount_applied = resolve_alloc_amount(request.amount);
     allocate_department_tokens(&mut state, &request.department, request.amount)?;
     let economy = state.token_economy.clone();
     commit(app, &state)?;
-    Ok(economy)
+    let message = if used_unlimited_pack {
+        format!(
+            "Filled {} with {} tokens (0 = unlimited pack of {}).",
+            request.department,
+            amount_applied,
+            UNLIMITED_ALLOC_PACK
+        )
+    } else {
+        format!(
+            "Allocated {} tokens to {}.",
+            amount_applied, request.department
+        )
+    };
+    Ok(AllocationResult {
+        economy,
+        amount_applied,
+        used_unlimited_pack,
+        message,
+    })
 }
 
 #[tauri::command]
@@ -108,12 +139,31 @@ pub fn allocate_agent_tokens_cmd(
     request: AgentAllocationRequest,
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
-) -> Result<TokenEconomy, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+) -> Result<AllocationResult, String> {
+    let mut state = state.lock_or_recover()?;
+    let used_unlimited_pack = request.amount == 0;
+    let amount_applied = resolve_alloc_amount(request.amount);
     allocate_agent_tokens(&mut state, &request.agent_id, request.amount)?;
+    let name = state
+        .agents
+        .get(&request.agent_id)
+        .map(|a| a.name.clone())
+        .unwrap_or_else(|| request.agent_id.clone());
     let economy = state.token_economy.clone();
     commit(app, &state)?;
-    Ok(economy)
+    let message = if used_unlimited_pack {
+        format!(
+            "Filled {name} with {amount_applied} tokens (0 = unlimited pack of {UNLIMITED_ALLOC_PACK})."
+        )
+    } else {
+        format!("Allocated {amount_applied} tokens to {name}.")
+    };
+    Ok(AllocationResult {
+        economy,
+        amount_applied,
+        used_unlimited_pack,
+        message,
+    })
 }
 
 #[tauri::command]
@@ -121,11 +171,72 @@ pub fn rebalance_token_wallets_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<TokenEconomy, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     rebalance_token_wallets(&mut state);
     let economy = state.token_economy.clone();
     commit(app, &state)?;
     Ok(economy)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompanyPoolUpdateRequest {
+    /// Absolute company pool balance after the update (Set).
+    #[serde(default)]
+    pub set_to: Option<u64>,
+    /// Add this many tokens to the company pool (Top up).
+    #[serde(default)]
+    pub add: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompanyPoolUpdateResult {
+    pub economy: TokenEconomy,
+    pub company_balance: u64,
+    pub message: String,
+}
+
+/// Set or top up the unallocated company token pool (Tokens → Overview).
+/// Replaces God Mode emergency budget for product editions without God Mode.
+#[tauri::command]
+pub fn update_company_pool_cmd(
+    request: CompanyPoolUpdateRequest,
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+) -> Result<CompanyPoolUpdateResult, String> {
+    let mut state = state.lock_or_recover()?;
+    let before = state.token_economy.company_balance;
+
+    if let Some(target) = request.set_to {
+        state.token_economy.company_balance = target;
+        crate::token_budget::apply_enforcement(&mut state);
+    } else if let Some(add) = request.add {
+        if add == 0 {
+            return Err("Enter a positive amount to add, or use Set to.".into());
+        }
+        top_up_company_tokens(&mut state, add);
+    } else {
+        return Err("Provide set_to (absolute) or add (top-up amount).".into());
+    }
+
+    let after = state.token_economy.company_balance;
+    let economy = state.token_economy.clone();
+    commit(app, &state)?;
+    let message = if request.set_to.is_some() {
+        format!(
+            "Company pool set to {} tokens (was {}).",
+            after, before
+        )
+    } else {
+        format!(
+            "Company pool topped up: {} → {} tokens.",
+            before, after
+        )
+    };
+    Ok(CompanyPoolUpdateResult {
+        economy,
+        company_balance: after,
+        message,
+    })
 }
 
 #[tauri::command]
@@ -133,7 +244,7 @@ pub fn estimate_meeting_turn_cost(
     meeting_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<MeetingTurnCostEstimate, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let meeting = state
         .meetings
         .get(&meeting_id)
@@ -183,7 +294,7 @@ pub fn update_department_token_budget_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<TokenEconomy, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     update_department_token_budget(
         &mut state,
         &request.department,
@@ -202,7 +313,7 @@ pub fn update_agent_token_budget_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<TokenEconomy, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     update_agent_token_budget(
         &mut state,
         &request.agent_id,
@@ -217,6 +328,6 @@ pub fn update_agent_token_budget_cmd(
 
 #[tauri::command]
 pub fn get_finance_state(state: State<'_, Mutex<AppState>>) -> Result<TokenEconomy, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.token_economy.clone())
 }

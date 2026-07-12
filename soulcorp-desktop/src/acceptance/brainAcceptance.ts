@@ -37,6 +37,11 @@ export function runBrainAcceptanceTests(): AcceptanceResult[] {
   });
 
   results.push({
+    name: "Brain legacy deepseek maps to deepseek_api",
+    passed: legacyMeetingProviderToRegistryId("deepseek") === "deepseek_api",
+  });
+
+  results.push({
     name: "Brain legacy soulmd-hub maps to soulmd_hub",
     passed: legacyMeetingProviderToRegistryId("soulmd-hub") === "soulmd_hub",
   });
@@ -45,6 +50,11 @@ export function runBrainAcceptanceTests(): AcceptanceResult[] {
     name: "Brain meeting catalog has six API brains",
     passed: meetingCatalog.runtimes.length >= 6,
     detail: String(meetingCatalog.runtimes.length),
+  });
+
+  results.push({
+    name: "Brain meeting catalog includes deepseek_api",
+    passed: meetingCatalog.runtimes.some((entry) => entry.id === "deepseek_api"),
   });
 
   results.push({
@@ -58,8 +68,18 @@ export function runBrainAcceptanceTests(): AcceptanceResult[] {
   });
 
   results.push({
+    name: "Brain apiProviderIdForMeetingRegistry resolves deepseek",
+    passed: apiProviderIdForMeetingRegistry("deepseek_api", registry) === "deepseek",
+  });
+
+  results.push({
     name: "Brain effectiveApiProviderForSettings maps legacy values",
     passed: effectiveApiProviderForSettings("grok", registry) === "grok",
+  });
+
+  results.push({
+    name: "Brain effectiveApiProviderForSettings maps deepseek",
+    passed: effectiveApiProviderForSettings("deepseek", registry) === "deepseek",
   });
 
   results.push({

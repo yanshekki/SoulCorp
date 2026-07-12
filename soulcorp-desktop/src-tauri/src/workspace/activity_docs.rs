@@ -147,13 +147,15 @@ pub fn write_meeting_notes_from_state(
     app: &AppHandle,
     state: &mut AppState,
     meeting_id: &str,
+    minutes: Option<&crate::meeting::MeetingMinutes>,
 ) -> Result<Vec<crate::workspace::models::WorkspacePage>, String> {
     if state
         .meetings
         .get(meeting_id)
-        .map(|meeting| meeting.notes_generated)
+        .map(|meeting| meeting.notes_generated && meeting.notes_page_id.is_some())
         .unwrap_or(false)
     {
+        // Already written — return empty but keep notes_page_id on meeting.
         return Ok(vec![]);
     }
 
@@ -194,19 +196,58 @@ pub fn write_meeting_notes_from_state(
     storage.ensure_seed()?;
     let day_number = state.day_number;
     let service = AgentWorkspaceService::new(&storage);
-    let pages = service.write_meeting_notes(
+
+    // Prefer structured minutes from finalize; rebuild heuristic if missing.
+    let minutes_owned;
+    let minutes_ref = if let Some(m) = minutes {
+        m
+    } else {
+        let names: Vec<String> = participants.iter().map(|(_, n, _)| n.clone()).collect();
+        let transcript = messages
+            .iter()
+            .map(|(s, c)| format!("{s}: {c}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let lang = crate::i18n::language_from_settings(&state.settings);
+        minutes_owned = crate::meeting::build_minutes_heuristic(
+            &meeting_type,
+            &names,
+            &transcript,
+            &crate::i18n::meeting_canned_outcome(lang, &meeting_type),
+            lang,
+        );
+        &minutes_owned
+    };
+
+    // Attach task ids from meeting for backlog links in notes.
+    let mut minutes_for_write = minutes_ref.clone();
+    if minutes_for_write.task_ids.is_empty() {
+        if let Some(m) = state.meetings.get(meeting_id) {
+            minutes_for_write.task_ids = m.task_ids.clone();
+        }
+    }
+    let force = state
+        .meetings
+        .get(meeting_id)
+        .map(|m| m.notes_page_id.is_some() && !m.notes_generated)
+        .unwrap_or(false);
+    let pages = service.write_meeting_notes_inner(
         day_number,
         meeting_id,
         &meeting_type,
         &messages,
         &participants,
+        &minutes_for_write,
+        force,
     )?;
     if let Some(meeting) = state.meetings.get_mut(meeting_id) {
         meeting.notes_generated = true;
         meeting.notes_page_id = pages
             .iter()
             .find(|page| page.folder_id == "folder-projects")
-            .map(|page| page.id.clone());
+            .map(|page| page.id.clone())
+            .or_else(|| meeting.notes_page_id.clone());
+        meeting.notes_write_error = None;
     }
     state.stats.pages_created += pages.len() as u32;
     Ok(pages)

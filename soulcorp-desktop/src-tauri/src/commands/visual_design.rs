@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisualDesignSnapshot {
     pub design: CompanyVisualDesign,
@@ -91,7 +92,7 @@ fn building_preset(
 
 #[tauri::command]
 pub fn get_visual_design(state: State<'_, Mutex<AppState>>) -> Result<VisualDesignSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(VisualDesignSnapshot {
         design: state.visual_design.clone(),
     })
@@ -103,7 +104,7 @@ pub fn save_visual_design(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state.visual_design = design;
     touch_design(&mut state);
     let snapshot = VisualDesignSnapshot {
@@ -119,7 +120,7 @@ pub fn update_building_visual(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state
         .visual_design
         .buildings
@@ -138,7 +139,7 @@ pub fn update_office_visual(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state
         .visual_design
         .offices
@@ -157,7 +158,7 @@ pub fn update_agent_visual(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state
         .visual_design
         .agents
@@ -176,7 +177,7 @@ pub fn update_campus_theme(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state.visual_design.campus = campus;
     touch_design(&mut state);
     let snapshot = VisualDesignSnapshot {
@@ -192,7 +193,7 @@ pub fn apply_design_preset(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<VisualDesignSnapshot, String> {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     state.visual_design = preset_for(&request.preset_id);
     touch_design(&mut state);
     let snapshot = VisualDesignSnapshot {

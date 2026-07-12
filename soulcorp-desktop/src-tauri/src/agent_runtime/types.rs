@@ -55,6 +55,12 @@ pub struct RuntimeCatalogEntry {
 pub struct AdapterCatalogEntry {
     pub id: String,
     pub label: String,
+    /// How this adapter delivers prompts: prompt_file | message_file | file_flag | stdin
+    #[serde(default)]
+    pub prompt_delivery: Option<String>,
+    /// CLI flag for file modes (e.g. --prompt-file, --message-file)
+    #[serde(default)]
+    pub prompt_file_flag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

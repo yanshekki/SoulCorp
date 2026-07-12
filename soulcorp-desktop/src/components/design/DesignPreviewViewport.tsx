@@ -8,8 +8,10 @@ import {
   campusSkyGradient,
 } from "../../utils/applyVisualDesign";
 import type { Agent, Building } from "../../types/world";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function DesignPreviewViewport() {
+  const { t } = useI18n();
   const draft = useDesignStudioStore((state) => state.draft);
   const setBuildings = useGameStore((state) => state.setBuildings);
   const setAgents = useGameStore((state) => state.setAgents);
@@ -44,7 +46,7 @@ export function DesignPreviewViewport() {
       <div className="design-preview-sky" style={{ background: skyStyle }} />
       <GameScene />
       <p className="design-preview-hint">
-        Campus preview — edit office interiors under the <strong>Offices</strong> tab.
+        {t("design.previewHint")}
       </p>
     </div>
   );

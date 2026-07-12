@@ -7,8 +7,10 @@ import {
   type BuildingVisualConfig,
 } from "../../types/visualDesign";
 import { ColorField } from "./ColorField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function BuildingDesignPanel() {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const setSelectedBuildingId = useDesignStudioStore((state) => state.setSelectedBuildingId);
@@ -38,12 +40,12 @@ export function BuildingDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Building designer</h2>
-        <p className="muted">Customize each department tower — facade, roof, signage, and volume.</p>
+        <h2>{t("design.buildingDesigner")}</h2>
+        <p className="muted">{t("design.buildingDesignerDesc")}</p>
       </header>
 
       <label className="field-label">
-        Department building
+        {t("design.deptBuilding")}
         <select
           value={buildingId}
           onChange={(event) => setSelectedBuildingId(event.target.value)}
@@ -57,7 +59,7 @@ export function BuildingDesignPanel() {
       </label>
 
       <label className="field-label">
-        Signage / display name
+        {t("design.signage")}
         <input
           type="text"
           value={config.signage}
@@ -74,26 +76,26 @@ export function BuildingDesignPanel() {
             className={`design-style-card${config.style === style.id ? " active" : ""}`}
             onClick={() => updateConfig({ style: style.id as BuildingStyle })}
           >
-            <strong>{style.label}</strong>
-            <span>{style.description}</span>
+            <strong>{t(`design.buildingStyle.${style.id}`)}</strong>
+            <span>{t(`design.buildingStyle.${style.id}.desc`)}</span>
           </button>
         ))}
       </div>
 
-      <ColorField label="Facade" value={config.color} onChange={(color) => updateConfig({ color })} />
+      <ColorField label={t("design.facade")} value={config.color} onChange={(color) => updateConfig({ color })} />
       <ColorField
-        label="Roof"
+        label={t("design.roof")}
         value={config.roof_color}
         onChange={(roof_color) => updateConfig({ roof_color })}
       />
       <ColorField
-        label="Accent / signage"
+        label={t("design.accentSignage")}
         value={config.accent_color}
         onChange={(accent_color) => updateConfig({ accent_color })}
       />
 
       <div className="design-slider-grid">
-        {(["Width", "Height", "Depth"] as const).map((label, index) => (
+        {([t("design.width"), t("design.height"), t("design.depth")] as const).map((label, index) => (
           <label key={label} className="field-label">
             {label}
             <input

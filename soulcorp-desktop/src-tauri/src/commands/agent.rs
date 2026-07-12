@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StartAgentRequest {
     pub soul_md_path: String,
@@ -59,7 +60,7 @@ pub fn start_local_agent(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentInfo, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_agent_capacity(&state)?;
     let soul = parse_soul_md(&request.soul_md_path).ok();
     let agent_id = format!("agent-{}", Uuid::new_v4());
@@ -140,7 +141,7 @@ pub fn update_agent_soul(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     update_agent_soul_in_state(&mut state, &app, &request.agent_id, &request.soul_md_content)
 }
 
@@ -158,7 +159,7 @@ pub fn load_agent_soul(
         return Err("Either soul_md_path or soul_md_content is required.".to_string());
     };
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let updated =
         update_agent_soul_in_state(&mut state, &app, &request.agent_id, &content)?;
     updated
@@ -172,7 +173,7 @@ pub fn update_agent_ai_provider(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let ai_provider = normalize_agent_ai_provider(request.ai_provider.as_deref())?;
     let agent = state
         .agents
@@ -186,7 +187,7 @@ pub fn update_agent_ai_provider(
 
 #[tauri::command]
 pub fn list_agents(state: State<'_, Mutex<AppState>>) -> Result<Vec<AgentRecord>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.agents.values().cloned().collect())
 }
 

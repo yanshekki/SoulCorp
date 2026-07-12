@@ -8,15 +8,22 @@ use crate::agent_activity::{
     ActivityRunContext, ActivitySource, BrainLayer, NewSessionParams, SessionStatus,
 };
 use crate::agent_runtime::detached::{DetachedRuntimeContext, execute_for_task_detached};
+use crate::db::persistence::commit;
 use crate::operations;
 use crate::state::{AgentRecord, AppState};
 use crate::token_budget::charge_tokens;
-use rayon::prelude::*;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use std::thread;
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
+
+/// In-flight background CLI/LLM jobs (true multi-thread, non-blocking worker).
+static INFLIGHT_JOBS: AtomicUsize = AtomicUsize::new(0);
+const MAX_INFLIGHT_JOBS: usize = 4;
 #[derive(Debug, Clone)]
 struct ParallelExecutionJob {
     run_id: String,
@@ -62,59 +69,70 @@ pub struct ParallelBatchReport {
 }
 
 pub fn run_detached_parallel_tick(app: &AppHandle) -> Option<ParallelBatchReport> {
+    let inflight = INFLIGHT_JOBS.load(Ordering::SeqCst);
+    if inflight >= MAX_INFLIGHT_JOBS {
+        return Some(ParallelBatchReport {
+            executed: 0,
+            messages: vec![format!(
+                "Worker: {inflight} background job(s) still running (max {MAX_INFLIGHT_JOBS})."
+            )],
+        });
+    }
+
+    let slots = MAX_INFLIGHT_JOBS.saturating_sub(inflight);
     let jobs = {
         let state_mutex = app.state::<Mutex<AppState>>();
-        let Ok(mut state) = state_mutex.lock() else {
+        let Ok(mut state) = state_mutex.lock_or_recover() else {
             return None;
         };
         if !parallel_execution_enabled(&state) {
             return None;
         }
-        prepare_parallel_jobs(&mut state, app)?
+        // Cap this tick to free slots so we never pile unbounded Grok processes.
+        let prev_max = state.settings.scrum_max_executions_per_tick;
+        state.settings.scrum_max_executions_per_tick = (slots as u32).max(1).min(prev_max.max(1));
+        let prepared = prepare_parallel_jobs(&mut state, app);
+        state.settings.scrum_max_executions_per_tick = prev_max;
+        prepared?
     };
 
     if jobs.is_empty() {
         return None;
     }
 
-    let results: Vec<ParallelLlmResult> = jobs
-        .par_iter()
-        .map(|job| run_parallel_llm(app, job))
-        .collect();
-
-    let mut report = ParallelBatchReport {
-        executed: 0,
-        messages: Vec::new(),
-    };
-
-    {
-        let state_mutex = app.state::<Mutex<AppState>>();
-        let Ok(mut state) = state_mutex.lock() else {
-            return Some(report);
-        };
-
-        for result in results {
-            if let Some(message) = apply_parallel_llm_result(&mut state, app, result) {
-                report.executed += 1;
-                report.messages.push(message);
+    let scheduled = jobs.len() as u32;
+    for job in jobs {
+        INFLIGHT_JOBS.fetch_add(1, Ordering::SeqCst);
+        let app = app.clone();
+        thread::spawn(move || {
+            let result = run_parallel_llm(&app, &job);
+            let msg = apply_result_under_lock(&app, result);
+            if let Some(message) = msg {
+                let _ = app.emit(
+                    "scrum-changed",
+                    serde_json::json!({ "messages": [message] }),
+                );
             }
-        }
-
-        operations::sync_agent_visual_state(&mut state);
+            INFLIGHT_JOBS.fetch_sub(1, Ordering::SeqCst);
+        });
     }
 
-    if report.executed > 0 || !report.messages.is_empty() {
-        Some(report)
-    } else {
-        None
-    }
+    Some(ParallelBatchReport {
+        executed: 0,
+        messages: vec![format!(
+            "Scheduled {scheduled} background execution job(s) (multi-thread; inflight≈{}).",
+            INFLIGHT_JOBS.load(Ordering::SeqCst)
+        )],
+    })
 }
 
 fn parallel_execution_enabled(state: &AppState) -> bool {
+    // Always prefer detached execution when auto-execute is on — never hold AppState
+    // across LLM/CLI calls (serial path freezes the UI).
     state.settings.scrum_auto_execute
         && !state.settings.scrum_execution_paused
-        && state.settings.scrum_parallel_agents
         && !state.company_id.is_empty()
+        && crate::ai::auto_work_should_run(&state.settings)
         && crate::token_budget::total_company_tokens(&state.token_economy)
             >= state.settings.scrum_min_tokens_guard
 }
@@ -156,6 +174,8 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
         let Some(agent) = state.agents.get(&agent_id).cloned() else {
             continue;
         };
+        // Top up leaf wallet before estimate (avoids THROTTLED when company can mint).
+        crate::token_budget::fund_agent_for_execution(state, &agent_id, 50_000);
         let Ok(estimate) = super::executor::estimate_execution(state, &task.id) else {
             continue;
         };
@@ -186,6 +206,18 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
             },
         );
 
+        let (cli_prompt, cli_cmd, cli_prompt_path, ws_info) =
+            super::executor::build_execution_cli_bundle(
+                state,
+                &task,
+                &agent,
+                &project_title,
+                runtime.workspace_root.as_deref(),
+            );
+        let cli_input = Some(cli_prompt);
+        let cli_command = Some(cli_cmd);
+        let workspace_info = Some(ws_info);
+
         if !estimate.affordable {
             state.execution_runs.push(ExecutionRun {
                 id: run_id.clone(),
@@ -200,6 +232,10 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
                 error: Some(estimate.message.clone()),
                 started_at: now_iso(),
                 finished_at: Some(now_iso()),
+                cli_input,
+                cli_command,
+                cli_prompt_path,
+                workspace_info,
             });
             jobs.push(ParallelExecutionJob {
                 run_id,
@@ -230,6 +266,10 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
             error: None,
             started_at: now_iso(),
             finished_at: None,
+            cli_input,
+            cli_command,
+            cli_prompt_path,
+            workspace_info,
         });
 
         if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == task.id) {
@@ -260,6 +300,21 @@ fn prepare_parallel_jobs(state: &mut AppState, app: &AppHandle) -> Option<Vec<Pa
     } else {
         Some(jobs)
     }
+}
+
+fn apply_result_under_lock(app: &AppHandle, result: ParallelLlmResult) -> Option<String> {
+    let state_mutex = app.state::<Mutex<AppState>>();
+    let mut state = state_mutex.lock_or_recover().ok()?;
+    let msg = apply_parallel_llm_result(&mut state, app, result);
+    operations::sync_agent_visual_state(&mut state);
+    if let Some(message) = msg.as_ref() {
+        state.scrum_worker.recent_log.push(message.clone());
+        while state.scrum_worker.recent_log.len() > 30 {
+            state.scrum_worker.recent_log.remove(0);
+        }
+    }
+    let _ = commit(app.clone(), &state);
+    msg
 }
 
 fn run_parallel_llm(app: &AppHandle, job: &ParallelExecutionJob) -> ParallelLlmResult {
@@ -383,7 +438,7 @@ fn apply_parallel_llm_result(
         } => {
             if let Some(charge) = charge {
                 if let Err(err) = charge_tokens(state, charge) {
-                    eprintln!("Parallel execution billing failed: {err}");
+                    crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::Execution, "parallel_billing", format!("Parallel execution billing failed: {err}"), None);
                 }
             }
 

@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GodModeActionResult {
     pub action: String,
@@ -65,7 +66,7 @@ pub struct GodModeStatus {
 
 #[tauri::command]
 pub fn get_god_mode_status(state: State<'_, Mutex<AppState>>) -> Result<GodModeStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(GodModeStatus {
         reality_debt: state.god_mode_reality_debt,
     })
@@ -75,7 +76,7 @@ pub fn get_god_mode_status(state: State<'_, Mutex<AppState>>) -> Result<GodModeS
 pub fn get_god_mode_history(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<GodModeLogEntry>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.god_mode_history.iter().rev().take(12).cloned().collect())
 }
 
@@ -85,7 +86,7 @@ pub fn god_mode_time_warp(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let days = days.max(1);
@@ -112,7 +113,7 @@ pub fn god_mode_mass_motivation(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     for agent in state.agents.values_mut() {
@@ -136,7 +137,7 @@ pub fn god_mode_emergency_budget(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let amount = amount.max(0.0).round() as u64;
@@ -157,7 +158,7 @@ pub fn god_mode_divine_inspiration(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     for agent in state.agents.values_mut() {
@@ -184,7 +185,7 @@ pub fn god_mode_black_swan(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let mut rng = rand::rng();
@@ -246,7 +247,7 @@ pub fn god_mode_agent_mutation(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let target_id = resolve_target_agent_id(&state, agent_id)?;
@@ -282,7 +283,7 @@ pub fn god_mode_reality_edit(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let title = if let Some(id) = project_id {
@@ -320,7 +321,7 @@ pub fn god_mode_perfect_hiring(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let recruit = crate::state::GodModeBonusRecruit {
@@ -352,7 +353,7 @@ pub fn god_mode_total_chaos(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let moods = ["chaotic", "euphoric", "paranoid", "lazy", "hyper", "dramatic"];
@@ -381,7 +382,7 @@ pub fn god_mode_reset_agent_memory(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let target_id = resolve_target_agent_id(&state, agent_id)?;
@@ -430,7 +431,7 @@ pub fn god_mode_force_relationship(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GodModeActionResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ensure_enabled(&state)?;
 
     let ids: Vec<String> = state.agents.keys().cloned().collect();

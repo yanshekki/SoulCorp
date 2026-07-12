@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { useAutopilotSnapshot } from "../../../hooks/useAutopilotSnapshot";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 export function ObservatoryGlobalPill() {
+  const { t } = useI18n();
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const sessions = useAgentActivityStore((state) => state.sessions);
   const { snapshot } = useAutopilotSnapshot();
@@ -28,12 +30,12 @@ export function ObservatoryGlobalPill() {
         type="button"
         className="observatory-live-pill observatory-global-pill autopilot-status-pill"
         onClick={() => setActivePanel("projects")}
-        title="Open Autopilot Command Center"
+        title={t("observatory.pill.autopilot")}
       >
         <span className="observatory-live-dot" aria-hidden="true" />
-        Phase: {snapshot.phase_label}
+        {t("observatory.phaseLabel", { phase: snapshot.phase_label })}
         {snapshot.counts.active_agents > 0
-          ? ` · ${snapshot.counts.active_agents} agent${snapshot.counts.active_agents === 1 ? "" : "s"} live`
+          ? t("observatory.agentsLive", { n: snapshot.counts.active_agents })
           : null}
       </button>
     );
@@ -44,7 +46,7 @@ export function ObservatoryGlobalPill() {
       type="button"
       className="observatory-live-pill observatory-global-pill"
       onClick={() => setActivePanel("observatory")}
-      title="Open Observatory"
+      title={t("observatory.pill.open")}
     >
       <span className="observatory-live-dot" aria-hidden="true" />
       {autopilotActive ? (
@@ -53,7 +55,7 @@ export function ObservatoryGlobalPill() {
           {" · "}
         </>
       ) : null}
-      {activeCount} agent{activeCount === 1 ? "" : "s"} thinking
+      {t("observatory.agentsThinking", { n: activeCount })}
     </button>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { furnitureThumbnailPath } from "../../utils/furnitureThumbnail";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface CatalogChipItem {
   id: string;
@@ -43,10 +44,12 @@ export function CatalogChipBar({
   items,
   activeId,
   onSelect,
-  ariaLabel = "Furniture catalog",
+  ariaLabel,
 }: CatalogChipBarProps) {
+  const { t } = useI18n();
+  const resolvedAria = ariaLabel ?? t("catalog.furnitureAria");
   return (
-    <div className="catalog-chip-bar" role="list" aria-label={ariaLabel}>
+    <div className="catalog-chip-bar" role="list" aria-label={resolvedAria}>
       {items.map((item) => (
         <button
           key={item.id}

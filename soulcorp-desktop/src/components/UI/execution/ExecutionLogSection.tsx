@@ -10,6 +10,7 @@ import { SearchableListToolbar } from "../SearchableListToolbar";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { ExecutionRunDetailModal } from "./ExecutionRunDetailModal";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 interface ExecutionLogSectionProps {
   runs: ExecutionRun[];
@@ -33,6 +34,7 @@ export function ExecutionLogSection({
   agentLabels,
   onApprove,
 }: ExecutionLogSectionProps) {
+  const { t } = useI18n();
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const selectSession = useAgentActivityStore((state) => state.selectSession);
   const selectAgent = useAgentActivityStore((state) => state.selectAgent);
@@ -125,41 +127,38 @@ export function ExecutionLogSection({
   return (
     <section id="execution" className="projects-card" data-projects-section="execution">
       <header className="projects-card-header">
-        <p className="workflow-step-badge">5 · Execute</p>
-        <h3>Execution Log</h3>
-        <p className="muted">
-          {orderedRuns.length} run{orderedRuns.length === 1 ? "" : "s"} total — click a run to view
-          full output page by page, then approve and open in Workspace.
-        </p>
+        <p className="workflow-step-badge">{t("execLog.badge")}</p>
+        <h3>{t("execLog.title")}</h3>
+        <p className="muted">{t("execLog.subtitle", { n: orderedRuns.length })}</p>
       </header>
       <div className="projects-card-body">
         {orderedRuns.length > 0 ? (
           <SearchableListToolbar
             query={searchQuery}
             onQueryChange={setSearchQuery}
-            placeholder="Search runs by task, agent, status…"
-            ariaLabel="Search execution runs"
+            placeholder={t("execLog.searchPh")}
+            ariaLabel={t("execLog.searchAria")}
             matchCount={debouncedQuery.trim() ? filteredRuns.length : undefined}
             totalCount={orderedRuns.length}
             typeFilter={{
               value: searchType,
               onChange: setSearchType,
               options: EXECUTION_RUN_SEARCH_TYPES,
-              ariaLabel: "Filter execution run search field",
-              label: "Field",
+              ariaLabel: t("execLog.filterAria"),
+              label: t("execLog.field"),
             }}
           />
         ) : null}
-        {orderedRuns.length === 0 ? <p className="muted">No executions yet.</p> : null}
+        {orderedRuns.length === 0 ? <p className="muted">{t("execLog.empty")}</p> : null}
         {orderedRuns.length > 0 && debouncedQuery.trim() && filteredRuns.length === 0 ? (
-          <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+          <p className="search-empty-hint muted">{t("execLog.noMatches", { query: debouncedQuery })}</p>
         ) : null}
         <ul className="projects-execution-list">
           {pageItems.map((run) => {
             const workNode = workNodeById.get(run.work_node_id);
             const agentName = agentLabels.get(run.agent_id) ?? run.agent_id;
             const title = workNode?.title ?? run.work_node_id;
-            const preview = run.summary || run.error || "No summary recorded.";
+            const preview = run.summary || run.error || t("execLog.noSummary");
             const liveSession = sessions.find(
               (session) => session.run_id === run.id && session.status === "active",
             );
@@ -175,11 +174,14 @@ export function ExecutionLogSection({
                       {run.status}
                     </span>
                     {run.status === "running" || liveSession ? (
-                      <span className="observatory-live-pill inline">LIVE</span>
+                      <span className="observatory-live-pill inline">{t("observatory.liveBadge")}</span>
                     ) : null}
                     <strong>{title}</strong>
                     <span className="muted">
-                      {agentName} · ~{run.actual_tokens || run.estimated_tokens} tokens
+                      {t("execLog.tokensMeta", {
+                        agent: agentName,
+                        tokens: run.actual_tokens || run.estimated_tokens,
+                      })}
                     </span>
                   </div>
                   <p className="projects-execution-preview muted">{preview}</p>
@@ -197,7 +199,7 @@ export function ExecutionLogSection({
                       onKeyDown={() => undefined}
                       role="presentation"
                     >
-                      Watch stream →
+                      {t("execLog.watch")}
                     </span>
                   ) : null}
                 </button>
@@ -209,7 +211,7 @@ export function ExecutionLogSection({
           className="projects-execution-pagination"
           page={safePage}
           totalPages={totalPages}
-          label="Runs"
+          label={t("execLog.runs")}
           onPageChange={setListPage}
         />
       </div>

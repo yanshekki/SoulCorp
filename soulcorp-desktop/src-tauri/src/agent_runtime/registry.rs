@@ -81,14 +81,40 @@ pub fn effective_label(settings: &GameSettings) -> String {
         .unwrap_or_else(|| "In-app LLM".to_string())
 }
 
+/// Resolve prompt delivery for an adapter id (catalog override → built-in defaults).
+pub fn prompt_delivery_for_adapter(adapter_id: &str) -> crate::agent_runtime::PromptDelivery {
+    let adapter = catalog()
+        .adapters
+        .iter()
+        .find(|entry| entry.id == adapter_id);
+    crate::agent_runtime::PromptDelivery::from_catalog(
+        adapter_id,
+        adapter.and_then(|a| a.prompt_delivery.as_deref()),
+        adapter.and_then(|a| a.prompt_file_flag.as_deref()),
+    )
+}
+
+pub fn prompt_delivery_for_runtime_id(runtime_id: &str) -> crate::agent_runtime::PromptDelivery {
+    let entry = runtime_by_id(runtime_id);
+    let adapter_id = entry.map(|e| e.adapter.as_str()).unwrap_or("legacy_stdin");
+    prompt_delivery_for_adapter(adapter_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn registry_has_at_least_29_runtimes() {
-        assert!(catalog().version >= 2);
+        assert!(catalog().version >= 3);
         assert!(catalog().runtimes.len() >= 29);
+    }
+
+    #[test]
+    fn grok_adapter_uses_prompt_file_delivery() {
+        let delivery = prompt_delivery_for_adapter("grok_headless");
+        assert_eq!(delivery.flag(), Some("--prompt-file"));
+        assert!(delivery.is_file_based());
     }
 
     #[test]

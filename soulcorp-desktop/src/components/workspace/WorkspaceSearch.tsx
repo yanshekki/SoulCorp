@@ -1,9 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WORKSPACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceSearchResult } from "../../types/workspace";
 import { SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
+import { useI18n } from "../../i18n/I18nProvider";
 import { SearchField } from "../UI/SearchField";
 
 interface WorkspaceSearchProps {
@@ -11,6 +12,7 @@ interface WorkspaceSearchProps {
 }
 
 export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
+  const { t } = useI18n();
   const searchQuery = useWorkspaceStore((state) => state.searchQuery);
   const searchResults = useWorkspaceStore((state) => state.searchResults);
   const setSearchQuery = useWorkspaceStore((state) => state.setSearchQuery);
@@ -59,8 +61,8 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
       <SearchField
         value={searchQuery}
         onChange={setSearchQuery}
-        placeholder="Search pages & files…"
-        ariaLabel="Search workspace"
+        placeholder={t("workspace.searchPlaceholder")}
+        ariaLabel={t("workspace.searchAria")}
         loading={searching}
         matchCount={
           searchQuery.trim() || searchType !== SEARCH_TYPE_ALL
@@ -71,8 +73,8 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
           value: searchType,
           onChange: setSearchType,
           options: WORKSPACE_SEARCH_TYPES,
-          ariaLabel: "Filter workspace search item type",
-          label: "Type",
+          ariaLabel: t("workspace.searchTypeAria"),
+          label: t("workspace.searchType"),
         }}
       />
       {filteredResults.length > 0 ? (
@@ -90,7 +92,7 @@ export function WorkspaceSearch({ onOpenResult }: WorkspaceSearchProps) {
           ))}
         </div>
       ) : searchQuery.trim() && !searching ? (
-        <p className="ws-search-empty muted">No matches</p>
+        <p className="ws-search-empty muted">{t("common.noMatches")}</p>
       ) : null}
     </div>
   );

@@ -414,6 +414,91 @@ pub fn charge_tokens(state: &mut AppState, ctx: ChargeContext) -> Result<(), Str
     Ok(())
 }
 
+/// Company-paid fees (hire onboarding, etc.): never require the new agent leaf wallet.
+/// Pulls into company unallocated first, then debits company_balance.
+pub fn charge_company_pool(
+    state: &mut AppState,
+    cost: u32,
+    ctx: ChargeContext,
+) -> Result<(), String> {
+    let cost = cost as u64;
+    if cost == 0 {
+        append_ledger(state, ctx);
+        return Ok(());
+    }
+
+    reset_token_budget_periods(state);
+    let total = total_company_tokens(&state.token_economy);
+    if total < cost {
+        return Err(format!(
+            "公司代幣不足：需要 {cost} tokens（目前約 {total}）。請到「代幣」頁注資後再雇用。"
+        ));
+    }
+
+    // Move enough into company unallocated from dept/agent pools if needed.
+    let mut need = cost.saturating_sub(state.token_economy.company_balance);
+    if need > 0 {
+        // Drain department unallocated first.
+        let dept_keys: Vec<String> = state.token_economy.departments.keys().cloned().collect();
+        for key in dept_keys {
+            if need == 0 {
+                break;
+            }
+            let Some(wallet) = state.token_economy.departments.get_mut(&key) else {
+                continue;
+            };
+            let take = need.min(wallet.balance);
+            if take == 0 {
+                continue;
+            }
+            wallet.balance = wallet.balance.saturating_sub(take);
+            state.token_economy.company_balance =
+                state.token_economy.company_balance.saturating_add(take);
+            need = need.saturating_sub(take);
+        }
+    }
+    if need > 0 {
+        // Then drain existing agent wallets (not required for hire semantics).
+        let agent_keys: Vec<String> = state.token_economy.agents.keys().cloned().collect();
+        for key in agent_keys {
+            if need == 0 {
+                break;
+            }
+            let Some(wallet) = state.token_economy.agents.get_mut(&key) else {
+                continue;
+            };
+            let take = need.min(wallet.balance);
+            if take == 0 {
+                continue;
+            }
+            wallet.balance = wallet.balance.saturating_sub(take);
+            state.token_economy.company_balance =
+                state.token_economy.company_balance.saturating_add(take);
+            need = need.saturating_sub(take);
+        }
+    }
+
+    if state.token_economy.company_balance < cost {
+        return Err(format!(
+            "公司代幣不足：需要 {cost} tokens。請到「代幣」頁注資後再雇用。"
+        ));
+    }
+
+    state.token_economy.company_balance = state
+        .token_economy
+        .company_balance
+        .saturating_sub(cost);
+
+    // Record period spend on department if present (analytics only).
+    if let Some(wallet) = state.token_economy.departments.get_mut(&ctx.department) {
+        wallet.spent = wallet.spent.saturating_add(cost);
+    }
+
+    append_ledger(state, ctx);
+    apply_enforcement(state);
+    Ok(())
+}
+
 fn append_ledger(state: &mut AppState, ctx: ChargeContext) {
     state.token_ledger.push(TokenUsageEntry {
         id: Uuid::new_v4().to_string(),
@@ -433,14 +518,40 @@ fn append_ledger(state: &mut AppState, ctx: ChargeContext) {
     }
 }
 
+/// When the UI sends amount `0`, treat it as an unlimited operating pack.
+/// (Period limit 0 already means unlimited caps; this fills a large balance.)
+pub const UNLIMITED_ALLOC_PACK: u64 = 1_000_000;
+
+/// `0` → unlimited pack; otherwise the explicit amount.
+pub fn resolve_alloc_amount(amount: u64) -> u64 {
+    if amount == 0 {
+        UNLIMITED_ALLOC_PACK
+    } else {
+        amount
+    }
+}
+
+fn ensure_company_pool(state: &mut AppState, need: u64) {
+    if need == 0 {
+        return;
+    }
+    let available = state.token_economy.company_balance;
+    if available < need {
+        top_up_company_tokens(state, need - available);
+    }
+}
+
 pub fn allocate_department_tokens(
     state: &mut AppState,
     department: &str,
     amount: u64,
 ) -> Result<(), String> {
+    let amount = resolve_alloc_amount(amount);
     if amount == 0 {
         return Ok(());
     }
+    // Auto-mint into company pool so empty company does not soft-fail the UI.
+    ensure_company_pool(state, amount);
     if state.token_economy.company_balance < amount {
         return Err(format!(
             "Company pool has only {} tokens available.",
@@ -461,6 +572,7 @@ pub fn allocate_agent_tokens(
     agent_id: &str,
     amount: u64,
 ) -> Result<(), String> {
+    let amount = resolve_alloc_amount(amount);
     if amount == 0 {
         return Ok(());
     }
@@ -471,6 +583,17 @@ pub fn allocate_agent_tokens(
         .department
         .clone();
     ensure_department_wallet(&mut state.token_economy, &department);
+    let dept_balance = state
+        .token_economy
+        .departments
+        .get(&department)
+        .map(|wallet| wallet.balance)
+        .unwrap_or(0);
+    // Pull from company → department when the dept pool is empty/short.
+    if dept_balance < amount {
+        let gap = amount - dept_balance;
+        allocate_department_tokens(state, &department, gap)?;
+    }
     let dept_balance = state
         .token_economy
         .departments
@@ -496,6 +619,59 @@ pub fn allocate_agent_tokens(
 pub fn top_up_company_tokens(state: &mut AppState, amount: u64) {
     state.token_economy.company_balance = state.token_economy.company_balance.saturating_add(amount);
     apply_enforcement(state);
+}
+
+/// Ensure an assignee has enough leaf-wallet balance for sprint execution.
+/// Mints into company pool if needed (same path as meeting fund) so empty wallets
+/// do not permanently THROTTLE work while company can still top up.
+pub fn fund_agent_for_execution(state: &mut AppState, agent_id: &str, min_balance: u64) {
+    let target = min_balance.max(25_000).min(UNLIMITED_ALLOC_PACK);
+    fund_meeting_participants(state, &[agent_id.to_string()], target);
+}
+
+/// Ensure meeting participants can afford multi-turn chat (internal wallet economy).
+/// Used when a meeting starts so cloud-key users are not blocked by empty leaf wallets.
+pub fn fund_meeting_participants(state: &mut AppState, agent_ids: &[String], per_agent: u64) {
+    if agent_ids.is_empty() || per_agent == 0 {
+        return;
+    }
+    let total = per_agent.saturating_mul(agent_ids.len() as u64);
+    top_up_company_tokens(state, total);
+    for agent_id in agent_ids {
+        let Some(agent) = state.agents.get(agent_id).cloned() else {
+            continue;
+        };
+        ensure_department_wallet(&mut state.token_economy, &agent.department);
+        ensure_agent_wallet(&mut state.token_economy, &agent);
+        // Move from company → dept → agent if needed.
+        let need = {
+            let bal = state
+                .token_economy
+                .agents
+                .get(agent_id)
+                .map(|w| w.balance)
+                .unwrap_or(0);
+            per_agent.saturating_sub(bal)
+        };
+        if need == 0 {
+            continue;
+        }
+        // Ensure department has enough unallocated by topping company→dept.
+        let dept_bal = state
+            .token_economy
+            .departments
+            .get(&agent.department)
+            .map(|w| w.balance)
+            .unwrap_or(0);
+        if dept_bal < need {
+            let gap = need - dept_bal;
+            if state.token_economy.company_balance < gap {
+                top_up_company_tokens(state, gap);
+            }
+            let _ = allocate_department_tokens(state, &agent.department, gap);
+        }
+        let _ = allocate_agent_tokens(state, agent_id, need);
+    }
 }
 
 pub fn update_department_token_budget(

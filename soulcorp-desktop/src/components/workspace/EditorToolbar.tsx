@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -39,6 +40,7 @@ function ToolbarButton({ button }: { button: ToolButton }) {
 }
 
 export function EditorToolbar({ editor }: EditorToolbarProps) {
+  const { t } = useI18n();
   const [, setRevision] = useState(0);
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
   const setLink = () => {
     const previous = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Link URL", previous ?? "https://");
+    const url = window.prompt(t("editor.linkUrlPrompt"), previous ?? "https://");
     if (url === null) {
       return;
     }
@@ -73,14 +75,14 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "undo",
         label: "↶",
-        title: "Undo (Ctrl+Z)",
+        title: t("editor.undo"),
         disabled: !editor.can().undo(),
         onClick: () => editor.chain().focus().undo().run(),
       },
       {
         id: "redo",
         label: "↷",
-        title: "Redo (Ctrl+Y)",
+        title: t("editor.redo"),
         disabled: !editor.can().redo(),
         onClick: () => editor.chain().focus().redo().run(),
       },
@@ -89,49 +91,49 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "bold",
         label: "B",
-        title: "Bold (Ctrl+B)",
+        title: t("editor.bold"),
         active: editor.isActive("bold"),
         onClick: () => editor.chain().focus().toggleBold().run(),
       },
       {
         id: "italic",
         label: "I",
-        title: "Italic (Ctrl+I)",
+        title: t("editor.italic"),
         active: editor.isActive("italic"),
         onClick: () => editor.chain().focus().toggleItalic().run(),
       },
       {
         id: "underline",
         label: "U",
-        title: "Underline (Ctrl+U)",
+        title: t("editor.underline"),
         active: editor.isActive("underline"),
         onClick: () => editor.chain().focus().toggleUnderline().run(),
       },
       {
         id: "strike",
         label: "S̶",
-        title: "Strikethrough",
+        title: t("editor.strike"),
         active: editor.isActive("strike"),
         onClick: () => editor.chain().focus().toggleStrike().run(),
       },
       {
         id: "code",
         label: "</>",
-        title: "Inline code",
+        title: t("editor.inlineCode"),
         active: editor.isActive("code"),
         onClick: () => editor.chain().focus().toggleCode().run(),
       },
       {
         id: "highlight",
         label: "◧",
-        title: "Highlight",
+        title: t("editor.highlight"),
         active: editor.isActive("highlight"),
         onClick: () => editor.chain().focus().toggleHighlight().run(),
       },
       {
         id: "link",
         label: "🔗",
-        title: "Insert link",
+        title: t("editor.insertLink"),
         active: editor.isActive("link"),
         onClick: setLink,
       },
@@ -140,28 +142,28 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "p",
         label: "P",
-        title: "Paragraph",
+        title: t("editor.paragraph"),
         active: editor.isActive("paragraph"),
         onClick: () => editor.chain().focus().setParagraph().run(),
       },
       {
         id: "h1",
         label: "H1",
-        title: "Heading 1",
+        title: t("editor.h1"),
         active: editor.isActive("heading", { level: 1 }),
         onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
       },
       {
         id: "h2",
         label: "H2",
-        title: "Heading 2",
+        title: t("editor.h2"),
         active: editor.isActive("heading", { level: 2 }),
         onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
       },
       {
         id: "h3",
         label: "H3",
-        title: "Heading 3",
+        title: t("editor.h3"),
         active: editor.isActive("heading", { level: 3 }),
         onClick: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
       },
@@ -170,21 +172,21 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "bullet",
         label: "•",
-        title: "Bullet list",
+        title: t("editor.bulletList"),
         active: editor.isActive("bulletList"),
         onClick: () => editor.chain().focus().toggleBulletList().run(),
       },
       {
         id: "ordered",
         label: "1.",
-        title: "Numbered list",
+        title: t("editor.orderedList"),
         active: editor.isActive("orderedList"),
         onClick: () => editor.chain().focus().toggleOrderedList().run(),
       },
       {
         id: "task",
         label: "☑",
-        title: "Task list",
+        title: t("editor.taskList"),
         active: editor.isActive("taskList"),
         onClick: () => editor.chain().focus().toggleTaskList().run(),
       },
@@ -193,27 +195,27 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "quote",
         label: "❝",
-        title: "Blockquote",
+        title: t("editor.blockquote"),
         active: editor.isActive("blockquote"),
         onClick: () => editor.chain().focus().toggleBlockquote().run(),
       },
       {
         id: "codeblock",
         label: "{ }",
-        title: "Code block",
+        title: t("editor.codeBlock"),
         active: editor.isActive("codeBlock"),
         onClick: () => editor.chain().focus().toggleCodeBlock().run(),
       },
       {
         id: "hr",
         label: "—",
-        title: "Divider",
+        title: t("editor.divider"),
         onClick: () => editor.chain().focus().setHorizontalRule().run(),
       },
       {
         id: "table",
         label: "⊞",
-        title: "Insert table",
+        title: t("editor.insertTable"),
         onClick: insertTable,
       },
     ],
@@ -221,21 +223,21 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {
         id: "left",
         label: "⫷",
-        title: "Align left",
+        title: t("editor.alignLeft"),
         active: editor.isActive({ textAlign: "left" }),
         onClick: () => editor.chain().focus().setTextAlign("left").run(),
       },
       {
         id: "center",
         label: "≡",
-        title: "Align center",
+        title: t("editor.alignCenter"),
         active: editor.isActive({ textAlign: "center" }),
         onClick: () => editor.chain().focus().setTextAlign("center").run(),
       },
       {
         id: "right",
         label: "⫸",
-        title: "Align right",
+        title: t("editor.alignRight"),
         active: editor.isActive({ textAlign: "right" }),
         onClick: () => editor.chain().focus().setTextAlign("right").run(),
       },
@@ -243,21 +245,21 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   };
 
   return (
-    <div className="ws-editor-toolbar" role="toolbar" aria-label="Formatting">
+    <div className="ws-editor-toolbar" role="toolbar" aria-label={t("editor.formatting")}>
       {(Object.entries(buttons) as [string, ToolButton[]][]).map(([group, groupButtons]) => (
-        <ToolGroup key={group} label={group}>
+        <ToolGroup key={group} label={(() => { const k = `editor.group.${group}`; const v = t(k); return v === k ? group : v; })()}>
           {groupButtons.map((button) => (
             <ToolbarButton key={button.id} button={button} />
           ))}
         </ToolGroup>
       ))}
       {editor.isActive("table") ? (
-        <ToolGroup label="table">
+        <ToolGroup label={t("editor.table")}>
           <ToolbarButton
             button={{
               id: "add-col",
               label: "+Col",
-              title: "Add column",
+              title: t("editor.addCol"),
               onClick: () => editor.chain().focus().addColumnAfter().run(),
             }}
           />
@@ -265,7 +267,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
             button={{
               id: "add-row",
               label: "+Row",
-              title: "Add row",
+              title: t("editor.addRow"),
               onClick: () => editor.chain().focus().addRowAfter().run(),
             }}
           />

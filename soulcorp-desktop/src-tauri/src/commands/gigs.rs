@@ -13,6 +13,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcceptHubGigRequest {
     pub gig_id: u64,
@@ -98,7 +99,7 @@ fn contract_index_with_status(
 pub async fn list_gig_contracts(
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<GigContract>, String> {
-    let state = app_state.lock().map_err(|e| e.to_string())?;
+    let state = app_state.lock_or_recover()?;
     Ok(state.gig_contracts.clone())
 }
 
@@ -108,81 +109,86 @@ pub async fn accept_hub_gig(
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<GigContract, String> {
-    let (client, pure_local, base_url, api_key, tier, cached_gigs) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
-        if contract_exists_for_gig(&state, request.gig_id) {
-            return Err("You already have an active contract for this gig.".to_string());
-        }
-        let pure_local = state.settings.pure_local_mode;
-        let client = if pure_local {
-            None
-        } else {
-            Some(client_from_state(&state))
+    use crate::app_log::{LogCategory, LogErr};
+    let result = async {
+        let (client, pure_local, base_url, api_key, tier, cached_gigs) = {
+            let state = app_state.lock_or_recover()?;
+            if contract_exists_for_gig(&state, request.gig_id) {
+                return Err("You already have an active contract for this gig.".to_string());
+            }
+            let pure_local = state.settings.pure_local_mode;
+            let client = if pure_local {
+                None
+            } else {
+                Some(client_from_state(&state))
+            };
+            (
+                client,
+                pure_local,
+                state.hub.base_url.clone(),
+                state.hub.api_key.clone(),
+                state.hub.user_tier.clone(),
+                state.hub.cached_open_gigs.clone(),
+            )
         };
-        (
-            client,
+
+        let gig = resolve_gig_for_accept(
             pure_local,
-            state.hub.base_url.clone(),
-            state.hub.api_key.clone(),
-            state.hub.user_tier.clone(),
-            state.hub.cached_open_gigs.clone(),
+            base_url,
+            api_key,
+            &tier,
+            request.gig_id,
+            cached_gigs,
         )
-    };
+        .await?;
 
-    let gig = resolve_gig_for_accept(
-        pure_local,
-        base_url,
-        api_key,
-        &tier,
-        request.gig_id,
-        cached_gigs,
-    )
-    .await?;
-
-    if !pure_local {
-        if let Some(client) = client {
-            client
-                .assign_gig(request.gig_id)
-                .await
-                .map_err(|error| format!("Failed to accept gig: {error}"))?;
+        if !pure_local {
+            if let Some(client) = client {
+                client
+                    .assign_gig(request.gig_id)
+                    .await
+                    .map_err(|error| format!("Failed to accept gig: {error}"))?;
+            }
         }
-    }
 
-    let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
-        if contract_exists_for_gig(&state, request.gig_id) {
-            return Err("You already have an active contract for this gig.".to_string());
-        }
-        let contract = GigContract {
-            contract_id: Uuid::new_v4().to_string(),
-            gig_id: gig.gig_id,
-            title: gig.title,
-            description: gig.description,
-            budget_usdt: gig.budget_usdt,
-            required_skills: gig.required_skills,
-            status: "accepted".to_string(),
-            progress: 0.0,
-            payout_usdt: 0.0,
-            platform_fee_usdt: 0.0,
-            accepted_at: Utc::now().to_rfc3339(),
-            started_at: None,
-            submitted_at: None,
-            completed_at: None,
-            qc_score: None,
-            qc_notes: None,
+        let contract = {
+            let mut state = app_state.lock_or_recover()?;
+            if contract_exists_for_gig(&state, request.gig_id) {
+                return Err("You already have an active contract for this gig.".to_string());
+            }
+            let contract = GigContract {
+                contract_id: Uuid::new_v4().to_string(),
+                gig_id: gig.gig_id,
+                title: gig.title,
+                description: gig.description,
+                budget_usdt: gig.budget_usdt,
+                required_skills: gig.required_skills,
+                status: "accepted".to_string(),
+                progress: 0.0,
+                payout_usdt: 0.0,
+                platform_fee_usdt: 0.0,
+                accepted_at: Utc::now().to_rfc3339(),
+                started_at: None,
+                submitted_at: None,
+                completed_at: None,
+                qc_score: None,
+                qc_notes: None,
+            };
+            state.gig_contracts.push(contract.clone());
+            crate::scrum::issue_marketplace_directive(
+                &mut state,
+                &contract.contract_id,
+                &contract.title,
+                &contract.description,
+            );
+            commit(app.clone(), &state)?;
+            contract
         };
-        state.gig_contracts.push(contract.clone());
-        crate::scrum::issue_marketplace_directive(
-            &mut state,
-            &contract.contract_id,
-            &contract.title,
-            &contract.description,
-        );
-        commit(app, &state)?;
-        contract
-    };
 
-    Ok(contract)
+        Ok(contract)
+    }
+    .await;
+    result.log_err(&app, LogCategory::Hub, "accept_hub_gig")
 }
 
 #[tauri::command]
@@ -192,7 +198,7 @@ pub async fn start_gig_work(
     app: AppHandle,
 ) -> Result<GigContract, String> {
     let (client, gig_id, pure_local) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let contract = state
             .gig_contracts
             .iter()
@@ -221,7 +227,7 @@ pub async fn start_gig_work(
     }
 
     let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let index = contract_index_with_status(&state, &request.contract_id, "accepted")?;
         state.gig_contracts[index].status = "in_progress".to_string();
         state.gig_contracts[index].started_at = Some(Utc::now().to_rfc3339());
@@ -240,7 +246,7 @@ pub async fn submit_gig_for_qc(
     app: AppHandle,
 ) -> Result<GigContract, String> {
     let (client, gig_id, pure_local, qc_score) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let contract = state
             .gig_contracts
             .iter()
@@ -269,7 +275,7 @@ pub async fn submit_gig_for_qc(
             {
                 Ok(_) => {}
                 Err(error) => {
-                    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                    let mut state = app_state.lock_or_recover()?;
                     enqueue_gig_qc_submit(
                         &mut state,
                         gig_id,
@@ -278,14 +284,14 @@ pub async fn submit_gig_for_qc(
                         None,
                     );
                     commit(app.clone(), &state)?;
-                    eprintln!("Hub QC submit queued for gig {gig_id}: {error}");
+                    crate::app_log::log_warn(&app, crate::app_log::LogCategory::Hub, "submit_gig_for_qc", format!("Hub QC submit queued for gig {gig_id}: {error}"));
                 }
             }
         }
     }
 
     let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let index = contract_index_with_status(&state, &request.contract_id, "in_progress")?;
         if state.gig_contracts[index].progress < 0.95 {
             return Err(format!(
@@ -309,7 +315,7 @@ pub async fn complete_hub_gig(
     app: AppHandle,
 ) -> Result<GigContract, String> {
     let (client, gig_id, pure_local, tier) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let contract = state
             .gig_contracts
             .iter()
@@ -345,7 +351,7 @@ pub async fn complete_hub_gig(
     };
 
     let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let index = contract_index_with_status(&state, &request.contract_id, "in_qc")?;
         if let Some(payout) = hub_payout {
             state.gig_contracts[index].payout_usdt = payout;
@@ -373,7 +379,7 @@ pub async fn reject_gig_qc(
     app: AppHandle,
 ) -> Result<GigContract, String> {
     let (client, gig_id, pure_local) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let contract = state
             .gig_contracts
             .iter()
@@ -398,7 +404,7 @@ pub async fn reject_gig_qc(
                 .reject_gig_qc(gig_id, request.qc_notes.clone())
                 .await
             {
-                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let mut state = app_state.lock_or_recover()?;
                 enqueue_gig_reject_qc(
                     &mut state,
                     gig_id,
@@ -406,13 +412,13 @@ pub async fn reject_gig_qc(
                     request.qc_notes.clone(),
                 );
                 commit(app.clone(), &state)?;
-                eprintln!("Hub reject QC queued for gig {gig_id}: {error}");
+                crate::app_log::log_warn(&app, crate::app_log::LogCategory::Hub, "reject_gig_qc", format!("Hub reject QC queued for gig {gig_id}: {error}"));
             }
         }
     }
 
     let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let index = contract_index_with_status(&state, &request.contract_id, "in_qc")?;
         state.gig_contracts[index].status = "in_progress".to_string();
         state.gig_contracts[index].progress = (state.gig_contracts[index].progress - 0.2).max(0.6);
@@ -439,7 +445,7 @@ pub async fn dispute_hub_gig(
     app: AppHandle,
 ) -> Result<GigContract, String> {
     let (client, gig_id, pure_local) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let contract = state
             .gig_contracts
             .iter()
@@ -464,7 +470,7 @@ pub async fn dispute_hub_gig(
                 .dispute_gig(gig_id, request.qc_notes.clone())
                 .await
             {
-                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let mut state = app_state.lock_or_recover()?;
                 enqueue_gig_dispute(
                     &mut state,
                     gig_id,
@@ -472,13 +478,13 @@ pub async fn dispute_hub_gig(
                     request.qc_notes.clone(),
                 );
                 commit(app.clone(), &state)?;
-                eprintln!("Hub dispute queued for gig {gig_id}: {error}");
+                crate::app_log::log_warn(&app, crate::app_log::LogCategory::Hub, "dispute_hub_gig", format!("Hub dispute queued for gig {gig_id}: {error}"));
             }
         }
     }
 
     let contract = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let index = state
             .gig_contracts
             .iter()

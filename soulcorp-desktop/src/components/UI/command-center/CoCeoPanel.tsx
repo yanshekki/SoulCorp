@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../../utils/tauriInvoke";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IS_V1, IS_V2 } from "../../../config/features";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
@@ -8,6 +8,7 @@ import { sendCoCeoDirectiveToStae } from "../../../services/scrumClient";
 import { DIRECTIVE_TEXT_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
+import { useI18n } from "../../../i18n/I18nProvider";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 
 interface CoCeoPanelProps {
@@ -15,6 +16,7 @@ interface CoCeoPanelProps {
 }
 
 export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const setAgentRecords = useGameStore((state) => state.setAgentRecords);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
@@ -82,7 +84,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
         request: { vision: companyVision },
       });
       setCompanyVision(result.company_vision);
-      setStatusMessage("Company vision updated.");
+      setStatusMessage(t("coCeo.msg.visionUpdated"));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -96,7 +98,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
       setCoCeoStatus(status);
       const agents = await invoke<AgentRecord[]>("list_agents");
       setAgentRecords(agents);
-      setStatusMessage("AI Co-CEO Aria Nexus is active.");
+      setStatusMessage(t("coCeo.msg.spawned"));
       onChanged?.();
     } catch (error) {
       setStatusMessage(String(error));
@@ -109,7 +111,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
       const result = await invoke<CoCeoBriefing>("run_co_ceo_briefing");
       setBriefing(result);
       await refreshStatus();
-      setStatusMessage(`Co-CEO briefing ready via ${result.provider}.`);
+      setStatusMessage(t("coCeo.msg.briefingReady", { provider: result.provider }));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -125,7 +127,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
         target_department: directive.target_department,
       });
       notifyScrumChanged();
-      setStatusMessage(`Directive queued: ${directive.title}`);
+      setStatusMessage(t("coCeo.msg.directiveQueued", { title: directive.title }));
       onChanged?.();
     } catch (error) {
       setStatusMessage(String(error));
@@ -145,7 +147,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
         },
       });
       setCoCeoStatus(status);
-      setStatusMessage(`Applied directive: ${directive.title}`);
+      setStatusMessage(t("coCeo.msg.directiveApplied", { title: directive.title }));
       onChanged?.();
     } catch (error) {
       setStatusMessage(String(error));
@@ -156,7 +158,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
     try {
       const status = await invoke<CoCeoStatus>("set_co_ceo_autonomy", { enabled });
       setCoCeoStatus(status);
-      setStatusMessage(enabled ? "Co-CEO autonomy enabled." : "Co-CEO autonomy paused.");
+      setStatusMessage(enabled ? t("coCeo.msg.autonomyOn") : t("coCeo.msg.autonomyOff"));
     } catch (error) {
       setStatusMessage(String(error));
     }
@@ -164,27 +166,21 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
 
   return (
     <div className="command-co-ceo-panel">
-      <p className="muted">Aria Nexus — strategy briefings and directives into your backlog.</p>
+      <p className="muted">{t("coCeo.lead")}</p>
       {IS_V1 ? (
-        <p className="muted command-co-ceo-v1-hint">
-          V1 background automation is controlled in <strong>Policies → Enable orchestrator</strong>.
-          Use briefings here to manually queue directives; the worker issues them automatically when
-          orchestrator is on.
-        </p>
+        <p className="muted command-co-ceo-v1-hint">{t("coCeo.v1Hint")}</p>
       ) : null}
 
       <div className="command-form-section">
-        <h4>Company vision</h4>
-        <p className="muted">
-          Guides orchestrator briefings and rule-based directives when LLM is unavailable.
-        </p>
+        <h4>{t("coCeo.companyVision")}</h4>
+        <p className="muted">{t("coCeo.visionHelp")}</p>
         <label className="field-label">
-          Vision statement
+          {t("coCeo.vision")}
           <textarea
             rows={3}
             value={companyVision}
             onChange={(e) => setCompanyVision(e.target.value)}
-            placeholder="e.g. Become the default AI operations layer for indie SaaS teams."
+            placeholder={t("coCeo.visionPlaceholder")}
           />
         </label>
         <button
@@ -193,28 +189,28 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
           onClick={() => void saveVision()}
           disabled={savingVision}
         >
-          {savingVision ? "Saving…" : "Save vision"}
+          {savingVision ? t("common.saving") : t("coCeo.saveVision")}
         </button>
       </div>
 
       {coCeoStatus ? (
         <div className="analytics-grid vip-executive-overview-grid">
           <article>
-            <strong>{coCeoStatus.spawned ? "Active" : "Not spawned"}</strong>
-            <span>Status</span>
+            <strong>{coCeoStatus.spawned ? t("coCeo.active") : t("coCeo.notSpawned")}</strong>
+            <span>{t("coCeo.status")}</span>
           </article>
           <article>
             <strong>{coCeoStatus.agent_name ?? "—"}</strong>
-            <span>Agent</span>
+            <span>{t("coCeo.agent")}</span>
           </article>
           <article>
             <strong>{coCeoStatus.directives_applied}</strong>
-            <span>Applied</span>
+            <span>{t("coCeo.applied")}</span>
           </article>
           {IS_V2 ? (
             <article>
-              <strong>{coCeoStatus.autonomy_enabled ? "On" : "Off"}</strong>
-              <span>Autonomy</span>
+              <strong>{coCeoStatus.autonomy_enabled ? t("coCeo.on") : t("coCeo.off")}</strong>
+              <span>{t("coCeo.autonomy")}</span>
             </article>
           ) : null}
         </div>
@@ -223,7 +219,7 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
       <div className="panel-actions vip-executive-actions">
         {!coCeoStatus?.spawned ? (
           <button type="button" className="btn btn--primary" onClick={() => void spawnCoCeo()}>
-            Spawn AI Co-CEO
+            {t("coCeo.spawn")}
           </button>
         ) : (
           <>
@@ -233,11 +229,11 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
               onClick={() => void runBriefing()}
               disabled={loadingBriefing}
             >
-              {loadingBriefing ? "Generating…" : "Run briefing"}
+              {loadingBriefing ? t("coCeo.generating") : t("coCeo.runBriefing")}
             </button>
             {IS_V2 ? (
               <button type="button" className="btn" onClick={() => void toggleAutonomy(!coCeoStatus?.autonomy_enabled)}>
-                {coCeoStatus?.autonomy_enabled ? "Pause autonomy" : "Enable autonomy"}
+                {coCeoStatus?.autonomy_enabled ? t("coCeo.pauseAutonomy") : t("coCeo.enableAutonomy")}
               </button>
             ) : null}
           </>
@@ -247,12 +243,12 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
       {briefing ? (
         <div className="co-ceo-briefing vip-executive-briefing">
           <p>{briefing.summary}</p>
-          <p className="muted">Provider: {briefing.provider}</p>
+          <p className="muted">{t("coCeo.provider", { name: briefing.provider })}</p>
           <SearchableListToolbar
             query={directiveSearchQuery}
             onQueryChange={setDirectiveSearchQuery}
-            placeholder="Search briefing directives…"
-            ariaLabel="Search Co-CEO briefing directives"
+            placeholder={t("coCeo.searchBriefing")}
+            ariaLabel={t("coCeo.searchBriefing")}
             matchCount={
               debouncedDirectiveQuery.trim() || directiveSearchType !== SEARCH_TYPE_ALL
                 ? filteredBriefingDirectives.length
@@ -263,13 +259,13 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
               value: directiveSearchType,
               onChange: setDirectiveSearchType,
               options: DIRECTIVE_TEXT_SEARCH_TYPES,
-              ariaLabel: "Filter briefing directive search field",
-              label: "Field",
+              ariaLabel: t("coCeo.filterFieldAria"),
+              label: t("coCeo.filterField"),
             }}
           />
           {debouncedDirectiveQuery.trim() && filteredBriefingDirectives.length === 0 ? (
             <p className="search-empty-hint muted">
-              No matches for &ldquo;{debouncedDirectiveQuery}&rdquo;.
+              {t("coCeo.noMatches", { query: debouncedDirectiveQuery })}
             </p>
           ) : null}
           <div className="directive-list vip-executive-directive-grid">
@@ -283,11 +279,11 @@ export function CoCeoPanel({ onChanged }: CoCeoPanelProps) {
                 <div className="panel-actions">
                   {IS_V2 ? (
                     <button type="button" className="btn" onClick={() => void applyDirective(directive.id, directive)}>
-                      Apply morale
+                      {t("coCeo.applyMorale")}
                     </button>
                   ) : null}
                   <button type="button" className="btn btn--primary" onClick={() => void sendToStae(directive)}>
-                    Add directive
+                    {t("coCeo.addDirective")}
                   </button>
                 </div>
               </article>

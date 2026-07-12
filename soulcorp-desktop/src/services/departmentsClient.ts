@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import type {
   AgentRecord,
   DepartmentsSnapshot,
@@ -7,6 +7,34 @@ import type {
 
 export async function listDepartments() {
   return invoke<DepartmentsSnapshot>("list_departments");
+}
+
+export interface GenerateDepartmentsResult {
+  snapshot: DepartmentsSnapshot;
+  created: string[];
+  skipped_existing: string[];
+  source: string;
+  message: string;
+}
+
+/** LLM (or heuristic) org generation from current projects. Always merges by name. */
+export async function generateDepartmentsFromProjects(options?: { merge?: boolean }) {
+  return invoke<GenerateDepartmentsResult>("generate_departments_from_projects", {
+    request: { merge: options?.merge ?? true },
+  });
+}
+
+export interface AssignOrgResult {
+  updated: number;
+  heads: string[];
+  source: string;
+  message: string;
+  snapshot: OrgChartSnapshot;
+}
+
+/** LLM (or heuristic) assign every agent’s department, reports_to, manages_department. */
+export async function assignOrgWithAi() {
+  return invoke<AssignOrgResult>("assign_org_with_ai");
 }
 
 export async function getOrgChart() {

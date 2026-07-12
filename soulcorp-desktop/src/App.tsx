@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./utils/tauriInvoke";
 import { BuildingModal } from "./components/BuildingModal";
 import { CompanySetupGate } from "./components/UI/CompanySetupGate";
 import { CreateCompanyModal } from "./components/UI/CreateCompanyModal";
@@ -7,6 +7,7 @@ import { OnboardingWizard } from "./components/UI/OnboardingWizard";
 import { ShellLayout } from "./components/UI/ShellLayout";
 import { PanelHost } from "./components/UI/PanelHost";
 import { LoadingOverlay } from "./components/UI/LoadingOverlay";
+import { LlmLivePanel } from "./components/UI/LlmLivePanel";
 import { showBuildingModal } from "./config/features";
 import { useGameAudio } from "./hooks/useGameAudio";
 import { useGameBootstrap } from "./hooks/useGameBootstrap";
@@ -14,6 +15,7 @@ import { useOperationProgress } from "./hooks/useOperationProgress";
 import { useSimulationLoop } from "./hooks/useSimulationLoop";
 import { useScrumWorkerSync } from "./hooks/useScrumWorkerSync";
 import { useAgentActivity } from "./hooks/useAgentActivity";
+import { useI18n } from "./i18n/I18nProvider";
 import { useGameStore } from "./stores/gameStore";
 import type { SidebarPanel } from "./types/game";
 import { hasActiveCompany } from "./utils/companyState";
@@ -23,6 +25,7 @@ import "./styles/workspace-editor.css";
 import "./styles/startup-warm-ui.css";
 
 function App() {
+  const { t } = useI18n();
   const statusMessage = useGameStore((state) => state.statusMessage);
   const activePanel = useGameStore((state) => state.activePanel);
   const onboardingCompleted = useGameStore((state) => state.onboardingCompleted);
@@ -71,7 +74,7 @@ function App() {
   if (!onboardingReady) {
     content = (
       <div className="app-loading-screen">
-        <p>Loading SoulCorp...</p>
+        <p>{t("app.loading")}</p>
       </div>
     );
   } else if (!onboardingCompleted) {
@@ -94,6 +97,7 @@ function App() {
     <>
       {content}
       <LoadingOverlay />
+      <LlmLivePanel />
     </>
   );
 }

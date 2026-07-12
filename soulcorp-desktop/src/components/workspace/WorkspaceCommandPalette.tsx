@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { WORKSPACE_NAV_VIEWS, type WorkspaceNavView } from "../../types/workspaceNav";
 import { buildAllListItems } from "../../utils/workspaceListItems";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface WorkspaceCommandPaletteProps {
   onNewPage: () => void;
@@ -17,6 +18,7 @@ export function WorkspaceCommandPalette({
   onNewPage,
   onUpload,
 }: WorkspaceCommandPaletteProps) {
+  const { t } = useI18n();
   const open = useWorkspaceStore((state) => state.commandPaletteOpen);
   const setCommandPaletteOpen = useWorkspaceStore((state) => state.setCommandPaletteOpen);
   const tree = useWorkspaceStore((state) => state.tree);
@@ -42,16 +44,16 @@ export function WorkspaceCommandPalette({
       {
         kind: "action",
         id: "new-page",
-        label: "New page",
-        meta: "Create in company folder",
+        label: t("workspace.palette.newPage"),
+        meta: t("workspace.palette.newPageMeta"),
         icon: "＋",
         run: onNewPage,
       },
       {
         kind: "action",
         id: "upload",
-        label: "Upload files",
-        meta: "Import into workspace",
+        label: t("workspace.palette.upload"),
+        meta: t("workspace.palette.uploadMeta"),
         icon: "⬆",
         run: onUpload,
       },
@@ -60,13 +62,13 @@ export function WorkspaceCommandPalette({
       (view): PaletteEntry => ({
         kind: "view",
         id: view.id,
-        label: `Switch to ${view.label}`,
-        meta: "Navigation view",
+        label: t("workspace.palette.switchTo", { view: t(`workspace.view.${view.id}`) }),
+        meta: t("workspace.palette.navView"),
         icon: view.icon,
       }),
     );
     return [...actions, ...views, ...items];
-  }, [tree, pinnedIds, onNewPage, onUpload]);
+  }, [tree, pinnedIds, onNewPage, onUpload, t]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -116,14 +118,14 @@ export function WorkspaceCommandPalette({
       <div
         className="ws-command-palette"
         role="dialog"
-        aria-label="Workspace command palette"
+        aria-label={t("workspace.paletteAria")}
         onClick={(event) => event.stopPropagation()}
       >
         <input
           ref={inputRef}
           className="ws-command-input"
           value={query}
-          placeholder="Jump to page, switch view, or run action…"
+          placeholder={t("workspace.palettePlaceholder")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
@@ -142,7 +144,7 @@ export function WorkspaceCommandPalette({
         />
         <div className="ws-command-results">
           {filtered.length === 0 ? (
-            <p className="ws-command-empty muted">No matches</p>
+            <p className="ws-command-empty muted">{t("common.noMatches")}</p>
           ) : (
             filtered.map((entry, index) => (
               <button

@@ -8,6 +8,7 @@ import {
 } from "../../utils/textSearch";
 import { PaginationBar } from "./PaginationBar";
 import { SearchField } from "./SearchField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface SearchableTextSectionProps {
   title: string;
@@ -38,6 +39,7 @@ export function SearchableTextSection({
   showSearchToolbar = true,
   activeMatchIndex: controlledActiveMatchIndex,
 }: SearchableTextSectionProps) {
+  const { t } = useI18n();
   const [localQuery, setLocalQuery] = useState("");
   const [localActiveMatchIndex, setLocalActiveMatchIndex] = useState(0);
   const isControlled = controlledQuery !== undefined;
@@ -133,13 +135,13 @@ export function SearchableTextSection({
           {matches.length > 1 && controlledActiveMatchIndex === undefined ? (
             <div className="searchable-text-match-nav">
               <button type="button" onClick={() => goToMatch(-1)}>
-                Prev match
+                {t("search.prevMatch")}
               </button>
               <span className="muted">
                 {localActiveMatchIndex + 1} / {matches.length}
               </span>
               <button type="button" onClick={() => goToMatch(1)}>
-                Next match
+                {t("search.nextMatch")}
               </button>
             </div>
           ) : null}

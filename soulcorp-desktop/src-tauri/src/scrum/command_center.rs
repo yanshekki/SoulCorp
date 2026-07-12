@@ -231,34 +231,176 @@ pub fn issue_meeting_directive_and_route(
     meeting_type: &str,
     summary: &str,
 ) -> Option<Directive> {
-    if meeting_type != "Project Kickoff" && meeting_type != "Strategy Discussion" {
-        return None;
-    }
+    spawn_meeting_work(state, meeting_type, summary, &[], &[]).map(|r| r.directive)
+}
+
+/// Result of turning a closed meeting into backlog work.
+#[derive(Debug, Clone)]
+pub struct MeetingSpawnResult {
+    pub directive: Directive,
+    pub story_id: Option<String>,
+    pub task_ids: Vec<String>,
+    pub tasks_spawned: u32,
+}
+
+/// Always spawn work from a finished meeting (all meeting types).
+/// Uses extracted action items when available; otherwise rule-based story/task templates.
+pub fn spawn_meeting_work(
+    state: &mut AppState,
+    meeting_type: &str,
+    summary: &str,
+    action_items: &[String],
+    participant_ids: &[String],
+) -> Option<MeetingSpawnResult> {
     let project_id = state
         .projects
         .iter()
         .min_by_key(|p| p.priority)
         .map(|p| p.id.clone())?;
+
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let title = crate::i18n::meeting_spawn_title(lang, meeting_type);
+
+    let description = if action_items.is_empty() {
+        summary.to_string()
+    } else {
+        let bullets = action_items
+            .iter()
+            .map(|item| format!("- {item}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "{summary}\n\n{}:\n{bullets}",
+            crate::i18n::meeting_action_items_heading(lang)
+        )
+    };
+
     let directive = issue_directive_record(
         state,
-        format!("{meeting_type} outcome"),
-        summary.to_string(),
+        title,
+        description,
         DirectiveSource::Meeting,
         DirectiveTarget::Project,
         project_id.clone(),
     );
     let directive_id = directive.id.clone();
-    let _ = super::scheduler::route_directive_rule_based(state, &directive_id, &project_id);
+
+    let nodes = if action_items.is_empty() {
+        super::scheduler::route_directive_rule_based(state, &directive_id, &project_id).ok()
+    } else {
+        super::scheduler::route_directive_with_action_items(
+            state,
+            &directive_id,
+            &project_id,
+            action_items,
+            participant_ids,
+        )
+        .ok()
+    };
+
+    let (story_id, task_ids, tasks_spawned) = match nodes {
+        Some(created) => {
+            let story_id = created
+                .iter()
+                .find(|n| n.kind == super::types::WorkNodeKind::Story)
+                .map(|n| n.id.clone());
+            let task_ids: Vec<String> = created
+                .iter()
+                .filter(|n| n.kind == super::types::WorkNodeKind::Task)
+                .map(|n| n.id.clone())
+                .collect();
+            let tasks_spawned = task_ids.len() as u32;
+            (story_id, task_ids, tasks_spawned)
+        }
+        None => (None, Vec::new(), 0),
+    };
+
     if state.settings.scrum_auto_schedule {
         if let Ok(sprint_id) = super::scheduler::ensure_active_sprint(state, &project_id) {
             let _ = super::scheduler::plan_sprint(state, &sprint_id);
+            // Pull newly spawned tasks into the sprint and queue them.
+            let now = super::tree::now_iso();
+            for task_id in &task_ids {
+                if let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == *task_id) {
+                    node.sprint_id = Some(sprint_id.clone());
+                    if matches!(
+                        node.status,
+                        super::types::WorkNodeStatus::Backlog | super::types::WorkNodeStatus::Ready
+                    ) {
+                        node.status = super::types::WorkNodeStatus::InSprint;
+                        if node.queued_at.is_none() {
+                            node.queued_at = Some(now.clone());
+                        }
+                        node.updated_at = now.clone();
+                    }
+                }
+            }
         }
     }
-    state
+
+    // Prefer assignees from meeting participants when still unassigned.
+    assign_tasks_to_meeting_participants(state, &task_ids, participant_ids);
+
+    let directive = state
         .directives
         .iter()
         .find(|d| d.id == directive_id)
-        .cloned()
+        .cloned()?;
+
+    Some(MeetingSpawnResult {
+        directive,
+        story_id,
+        task_ids,
+        tasks_spawned,
+    })
+}
+
+fn assign_tasks_to_meeting_participants(
+    state: &mut AppState,
+    task_ids: &[String],
+    participant_ids: &[String],
+) {
+    if task_ids.is_empty() || participant_ids.is_empty() {
+        return;
+    }
+    let participants: Vec<crate::state::AgentRecord> = participant_ids
+        .iter()
+        .filter_map(|id| state.agents.get(id).cloned())
+        .filter(|a| !crate::fate::is_system_agent(a))
+        .collect();
+    if participants.is_empty() {
+        return;
+    }
+
+    let mut rr = 0usize;
+    let now = super::tree::now_iso();
+    for task_id in task_ids {
+        let Some(node) = state.work_nodes.iter_mut().find(|n| n.id == *task_id) else {
+            continue;
+        };
+        if node.assignee_agent_id.is_some() {
+            continue;
+        }
+        // Prefer same-department agent, else round-robin.
+        let pick = participants
+            .iter()
+            .find(|a| a.department == node.department)
+            .or_else(|| participants.get(rr % participants.len()));
+        rr = rr.saturating_add(1);
+        if let Some(agent) = pick {
+            node.assignee_agent_id = Some(agent.id.clone());
+            if node.queued_at.is_none() {
+                node.queued_at = Some(now.clone());
+            }
+            if matches!(
+                node.status,
+                super::types::WorkNodeStatus::Backlog | super::types::WorkNodeStatus::Ready
+            ) {
+                node.status = super::types::WorkNodeStatus::InSprint;
+            }
+            node.updated_at = now.clone();
+        }
+    }
 }
 
 pub fn issue_marketplace_directive(

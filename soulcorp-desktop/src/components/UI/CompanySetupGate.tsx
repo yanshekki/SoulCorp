@@ -1,37 +1,34 @@
 import { useEffect } from "react";
 import { clearEmptyGameState } from "../../utils/companyState";
 import { useGameStore } from "../../stores/gameStore";
+import { useI18n } from "../../i18n/I18nProvider";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 
 export function CompanySetupGate() {
+  const { t } = useI18n();
   const setShowCreateCompany = useGameStore((state) => state.setShowCreateCompany);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
   useEffect(() => {
     clearEmptyGameState();
-    setStatusMessage("Create or select a company to start.");
-  }, [setStatusMessage]);
+    setStatusMessage(t("status.createCompany"));
+  }, [setStatusMessage, t]);
 
   return (
     <div className="company-setup-gate">
       <div className="company-setup-card">
-        <p className="modal-eyebrow">No active company</p>
-        <h2>Set up your company</h2>
-        <p className="muted">
-          Create a company profile before viewing agents, finance, or the 3D office.
-        </p>
+        <p className="modal-eyebrow">{t("setup.noCompany")}</p>
+        <h2>{t("setup.title")}</h2>
+        <p className="muted">{t("setup.desc")}</p>
         <div className="company-setup-actions">
           <button
             type="button"
             className="primary-action"
             onClick={() => setShowCreateCompany(true)}
           >
-            Create company
+            {t("setup.create")}
           </button>
-          <p className="muted">
-            After creating, use <strong>3D Design</strong> in the top nav to customize buildings,
-            offices, and agent appearances.
-          </p>
+          <p className="muted">{t("setup.afterCreate")}</p>
         </div>
       </div>
       <CreateCompanyModal />

@@ -1181,7 +1181,15 @@ impl WorkspaceStorage {
     fn read_page(&self, page_id: &str) -> Result<WorkspacePage, String> {
         let json_path = self.pages_dir().join(format!("{page_id}.json"));
         let raw = fs::read_to_string(json_path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&raw).map_err(|e| e.to_string())
+        let mut page: WorkspacePage =
+            serde_json::from_str(&raw).map_err(|e| format!("page {page_id}: {e}"))?;
+        if page.last_edited_at.trim().is_empty() {
+            page.last_edited_at = chrono::Utc::now().to_rfc3339();
+        }
+        if page.last_edited_by.trim().is_empty() {
+            page.last_edited_by = "system".into();
+        }
+        Ok(page)
     }
 
     fn write_page(&self, page: &WorkspacePage) -> Result<(), String> {

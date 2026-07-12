@@ -10,12 +10,13 @@ use std::fs;
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[tauri::command]
 pub fn list_agent_activity(
     limit: Option<u32>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<AgentActivitySnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     backfill_if_needed(&mut state);
     let cap = limit.unwrap_or(200).clamp(1, 500) as usize;
     let snap = snapshot(&state.agent_activity);
@@ -38,7 +39,7 @@ pub fn get_agent_session(
     session_id: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<AgentActivitySnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     backfill_if_needed(&mut state);
     let sessions: Vec<_> = state
         .agent_activity
@@ -135,7 +136,7 @@ pub fn export_agent_activity_markdown(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     backfill_if_needed(&mut state);
     let snap = snapshot(&state.agent_activity);
     let company_name = if state.company_name.is_empty() {

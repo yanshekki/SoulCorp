@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import type { CompleteOnboardingRequest, OnboardingState } from "../types/game";
 
 export async function getOnboardingState(): Promise<OnboardingState> {

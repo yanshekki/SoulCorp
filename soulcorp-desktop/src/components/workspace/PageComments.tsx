@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { PageComment } from "../../types/workspace";
@@ -7,6 +7,7 @@ import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilt
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "../UI/PaginationBar";
 import { SearchableListToolbar } from "../UI/SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const COMMENT_PAGE_SIZE = 15;
 
@@ -15,6 +16,7 @@ interface PageCommentsProps {
 }
 
 export function PageComments({ pageId }: PageCommentsProps) {
+  const { t } = useI18n();
   const [comments, setComments] = useState<PageComment[]>([]);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -73,13 +75,13 @@ export function PageComments({ pageId }: PageCommentsProps) {
 
   return (
     <section className="page-comments">
-      <h3>Comments</h3>
+      <h3>{t("workspace.comments")}</h3>
       {comments.length > 0 ? (
         <SearchableListToolbar
           query={searchQuery}
           onQueryChange={setSearchQuery}
-          placeholder="Search comments…"
-          ariaLabel="Search comments"
+          placeholder={t("workspace.searchComments")}
+          ariaLabel={t("workspace.searchCommentsAria")}
           matchCount={
             debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
               ? filteredComments.length
@@ -90,15 +92,15 @@ export function PageComments({ pageId }: PageCommentsProps) {
             value: searchType,
             onChange: setSearchType,
             options: COMMENT_SEARCH_TYPES,
-            ariaLabel: "Filter comment search field",
-            label: "Field",
+            ariaLabel: t("workspace.filterFieldAria"),
+            label: t("workspace.filterField"),
           }}
         />
       ) : null}
       {comments.length === 0 ? (
-        <p className="muted">No comments yet. Use @AgentName to mention teammates.</p>
+        <p className="muted">{t("workspace.noComments")}</p>
       ) : debouncedQuery.trim() && filteredComments.length === 0 ? (
-        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+        <p className="search-empty-hint muted">{t("workspace.noMatches", { query: debouncedQuery })}</p>
       ) : (
         <>
           <ul>
@@ -108,7 +110,7 @@ export function PageComments({ pageId }: PageCommentsProps) {
                 <span className="muted"> · {new Date(comment.created_at).toLocaleString()}</span>
                 <p>{comment.content}</p>
                 {comment.mentions.length > 0 ? (
-                  <p className="muted">Mentions: {comment.mentions.map((m) => `@${m}`).join(", ")}</p>
+                  <p className="muted">{t("workspace.mentions", { list: comment.mentions.map((m) => `@${m}`).join(", ") })}</p>
                 ) : null}
               </li>
             ))}
@@ -116,22 +118,22 @@ export function PageComments({ pageId }: PageCommentsProps) {
           <PaginationBar
             page={safePage}
             totalPages={totalPages}
-            label="Comments"
+            label={t("workspace.comments")}
             onPageChange={setListPage}
           />
         </>
       )}
       <label className="field-label">
-        Add comment
+        {t("workspace.addComment")}
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Share feedback or @AgentName for follow-up"
+          placeholder={t("workspace.commentPlaceholder")}
           rows={3}
         />
       </label>
       <button type="button" onClick={() => void submit()} disabled={saving || !draft.trim()}>
-        {saving ? "Posting..." : "Post comment"}
+        {saving ? t("workspace.posting") : t("workspace.postComment")}
       </button>
     </section>
   );

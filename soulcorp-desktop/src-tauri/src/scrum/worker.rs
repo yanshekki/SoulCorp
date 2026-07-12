@@ -3,12 +3,13 @@ use super::executor::{
 };
 use super::parallel_executor::run_detached_parallel_tick;
 use super::org::{resolve_project_for_directive, seed_default_org_links};
-use super::pm_review::apply_pm_auto_review_tick;
+use super::pm_review::apply_pm_auto_review_unlocked;
 use super::scheduler::{
     advance_sprint_lifecycle, apply_department_head_delegation, ensure_active_sprint, plan_sprint,
 };
 use super::types::DirectiveStatus;
 use super::{route_directive_llm, route_directive_rule_based};
+use crate::app_log::{self, LogCategory};
 use crate::db::persistence::commit;
 use crate::gigs::{
     flush_pending_hub_gig_ops, try_auto_accept_hub_gigs, try_auto_complete_gigs,
@@ -25,6 +26,7 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::lock_util::MutexExt;
 static WORKER_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,6 +85,15 @@ pub fn apply_scrum_worker_tick(
         push_worker_log(state, app, &["Worker tick skipped: execution paused.".into()]);
         return report;
     }
+    // Gate only LLM *execution* — still route/schedule/assign so work does not stall
+    // forever while a key is missing (or readiness was miscomputed).
+    let llm_ready = crate::ai::auto_work_should_run(&state.settings);
+    if !llm_ready {
+        let provider = crate::ai::configured_meeting_provider(&state.settings);
+        report.messages.push(format!(
+            "Worker: LLM execution paused until API key is set for '{provider}' — still scheduling/assigning tasks."
+        ));
+    }
 
     let pool = crate::token_budget::total_company_tokens(&state.token_economy);
     if pool < state.settings.scrum_min_tokens_guard {
@@ -133,13 +144,10 @@ pub fn apply_scrum_worker_tick(
                 continue;
             };
             let directive_id = directive.id.clone();
-            let use_llm = !state.settings.pure_local_mode && state.settings.ai_provider != "mock";
-
-            let result = if use_llm {
-                route_directive_llm(state, &directive_id, &project_id)
-            } else {
-                route_directive_rule_based(state, &directive_id, &project_id)
-            };
+            // NEVER call route_directive_llm under AppState lock — freezes the UI for
+            // the whole HTTP round-trip. Rule-based here; LLM routing can be re-added
+            // unlocked after this tick if needed.
+            let result = route_directive_rule_based(state, &directive_id, &project_id);
 
             match result {
                 Ok(_) => {
@@ -150,7 +158,11 @@ pub fn apply_scrum_worker_tick(
                         report.messages.push(format!("Created {briefs} story brief page(s)."));
                     }
                 }
-                Err(err) => report.messages.push(format!("Route failed {directive_id}: {err}")),
+                Err(err) => {
+                    let msg = format!("Route failed {directive_id}: {err}");
+                    app_log::log_error(app, LogCategory::Worker, "scrum_worker_route", &msg);
+                    report.messages.push(msg);
+                }
             }
         }
     }
@@ -194,23 +206,9 @@ pub fn apply_scrum_worker_tick(
         }
     }
 
-    if state.settings.scrum_auto_execute && !state.settings.scrum_parallel_agents {
-        let max_runs = state.settings.scrum_max_executions_per_tick.max(1);
-        for _ in 0..max_runs {
-            let note = apply_scrum_execution_tick(state, app);
-            if let Some(note) = note {
-                report.executed += 1;
-                report.messages.push(note);
-            } else {
-                break;
-            }
-        }
-    }
-
-    if let Some(review) = apply_pm_auto_review_tick(state, app) {
-        report.approved = review.approved;
-        report.messages.extend(review.messages);
-    }
+    // Never run serial execute or long LLM reviews under this lock —
+    // run_detached_parallel_tick + apply_pm_auto_review_unlocked handle those off-lock.
+    let _ = llm_ready;
 
     let hub_flush = flush_pending_hub_gig_ops(state);
     report.hub_qc_flushed = hub_flush.qc_submitted;
@@ -270,62 +268,95 @@ pub fn spawn_scrum_worker(app: AppHandle) {
         return;
     }
 
-    thread::spawn(move || loop {
-        let interval_secs = {
-            let state_mutex = app.state::<Mutex<AppState>>();
-            let state = state_mutex.lock().ok();
-            state
-                .map(|s| s.settings.scrum_worker_interval_secs.max(5))
-                .unwrap_or(30)
-        };
+    thread::spawn(move || {
+        // Give the UI time to bootstrap before any auto-execution / Grok CLI spawn.
+        // Immediate first-tick parallel runs were freezing the desktop on open.
+        thread::sleep(Duration::from_secs(20));
+        let mut ticks: u64 = 0;
+        loop {
+            if ticks > 0 {
+                let interval_secs = {
+                    let state_mutex = app.state::<Mutex<AppState>>();
+                    state_mutex
+                        .lock_or_recover()
+                        .ok()
+                        .map(|s| s.settings.scrum_worker_interval_secs.max(5))
+                        .unwrap_or(30)
+                };
+                thread::sleep(Duration::from_secs(interval_secs as u64));
+            }
+            ticks = ticks.saturating_add(1);
 
-        thread::sleep(Duration::from_secs(interval_secs as u64));
-
-        let enabled = {
-            let state_mutex = app.state::<Mutex<AppState>>();
-            let Ok(state) = state_mutex.lock() else {
-                continue;
+            let enabled = {
+                let state_mutex = app.state::<Mutex<AppState>>();
+                let Ok(state) = state_mutex.lock_or_recover() else {
+                    continue;
+                };
+                state.settings.scrum_worker_enabled && !state.company_id.is_empty()
             };
-            state.settings.scrum_worker_enabled && !state.company_id.is_empty()
-        };
 
-        if !enabled {
-            continue;
-        }
-
-        let mut report = {
-            let state_mutex = app.state::<Mutex<AppState>>();
-            let Ok(mut state) = state_mutex.lock() else {
+            if !enabled {
                 continue;
+            }
+
+            let mut report = {
+                let state_mutex = app.state::<Mutex<AppState>>();
+                let Ok(mut state) = state_mutex.lock_or_recover() else {
+                    continue;
+                };
+                apply_scrum_worker_tick(&mut state, &app, false)
             };
-            apply_scrum_worker_tick(&mut state, &app, false)
-        };
 
-        if let Some(parallel) = run_detached_parallel_tick(&app) {
-            report.executed += parallel.executed;
-            report.messages.extend(parallel.messages);
-        }
+            // Skip CLI/LLM execution on the first worker tick after boot.
+            // Always release AppState before any network / LLM work.
+            if ticks >= 2 {
+                if let Some(parallel) = run_detached_parallel_tick(&app) {
+                    report.executed += parallel.executed;
+                    report.messages.extend(parallel.messages);
+                }
+                // PM review under its own short locks (never across LLM HTTP).
+                if let Some(review) = apply_pm_auto_review_unlocked(&app) {
+                    report.approved += review.approved;
+                    report.messages.extend(review.messages);
+                }
+            }
 
-        let changed = report.routed > 0
-            || report.planned > 0
-            || report.executed > 0
-            || report.approved > 0
-            || report.retried > 0
-            || report.orchestrated > 0
-            || report.meetings > 0
-            || report.delegated > 0
-            || report.sprints_advanced > 0
-            || report.gigs_submitted > 0
-            || report.gigs_accepted > 0
-            || report.gigs_completed > 0
-            || report.hub_qc_flushed > 0
-            || report.hub_pulled
-            || !report.messages.is_empty();
+            let changed = report.routed > 0
+                || report.planned > 0
+                || report.executed > 0
+                || report.approved > 0
+                || report.retried > 0
+                || report.orchestrated > 0
+                || report.meetings > 0
+                || report.delegated > 0
+                || report.sprints_advanced > 0
+                || report.gigs_submitted > 0
+                || report.gigs_accepted > 0
+                || report.gigs_completed > 0
+                || report.hub_qc_flushed > 0
+                || report.hub_pulled
+                || !report.messages.is_empty();
 
-        if changed {
-            let _ = app.emit("scrum-changed", &report);
-            if let Ok(state) = app.state::<Mutex<AppState>>().lock() {
-                let _ = commit(app.clone(), &state);
+            if changed {
+                for msg in &report.messages {
+                    let lower = msg.to_ascii_lowercase();
+                    if lower.contains("fail") || lower.contains("error") || lower.contains("timeout")
+                    {
+                        app_log::log_warn(&app, LogCategory::Worker, "scrum_worker_tick", msg);
+                    }
+                }
+                let _ = app.emit("scrum-changed", &report);
+            }
+            // Always persist last_tick_at so UI/debug show the worker is alive.
+            if let Ok(state) = app.state::<Mutex<AppState>>().lock_or_recover() {
+                if let Err(err) = commit(app.clone(), &state) {
+                    app_log::log_error(
+                        &app,
+                        LogCategory::Worker,
+                        "scrum_worker_commit",
+                        format!("Worker commit failed: {err}"),
+                    );
+                }
             }
         }
     });

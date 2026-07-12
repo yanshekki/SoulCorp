@@ -11,6 +11,7 @@ import { PaginationBar } from "../PaginationBar";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import type { AgentActivityEvent, AgentActivitySession } from "../../../types/agentActivity";
 import { prefilterItems, SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 interface ActivityTimelineProps {
   onSelectSession: (sessionId: string, agentId: string) => void;
@@ -24,24 +25,27 @@ function formatWhen(value: string): string {
   return date.toLocaleString();
 }
 
-function eventLabel(event: AgentActivityEvent): string {
+function eventLabel(
+  event: AgentActivityEvent,
+  t: (key: string, params?: Record<string, string | number | undefined | null>) => string,
+): string {
   switch (event.kind) {
     case "session_start":
-      return "Session started";
+      return t("observatory.event.started");
     case "session_end":
-      return "Session ended";
+      return t("observatory.event.ended");
     case "step_start":
-      return `Step · ${event.step ?? "start"}`;
+      return t("observatory.event.stepStart", { step: event.step ?? "start" });
     case "step_complete":
-      return `Step done · ${event.step ?? "complete"}`;
+      return t("observatory.event.stepDone", { step: event.step ?? "complete" });
     case "deliverable_ready":
-      return "Deliverable ready";
+      return t("observatory.event.deliverable");
     case "error":
-      return "Error";
+      return t("observatory.event.error");
     case "status_change":
-      return "Status change";
+      return t("observatory.event.status");
     case "autopilot_phase_change":
-      return event.content_full ?? "Autopilot phase change";
+      return event.content_full ?? t("observatory.event.phase");
     default:
       return event.kind.replace(/_/g, " ");
   }
@@ -95,6 +99,7 @@ function statusClass(session?: AgentActivitySession): string {
 }
 
 export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
+  const { t } = useI18n();
   const events = useAgentActivityStore((state) => state.events);
   const sessions = useAgentActivityStore((state) => state.sessions);
   const selectedSessionId = useAgentActivityStore((state) => state.selectedSessionId);
@@ -154,15 +159,15 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
         <SearchableListToolbar
           query={searchQuery}
           onQueryChange={setSearchQuery}
-          placeholder="Search history by agent, task, step…"
-          ariaLabel="Search observatory history"
+          placeholder={t("observatory.searchHistory")}
+          ariaLabel={t("observatory.searchHistoryAria")}
           matchCount={debouncedQuery.trim() || historyType !== SEARCH_TYPE_ALL ? filteredEvents.length : undefined}
           totalCount={milestoneEvents.length}
           typeFilter={{
             value: historyType,
             onChange: setHistoryType,
             options: OBSERVATORY_HISTORY_TYPES,
-            ariaLabel: "Filter observatory history type",
+            ariaLabel: t("observatory.filterHistoryAria"),
           }}
         />
       ) : null}
@@ -170,8 +175,8 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
       {filteredEvents.length === 0 ? (
         <p className="muted">
           {milestoneEvents.length === 0
-            ? "No activity yet. Run a task or meeting to populate history."
-            : `No matches for “${debouncedQuery}”.`}
+            ? t("observatory.noActivity")
+            : t("events.noMatches", { query: debouncedQuery })}
         </p>
       ) : (
         <>
@@ -192,10 +197,10 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
                       <span
                         className={`execution-run-status execution-run-status--${statusClass(session)}`}
                       >
-                        {eventLabel(event)}
+                        {eventLabel(event, t)}
                       </span>
                       {session?.status === "active" ? (
-                        <span className="observatory-live-pill inline">LIVE</span>
+                        <span className="observatory-live-pill inline">{t("observatory.live")}</span>
                       ) : null}
                       <strong>{agentName(event.agent_id)}</strong>
                       {session?.source ? (
@@ -215,7 +220,7 @@ export function ActivityTimeline({ onSelectSession }: ActivityTimelineProps) {
             className="observatory-history-pagination"
             page={safePage}
             totalPages={totalPages}
-            label="Events"
+            label={t("observatory.events")}
             onPageChange={setListPage}
           />
         </>

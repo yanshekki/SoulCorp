@@ -1,8 +1,10 @@
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import type { CampusThemeConfig } from "../../types/visualDesign";
 import { ColorField } from "./ColorField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function CampusDesignPanel() {
+  const { t } = useI18n();
   const draft = useDesignStudioStore((state) => state.draft);
   const patchDraft = useDesignStudioStore((state) => state.patchDraft);
   const campus = draft.campus;
@@ -14,27 +16,27 @@ export function CampusDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Campus theme</h2>
-        <p className="muted">Set the global sky, ground, and ambient mood for your company world.</p>
+        <h2>{t("design.campusTheme")}</h2>
+        <p className="muted">{t("design.campusThemeDesc")}</p>
       </header>
 
       <ColorField
-        label="Sky top"
+        label={t("design.skyTop")}
         value={campus.sky_top}
         onChange={(sky_top) => updateCampus({ sky_top })}
       />
       <ColorField
-        label="Sky horizon"
+        label={t("design.skyHorizon")}
         value={campus.sky_bottom}
         onChange={(sky_bottom) => updateCampus({ sky_bottom })}
       />
       <ColorField
-        label="Ground primary"
+        label={t("design.groundPrimary")}
         value={campus.ground_primary}
         onChange={(ground_primary) => updateCampus({ ground_primary })}
       />
       <ColorField
-        label="Ground secondary"
+        label={t("design.groundSecondary")}
         value={campus.ground_secondary}
         onChange={(ground_secondary) => updateCampus({ ground_secondary })}
       />

@@ -9,6 +9,7 @@ import {
 } from "../../utils/furnitureInteractions";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { patchOfficeVisual } from "../../utils/syncVisualDesign";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface FurnitureDetailPanelProps {
   buildingId: string;
@@ -21,6 +22,7 @@ export function FurnitureDetailPanel({
   furnitureId,
   office,
 }: FurnitureDetailPanelProps) {
+  const { t } = useI18n();
   const config = normalizeOfficeVisual(office, buildingId);
   const item = config.furniture.find((entry) => entry.id === furnitureId);
   const setSelectedFurnitureId = useGameStore((state) => state.setSelectedFurnitureId);
@@ -54,27 +56,27 @@ export function FurnitureDetailPanel({
   return (
     <aside className="furniture-detail-panel" role="complementary">
       <header>
-        <h3>{entry?.label ?? item.catalog_id}</h3>
+        <h3>{(entry ? t(`furniture.${entry.id}`) : null) ?? item.catalog_id}</h3>
         <button
           type="button"
           onClick={() => setSelectedFurnitureId(null)}
-          aria-label="Close furniture panel"
+          aria-label={t("world.closeFurniture")}
         >
           ×
         </button>
       </header>
-      <p className="muted">{item.zone} zone</p>
+      <p className="muted">{t("furniture.zoneSuffix", { zone: item.zone })}</p>
 
       {action === "desk_assign" ? (
         <section>
-          <h4>Seat assignment</h4>
+          <h4>{t("furniture.seatAssign")}</h4>
           <label className="furniture-assign-field">
-            Agent at this desk
+            {t("furniture.agentAtDesk")}
             <select
               value={item.linked_agent_id ?? ""}
               onChange={(event) => assignAgent(event.target.value || null)}
             >
-              <option value="">Unassigned (auto hash)</option>
+              <option value="">{t("furniture.unassignedAuto")}</option>
               {departmentAgents.map((record) => (
                 <option key={record.id} value={record.id}>
                   {formatAgentOptionLabel(record)}
@@ -84,11 +86,11 @@ export function FurnitureDetailPanel({
           </label>
           {linkedRecord ? (
             <p className="furniture-detail-note">
-              Morale {(linkedRecord.morale * 100).toFixed(0)}% · sim uses this desk position.
+              {t("furniture.moraleSim", { pct: (linkedRecord.morale * 100).toFixed(0) })}
             </p>
           ) : (
             <p className="furniture-detail-note muted">
-              Pick an agent to pin them to this desk.
+              {t("furniture.pickAgent")}
             </p>
           )}
         </section>
@@ -96,20 +98,20 @@ export function FurnitureDetailPanel({
 
       {action === "equipment_info" ? (
         <section>
-          <h4>Compute & skills</h4>
+          <h4>{t("furniture.computeSkills")}</h4>
           <dl className="furniture-equipment-stats">
             <div>
-              <dt>Company balance</dt>
-              <dd>{finance.company_balance.toLocaleString()} tokens</dd>
+              <dt>{t("furniture.companyBalance")}</dt>
+              <dd>{t("furniture.tokensUnit", { n: finance.company_balance.toLocaleString() })}</dd>
             </div>
             <div>
-              <dt>Monthly burn</dt>
+              <dt>{t("furniture.monthlyBurn")}</dt>
               <dd>{finance.monthly_burn_tokens.toLocaleString()}</dd>
             </div>
             {linkedWallet ? (
               <div>
-                <dt>Desk agent budget</dt>
-                <dd>{linkedWallet.balance.toLocaleString()} tokens</dd>
+                <dt>{t("furniture.deskBudget")}</dt>
+                <dd>{t("furniture.tokensUnit", { n: linkedWallet.balance.toLocaleString() })}</dd>
               </div>
             ) : null}
           </dl>
@@ -120,26 +122,26 @@ export function FurnitureDetailPanel({
               ))}
             </ul>
           ) : (
-            <p className="muted">Assign an agent to the nearest desk to link skills.</p>
+            <p className="muted">{t("furniture.assignForSkills")}</p>
           )}
         </section>
       ) : null}
 
       {isMoraleDecorCatalog(item.catalog_id) ? (
         <section>
-          <h4>Morale zone</h4>
+          <h4>{t("furniture.moraleZone")}</h4>
           <p className="furniture-detail-note">
-            Agents within 2m get a +5% morale boost in Game mode (shorter breaks, cozier status).
+            {t("furniture.moraleZoneNote")}
           </p>
         </section>
       ) : null}
 
       {action === "reception_hr" ? (
-        <p className="furniture-detail-note">Opens Recruitment panel for hiring & morale heatmap.</p>
+        <p className="furniture-detail-note">{t("furniture.receptionNote")}</p>
       ) : null}
 
       {action === "whiteboard_meeting" ? (
-        <p className="furniture-detail-note">Creates a Meeting Notes page in Workspace.</p>
+        <p className="furniture-detail-note">{t("furniture.whiteboardNote")}</p>
       ) : null}
     </aside>
   );

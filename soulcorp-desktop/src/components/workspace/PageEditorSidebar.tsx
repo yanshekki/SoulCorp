@@ -3,6 +3,7 @@ import type { WorkspacePage } from "../../types/workspace";
 import { PageComments } from "./PageComments";
 import { PageLinks } from "./PageLinks";
 import { PageVersionHistory } from "./PageVersionHistory";
+import { useI18n } from "../../i18n/I18nProvider";
 
 type SidebarTab = "links" | "comments" | "history";
 
@@ -13,10 +14,10 @@ interface PageEditorSidebarProps {
   onRestored: (page: WorkspacePage) => void;
 }
 
-const TABS: { id: SidebarTab; label: string; icon: string }[] = [
-  { id: "links", label: "Links", icon: "⛓" },
-  { id: "comments", label: "Comments", icon: "💬" },
-  { id: "history", label: "History", icon: "🕐" },
+const TABS: { id: SidebarTab; labelKey: string; icon: string }[] = [
+  { id: "links", labelKey: "workspace.sidebar.links", icon: "⛓" },
+  { id: "comments", labelKey: "workspace.sidebar.comments", icon: "💬" },
+  { id: "history", labelKey: "workspace.sidebar.history", icon: "🕐" },
 ];
 
 export function PageEditorSidebar({
@@ -25,11 +26,12 @@ export function PageEditorSidebar({
   onOpenPage,
   onRestored,
 }: PageEditorSidebarProps) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<SidebarTab>("links");
 
   return (
     <aside className="ws-page-sidebar">
-      <nav className="ws-page-sidebar-tabs" aria-label="Page panels">
+      <nav className="ws-page-sidebar-tabs" aria-label={t("workspace.pagePanels")}>
         {TABS.map((item) => (
           <button
             key={item.id}
@@ -38,7 +40,7 @@ export function PageEditorSidebar({
             onClick={() => setTab(item.id)}
           >
             <span aria-hidden="true">{item.icon}</span>
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </nav>

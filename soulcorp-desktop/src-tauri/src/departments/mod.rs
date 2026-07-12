@@ -1,5 +1,7 @@
 pub mod cascade;
 pub mod defaults;
+pub mod generate;
+pub mod org_assign;
 pub mod org_chart;
 
 pub use cascade::{
@@ -7,6 +9,11 @@ pub use cascade::{
     transfer_department_members,
 };
 pub use defaults::{department_exists, department_names, ensure_default_departments, max_departments};
+pub use generate::{
+    apply_department_specs, build_generation_context, heuristic_department_specs,
+    normalize_specs, try_llm_department_specs, GenerateDepartmentsResult, GeneratedDepartmentSpec,
+};
+pub use org_assign::{run_assign_org, run_assign_org_heuristic, AssignOrgResult};
 pub use org_chart::{build_org_chart, would_create_reporting_cycle, OrgChartSnapshot};
 
 use crate::state::{AppState, CompanyDepartment};
@@ -103,13 +110,42 @@ pub fn list_departments_snapshot(state: &AppState) -> DepartmentsSnapshot {
     }
 }
 
+/// Normalize to a browser-safe `#RRGGBB` (HTML `input[type=color]` requires this form).
 pub fn normalize_hex_color(value: &str, fallback: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.starts_with('#') && trimmed.len() >= 4 {
-        trimmed.to_string()
-    } else {
+    let fallback = if is_valid_hex6(fallback) {
         fallback.to_string()
+    } else {
+        "#6d7f9b".to_string()
+    };
+    let raw = value.trim();
+    let hex = raw.strip_prefix('#').unwrap_or(raw);
+    let hex = hex
+        .chars()
+        .filter(|ch| ch.is_ascii_hexdigit())
+        .collect::<String>()
+        .to_lowercase();
+
+    match hex.len() {
+        6 => format!("#{hex}"),
+        3 => {
+            // #rgb → #rrggbb
+            let expanded: String = hex
+                .chars()
+                .flat_map(|ch| [ch, ch])
+                .collect();
+            format!("#{expanded}")
+        }
+        8 => {
+            // #rrggbbaa → drop alpha
+            format!("#{}", &hex[..6])
+        }
+        _ => fallback,
     }
+}
+
+fn is_valid_hex6(value: &str) -> bool {
+    let hex = value.trim().strip_prefix('#').unwrap_or(value.trim());
+    hex.len() == 6 && hex.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
 pub fn create_department_record(
@@ -137,6 +173,15 @@ pub fn create_department_record(
 mod tests {
     use super::*;
     use crate::state::{AgentRecord, AppState};
+
+    #[test]
+    fn normalize_hex_color_expands_and_rejects_junk() {
+        assert_eq!(normalize_hex_color("#abc", "#112233"), "#aabbcc");
+        assert_eq!(normalize_hex_color("6d7f9b", "#000000"), "#6d7f9b");
+        assert_eq!(normalize_hex_color("#ff0000aa", "#000000"), "#ff0000");
+        assert_eq!(normalize_hex_color("not-a-color", "#6d7f9b"), "#6d7f9b");
+        assert_eq!(normalize_hex_color("", "#5ec8ff"), "#5ec8ff");
+    }
 
     #[test]
     fn ensure_default_departments_does_not_seed_entries() {

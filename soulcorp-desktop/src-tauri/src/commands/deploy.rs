@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 /// CLI probes must never hang the UI. npx can download packages for minutes.
 const CLI_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -314,7 +315,7 @@ pub async fn get_deploy_status(state: State<'_, Mutex<AppState>>) -> Result<Depl
     // Read persisted deploy metadata under a short lock, then probe CLI tools off the
     // main/async runtime so a stuck CLI cannot freeze the UI.
     let (last_deploy_url, last_deploy_at, last_deploy_provider) = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         (
             locked.last_deploy_url.clone(),
             locked.last_deploy_at.clone(),
@@ -371,7 +372,7 @@ pub async fn push_static_site_to_github(
     request: PushGithubRequest,
 ) -> Result<DeployResult, String> {
     let (staging_dir, company_name) = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         let staging_dir = stage_static_site(&app, &locked)?;
         (staging_dir, company_name_for(&locked))
     };
@@ -391,7 +392,7 @@ pub async fn push_static_site_to_github(
     .await
     .map_err(|e| e.to_string())??;
 
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     record_deploy(&mut locked, &result, "github");
     locked.stats.exports_created += 1;
     commit(app, &locked)?;
@@ -404,7 +405,7 @@ pub async fn push_static_site_to_vercel(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<DeployResult, String> {
     let staging_dir = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         stage_static_site(&app, &locked)?
     };
 
@@ -412,7 +413,7 @@ pub async fn push_static_site_to_vercel(
         .await
         .map_err(|e| e.to_string())??;
 
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     record_deploy(&mut locked, &result, "vercel");
     locked.stats.exports_created += 1;
     commit(app, &locked)?;
@@ -425,7 +426,7 @@ pub async fn push_static_site_to_netlify(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<DeployResult, String> {
     let staging_dir = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         stage_static_site(&app, &locked)?
     };
 
@@ -433,7 +434,7 @@ pub async fn push_static_site_to_netlify(
         .await
         .map_err(|e| e.to_string())??;
 
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     record_deploy(&mut locked, &result, "netlify");
     locked.stats.exports_created += 1;
     commit(app, &locked)?;

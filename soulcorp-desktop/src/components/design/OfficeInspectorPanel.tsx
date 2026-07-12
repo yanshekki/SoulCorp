@@ -8,17 +8,18 @@ import { FurnitureCatalogPanel } from "./FurnitureCatalogPanel";
 import { OfficeDesignPanel } from "./OfficeDesignPanel";
 import type { OfficeDesignStep, OfficeDrawerTab } from "./OfficeBuildToolbar";
 import { RoomDimensionsPanel } from "./RoomDimensionsPanel";
+import { useI18n } from "../../i18n/I18nProvider";
 
-const ZONE_LABELS: Record<InteriorZone, string> = {
-  lobby: "Lobby",
-  corridor: "Corridor",
-  office: "Office",
+const ZONE_LABEL_KEYS: Record<InteriorZone, string> = {
+  lobby: "design.zone.lobby",
+  corridor: "design.zone.corridor",
+  office: "design.zone.office",
 };
 
-const DRAWER_TABS: Array<{ id: OfficeDrawerTab; label: string }> = [
-  { id: "room", label: "Room size" },
-  { id: "catalog", label: "Furniture" },
-  { id: "theme", label: "Theme" },
+const DRAWER_TABS: Array<{ id: OfficeDrawerTab; labelKey: string }> = [
+  { id: "room", labelKey: "design.roomSize" },
+  { id: "catalog", labelKey: "design.tool.furniture" },
+  { id: "theme", labelKey: "design.tab.theme" },
 ];
 
 interface OfficeInspectorPanelProps {
@@ -32,6 +33,7 @@ export function OfficeInspectorPanel({
   drawerTab,
   onDrawerTabChange,
 }: OfficeInspectorPanelProps) {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const activeZone = useDesignStudioStore((state) => state.activeZone);
@@ -49,52 +51,55 @@ export function OfficeInspectorPanel({
   return (
     <div className="office-inspector-panel">
       {selectedItem && selectedEntry ? (
-        <section className="office-inspector-card" aria-label="Selected furniture">
+        <section className="office-inspector-card" aria-label={t("design.selectedFurniture")}>
           <header className="office-inspector-card-header">
-            <h3>Selected item</h3>
-            <span className="office-inspector-zone">{ZONE_LABELS[selectedItem.zone]}</span>
+            <h3>{t("design.selectedItem")}</h3>
+            <span className="office-inspector-zone">{t(ZONE_LABEL_KEYS[selectedItem.zone])}</span>
           </header>
-          <p className="office-inspector-title">{selectedEntry.label}</p>
+          <p className="office-inspector-title">{t(`furniture.${selectedEntry.id}`)}</p>
           <dl className="office-inspector-meta">
             <div>
-              <dt>Size</dt>
+              <dt>{t("design.size")}</dt>
               <dd>{formatFootprintDimensions(selectedEntry.footprint)}</dd>
             </div>
             <div>
-              <dt>Zone</dt>
-              <dd>{ZONE_LABELS[selectedItem.zone]}</dd>
+              <dt>{t("design.zone")}</dt>
+              <dd>{t(ZONE_LABEL_KEYS[selectedItem.zone])}</dd>
             </div>
           </dl>
           <div className="office-inspector-actions">
             <button type="button" className="design-office-tool-btn" onClick={rotateSelected}>
-              ⟳ Rotate
+              ⟳ {t("design.rotate")}
             </button>
             <button type="button" className="design-office-tool-btn" onClick={deleteSelected}>
-              ✕ Delete
+              ✕ {t("design.delete")}
             </button>
           </div>
         </section>
       ) : placingEntry && activeStep === "layout" ? (
         <section className="office-inspector-card office-inspector-card--place" aria-live="polite">
-          <h3>Placement mode</h3>
+          <h3>{t("design.placementMode")}</h3>
           <p>
-            Place <strong>{placingEntry.label}</strong> ({formatFootprintDimensions(placingEntry.footprint)})
+            {t("design.placeItem", {
+              name: t(`furniture.${placingEntry.id}`),
+              size: formatFootprintDimensions(placingEntry.footprint),
+            })}
           </p>
-          <p className="muted">Click on the floor plan or 3D view · drag to move furniture</p>
+          <p className="muted">{t("design.placeHint")}</p>
         </section>
       ) : (
         <section className="office-inspector-card office-inspector-card--hint">
           <p className="muted">
             {activeStep === "size"
-              ? `Editing ${ZONE_LABELS[activeZone]} dimensions`
+              ? t("design.editingZone", { zone: t(ZONE_LABEL_KEYS[activeZone]) })
               : activeStep === "layout"
-                ? "Pick furniture from the catalog · or click existing items in plan/3D"
-                : "Adjust color theme · split view updates live"}
+                ? t("design.pickFurnitureHint")
+                : t("design.themeHint")}
           </p>
         </section>
       )}
 
-      <div className="design-drawer-tabs" role="tablist" aria-label="Office inspector panels">
+      <div className="design-drawer-tabs" role="tablist" aria-label={t("design.inspectorPanels")}>
         {DRAWER_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -104,7 +109,7 @@ export function OfficeInspectorPanel({
             className={`design-drawer-tab${drawerTab === tab.id ? " active" : ""}`}
             onClick={() => onDrawerTabChange(tab.id)}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>

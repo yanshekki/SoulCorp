@@ -13,8 +13,10 @@ import {
 } from "../../types/visualDesign";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { ColorField } from "./ColorField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function OfficeDesignPanel() {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const setSelectedBuildingId = useDesignStudioStore((state) => state.setSelectedBuildingId);
@@ -36,8 +38,8 @@ export function OfficeDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Color themes</h2>
-        <p className="muted">Sims-style theme packs — apply floor, wall, and accent in one click (default: Startup Warm).</p>
+        <h2>{t("design.colorThemes")}</h2>
+<p className="muted">{t("design.colorThemesDesc")}</p>
       </header>
 
       <div className="design-style-grid">
@@ -50,14 +52,14 @@ export function OfficeDesignPanel() {
             }`}
             onClick={() => updateConfig(applyOfficeThemePack(config, pack.id))}
           >
-            <strong>{pack.label}</strong>
-            <span>{pack.description}</span>
+            <strong>{t(`design.theme.${pack.id}`)}</strong>
+            <span>{t(`design.theme.${pack.id}.desc`)}</span>
           </button>
         ))}
       </div>
 
       <label className="field-label">
-        Department office
+        {t("design.deptOffice")}
         <select
           value={buildingId}
           onChange={(event) => setSelectedBuildingId(event.target.value)}
@@ -78,14 +80,14 @@ export function OfficeDesignPanel() {
             className={`design-style-card${config.desk_style === style.id ? " active" : ""}`}
             onClick={() => updateConfig({ desk_style: style.id as OfficeDeskStyle })}
           >
-            <strong>{style.label}</strong>
-            <span>{style.description}</span>
+            <strong>{t(`design.deskStyle.${style.id}`)}</strong>
+            <span>{t(`design.deskStyle.${style.id}.desc`)}</span>
           </button>
         ))}
       </div>
 
       <label className="field-label">
-        Lighting mood
+        {t("design.lightingMood")}
         <select
           value={config.lighting}
           onChange={(event) =>
@@ -94,24 +96,24 @@ export function OfficeDesignPanel() {
             })
           }
         >
-          <option value="warm">Warm</option>
-          <option value="cool">Cool</option>
-          <option value="natural">Natural</option>
+          <option value="warm">{t("design.palette.warm")}</option>
+          <option value="cool">{t("design.palette.cool")}</option>
+          <option value="natural">{t("design.palette.natural")}</option>
         </select>
       </label>
 
       <ColorField
-        label="Floor"
+        label={t("design.floor")}
         value={config.floor_color}
         onChange={(floor_color) => updateConfig({ floor_color })}
       />
       <ColorField
-        label="Walls"
+        label={t("design.walls")}
         value={config.wall_color}
         onChange={(wall_color) => updateConfig({ wall_color })}
       />
       <ColorField
-        label="Accent"
+        label={t("design.accent")}
         value={config.accent_color}
         onChange={(accent_color) => updateConfig({ accent_color })}
       />

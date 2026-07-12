@@ -54,12 +54,57 @@ export const useAgentActivityStore = create<AgentActivityStore>((set, get) => ({
   filterAgentId: null,
   setSnapshot: (sessions, events) => {
     syncRuntimeRef(sessions);
-    set({ sessions, events });
+    // Rebuild live text from persisted events so a remount doesn't show
+    // "Waiting for tokens…" for a session that already streamed.
+    const liveBuffers: Record<string, string> = {};
+    for (const event of events) {
+      if (event.kind === "token_delta" && event.content_delta) {
+        liveBuffers[event.session_id] =
+          `${liveBuffers[event.session_id] ?? ""}${event.content_delta}`;
+      }
+      if (event.kind === "step_complete" && event.content_full) {
+        liveBuffers[event.session_id] = event.content_full;
+      }
+      if (event.kind === "error" && event.content_full) {
+        liveBuffers[event.session_id] =
+          `${liveBuffers[event.session_id] ?? ""}\n\n[error] ${event.content_full}`.trim();
+      }
+    }
+    set({ sessions, events, liveBuffers });
   },
   appendPayload: (event, session) =>
     set((state) => {
-      const events = [...state.events, event].slice(-MAX_EVENTS);
-      const sessions = session ? upsertSession(state.sessions, session) : state.sessions;
+      // Don't store every single token in the event ring (keeps UI responsive).
+      const shouldStoreEvent = event.kind !== "token_delta" || state.events.length % 12 === 0;
+      const events = shouldStoreEvent
+        ? [...state.events, event].slice(-MAX_EVENTS)
+        : state.events;
+      let sessions = session ? upsertSession(state.sessions, session) : state.sessions;
+      // Lightweight active shell when token deltas arrive before session_start is applied.
+      if (
+        !session
+        && (event.kind === "token_delta" || event.kind === "step_complete")
+        && !sessions.some((entry) => entry.id === event.session_id)
+      ) {
+        sessions = upsertSession(sessions, {
+          id: event.session_id,
+          agent_id: event.agent_id,
+          agent_name: event.agent_id,
+          source: "meeting",
+          brain_layer: "meeting",
+          brain_label: "live",
+          transport: "api",
+          status: "active",
+          started_at: event.timestamp,
+        });
+      }
+      if (event.kind === "token_delta") {
+        sessions = sessions.map((entry) =>
+          entry.id === event.session_id && entry.status !== "active"
+            ? { ...entry, status: "active" as const }
+            : entry,
+        );
+      }
       syncRuntimeRef(sessions);
       const liveBuffers = { ...state.liveBuffers };
       if (event.kind === "token_delta" || event.kind === "terminal_line") {
@@ -68,6 +113,10 @@ export const useAgentActivityStore = create<AgentActivityStore>((set, get) => ({
       }
       if (event.kind === "step_complete" && event.content_full) {
         liveBuffers[event.session_id] = event.content_full;
+      }
+      if (event.kind === "error" && event.content_full) {
+        liveBuffers[event.session_id] =
+          `${liveBuffers[event.session_id] ?? ""}\n\n[error] ${event.content_full}`.trim();
       }
       return { events, sessions, liveBuffers };
     }),

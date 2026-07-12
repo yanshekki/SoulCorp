@@ -8,7 +8,11 @@ pub mod selection;
 pub mod streaming;
 pub mod token_estimate;
 
-pub use health::{probe_agent_ai, probe_meeting_ai, MeetingAiStatus};
+pub use health::{
+    auto_work_should_run, company_llm_credentials_ready, configured_meeting_provider,
+    probe_agent_ai, probe_hub_credentials, probe_meeting_ai, probe_provider_credentials,
+    MeetingAiStatus, ProviderCredentialProbe,
+};
 pub use selection::{normalize_agent_ai_provider, normalize_ai_provider_override};
 
 use hub_chat::HubChatProvider;
@@ -57,9 +61,15 @@ pub fn chat_with_fallback_billed(
     let response = match provider.chat(billed.request.clone()) {
         Ok(response) => response,
         Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
-            eprintln!(
-                "LLM provider '{}' failed, using mock fallback: {error}",
-                status.active_provider
+            crate::app_log::log_global(
+                crate::app_log::LogLevel::Warn,
+                crate::app_log::LogCategory::Ai,
+                "chat",
+                format!(
+                    "LLM provider '{}' failed, using mock fallback: {error}",
+                    status.active_provider
+                ),
+                None,
             );
             let fallback = MockProvider;
             let mut response = fallback.chat(billed.request)?;
@@ -109,9 +119,15 @@ pub fn chat_detached(
     let response = match provider.chat(billed.request.clone()) {
         Ok(response) => response,
         Err(error) if settings.meeting_llm_fallback && status.active_provider != "mock" => {
-            eprintln!(
-                "LLM provider '{}' failed, using mock fallback: {error}",
-                status.active_provider
+            crate::app_log::log_global(
+                crate::app_log::LogLevel::Warn,
+                crate::app_log::LogCategory::Ai,
+                "chat",
+                format!(
+                    "LLM provider '{}' failed, using mock fallback: {error}",
+                    status.active_provider
+                ),
+                None,
             );
             let fallback = MockProvider;
             let mut response = fallback.chat(billed.request)?;

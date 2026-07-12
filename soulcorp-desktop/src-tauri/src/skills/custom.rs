@@ -115,7 +115,7 @@ pub fn load_dir(dir: &Path, source: SkillSource) -> Vec<SkillPack> {
                 }
                 packs.push(pack);
             }
-            Err(e) => eprintln!("Skip skill at {}: {e}", path.display()),
+            Err(e) => crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::System, "custom_skill", format!("Skip skill at {}: {e}", path.display()), None),
         }
     }
     packs

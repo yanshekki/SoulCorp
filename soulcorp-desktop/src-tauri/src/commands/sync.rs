@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueueStatus {
     pub pending_items: u32,
@@ -11,7 +12,7 @@ pub struct QueueStatus {
 
 #[tauri::command]
 pub fn get_local_queue_status(state: State<'_, Mutex<AppState>>) -> Result<QueueStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let pending_items = state.sync_queue.len() as u32;
 
     Ok(QueueStatus {

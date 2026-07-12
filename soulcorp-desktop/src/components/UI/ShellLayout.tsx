@@ -2,15 +2,18 @@ import type { ReactNode } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type { SidebarPanel } from "../../types/game";
 import { appTagline, showPauseMenu, showTierPanel } from "../../config/features";
-import { getNextWorkflowPanel, getWorkflowPanelLabel, IMMERSIVE_PANELS } from "../../config/navigation";
+import { IMMERSIVE_PANELS } from "../../config/navigation";
 import { AppHeaderNav } from "./AppHeaderNav";
+import { WorkflowNextButton } from "./WorkflowNextButton";
 import { AudioMuteButton } from "./AudioMuteButton";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { Dashboard } from "./Dashboard";
 import { PauseMenu } from "./PauseMenu";
 import { TierPanel } from "./TierPanel";
 import { TestModeButton } from "./TestModeButton";
+import { LlmLiveFooterButton } from "./LlmLiveFooterButton";
 import { ObservatoryGlobalPill } from "./observatory/ObservatoryGlobalPill";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface ShellLayoutProps {
   children: ReactNode;
@@ -33,14 +36,24 @@ function SidebarTitle() {
   );
 }
 
-function WorkflowNextStep({ panel }: { panel: SidebarPanel }) {
-  const setActivePanel = useGameStore((state) => state.setActivePanel);
-  const next = getNextWorkflowPanel(panel);
-  if (!next) return null;
+function GuideCard({
+  className,
+  titleKey,
+  guideKey,
+  nextPanel,
+}: {
+  className: string;
+  titleKey: string;
+  guideKey: string;
+  nextPanel?: SidebarPanel;
+}) {
+  const { t } = useI18n();
   return (
-    <button type="button" className="workflow-next-btn" onClick={() => setActivePanel(next)}>
-      Next: {getWorkflowPanelLabel(next)} →
-    </button>
+    <section className={className}>
+      <h2>{t(titleKey)}</h2>
+      <p className="muted">{t(guideKey)}</p>
+      {nextPanel ? <WorkflowNextButton panel={nextPanel} className="workflow-next-btn" /> : null}
+    </section>
   );
 }
 
@@ -48,111 +61,121 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
   switch (panel) {
     case "workspace":
       return (
-        <section className="panel-card workspace-guide">
-          <h2>Workspace</h2>
-          <p className="muted">Deliverables & docs from your workflow.</p>
-          <WorkflowNextStep panel="workspace" />
-        </section>
+        <GuideCard
+          className="panel-card workspace-guide"
+          titleKey="nav.workspace"
+          guideKey="shell.guide.workspace"
+          nextPanel="workspace"
+        />
       );
     case "meeting":
       return (
-        <section className="panel-card meeting-guide">
-          <h2>Meeting</h2>
-          <p className="muted">Align team before execution.</p>
-          <WorkflowNextStep panel="meeting" />
-        </section>
+        <GuideCard
+          className="panel-card meeting-guide"
+          titleKey="nav.meeting"
+          guideKey="shell.guide.meeting"
+          nextPanel="meeting"
+        />
       );
     case "projects":
       return (
-        <section className="panel-card projects-guide">
-          <h2>Projects</h2>
-          <p className="muted">Directive → sprint → execute.</p>
-          <WorkflowNextStep panel="projects" />
-        </section>
+        <GuideCard
+          className="panel-card projects-guide"
+          titleKey="nav.projects"
+          guideKey="shell.guide.projects"
+          nextPanel="projects"
+        />
       );
     case "finance":
       return (
-        <section className="panel-card tokens-guide">
-          <h2>Tokens</h2>
-          <p className="muted">Pool, wallets, usage.</p>
-          <WorkflowNextStep panel="finance" />
-        </section>
+        <GuideCard
+          className="panel-card tokens-guide"
+          titleKey="nav.finance"
+          guideKey="shell.guide.finance"
+          nextPanel="finance"
+        />
       );
     case "marketplace":
       return (
-        <section className="panel-card marketplace-guide">
-          <h2>Marketplace</h2>
-          <p className="muted">Gigs, contracts, payouts.</p>
-        </section>
+        <GuideCard
+          className="panel-card marketplace-guide"
+          titleKey="nav.marketplace"
+          guideKey="shell.guide.marketplace"
+        />
       );
     case "departments":
       return (
-        <section className="panel-card departments-guide">
-          <h2>Departments</h2>
-          <p className="muted">Teams & reporting lines.</p>
-          <WorkflowNextStep panel="departments" />
-        </section>
+        <GuideCard
+          className="panel-card departments-guide"
+          titleKey="nav.departments"
+          guideKey="shell.guide.departments"
+          nextPanel="departments"
+        />
       );
     case "recruitment":
       return (
-        <section className="panel-card recruitment-guide">
-          <h2>Recruitment</h2>
-          <p className="muted">Hire & onboard agents.</p>
-          <WorkflowNextStep panel="recruitment" />
-        </section>
+        <GuideCard
+          className="panel-card recruitment-guide"
+          titleKey="nav.recruitment"
+          guideKey="shell.guide.recruitment"
+          nextPanel="recruitment"
+        />
       );
     case "agents":
       return (
-        <section className="panel-card agents-guide">
-          <h2>Agent Brains</h2>
-          <p className="muted">LLM config per agent & department.</p>
-          <WorkflowNextStep panel="agents" />
-        </section>
+        <GuideCard
+          className="panel-card agents-guide"
+          titleKey="nav.agents"
+          guideKey="shell.guide.agents"
+          nextPanel="agents"
+        />
       );
     case "observatory":
       return (
-        <section className="panel-card observatory-guide">
-          <h2>Observatory</h2>
-          <p className="muted">Live work & thought streams for every agent.</p>
-          <WorkflowNextStep panel="observatory" />
-        </section>
+        <GuideCard
+          className="panel-card observatory-guide"
+          titleKey="nav.observatory"
+          guideKey="shell.guide.observatory"
+          nextPanel="observatory"
+        />
       );
     case "tier":
       return showTierPanel ? (
         <TierPanel />
       ) : (
-        <section className="panel-card">
-          <h2>Pro / VIP</h2>
-          <p className="muted">Available in SoulCorp v2.</p>
-        </section>
+        <GuideCard className="panel-card" titleKey="nav.tier" guideKey="shell.guide.tier" />
       );
     case "achievements":
       return (
-        <section className="panel-card achievements-guide">
-          <h2>Achievements</h2>
-          <p className="muted">Milestones & endings.</p>
-        </section>
+        <GuideCard
+          className="panel-card achievements-guide"
+          titleKey="nav.achievements"
+          guideKey="shell.guide.achievements"
+        />
       );
     case "design_studio":
       return (
-        <section className="panel-card">
-          <h2>3D Design Studio</h2>
-          <p className="muted">Campus, buildings, interiors, agent looks.</p>
-        </section>
+        <GuideCard
+          className="panel-card"
+          titleKey="nav.design_studio.full"
+          guideKey="shell.guide.design_studio"
+        />
       );
     case "settings":
       return (
-        <section className="panel-card settings-guide">
-          <h2>Settings</h2>
-          <p className="muted">Sync, AI providers, backups, deploy.</p>
-        </section>
+        <GuideCard
+          className="panel-card settings-guide"
+          titleKey="nav.settings"
+          guideKey="shell.guide.settings"
+        />
       );
     case "god_mode":
       return (
-        <section className="panel-card god-mode-guide">
-          <h2>God Mode</h2>
-          <p className="muted">CEO intervention powers.</p>
-        </section>
+        <GuideCard
+          className="panel-card god-mode-guide"
+          titleKey="nav.god_mode"
+          guideKey="shell.guide.god_mode"
+        />
       );
     case "office":
     default:
@@ -161,6 +184,7 @@ function SidebarPanelContent({ panel }: { panel: SidebarPanel }) {
 }
 
 export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
+  const { t } = useI18n();
   const togglePause = useGameStore((state) => state.togglePause);
   const isPaused = useGameStore((state) => state.isPaused);
   const activePanel = useGameStore((state) => state.activePanel);
@@ -189,7 +213,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
             <CompanySwitcher />
             {showPauseMenu ? (
               <button type="button" className="app-pause-btn" onClick={togglePause}>
-                {isPaused ? "Resume" : "Pause"}
+                {isPaused ? t("shell.resume") : t("shell.pause")}
               </button>
             ) : null}
           </div>
@@ -205,21 +229,21 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
             type="button"
             className="app-inspector-backdrop"
             onClick={() => setInspectorExpanded(false)}
-            aria-label="Close inspector"
+            aria-label={t("shell.closeInspector")}
           />
         ) : null}
         {!hideShellInspector ? (
           <aside
             className={`app-inspector${inspectorDrawerOpen ? " app-inspector--immersive-drawer" : ""}`}
-            aria-label="Inspector panel"
+            aria-label={t("shell.inspectorPanel")}
           >
             {inspectorDrawerOpen ? (
               <button
                 type="button"
                 className="app-inspector-collapse-btn"
                 onClick={() => setInspectorExpanded(false)}
-                aria-label="Hide inspector"
-                title="Hide inspector"
+                aria-label={t("shell.hideInspector")}
+                title={t("shell.hideInspector")}
               >
                 ‹
               </button>
@@ -234,8 +258,8 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
             type="button"
             className="app-inspector-expand-tab"
             onClick={() => setInspectorExpanded(true)}
-            aria-label="Show inspector"
-            title="Show inspector"
+            aria-label={t("shell.showInspector")}
+            title={t("shell.showInspector")}
           >
             ›
           </button>
@@ -247,6 +271,7 @@ export function ShellLayout({ children, statusMessage }: ShellLayoutProps) {
 
       <footer className="app-statusbar">
         <TestModeButton />
+        <LlmLiveFooterButton />
         <ObservatoryGlobalPill />
         <span className="status-message">{statusMessage}</span>
       </footer>

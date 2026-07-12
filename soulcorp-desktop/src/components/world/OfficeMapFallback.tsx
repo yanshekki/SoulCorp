@@ -2,6 +2,7 @@ import { useGameStore } from "../../stores/gameStore";
 import type { Building } from "../../types/world";
 import { tryExitInterior } from "../../utils/buildModeExit";
 import { FallbackFloorPlan } from "./FallbackFloorPlan";
+import { useI18n } from "../../i18n/I18nProvider";
 
 function toMapPosition(x: number, z: number) {
   return {
@@ -11,6 +12,7 @@ function toMapPosition(x: number, z: number) {
 }
 
 export function OfficeMapFallback() {
+  const { t } = useI18n();
   const agents = useGameStore((state) => state.agents);
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuilding = useGameStore((state) => state.selectedBuilding);
@@ -33,7 +35,7 @@ export function OfficeMapFallback() {
     const office = visualDesign.offices[interiorBuildingId];
     const buildingAgents = agents.filter((agent) => agent.department === building?.department);
     return (
-      <div className="office-map-fallback interior-fallback" aria-label="Interior map view">
+      <div className="office-map-fallback interior-fallback" aria-label={t("world.interiorMapAria")}>
         <div className="office-map-sky" style={skyStyle} />
         <div
           className="office-map-interior-room"
@@ -42,7 +44,7 @@ export function OfficeMapFallback() {
           }}
         >
           <header className="fallback-interior-header">
-            <h3>{building?.name ?? "Interior"}</h3>
+            <h3>{building?.name ?? t("world.interior")}</h3>
             <p className="muted">{building?.department}</p>
           </header>
           <div className="fallback-floor-plan-wrap">
@@ -54,7 +56,7 @@ export function OfficeMapFallback() {
             />
           </div>
           <button type="button" className="primary-action" onClick={() => void tryExitInterior()}>
-            Back to campus
+            {t("world.backToCampus")}
           </button>
         </div>
       </div>
@@ -62,7 +64,7 @@ export function OfficeMapFallback() {
   }
 
   return (
-    <div className="office-map-fallback" aria-label="Office map fallback view">
+    <div className="office-map-fallback" aria-label={t("world.officeMapAria")}>
       <div className="office-map-sky" style={skyStyle} />
       <div
         className="office-map-ground"
@@ -106,9 +108,7 @@ export function OfficeMapFallback() {
               }}
               role="button"
               tabIndex={0}
-            >
-              Enter
-            </span>
+            >{t("common.enter")}</span>
           </button>
         );
       })}

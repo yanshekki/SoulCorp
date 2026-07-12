@@ -6,15 +6,17 @@ import { CollapsibleDock } from "../UI/CollapsibleDock";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
 import type { BuildTool } from "../../types/buildMode";
+import { useI18n } from "../../i18n/I18nProvider";
 
-const TOOLS: Array<{ id: BuildTool; label: string; icon: string }> = [
-  { id: "place", label: "Place", icon: "＋" },
-  { id: "move", label: "Move", icon: "↔" },
-  { id: "rotate", label: "Rotate", icon: "↻" },
-  { id: "delete", label: "Delete", icon: "✕" },
+const TOOLS: Array<{ id: BuildTool; labelKey: string; icon: string }> = [
+  { id: "place", labelKey: "build.tool.place", icon: "＋" },
+  { id: "move", labelKey: "build.tool.move", icon: "↔" },
+  { id: "rotate", labelKey: "build.tool.rotate", icon: "↻" },
+  { id: "delete", labelKey: "build.tool.delete", icon: "✕" },
 ];
 
 export function BuildModeHud() {
+  const { t } = useI18n();
   const buildMode = useGameStore((state) => state.buildMode);
   const buildTool = useGameStore((state) => state.buildTool);
   const buildCatalogId = useGameStore((state) => state.buildCatalogId);
@@ -54,7 +56,7 @@ export function BuildModeHud() {
       useGameStore.getState().setVisualDesign(saved);
       useDesignStudioStore.getState().setDraft(saved);
       setBuildDirty(false);
-      setStatusMessage("Office layout saved.");
+      setStatusMessage(t("status.officeSaved"));
       audioDirector.playSfx("save_success");
     } catch (error) {
       setStatusMessage(String(error));
@@ -64,12 +66,14 @@ export function BuildModeHud() {
   const placementHint = tooltipEntry
     ? `${tooltipEntry.label} · ${tooltipItem?.zone} · ${tooltipEntry.footprint[0].toFixed(1)}×${tooltipEntry.footprint[1].toFixed(1)}m`
     : buildTool === "place" && buildCatalogId
-      ? `${getCatalogEntry(buildCatalogId)?.label ?? buildCatalogId} — click floor to place`
+      ? t("build.clickToPlace", {
+          item: getCatalogEntry(buildCatalogId)?.label ?? buildCatalogId,
+        })
       : null;
 
   const catalogItems = FURNITURE_CATALOG.map((entry) => ({
     id: entry.id,
-    label: entry.label,
+    label: t(`furniture.${entry.id}`),
     icon: catalogEntryIcon(entry),
   }));
 
@@ -82,17 +86,17 @@ export function BuildModeHud() {
             type="button"
             className={`build-mode-tool${buildTool === tool.id ? " active" : ""}`}
             onClick={() => pickTool(tool.id)}
-            title={tool.label}
+            title={t(tool.labelKey)}
           >
             <span className="build-mode-tool-icon">{tool.icon}</span>
-            <span>{tool.label}</span>
+            <span>{t(tool.labelKey)}</span>
           </button>
         ))}
       </div>
 
       {buildDirty ? (
         <button type="button" className="primary-action build-mode-save" onClick={() => void handleSave()}>
-          Save
+          {t("build.save")}
         </button>
       ) : null}
 

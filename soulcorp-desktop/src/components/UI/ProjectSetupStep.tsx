@@ -1,4 +1,5 @@
 import type { ProjectSetupState } from "../../data/presetProjects";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface ProjectSetupStepProps {
   value: ProjectSetupState;
@@ -7,45 +8,45 @@ interface ProjectSetupStepProps {
 }
 
 export function ProjectSetupStep({ value, onChange, companyName }: ProjectSetupStepProps) {
+  const { t } = useI18n();
   return (
     <section className="onboarding-step project-setup-step">
-      <h3>First project</h3>
-      <p className="muted">
-        Name your first project. Backlog, sprints, and tasks start empty — you define everything on
-        the Projects page.
-      </p>
+      <h3>{t("projectSetup.title")}</h3>
+      <p className="muted">{t("projectSetup.desc")}</p>
 
       <div className="project-setup-custom-fields">
         <label className="field-label">
-          Project title
+          {t("projectSetup.projectTitle")}
           <input
             type="text"
             value={value.customTitle}
             onChange={(event) => onChange({ ...value, customTitle: event.target.value })}
             maxLength={80}
             placeholder={
-              companyName?.trim() ? `e.g. ${companyName.trim()} — Flagship` : "e.g. Q3 Product Launch"
+              companyName?.trim()
+                ? t("projectSetup.projectTitlePh", { name: companyName.trim() })
+                : t("projectSetup.projectTitlePhDefault")
             }
           />
         </label>
         <label className="field-label">
-          Description
+          {t("projectSetup.description")}
           <input
             type="text"
             value={value.customDescription}
             onChange={(event) => onChange({ ...value, customDescription: event.target.value })}
             maxLength={200}
-            placeholder="What is this project trying to deliver?"
+            placeholder={t("projectSetup.descriptionPh")}
           />
         </label>
         <label className="field-label">
-          Owner department
+          {t("projectSetup.department")}
           <input
             type="text"
             value={value.customDepartment}
             onChange={(event) => onChange({ ...value, customDepartment: event.target.value })}
             maxLength={60}
-            placeholder="Optional — e.g. Engineering"
+            placeholder={t("projectSetup.departmentPh")}
           />
         </label>
       </div>

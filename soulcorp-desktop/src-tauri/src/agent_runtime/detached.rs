@@ -49,32 +49,19 @@ pub fn execute_for_task_detached(
             }
         }
         super::AgentRuntimeMode::Subprocess => {
-            let subprocess_result = match activity.as_ref() {
-                Some(act) => with_locked_state(act, |state| {
-                    super::adapters::execute_runtime_for_id(
-                        Some(state),
-                        &runtime_id,
-                        &ctx.settings,
-                        &ctx.company_id,
-                        task,
-                        agent,
-                        project_title,
-                        ctx.workspace_root.as_deref(),
-                        Some(act.clone()),
-                    )
-                }),
-                None => super::adapters::execute_runtime_for_id(
-                    None,
-                    &runtime_id,
-                    &ctx.settings,
-                    &ctx.company_id,
-                    task,
-                    agent,
-                    project_title,
-                    ctx.workspace_root.as_deref(),
-                    None,
-                ),
-            };
+            // NEVER hold AppState across the whole CLI/LLM subprocess — that froze the UI
+            // for minutes. Streaming lines take short locks inside run_subprocess_for_agent.
+            let subprocess_result = super::adapters::execute_runtime_for_id(
+                None,
+                &runtime_id,
+                &ctx.settings,
+                &ctx.company_id,
+                task,
+                agent,
+                project_title,
+                ctx.workspace_root.as_deref(),
+                activity.clone(),
+            );
             match subprocess_result {
                 Ok(result) => Ok(DetachedExecutionResult {
                     content: result.content,
@@ -84,7 +71,7 @@ pub fn execute_for_task_detached(
                 Err(err) => {
                     let label = crate::brain::effective_execution_label(&runtime_id);
                     if ctx.settings.agent_runtime_fallback_to_llm {
-                        eprintln!("{label} runtime failed ({err}); falling back to LLM.");
+                        crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::Ai, "agent_runtime_detached", format!("{label} runtime failed ({err}); falling back to LLM."), None);
                         if ctx.settings.scrum_use_agent_tools {
                             agent_tools::execute_with_tools_detached(
                                 ctx,
@@ -103,17 +90,6 @@ pub fn execute_for_task_detached(
             }
         }
     }
-}
-
-fn with_locked_state<T>(
-    activity: &ActivityRunContext,
-    run: impl FnOnce(&mut AppState) -> Result<T, String>,
-) -> Result<T, String> {
-    let state_mutex = activity.app.state::<Mutex<AppState>>();
-    let mut state = state_mutex
-        .lock()
-        .map_err(|error| format!("State lock poisoned: {error}"))?;
-    run(&mut state)
 }
 
 pub fn execute_llm_only_detached(

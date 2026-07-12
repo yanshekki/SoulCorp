@@ -30,6 +30,7 @@ import {
   wallsOnFloor,
 } from "../../utils/officeArchitecture";
 import { FurniturePlanSilhouette } from "./FurniturePlanSilhouette";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const PLAN_PADDING = 1.2;
 
@@ -60,6 +61,7 @@ function hitFurnitureAtPoint(
 }
 
 export function OfficeFloorPlanEditor() {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const draft = useDesignStudioStore((state) => state.draft);
@@ -328,7 +330,7 @@ export function OfficeFloorPlanEditor() {
     ? config.furniture.find((item) => item.id === selectedFurnitureId)
     : null;
   const selectedEntry = selectedItem ? getCatalogEntry(selectedItem.catalog_id) : null;
-  const selectedLabel = selectedEntry?.label ?? null;
+  const selectedLabel = selectedEntry ? t(`furniture.${selectedEntry.id}`) : null;
   const selectedDims = selectedEntry ? formatFootprintDimensions(selectedEntry.footprint) : null;
 
   return (
@@ -471,7 +473,7 @@ export function OfficeFloorPlanEditor() {
                 gltfPath={entry.gltfPath}
                 footprint={entry.footprint}
                 showDimensions={selected}
-                title={entry.label}
+                title={t(`furniture.${entry.id}`)}
               />
             </g>
           );

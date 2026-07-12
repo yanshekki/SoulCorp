@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRuntimeStatus {
     pub runtime_mode: String,
@@ -37,6 +38,9 @@ pub struct AgentRuntimeTestResult {
     pub transport: Option<String>,
     pub preview: String,
     pub message: String,
+    /// Wall-clock duration of the smoke run (ms). 0 when the test failed before timing.
+    #[serde(default)]
+    pub duration_ms: u64,
 }
 
 pub type OpenClawStatus = AgentRuntimeStatus;
@@ -69,7 +73,7 @@ pub fn get_agent_runtime_catalog() -> Result<RuntimeCatalog, String> {
 
 #[tauri::command]
 pub fn get_agent_runtime_status(state: State<'_, Mutex<AppState>>) -> Result<AgentRuntimeStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let probe = probe_active_runtime(&state.settings);
     Ok(status_from_probe(&state.settings, probe))
 }
@@ -81,7 +85,7 @@ pub fn get_openclaw_status(state: State<'_, Mutex<AppState>>) -> Result<AgentRun
 
 #[tauri::command]
 pub fn probe_all_agent_runtimes(state: State<'_, Mutex<AppState>>) -> Result<Vec<RuntimeProbeSummary>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let mut summaries = Vec::new();
     for entry in &catalog().runtimes {
         if entry.id == "llm_only" {
@@ -111,13 +115,14 @@ pub async fn test_agent_runtime(
     app: AppHandle,
 ) -> Result<AgentRuntimeTestResult, String> {
     let prepared = {
-        let state = state.lock().map_err(|e| e.to_string())?;
+        let state = state.lock_or_recover()?;
         if !crate::agent_runtime::is_subprocess_runtime(&state.settings.agent_runtime_mode) {
             return Ok(AgentRuntimeTestResult {
                 ok: false,
                 transport: None,
                 preview: String::new(),
                 message: "Set runtime mode to an external CLI subprocess first.".into(),
+                duration_ms: 0,
             });
         }
         let runtime_label = crate::agent_runtime::registry::effective_label(&state.settings);
@@ -270,9 +275,10 @@ pub async fn test_agent_runtime(
                 transport: Some(transport.clone()),
                 preview: preview.clone(),
                 message: format!(
-                    "{runtime_label} test succeeded via {transport} in {} ms. {preview}",
+                    "{runtime_label} test succeeded via {transport} in {} ms.",
                     result.duration_ms
                 ),
+                duration_ms: result.duration_ms,
             })
         }
         Err(error) => Ok(AgentRuntimeTestResult {
@@ -280,6 +286,7 @@ pub async fn test_agent_runtime(
             transport: None,
             preview: String::new(),
             message: format!("{error}{key_hint}"),
+            duration_ms: 0,
         }),
     }
 }

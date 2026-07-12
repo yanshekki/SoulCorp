@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef, useState, type ComponentType } from "react
 import type { SidebarPanel } from "../../types/game";
 import { resolveLazyPanel } from "../../config/lazyPanels";
 import { PanelSuspense } from "./PanelSuspense";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const MAX_CACHED_PANELS = 6;
 
@@ -11,12 +12,14 @@ interface PanelHostProps {
 }
 
 function LazyPanel({ panel }: { panel: SidebarPanel }) {
+  const { t } = useI18n();
   const Component = resolveLazyPanel(panel) as ComponentType<object> | null;
   if (!Component) {
+    const section = t("nav.workspace");
     return (
       <div className="app-stage-placeholder">
         <p className="muted">
-          Open <strong>Workspace</strong> or another section from the top navigation.
+          {t("panelHost.placeholder", { section })}
         </p>
       </div>
     );

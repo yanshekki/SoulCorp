@@ -33,7 +33,7 @@ pub fn generate_and_apply_fate_event(state: &mut AppState) -> Option<GameEvent> 
     let event = match generate_fate_event(state) {
         Ok(event) => event,
         Err(error) => {
-            eprintln!("Fate event generation failed, using template fallback: {error}");
+            crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::System, "fate_events", format!("Fate event generation failed, using template fallback: {error}"), None);
             template_fallback_event()
         }
     };

@@ -25,6 +25,7 @@ import { withPreviewDecor } from "../../utils/previewOfficeDecor";
 import { INTERIOR_LAYOUT_VERSION } from "../../utils/interiorScale";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { createInteriorScene, type InteriorSceneHandles } from "../world/interiorScene";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const DRAG_THRESHOLD_PX = 6;
 
@@ -119,6 +120,7 @@ function normalizedPointer(
 }
 
 export function InteriorDesignViewport({ compact = false }: InteriorDesignViewportProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<InteriorSceneHandles | null>(null);
@@ -528,30 +530,26 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
         className={`design-interior-viewport-header${compact ? " design-interior-viewport-header--compact" : ""}`}
       >
         {compact ? (
-          <span className="design-interior-viewport-label">3D · SSAO</span>
+          <span className="design-interior-viewport-label">{t("design.ssaoLabel")}</span>
         ) : (
           <div>
-            <h2>{buildingName} — 3D preview</h2>
+            <h2>{t("design.preview3d", { name: buildingName })}</h2>
             <p className="muted">
-              studioClarity · drag-drop furniture in 3D · drag to pan · scroll zoom · right-drag rotate
+              {t("design.preview3dHint")}
             </p>
           </div>
         )}
-        <div className="design-interior-camera-toggle" role="group" aria-label="Camera mode">
+        <div className="design-interior-camera-toggle" role="group" aria-label={t("world.cameraMode")}>
           <button
             type="button"
             className={!studioPerspectiveCamera ? "active" : ""}
             onClick={() => setStudioPerspectiveCamera(false)}
-          >
-            Iso
-          </button>
+          >{t("design.iso")}</button>
           <button
             type="button"
             className={studioPerspectiveCamera ? "active" : ""}
             onClick={() => setStudioPerspectiveCamera(true)}
-          >
-            Perspective
-          </button>
+          >{t("design.perspective")}</button>
         </div>
       </header>
       <div
@@ -570,7 +568,7 @@ export function InteriorDesignViewport({ compact = false }: InteriorDesignViewpo
           onDoubleClick={onDoubleClick}
           onContextMenu={(event) => event.preventDefault()}
         />
-        {sceneLoading ? <p className="design-interior-loading">Loading furniture…</p> : null}
+        {sceneLoading ? <p className="design-interior-loading">{t("world.loadingFurniture")}</p> : null}
       </div>
     </section>
   );

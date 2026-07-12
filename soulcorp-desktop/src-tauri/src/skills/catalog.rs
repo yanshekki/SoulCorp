@@ -103,7 +103,7 @@ pub fn builtin_catalog() -> Vec<SkillPack> {
                 .filter_map(|(id, raw)| match parse_skill_md(raw, SkillSource::Builtin) {
                     Ok(pack) => Some(pack),
                     Err(err) => {
-                        eprintln!("Failed to parse built-in skill {id}: {err}");
+                        crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::System, "skill_catalog", format!("Failed to parse built-in skill {id}: {err}"), None);
                         None
                     }
                 })

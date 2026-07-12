@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceListGroup, WorkspaceListItem } from "../../types/workspaceNav";
 import { WorkspaceContextMenu } from "./WorkspaceContextMenu";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const VIRTUALIZE_THRESHOLD = 32;
 const ROW_HEIGHT = 44;
@@ -22,8 +23,9 @@ interface ContextState {
 export function WorkspaceItemList({
   items,
   groups,
-  emptyLabel = "Nothing here yet",
+  emptyLabel,
 }: WorkspaceItemListProps) {
+  const { t } = useI18n();
   const selectedPageId = useWorkspaceStore((state) => state.selectedPageId);
   const selectedFileId = useWorkspaceStore((state) => state.selectedFileId);
   const openingPageId = useWorkspaceStore((state) => state.openingPageId);
@@ -63,7 +65,7 @@ export function WorkspaceItemList({
         <button
           type="button"
           className={`ws-item-pin-btn${item.pinned ? " pinned" : ""}`}
-          title={item.pinned ? "Unpin" : "Pin"}
+          title={item.pinned ? t("workspace.unpin") : t("workspace.pin")}
           onClick={(event) => {
             event.stopPropagation();
             togglePin(item.id);
@@ -125,7 +127,7 @@ export function WorkspaceItemList({
 
   const flatItems = items ?? [];
   if (flatItems.length === 0) {
-    return <p className="ws-item-list-empty muted">{emptyLabel}</p>;
+    return <p className="ws-item-list-empty muted">{emptyLabel ?? t("workspace.empty.default")}</p>;
   }
 
   return (

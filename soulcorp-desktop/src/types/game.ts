@@ -15,6 +15,7 @@ export type SidebarPanel =
   | "executive"
   | "achievements"
   | "settings"
+  | "logs"
   | "god_mode";
 
 export interface HubGig {
@@ -516,6 +517,40 @@ export interface ExecutionRun {
   error?: string | null;
   started_at: string;
   finished_at?: string | null;
+  /** Full prompt body (materialized to a temp file for subprocess CLIs). */
+  cli_input?: string | null;
+  /** Command line using --prompt-file / --message-file (body not on argv). */
+  cli_command?: string | null;
+  /** Absolute path of the prompt temp file when recorded. */
+  cli_prompt_path?: string | null;
+  /** Dual-address workspace paths for observability. */
+  workspace_info?: ExecutionWorkspaceInfo | null;
+}
+
+export interface ExecutionWorkspacePagePath {
+  title: string;
+  page_id: string;
+  md_path: string;
+}
+
+export interface ExecutionWorkspaceInfo {
+  company_id: string;
+  company_workspace_root: string;
+  agent_folder_id: string;
+  agent_folder_name: string;
+  agent_memory_page_id?: string | null;
+  agent_memory_md_path?: string | null;
+  page_paths: ExecutionWorkspacePagePath[];
+  cwd: string;
+  access_notes: string[];
+}
+
+export interface ExecutionCliView {
+  run_id: string;
+  command: string;
+  prompt: string;
+  prompt_path?: string | null;
+  workspace?: ExecutionWorkspaceInfo | null;
 }
 
 export interface WorkTreeNode {
@@ -682,6 +717,8 @@ export interface CompleteOnboardingRequest {
 }
 
 export interface GameSettings {
+  /** UI + agent document language: en | zh-Hant | zh-Hans */
+  app_language?: string;
   play_mode: PlayMode;
   random_events_enabled: boolean;
   random_event_chance: number;
@@ -858,6 +895,8 @@ export interface AgentRuntimeTestResult {
   transport?: string | null;
   preview: string;
   message: string;
+  /** Smoke-run duration in ms (0 if failed before timing). */
+  duration_ms?: number;
 }
 
 export type OpenClawStatus = AgentRuntimeStatus;
@@ -946,6 +985,14 @@ export interface MeetingAiStatus {
   message: string;
 }
 
+/** Live credential probe for Settings AI providers (green/red light). */
+export interface ProviderCredentialProbe {
+  ok: boolean;
+  provider: string;
+  has_credentials: boolean;
+  message: string;
+}
+
 export interface MeetingSnapshot {
   id: string;
   meeting_type: string;
@@ -959,6 +1006,42 @@ export interface MeetingSnapshot {
   active_provider: string;
   turns_per_agent: number;
   notes_page_id?: string | null;
+  /** Tasks created when the meeting closed. */
+  tasks_spawned?: number;
+  directive_id?: string | null;
+  work_started?: boolean;
+  /** Structured recap after finalize. */
+  key_points?: string[];
+  decisions?: string[];
+  action_items?: string[];
+  risks_blockers?: string[];
+  notes_write_error?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  story_id?: string | null;
+  task_ids?: string[];
+  action_task_links?: MeetingActionLink[];
+}
+
+export interface MeetingActionLink {
+  action: string;
+  task_id?: string | null;
+  task_title?: string | null;
+}
+
+export interface MeetingHistoryItem {
+  id: string;
+  meeting_type: string;
+  completed: boolean;
+  participant_count: number;
+  message_count: number;
+  outcome_summary?: string | null;
+  notes_page_id?: string | null;
+  tasks_spawned: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  key_points: string[];
+  action_items: string[];
 }
 
 export interface SimulationTickResult {

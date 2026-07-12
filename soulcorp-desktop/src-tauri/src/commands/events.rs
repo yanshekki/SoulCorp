@@ -7,6 +7,7 @@ use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForesightEvent {
     pub id: String,
@@ -21,7 +22,7 @@ pub struct ForesightEvent {
 
 #[tauri::command]
 pub fn get_recent_events(state: State<'_, Mutex<AppState>>) -> Result<Vec<GameEvent>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.events.iter().rev().take(8).cloned().collect())
 }
 
@@ -30,7 +31,7 @@ pub fn get_event_foresight(state: State<'_, Mutex<AppState>>) -> Result<Vec<Fore
     if config::is_v1() {
         return Ok(Vec::new());
     }
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     if state.settings.play_mode == PlayMode::Work || !state.settings.random_events_enabled {
         return Ok(Vec::new());
     }

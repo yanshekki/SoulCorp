@@ -1,7 +1,13 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getWorkspacePage } from "../../../services/workspaceClient";
-import type { ExecutionRun, WorkNode, WorkNodeStatus } from "../../../types/game";
+import type {
+  ExecutionCliView,
+  ExecutionRun,
+  ExecutionWorkspaceInfo,
+  WorkNode,
+} from "../../../types/game";
 import {
   findGlobalTextMatches,
   pageForGlobalMatch,
@@ -14,6 +20,8 @@ import { EXECUTION_TEXT_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { SearchField } from "../SearchField";
 import { SearchableTextSection } from "../SearchableTextSection";
+import { useI18n } from "../../../i18n/I18nProvider";
+import { cleanDisplayTitle, CliInputModal } from "./CliInputModal";
 
 interface ExecutionRunDetailModalProps {
   run: ExecutionRun;
@@ -36,12 +44,7 @@ function formatTimestamp(value?: string | null): string {
   return date.toLocaleString();
 }
 
-function statusLabel(status: WorkNodeStatus | undefined): string {
-  if (!status) {
-    return "—";
-  }
-  return status.replace(/_/g, " ");
-}
+
 
 export function ExecutionRunDetailModal({
   run,
@@ -52,6 +55,7 @@ export function ExecutionRunDetailModal({
   onApprove,
   approving = false,
 }: ExecutionRunDetailModalProps) {
+  const { t } = useI18n();
   const [deliverableTitle, setDeliverableTitle] = useState<string | null>(null);
   const [deliverableBody, setDeliverableBody] = useState<string | null>(null);
   const [deliverableLoading, setDeliverableLoading] = useState(false);
@@ -62,21 +66,60 @@ export function ExecutionRunDetailModal({
   const [globalQuery, setGlobalQuery] = useState("");
   const [globalSearchType, setGlobalSearchType] = useState(SEARCH_TYPE_ALL);
   const [globalMatchIndex, setGlobalMatchIndex] = useState(0);
+  const [showCliInput, setShowCliInput] = useState(false);
+  const [cliLoading, setCliLoading] = useState(false);
+  const [cliView, setCliView] = useState<{
+    command: string | null;
+    prompt: string;
+    promptPath: string | null;
+    workspace: ExecutionWorkspaceInfo | null;
+  } | null>(null);
   const debouncedGlobalQuery = useDebouncedValue(globalQuery);
+
+  const openCliInput = async () => {
+    setCliLoading(true);
+    try {
+      const view = await invoke<ExecutionCliView>("get_execution_cli_input", {
+        runId: run.id,
+      });
+      setCliView({
+        command: view.command,
+        prompt: view.prompt,
+        promptPath: view.prompt_path ?? null,
+        workspace: view.workspace ?? null,
+      });
+      setShowCliInput(true);
+    } catch {
+      // Fall back to whatever was stored on the run (may be stale pre-fix format).
+      setCliView({
+        command: run.cli_command ?? null,
+        prompt: run.cli_input ?? "",
+        promptPath: run.cli_prompt_path ?? null,
+        workspace: run.workspace_info ?? null,
+      });
+      setShowCliInput(true);
+    } finally {
+      setCliLoading(false);
+    }
+  };
 
   const searchableSections = useMemo((): ExecutionTextSection[] => {
     const sections: ExecutionTextSection[] = [];
     if (run.error) {
-      sections.push({ id: "error", label: "Error", text: run.error });
+      sections.push({ id: "error", label: t("common.error"), text: run.error });
     }
     if (run.summary) {
-      sections.push({ id: "summary", label: "Summary", text: run.summary });
+      sections.push({ id: "summary", label: t("execution.summary"), text: run.summary });
     }
     if (deliverableBody) {
-      sections.push({ id: "deliverable", label: "Deliverable", text: deliverableBody });
+      sections.push({
+        id: "deliverable",
+        label: t("execution.deliverable"),
+        text: deliverableBody,
+      });
     }
     return sections;
-  }, [run.error, run.summary, deliverableBody]);
+  }, [run.error, run.summary, deliverableBody, t]);
 
   const scopedSearchableSections = useMemo(() => {
     if (globalSearchType === SEARCH_TYPE_ALL) {
@@ -237,13 +280,13 @@ export function ExecutionRunDetailModal({
       <div className="execution-run-modal" onClick={(event) => event.stopPropagation()}>
         <header className="execution-run-modal-header">
           <div>
-            <p className="execution-run-modal-eyebrow">Execution run</p>
+            <p className="execution-run-modal-eyebrow">{t("execution.runEyebrow")}</p>
             <h2 id="execution-run-detail-title">{taskTitle}</h2>
             <p className="muted">
               {run.status} · {agentName} · {run.provider || "runtime"}
             </p>
           </div>
-          <button type="button" className="execution-run-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="execution-run-close" onClick={onClose} aria-label={t("common.close")}>
             ×
           </button>
         </header>
@@ -253,8 +296,8 @@ export function ExecutionRunDetailModal({
             <SearchField
               value={globalQuery}
               onChange={setGlobalQuery}
-              placeholder="Search error, summary, and deliverable…"
-              ariaLabel="Search entire execution run"
+              placeholder={t("execution.searchPlaceholder")}
+              ariaLabel={t("execution.searchAria")}
               matchCount={
                 usingGlobalSearch || globalSearchType !== SEARCH_TYPE_ALL
                   ? globalMatches.length
@@ -265,91 +308,125 @@ export function ExecutionRunDetailModal({
                 value: globalSearchType,
                 onChange: setGlobalSearchType,
                 options: EXECUTION_TEXT_SEARCH_TYPES,
-                ariaLabel: "Filter execution run search section",
-                label: "Section",
+                ariaLabel: t("execution.filterSectionAria"),
+                label: t("execution.sectionLabel"),
               }}
             />
             {usingGlobalSearch && matchSummary.length > 0 ? (
               <p className="execution-run-global-search-summary muted">
                 {matchSummary.map((entry) => `${entry.label} · ${entry.count}`).join(" · ")}
                 {globalMatches.length > 1
-                  ? ` · match ${globalMatchIndex + 1}/${globalMatches.length}`
+                  ? t("execution.matchNav", {
+                      current: globalMatchIndex + 1,
+                      total: globalMatches.length,
+                    })
                   : ""}
               </p>
             ) : null}
             {usingGlobalSearch && globalMatches.length > 1 ? (
               <div className="searchable-text-match-nav">
                 <button type="button" onClick={() => goToGlobalMatch(-1)}>
-                  Prev match
+                  {t("execution.prevMatch")}
                 </button>
                 <button type="button" onClick={() => goToGlobalMatch(1)}>
-                  Next match
+                  {t("execution.nextMatch")}
                 </button>
               </div>
             ) : null}
             {usingGlobalSearch && globalMatches.length === 0 ? (
               <p className="search-empty-hint muted">
-                No matches for &ldquo;{debouncedGlobalQuery}&rdquo;.
+                {t("execution.noMatchesQuery", { query: debouncedGlobalQuery })}
               </p>
             ) : null}
           </div>
         ) : null}
 
         <div className="execution-run-modal-body">
-          <section className="execution-run-meta-grid" aria-label="Run metadata">
+          <section className="execution-run-meta-grid" aria-label={t("execution.metaAria")}>
             <div>
-              <span className="execution-run-meta-label">Run ID</span>
+              <span className="execution-run-meta-label">{t("execution.meta.runId")}</span>
               <code>{run.id}</code>
             </div>
             <div>
-              <span className="execution-run-meta-label">Work node</span>
+              <span className="execution-run-meta-label">{t("execution.meta.workNode")}</span>
               <code>{run.work_node_id}</code>
             </div>
             <div>
-              <span className="execution-run-meta-label">Agent</span>
+              <span className="execution-run-meta-label">{t("execution.meta.agent")}</span>
               <span>{agentName}</span>
             </div>
             <div>
-              <span className="execution-run-meta-label">Status</span>
+              <span className="execution-run-meta-label">{t("execution.meta.status")}</span>
               <span className={`execution-run-status execution-run-status--${run.status}`}>
                 {run.status}
               </span>
             </div>
             <div>
-              <span className="execution-run-meta-label">Provider</span>
+              <span className="execution-run-meta-label">{t("execution.meta.provider")}</span>
               <span>{run.provider || "—"}</span>
             </div>
             <div>
-              <span className="execution-run-meta-label">Tokens</span>
+              <span className="execution-run-meta-label">{t("execution.meta.tokens")}</span>
               <span>
-                {run.actual_tokens || run.estimated_tokens} used
-                {run.estimated_tokens ? ` · est. ${run.estimated_tokens}` : ""}
+                {t("execution.meta.tokensUsed", {
+                  used: run.actual_tokens || run.estimated_tokens,
+                  est: run.estimated_tokens ? ` · est. ${run.estimated_tokens}` : "",
+                })}
               </span>
             </div>
             <div>
-              <span className="execution-run-meta-label">Started</span>
+              <span className="execution-run-meta-label">{t("execution.meta.started")}</span>
               <span>{formatTimestamp(run.started_at)}</span>
             </div>
             <div>
-              <span className="execution-run-meta-label">Finished</span>
+              <span className="execution-run-meta-label">{t("execution.meta.finished")}</span>
               <span>{formatTimestamp(run.finished_at)}</span>
             </div>
             {workNode ? (
               <div>
-                <span className="execution-run-meta-label">Task status</span>
-                <span>{statusLabel(workNode.status)}</span>
+                <span className="execution-run-meta-label">{t("execution.meta.taskStatus")}</span>
+                <span>
+                  {t(`status.${workNode.status}`) === `status.${workNode.status}`
+                    ? workNode.status.replace(/_/g, " ")
+                    : t(`status.${workNode.status}`)}
+                </span>
               </div>
             ) : null}
+          </section>
+
+          <section className="execution-run-section">
+            <div className="execution-run-section-header">
+              <h3>{t("cli.sectionHeader")}</h3>
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={cliLoading || (!run.cli_input && !run.cli_command)}
+                onClick={() => void openCliInput()}
+              >
+                {cliLoading ? t("cli.loadingCli") : t("cli.viewCliInput")}
+              </button>
+            </div>
+            {run.cli_input || run.cli_command ? (
+              <p className="muted">
+                {t("cli.hasInput", {
+                  detail: run.cli_input
+                    ? ` (${run.cli_input.length.toLocaleString()} char)`
+                    : "",
+                })}
+              </p>
+            ) : (
+              <p className="muted">{t("cli.noInput")}</p>
+            )}
           </section>
 
           {run.error ? (
             <SearchableTextSection
               sectionId="execution-section-error"
-              title="Error"
+              title={t("execution.error")}
               text={run.error}
               page={errorPage}
               onPageChange={setErrorPage}
-              label="Error"
+              label={t("execution.error")}
               variant="error"
               query={usingGlobalSearch ? globalQuery : undefined}
               onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
@@ -361,11 +438,11 @@ export function ExecutionRunDetailModal({
           {run.summary ? (
             <SearchableTextSection
               sectionId="execution-section-summary"
-              title="Run summary"
+              title={t("execution.summary")}
               text={run.summary}
               page={summaryPage}
               onPageChange={setSummaryPage}
-              label="Summary"
+              label={t("execution.summaryLabel")}
               query={usingGlobalSearch ? globalQuery : undefined}
               onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
               showSearchToolbar={false}
@@ -375,7 +452,7 @@ export function ExecutionRunDetailModal({
 
           <section className="execution-run-section" id="execution-section-deliverable">
             <div className="execution-run-section-header">
-              <h3>Deliverable</h3>
+              <h3>{t("execution.deliverable")}</h3>
               {run.deliverable_page_id ? (
                 <button
                   type="button"
@@ -387,11 +464,11 @@ export function ExecutionRunDetailModal({
                     )
                   }
                 >
-                  Open in Workspace
+                  {t("execution.openWorkspace")}
                 </button>
               ) : null}
             </div>
-            {deliverableLoading ? <p className="muted">Loading full deliverable…</p> : null}
+            {deliverableLoading ? <p className="muted">{t("execution.loadingDeliverable")}</p> : null}
             {deliverableError ? <p className="execution-run-error">{deliverableError}</p> : null}
             {!deliverableLoading && !deliverableError && deliverableBody ? (
               <>
@@ -403,7 +480,7 @@ export function ExecutionRunDetailModal({
                   text={deliverableBody}
                   page={deliverablePage}
                   onPageChange={setDeliverablePage}
-                  label="Deliverable"
+                  label={t("execution.deliverable")}
                   variant="deliverable"
                   query={usingGlobalSearch ? globalQuery : undefined}
                   onQueryChange={usingGlobalSearch ? setGlobalQuery : undefined}
@@ -413,7 +490,7 @@ export function ExecutionRunDetailModal({
               </>
             ) : null}
             {!deliverableLoading && !deliverableError && !deliverableBody && !run.deliverable_page_id ? (
-              <p className="muted">No deliverable page was created for this run.</p>
+              <p className="muted">{t("execution.noDeliverable")}</p>
             ) : null}
           </section>
         </div>
@@ -426,14 +503,24 @@ export function ExecutionRunDetailModal({
               disabled={approving}
               onClick={() => onApprove?.(run.work_node_id)}
             >
-              {approving ? "Approving…" : "Approve deliverable"}
+              {approving ? t("execution.approving") : t("execution.approve")}
             </button>
           ) : null}
           <button type="button" className="execution-run-secondary-btn" onClick={onClose}>
-            Close
+            {t("common.close")}
           </button>
         </footer>
       </div>
+      {showCliInput && cliView ? (
+        <CliInputModal
+          title={t("cli.titleWithTask", { task: cleanDisplayTitle(taskTitle) })}
+          command={cliView.command}
+          prompt={cliView.prompt}
+          promptPath={cliView.promptPath}
+          workspace={cliView.workspace}
+          onClose={() => setShowCliInput(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -15,11 +15,12 @@ use crate::state::{AgentRecord, AppState};
 use std::sync::Mutex;
 use tauri::Manager;
 use crate::workspace::{
-    agent_service::{format_workspace_context_for_prompt, AgentContext, AgentWorkspaceService},
+    agent_service::{AgentContext, AgentWorkspaceService},
     WorkspaceStorage,
 };
 use std::path::Path;
 
+use crate::lock_util::MutexExt;
 const MAX_TOOL_STEPS: usize = 3;
 const MAX_SKILL_LOOP_STEPS: usize = 10;
 const RESEARCH_PAGE_LIMIT: usize = 3;
@@ -85,17 +86,24 @@ fn build_workspace_prompt_context(
     let agent_ctx = AgentContext::from_record(agent);
     let mut parts = Vec::new();
     if let Ok(context) = service.get_context(&agent_ctx) {
-        parts.push(format_workspace_context_for_prompt(&context));
+        parts.push(crate::workspace::agent_service::format_workspace_context_for_prompt_with_root(
+            Some(root),
+            &context,
+        ));
     }
     let query = search_query.trim();
     if !query.is_empty() {
         if let Ok(results) = service.search(&agent_ctx, query, 5) {
             if !results.is_empty() {
                 parts.push("Relevant workspace pages:".to_string());
+                let pages_dir = root.join("pages");
                 for result in results {
+                    let md = pages_dir.join(format!("{}.md", result.page_id));
                     parts.push(format!(
-                        "- {} [{}]: {}",
-                        result.title, result.page_id, result.snippet
+                        "- {} → {} : {}",
+                        result.title,
+                        md.display(),
+                        result.snippet
                     ));
                 }
             }
@@ -158,7 +166,7 @@ fn persist_execution_note(
     let agent_ctx = AgentContext::from_record(agent);
     let journal_title = journal_title_for_task(task);
     if let Err(error) = service.append_journal(&agent_ctx, &journal_title, heading, &lines) {
-        eprintln!("Agent workspace journal write failed: {error}");
+        crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::Execution, "agent_journal", format!("Agent workspace journal write failed: {error}"), None);
     }
 }
 
@@ -197,6 +205,10 @@ pub(crate) fn workspace_prompt_addon(
     let search_query = task_search_query(project_title, task);
     let mut parts = Vec::new();
     if let Some(root) = workspace_root {
+        let code_hints = crate::agent_runtime::task_prompt::list_code_project_hints(root);
+        if !code_hints.trim().is_empty() {
+            parts.push(code_hints);
+        }
         if let Ok(storage) = crate::workspace::WorkspaceStorage::new(root.to_path_buf()) {
             let max_chars = 4000usize;
             let mem = crate::workspace::agent_memory::prompt_memory_section(
@@ -655,7 +667,7 @@ pub fn execute_with_tools_detached(
     for (index, step_template) in steps.iter().enumerate().take(MAX_TOOL_STEPS) {
         let step_name = STEP_NAMES.get(index).copied().unwrap_or("step");
         if let Some(ref act) = activity {
-            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock() {
+            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock_or_recover() {
                 emit_step_start(
                     &mut state,
                     Some(&act.app),
@@ -709,7 +721,7 @@ pub fn execute_with_tools_detached(
 
         let step_content = response.content.clone();
         if let Some(ref act) = activity {
-            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock() {
+            if let Ok(mut state) = act.app.state::<Mutex<AppState>>().lock_or_recover() {
                 emit_step_complete(
                     &mut state,
                     Some(&act.app),

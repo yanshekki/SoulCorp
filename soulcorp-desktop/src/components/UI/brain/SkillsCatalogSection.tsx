@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../../utils/tauriInvoke";
+import { useI18n } from "../../../i18n/I18nProvider";
 import { useGameStore } from "../../../stores/gameStore";
+import { confirmDialog } from "../../../utils/nativeDialog";
 import { PaginationBar } from "../PaginationBar";
 
 export interface SkillSummary {
@@ -144,35 +146,46 @@ const RISK_ORDER: Record<SkillSummary["risk"], number> = {
   critical: 3,
 };
 
-const RISK_LABEL: Record<SkillSummary["risk"], string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  critical: "Critical",
+const RISK_KEY: Record<SkillSummary["risk"], string> = {
+  low: "skills.risk.low",
+  medium: "skills.risk.medium",
+  high: "skills.risk.high",
+  critical: "skills.risk.critical",
 };
 
-const COST_LABEL: Record<SkillSummary["token_cost_class"], string> = {
-  light: "Light",
-  medium: "Medium",
-  heavy: "Heavy",
+const COST_KEY: Record<SkillSummary["token_cost_class"], string> = {
+  light: "skills.cost.light",
+  medium: "skills.cost.medium",
+  heavy: "skills.cost.heavy",
 };
 
-const CATEGORY_META: Record<string, { label: string; glyph: string }> = {
-  research: { label: "Research", glyph: "🔍" },
-  engineering: { label: "Engineering", glyph: "⚙️" },
-  media: { label: "Media", glyph: "🎨" },
-  growth: { label: "Growth", glyph: "🚀" },
-  ops: { label: "Ops", glyph: "📋" },
-  general: { label: "General", glyph: "✨" },
+const CATEGORY_GLYPH: Record<string, string> = {
+  research: "🔍",
+  engineering: "⚙️",
+  media: "🎨",
+  growth: "🚀",
+  ops: "📋",
+  general: "✨",
 };
 
-function categoryMeta(category: string) {
-  return (
-    CATEGORY_META[category.toLowerCase()] ?? {
-      label: category.charAt(0).toUpperCase() + category.slice(1),
-      glyph: "◆",
-    }
-  );
+const CATEGORY_KEY: Record<string, string> = {
+  research: "skills.cat.research",
+  engineering: "skills.cat.engineering",
+  media: "skills.cat.media",
+  growth: "skills.cat.growth",
+  ops: "skills.cat.ops",
+  general: "skills.cat.general",
+};
+
+type TranslateFn = (key: string, params?: Record<string, string | number | undefined | null>) => string;
+
+function categoryMeta(category: string, t: TranslateFn) {
+  const key = category.toLowerCase();
+  const labelKey = CATEGORY_KEY[key];
+  return {
+    label: labelKey ? t(labelKey) : category.charAt(0).toUpperCase() + category.slice(1),
+    glyph: CATEGORY_GLYPH[key] ?? "◆",
+  };
 }
 
 function toolSchemaCode(tool: ToolSpec): string {
@@ -237,6 +250,7 @@ function SkillDetailModal({
   onToggle,
   busy,
 }: SkillDetailModalProps) {
+  const { t } = useI18n();
   const [pack, setPack] = useState<SkillPack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -277,8 +291,8 @@ function SkillDetailModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const selectedTool = pack?.tools.find((t) => t.id === selectedToolId) ?? null;
-  const meta = pack ? categoryMeta(pack.category) : null;
+  const selectedTool = pack?.tools.find((tool) => tool.id === selectedToolId) ?? null;
+  const meta = pack ? categoryMeta(pack.category, t) : null;
 
   return (
     <div
@@ -291,15 +305,15 @@ function SkillDetailModal({
       <div className="skills-modal" role="dialog" aria-modal="true" aria-labelledby="skills-modal-title">
         <header className="skills-modal-header">
           <div className="skills-modal-header-text">
-            <p className="skills-modal-eyebrow">Skill pack</p>
+            <p className="skills-modal-eyebrow">{t("skills.skillPack")}</p>
             <h3 id="skills-modal-title">{pack?.name ?? packId}</h3>
             {pack ? (
               <div className="skills-modal-badges">
-                <span className={`skills-risk skills-risk--${pack.risk}`}>{RISK_LABEL[pack.risk]}</span>
+                <span className={`skills-risk skills-risk--${pack.risk}`}>{t(RISK_KEY[pack.risk])}</span>
                 <span className="skills-badge">{meta?.label}</span>
                 <span className="skills-badge">{pack.source}</span>
                 <span className={`skills-badge${enabled ? " skills-badge--on" : ""}`}>
-                  {enabled ? "Enabled" : "Disabled"}
+                  {enabled ? t("skills.enabled") : t("skills.disabled")}
                 </span>
               </div>
             ) : null}
@@ -309,10 +323,14 @@ function SkillDetailModal({
               checked={enabled}
               busy={busy}
               onChange={onToggle}
-              label={enabled ? `Disable ${pack?.name ?? packId}` : `Enable ${pack?.name ?? packId}`}
+              label={
+                enabled
+                  ? t("skills.disablePack", { name: pack?.name ?? packId })
+                  : t("skills.enablePack", { name: pack?.name ?? packId })
+              }
             />
             <button type="button" className="skills-btn skills-btn--ghost" onClick={onClose}>
-              Close
+              {t("skills.close")}
             </button>
           </div>
         </header>
@@ -320,9 +338,9 @@ function SkillDetailModal({
         <div className="skills-modal-tabs" role="tablist">
           {(
             [
-              ["overview", "Overview"],
-              ["tools", `Tools${pack ? ` (${pack.tools.length})` : ""}`],
-              ["source", "Source"],
+              ["overview", t("skills.tab.overview")],
+              ["tools", pack ? t("skills.tab.toolsCount", { n: pack.tools.length }) : t("skills.tab.tools")],
+              ["source", t("skills.tab.source")],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -339,7 +357,7 @@ function SkillDetailModal({
         </div>
 
         <div className="skills-modal-body">
-          {loading ? <p className="muted">Loading skill pack…</p> : null}
+          {loading ? <p className="muted">{t("skills.loadingPack")}</p> : null}
           {error ? (
             <p className="hub-warning" role="alert">
               {error}
@@ -349,25 +367,25 @@ function SkillDetailModal({
           {!loading && pack && tab === "overview" ? (
             <div className="skills-modal-overview">
               <section>
-                <h4>When to use</h4>
+                <h4>{t("skills.whenToUse")}</h4>
                 <p>{pack.when_to_use}</p>
               </section>
               <section>
-                <h4>Identity</h4>
+                <h4>{t("skills.identity")}</h4>
                 <dl className="skills-meta-grid">
                   <div>
-                    <dt>ID</dt>
+                    <dt>{t("skills.meta.id")}</dt>
                     <dd>
                       <code>{pack.id}</code>
                     </dd>
                   </div>
                   <div>
-                    <dt>Source</dt>
+                    <dt>{t("skills.meta.source")}</dt>
                     <dd>{pack.source}</dd>
                   </div>
                   {pack.entry ? (
                     <div>
-                      <dt>Entry</dt>
+                      <dt>{t("skills.meta.entry")}</dt>
                       <dd>
                         <code>{pack.entry}</code>
                       </dd>
@@ -375,14 +393,14 @@ function SkillDetailModal({
                   ) : null}
                   {pack.runtime ? (
                     <div>
-                      <dt>Runtime</dt>
+                      <dt>{t("skills.meta.runtime")}</dt>
                       <dd>{pack.runtime}</dd>
                     </div>
                   ) : null}
                 </dl>
               </section>
               <section>
-                <h4>Tools</h4>
+                <h4>{t("skills.tools")}</h4>
                 <div className="skills-tool-btns">
                   {pack.tools.map((tool) => (
                     <button
@@ -395,7 +413,7 @@ function SkillDetailModal({
                       }}
                     >
                       <code>{tool.id}</code>
-                      <span>View</span>
+                      <span>{t("skills.view")}</span>
                     </button>
                   ))}
                 </div>
@@ -414,7 +432,7 @@ function SkillDetailModal({
                     onClick={() => setSelectedToolId(tool.id)}
                   >
                     <code>{tool.id}</code>
-                    <span className="muted">{tool.parameters.length} params</span>
+                    <span className="muted">{t("skills.paramsCount", { n: tool.parameters.length })}</span>
                   </button>
                 ))}
               </div>
@@ -428,15 +446,15 @@ function SkillDetailModal({
                       <p className="muted">{selectedTool.description}</p>
                     </header>
                     <div className="skills-tool-params">
-                      <h5>Parameters</h5>
+                      <h5>{t("skills.parameters")}</h5>
                       {selectedTool.parameters.length === 0 ? (
-                        <p className="muted">No parameters.</p>
+                        <p className="muted">{t("skills.noParameters")}</p>
                       ) : (
                         <table className="skills-param-table">
                           <thead>
                             <tr>
-                              <th>Name</th>
-                              <th>Type</th>
+                              <th>{t("skills.paramName")}</th>
+                              <th>{t("skills.paramType")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -456,13 +474,13 @@ function SkillDetailModal({
                     </div>
                     <div className="skills-code-block-wrap">
                       <div className="skills-code-block-bar">
-                        <span>Call shape</span>
+                        <span>{t("skills.callShape")}</span>
                         <button
                           type="button"
                           className="skills-btn skills-btn--ghost skills-btn--xs"
                           onClick={() => void navigator.clipboard?.writeText(toolSchemaCode(selectedTool))}
                         >
-                          Copy
+                          {t("skills.copy")}
                         </button>
                       </div>
                       <pre className="skills-code-block">
@@ -471,7 +489,7 @@ function SkillDetailModal({
                     </div>
                   </>
                 ) : (
-                  <p className="muted">Select a tool.</p>
+                  <p className="muted">{t("skills.selectTool")}</p>
                 )}
               </div>
             </div>
@@ -480,17 +498,17 @@ function SkillDetailModal({
           {!loading && pack && tab === "source" ? (
             <div className="skills-code-block-wrap skills-source-block">
               <div className="skills-code-block-bar">
-                <span>SKILL.md body</span>
+                <span>{t("skills.skillMdBody")}</span>
                 <button
                   type="button"
                   className="skills-btn skills-btn--ghost skills-btn--xs"
                   onClick={() => void navigator.clipboard?.writeText(pack.body || "")}
                 >
-                  Copy
+                  {t("skills.copy")}
                 </button>
               </div>
               <pre className="skills-code-block skills-code-block--tall">
-                <code>{pack.body?.trim() || "/* empty body */"}</code>
+                <code>{pack.body?.trim() || t("skills.emptyBody")}</code>
               </pre>
             </div>
           ) : null}
@@ -501,6 +519,7 @@ function SkillDetailModal({
 }
 
 export function SkillsCatalogSection() {
+  const { t } = useI18n();
   const setStatusMessage = useGameStore((s) => s.setStatusMessage);
   const [mainTab, setMainTab] = useState<MainTab>("catalog");
   const [catalog, setCatalog] = useState<SkillCatalogView | null>(null);
@@ -758,7 +777,7 @@ export function SkillsCatalogSection() {
       const catalogNext = await invoke<SkillCatalogView>("list_skill_catalog");
       setCatalog(catalogNext);
       await loadFirewall();
-      setStatusMessage("Skills Firewall updated");
+      setStatusMessage(t("skills.firewallUpdated"));
     } catch (err) {
       setStatusMessage(String(err));
     }
@@ -829,7 +848,7 @@ export function SkillsCatalogSection() {
 
   const openCustom = async (skill: CustomSkillSummary, startEditing = false) => {
     if (isDirty && editMode) {
-      const leave = window.confirm("You have unsaved changes. Discard them?");
+      const leave = await confirmDialog(t("skills.discardUnsaved"));
       if (!leave) return;
     }
     setSelectedCustomId(skill.id);
@@ -871,12 +890,12 @@ export function SkillsCatalogSection() {
     setEditorTab("script");
   };
 
-  const discardEdit = () => {
+  const discardEdit = async () => {
     if (!baseline) {
       setEditMode(false);
       return;
     }
-    if (isDirty && !window.confirm("Discard unsaved changes?")) return;
+    if (isDirty && !(await confirmDialog(t("skills.discardChanges")))) return;
     setSkillMd(baseline.skillMd);
     setEntryName(baseline.entryName);
     setEntryContent(baseline.entryContent);
@@ -894,7 +913,7 @@ export function SkillsCatalogSection() {
           runtime: newRuntime,
         },
       });
-      setStatusMessage(`Created skill ${created.id}`);
+      setStatusMessage(t("status.skillCreated", { id: created.id }));
       setNewId("");
       setNewName("");
       await loadCustom();
@@ -926,7 +945,7 @@ export function SkillsCatalogSection() {
         entryContent,
         displayName,
       });
-      setStatusMessage(`Saved ${selectedCustomId}`);
+      setStatusMessage(t("status.skillSaved", { id: selectedCustomId }));
       setEditMode(false);
       await loadCustom();
       await load();
@@ -939,12 +958,18 @@ export function SkillsCatalogSection() {
 
   const deleteCustom = async () => {
     if (!selectedCustomId) return;
-    if (!window.confirm(`Delete skill "${selectedCustomId}"? This cannot be undone.`)) return;
+    if (
+      !(await confirmDialog(
+        `Delete skill "${selectedCustomId}"? This cannot be undone.`,
+      ))
+    ) {
+      return;
+    }
     try {
       await invoke("delete_custom_skill", {
         request: { id: selectedCustomId, scope: selectedScope },
       });
-      setStatusMessage(`Deleted ${selectedCustomId}`);
+      setStatusMessage(t("status.skillDeleted", { id: selectedCustomId }));
       setSelectedCustomId(null);
       setBaseline(null);
       setEditMode(false);
@@ -971,7 +996,7 @@ export function SkillsCatalogSection() {
         },
       });
       setTestResult(result);
-      setStatusMessage(result.ok ? "Script OK" : result.error || "Script failed");
+      setStatusMessage(result.ok ? t("skills.scriptOk") : result.error || t("skills.scriptFailed"));
     } catch (err) {
       setStatusMessage(String(err));
       setTestResult({
@@ -1018,37 +1043,34 @@ export function SkillsCatalogSection() {
       <header className="skills-header">
         <div className="skills-header-text">
           <div className="skills-title-row">
-            <h3>Agent Skills</h3>
+            <h3>{t("skills.title")}</h3>
           </div>
-          <p className="skills-subtitle">
-            Catalog turns packs on/off. Lab lets you add scripts and run them. Runtimes checks PHP,
-            Node, Python, Shell, and Rust on this machine.
-          </p>
+          <p className="skills-subtitle">{t("skills.subtitle")}</p>
         </div>
         <div className="skills-kpi">
           <div className="skills-kpi-item skills-kpi-item--on">
             <strong>{counts.enabled}</strong>
-            <span>On</span>
+            <span>{t("skills.on")}</span>
           </div>
           <div className="skills-kpi-item">
             <strong>{counts.disabled}</strong>
-            <span>Off</span>
+            <span>{t("skills.off")}</span>
           </div>
           <div className="skills-kpi-item skills-kpi-item--warn">
             <strong>{counts.high}</strong>
-            <span>High risk</span>
+            <span>{t("skills.highRisk")}</span>
           </div>
         </div>
       </header>
 
-      <div className="skills-main-tabs" role="tablist" aria-label="Skills sections">
+      <div className="skills-main-tabs" role="tablist" aria-label={t("skills.tabsAria")}>
         {(
           [
-            ["catalog", "Catalog"],
-            ["lab", "Lab"],
-            ["runtimes", "Runtimes"],
+            ["catalog", "skills.tab.catalog"],
+            ["lab", "skills.tab.lab"],
+            ["runtimes", "skills.tab.runtimes"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, labelKey]) => (
           <button
             key={id}
             type="button"
@@ -1057,7 +1079,7 @@ export function SkillsCatalogSection() {
             className={`skills-main-tab${mainTab === id ? " is-active" : ""}`}
             onClick={() => setMainTab(id)}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -1072,10 +1094,8 @@ export function SkillsCatalogSection() {
                   🛡
                 </span>
                 <div>
-                  <div className="fw-status-title">Skills Firewall</div>
-                  <div className="fw-status-sub muted">
-                    Blocks unsafe agent tools before they run. Lab uses the same rules.
-                  </div>
+                  <div className="fw-status-title">{t("skills.firewall")}</div>
+                  <div className="fw-status-sub muted">{t("skills.firewallSub")}</div>
                 </div>
               </div>
               <div className="fw-status-right">
@@ -1084,19 +1104,19 @@ export function SkillsCatalogSection() {
                 >
                   {firewallStatus?.status_label ??
                     (prefs?.firewall_enabled === false
-                      ? "Off"
+                      ? t("skills.off")
                       : prefs?.allow_critical
-                        ? "Critical open"
+                        ? t("skills.criticalOpen")
                         : prefs?.allow_high_risk
-                          ? "High open"
-                          : "Protected")}
+                          ? t("skills.highOpen")
+                          : t("skills.protected"))}
                 </span>
                 <SkillToggle
                   checked={prefs?.firewall_enabled !== false}
                   onChange={() =>
                     void updatePolicy({ firewall_enabled: prefs?.firewall_enabled === false })
                   }
-                  label="Enable firewall"
+                  label={t("skills.enableFirewall")}
                 />
                 <button
                   type="button"
@@ -1104,7 +1124,7 @@ export function SkillsCatalogSection() {
                   onClick={() => setSafetyOpen((v) => !v)}
                   aria-expanded={safetyOpen}
                 >
-                  {safetyOpen ? "Hide" : "Configure"}
+                  {safetyOpen ? t("skills.hide") : t("skills.configure")}
                 </button>
               </div>
             </div>
@@ -1115,15 +1135,15 @@ export function SkillsCatalogSection() {
                 <div className="fw-kpis">
                   <div className="fw-kpi">
                     <strong>{firewallStatus?.packs_runnable ?? counts.enabled}</strong>
-                    <span>Runnable</span>
+                    <span>{t("skills.runnable")}</span>
                   </div>
                   <div className="fw-kpi">
                     <strong>{firewallStatus?.packs_blocked_risk ?? counts.high}</strong>
-                    <span>Risk-gated</span>
+                    <span>{t("skills.riskGated")}</span>
                   </div>
                   <div className="fw-kpi">
                     <strong>{firewallStatus?.recent_blocks ?? 0}</strong>
-                    <span>Blocks logged</span>
+                    <span>{t("skills.blocksLogged")}</span>
                   </div>
                 </div>
 
@@ -1131,40 +1151,40 @@ export function SkillsCatalogSection() {
                 <div className="fw-grid-2">
                   <section className="fw-card">
                     <header className="fw-card-head">
-                      <h4>Risk level</h4>
-                      <span className="muted">What agents may attempt</span>
+                      <h4>{t("skills.riskLevel")}</h4>
+                      <span className="muted">{t("skills.whatMayAttempt")}</span>
                     </header>
                     <div className="fw-risk-rows">
                       <div className="fw-row">
                         <div>
-                          <strong>High</strong>
-                          <span className="muted">Browser · scripts · sandbox · social</span>
+                          <strong>{t("skills.highRiskLabel")}</strong>
+                          <span className="muted">{t("skills.highRiskDesc")}</span>
                         </div>
                         <SkillToggle
                           checked={!!prefs?.allow_high_risk}
                           onChange={() =>
                             void updatePolicy({ allow_high_risk: !prefs?.allow_high_risk })
                           }
-                          label="Allow high risk"
+                          label={t("skills.allowHighRisk")}
                         />
                       </div>
                       <div className="fw-row fw-row--critical">
                         <div>
-                          <strong>Critical</strong>
-                          <span className="muted">Form submit · register · web comment</span>
+                          <strong>{t("skills.criticalLabel")}</strong>
+                          <span className="muted">{t("skills.criticalDesc")}</span>
                         </div>
                         <SkillToggle
                           checked={!!prefs?.allow_critical}
                           onChange={() =>
                             void updatePolicy({ allow_critical: !prefs?.allow_critical })
                           }
-                          label="Allow critical risk"
+                          label={t("skills.allowCritical")}
                         />
                       </div>
                       <div className="fw-row">
                         <div>
-                          <strong>Dry-run critical</strong>
-                          <span className="muted">Plan only — no real writes</span>
+                          <strong>{t("skills.dryRunCritical")}</strong>
+                          <span className="muted">{t("skills.dryRunCriticalDesc")}</span>
                         </div>
                         <SkillToggle
                           checked={prefs?.dry_run_critical !== false}
@@ -1173,18 +1193,18 @@ export function SkillsCatalogSection() {
                               dry_run_critical: prefs?.dry_run_critical === false,
                             })
                           }
-                          label="Dry-run critical"
+                          label={t("skills.dryRunCritical")}
                         />
                       </div>
                       <div className="fw-row">
                         <div>
-                          <strong>Dry-run high</strong>
-                          <span className="muted">Simulate high-risk tools</span>
+                          <strong>{t("skills.dryRunHigh")}</strong>
+                          <span className="muted">{t("skills.dryRunHighDesc")}</span>
                         </div>
                         <SkillToggle
                           checked={!!prefs?.dry_run_high}
                           onChange={() => void updatePolicy({ dry_run_high: !prefs?.dry_run_high })}
-                          label="Dry-run high"
+                          label={t("skills.dryRunHigh")}
                         />
                       </div>
                     </div>
@@ -1192,19 +1212,23 @@ export function SkillsCatalogSection() {
 
                   <section className="fw-card">
                     <header className="fw-card-head">
-                      <h4>Capabilities</h4>
-                      <span className="muted">Fine-grained tool classes</span>
+                      <h4>{t("skills.capabilities")}</h4>
+                      <span className="muted">{t("skills.capabilitiesHint")}</span>
                     </header>
                     <div className="fw-pills">
                       {(
                         [
-                          ["allow_network", "Network", prefs?.allow_network !== false],
-                          ["allow_browser", "Browser", !!prefs?.allow_browser],
-                          ["allow_scripts", "Scripts", prefs?.allow_scripts !== false],
-                          ["allow_media_generate", "Media", prefs?.allow_media_generate !== false],
-                          ["allow_social_post", "Social", !!prefs?.allow_social_post],
+                          ["allow_network", "skills.cap.network", prefs?.allow_network !== false],
+                          ["allow_browser", "skills.cap.browser", !!prefs?.allow_browser],
+                          ["allow_scripts", "skills.cap.scripts", prefs?.allow_scripts !== false],
+                          [
+                            "allow_media_generate",
+                            "skills.cap.media",
+                            prefs?.allow_media_generate !== false,
+                          ],
+                          ["allow_social_post", "skills.cap.social", !!prefs?.allow_social_post],
                         ] as const
-                      ).map(([key, label, on]) => (
+                      ).map(([key, labelKey, on]) => (
                         <button
                           key={key}
                           type="button"
@@ -1212,13 +1236,11 @@ export function SkillsCatalogSection() {
                           onClick={() => void updatePolicy({ [key]: !on } as Partial<SkillPreferences>)}
                           aria-pressed={on}
                         >
-                          {label}
+                          {t(labelKey)}
                         </button>
                       ))}
                     </div>
-                    <p className="fw-hint muted">
-                      Scripts &amp; browser need <strong>High</strong> on. Social needs High + Social.
-                    </p>
+                    <p className="fw-hint muted">{t("skills.capHint")}</p>
                   </section>
                 </div>
 
@@ -1229,7 +1251,7 @@ export function SkillsCatalogSection() {
                   onClick={() => setFwAdvanced((v) => !v)}
                   aria-expanded={fwAdvanced}
                 >
-                  <span>Advanced · domains, runtimes, tool blocks, audit</span>
+                  <span>{t("skills.advancedToggle")}</span>
                   <span aria-hidden>{fwAdvanced ? "▴" : "▾"}</span>
                 </button>
 
@@ -1237,28 +1259,28 @@ export function SkillsCatalogSection() {
                   <div className="fw-advanced">
                     <section className="fw-card">
                       <header className="fw-card-head">
-                        <h4>Domains</h4>
+                        <h4>{t("skills.domains")}</h4>
                       </header>
-                      <div className="fw-seg" role="tablist" aria-label="Domain mode">
+                      <div className="fw-seg" role="tablist" aria-label={t("skills.domainMode")}>
                         {(
                           [
-                            ["open", "Open"],
-                            ["allowlist", "Allowlist"],
-                            ["blocklist", "Blocklist"],
+                            ["open", "skills.domain.open"],
+                            ["allowlist", "skills.domain.allowlist"],
+                            ["blocklist", "skills.domain.blocklist"],
                           ] as const
-                        ).map(([id, label]) => (
+                        ).map(([id, labelKey]) => (
                           <button
                             key={id}
                             type="button"
                             className={`fw-seg-btn${(prefs?.domain_mode ?? "open") === id ? " is-active" : ""}`}
                             onClick={() => void updatePolicy({ domain_mode: id })}
                           >
-                            {label}
+                            {t(labelKey)}
                           </button>
                         ))}
                       </div>
                       <label className="fw-field">
-                        <span>Allow</span>
+                        <span>{t("skills.allow")}</span>
                         <input
                           type="text"
                           value={domainDraft}
@@ -1267,7 +1289,7 @@ export function SkillsCatalogSection() {
                         />
                       </label>
                       <label className="fw-field">
-                        <span>Block</span>
+                        <span>{t("skills.block")}</span>
                         <input
                           type="text"
                           value={blocklistDraft}
@@ -1284,21 +1306,21 @@ export function SkillsCatalogSection() {
                               void updatePolicy({ require_domain_for_fetch: e.target.checked })
                             }
                           />
-                          Apply domain rules to search &amp; fetch
+                          {t("skills.applyDomainRules")}
                         </label>
                         <button
                           type="button"
                           className="skills-btn skills-btn--ghost"
                           onClick={() => void saveDomains()}
                         >
-                          Save domains
+                          {t("skills.saveDomains")}
                         </button>
                       </div>
                     </section>
 
                     <section className="fw-card">
                       <header className="fw-card-head">
-                        <h4>Script languages</h4>
+                        <h4>{t("skills.scriptLanguages")}</h4>
                       </header>
                       <div className="fw-pills">
                         {(["python", "node", "php", "sh", "rust"] as const).map((rt) => (
@@ -1317,7 +1339,7 @@ export function SkillsCatalogSection() {
 
                     <section className="fw-card">
                       <header className="fw-card-head">
-                        <h4>Block specific tools</h4>
+                        <h4>{t("skills.blockTools")}</h4>
                       </header>
                       <div className="fw-field-row">
                         <input
@@ -1332,21 +1354,21 @@ export function SkillsCatalogSection() {
                           className="skills-btn skills-btn--ghost"
                           onClick={() => void saveBlockedTools()}
                         >
-                          Save
+                          {t("skills.save")}
                         </button>
                       </div>
                     </section>
 
                     <section className="fw-card fw-card--audit">
                       <header className="fw-card-head">
-                        <h4>Recent decisions</h4>
+                        <h4>{t("skills.recentDecisions")}</h4>
                         <div className="fw-audit-actions">
                           <button
                             type="button"
                             className="skills-btn skills-btn--ghost skills-btn--xs"
                             onClick={() => void loadFirewall()}
                           >
-                            Refresh
+                            {t("skills.refresh")}
                           </button>
                           <button
                             type="button"
@@ -1355,12 +1377,12 @@ export function SkillsCatalogSection() {
                               void invoke("clear_firewall_audit").then(() => loadFirewall())
                             }
                           >
-                            Clear
+                            {t("skills.clear")}
                           </button>
                         </div>
                       </header>
                       {firewallAudit.length === 0 ? (
-                        <p className="muted fw-empty-audit">No events yet — run a tool or Lab command.</p>
+                        <p className="muted fw-empty-audit">{t("skills.noAuditYet")}</p>
                       ) : (
                         <ul className="fw-audit-list">
                           {firewallAudit.slice(0, 8).map((ev, i) => (
@@ -1368,7 +1390,11 @@ export function SkillsCatalogSection() {
                               <span
                                 className={`fw-audit-tag${ev.allow ? (ev.dry_run ? " is-dry" : " is-ok") : " is-block"}`}
                               >
-                                {ev.allow ? (ev.dry_run ? "DRY" : "OK") : "BLOCK"}
+                                {ev.allow
+                                  ? ev.dry_run
+                                    ? t("skills.audit.dry")
+                                    : t("skills.audit.ok")
+                                  : t("skills.audit.block")}
                               </span>
                               <code>{ev.tool}</code>
                               <span className="muted">{ev.layer ?? ""}</span>
@@ -1393,16 +1419,16 @@ export function SkillsCatalogSection() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search skills…"
-                aria-label="Search skills"
+                placeholder={t("skills.search")}
+                aria-label={t("skills.search")}
               />
             </div>
             <div className="skills-seg" role="tablist">
               {(
                 [
-                  ["all", `All ${counts.total}`],
-                  ["enabled", `On ${counts.enabled}`],
-                  ["disabled", `Off ${counts.disabled}`],
+                  ["all", t("skills.filterAll", { n: counts.total })],
+                  ["enabled", t("skills.filterOn", { n: counts.enabled })],
+                  ["disabled", t("skills.filterOff", { n: counts.disabled })],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -1416,7 +1442,7 @@ export function SkillsCatalogSection() {
               ))}
             </div>
             <button type="button" className="skills-btn skills-btn--ghost" onClick={() => void load()}>
-              Refresh
+              {t("skills.refresh")}
             </button>
           </div>
 
@@ -1426,10 +1452,10 @@ export function SkillsCatalogSection() {
               className={`skills-cat-chip${categoryFilter === "all" ? " is-active" : ""}`}
               onClick={() => setCategoryFilter("all")}
             >
-              All
+              {t("skills.all")}
             </button>
             {categories.map((cat) => {
-              const meta = categoryMeta(cat);
+              const meta = categoryMeta(cat, t);
               return (
                 <button
                   key={cat}
@@ -1457,7 +1483,7 @@ export function SkillsCatalogSection() {
 
           <div className="skills-groups">
             {grouped.map(([category, items]) => {
-              const meta = categoryMeta(category);
+              const meta = categoryMeta(category, t);
               return (
                 <div key={category} className="skills-group">
                   <div className="skills-group-head">
@@ -1479,7 +1505,7 @@ export function SkillsCatalogSection() {
                               <div className="skills-row-title">
                                 <strong>{pack.name}</strong>
                                 <span className={`skills-risk skills-risk--${pack.risk}`}>
-                                  {RISK_LABEL[pack.risk]}
+                                  {t(RISK_KEY[pack.risk])}
                                 </span>
                                 <span className="skills-badge">{pack.source}</span>
                               </div>
@@ -1487,12 +1513,16 @@ export function SkillsCatalogSection() {
                             </div>
                           </button>
                           <div className="skills-row-side">
-                            <span className="skills-cost">{COST_LABEL[pack.token_cost_class]}</span>
+                            <span className="skills-cost">{t(COST_KEY[pack.token_cost_class])}</span>
                             <SkillToggle
                               checked={pack.enabled}
                               busy={busyId === pack.id}
                               onChange={() => void togglePack(pack)}
-                              label={pack.enabled ? `Disable ${pack.name}` : `Enable ${pack.name}`}
+                              label={
+                                pack.enabled
+                                  ? t("skills.disablePack", { name: pack.name })
+                                  : t("skills.enablePack", { name: pack.name })
+                              }
                             />
                           </div>
                         </div>
@@ -1500,7 +1530,9 @@ export function SkillsCatalogSection() {
                           <div className="skills-detail-meta">
                             <code>{pack.id}</code>
                             {pack.entry ? <span className="muted">· {pack.entry}</span> : null}
-                            <span className="muted">· {pack.tool_ids.length} tools</span>
+                            <span className="muted">
+                              · {t("skills.toolsCount", { n: pack.tool_ids.length })}
+                            </span>
                           </div>
                           <div className="skills-tool-btns">
                             {pack.tool_ids.map((tool) => (
@@ -1511,7 +1543,7 @@ export function SkillsCatalogSection() {
                                 onClick={() => setModal({ packId: pack.id, toolId: tool })}
                               >
                                 <code>{tool}</code>
-                                <span>View</span>
+                                <span>{t("skills.view")}</span>
                               </button>
                             ))}
                             <button
@@ -1519,7 +1551,7 @@ export function SkillsCatalogSection() {
                               className="skills-tool-btn skills-tool-btn--primary"
                               onClick={() => setModal({ packId: pack.id })}
                             >
-                              <span>Open skill</span>
+                              <span>{t("skills.openSkill")}</span>
                             </button>
                           </div>
                         </div>
@@ -1534,10 +1566,18 @@ export function SkillsCatalogSection() {
           {packs.length > 0 ? (
             <div className="skills-pagination">
               <span className="muted skills-page-summary">
-                Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, packs.length)} of{" "}
-                {packs.length}
+                {t("skills.showing", {
+                  from: safePage * PAGE_SIZE + 1,
+                  to: Math.min((safePage + 1) * PAGE_SIZE, packs.length),
+                  total: packs.length,
+                })}
               </span>
-              <PaginationBar page={safePage} totalPages={totalPages} onPageChange={setPage} label="Skills" />
+              <PaginationBar
+                page={safePage}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                label={t("skills.paginationLabel")}
+              />
             </div>
           ) : null}
         </>
@@ -1546,28 +1586,30 @@ export function SkillsCatalogSection() {
       {mainTab === "lab" ? (
         <div className="skills-lab">
           <div className="skills-lab-toolbar">
-            <div className="skills-seg" role="tablist" aria-label="Skill scope">
+            <div className="skills-seg" role="tablist" aria-label={t("skills.scopeAria")}>
               {(
                 [
-                  ["company", "Company"],
-                  ["global", "Global"],
+                  ["company", "skills.scope.company"],
+                  ["global", "skills.scope.global"],
                 ] as const
-              ).map(([id, label]) => (
+              ).map(([id, labelKey]) => (
                 <button
                   key={id}
                   type="button"
                   className={`skills-seg-btn${labScope === id ? " is-active" : ""}`}
                   onClick={() => {
-                    if (isDirty && editMode) {
-                      if (!window.confirm("Discard unsaved changes?")) return;
-                    }
-                    setLabScope(id);
-                    setSelectedCustomId(null);
-                    setEditMode(false);
-                    setBaseline(null);
+                    void (async () => {
+                      if (isDirty && editMode) {
+                        if (!(await confirmDialog(t("skills.discardChanges")))) return;
+                      }
+                      setLabScope(id);
+                      setSelectedCustomId(null);
+                      setEditMode(false);
+                      setBaseline(null);
+                    })();
                   }}
                 >
-                  {label}
+                  {t(labelKey)}
                 </button>
               ))}
             </div>
@@ -1577,16 +1619,20 @@ export function SkillsCatalogSection() {
                 placeholder="skill-id"
                 value={newId}
                 onChange={(e) => setNewId(e.target.value)}
-                aria-label="New skill id"
+                aria-label={t("skills.newSkillId")}
               />
               <input
                 type="text"
-                placeholder="Display name"
+                placeholder={t("skills.displayNamePh")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                aria-label="New skill name"
+                aria-label={t("skills.newSkillName")}
               />
-              <select value={newRuntime} onChange={(e) => setNewRuntime(e.target.value)} aria-label="Runtime">
+              <select
+                value={newRuntime}
+                onChange={(e) => setNewRuntime(e.target.value)}
+                aria-label={t("skills.runtime")}
+              >
                 <option value="php">PHP</option>
                 <option value="node">Node.js</option>
                 <option value="python">Python</option>
@@ -1594,7 +1640,7 @@ export function SkillsCatalogSection() {
                 <option value="rust">Rust</option>
               </select>
               <button type="button" className="skills-btn skills-btn--ghost" onClick={() => void createCustom()}>
-                + New skill
+                {t("skills.newSkill")}
               </button>
             </div>
           </div>
@@ -1602,21 +1648,21 @@ export function SkillsCatalogSection() {
           <div className="skills-lab-layout">
             <aside className="skills-lab-list">
               <h4>
-                {labScope === "global" ? "Global" : "Company"} skills ({scopedCustom.length})
+                {t("skills.scopeSkills", {
+                  scope: t(labScope === "global" ? "skills.scope.global" : "skills.scope.company"),
+                  n: scopedCustom.length,
+                })}
               </h4>
               {labScope === "global" ? (
-                <p className="muted skills-lab-list-hint">
-                  50 agent tools (10× .sh .php .js .py .rs): parse, git, package, hash, validate… Select,
-                  then Edit on the right.
-                </p>
+                <p className="muted skills-lab-list-hint">{t("skills.globalStartersHint")}</p>
               ) : null}
               <div className="skills-lab-filter">
                 <select
                   value={labFilter}
                   onChange={(e) => setLabFilter(e.target.value)}
-                  aria-label="Filter by runtime"
+                  aria-label={t("skills.filterRuntime")}
                 >
-                  <option value="all">All runtimes</option>
+                  <option value="all">{t("skills.allRuntimes")}</option>
                   <option value="python">Python</option>
                   <option value="php">PHP</option>
                   <option value="node">Node.js</option>
@@ -1626,10 +1672,10 @@ export function SkillsCatalogSection() {
               </div>
               {scopedCustom.length === 0 ? (
                 <p className="muted">
-                  No {labScope} skills yet.
-                  {labScope === "company"
-                    ? " Create one above, or switch to Global for starters."
-                    : " Open Lab once to seed starters, or create one above."}
+                  {t("skills.noScopeSkills", {
+                    scope: t(labScope === "global" ? "skills.scope.global" : "skills.scope.company"),
+                  })}
+                  {labScope === "company" ? t("skills.noCompanyHint") : t("skills.noGlobalHint")}
                 </p>
               ) : (
                 <ul className="skills-lab-list-scroll">
@@ -1660,13 +1706,13 @@ export function SkillsCatalogSection() {
                       <strong>{displayName || selectedCustomId}</strong>
                       <span className="muted">
                         <code>{selectedCustomId}</code> · {selectedScope}
-                        {isDirty ? <span className="skills-lab-dirty"> · Unsaved</span> : null}
+                        {isDirty ? <span className="skills-lab-dirty"> · {t("skills.unsaved")}</span> : null}
                       </span>
                     </div>
                     <div className="skills-lab-editor-btns">
                       {!editMode ? (
                         <button type="button" className="skills-btn skills-btn--primary" onClick={startEdit}>
-                          Edit
+                          {t("skills.edit")}
                         </button>
                       ) : (
                         <>
@@ -1676,34 +1722,33 @@ export function SkillsCatalogSection() {
                             disabled={saveBusy || !isDirty}
                             onClick={() => void saveCustom()}
                           >
-                            {saveBusy ? "Saving…" : "Save"}
+                            {saveBusy ? t("skills.saving") : t("skills.save")}
                           </button>
                           <button type="button" className="skills-btn skills-btn--ghost" onClick={discardEdit}>
-                            Discard
+                            {t("skills.discard")}
                           </button>
                         </>
                       )}
                       <button type="button" className="skills-btn skills-btn--ghost" onClick={() => void deleteCustom()}>
-                        Delete
+                        {t("skills.delete")}
                       </button>
                     </div>
                   </div>
 
                   {!editMode ? (
                     <p className="muted skills-lab-readonly-hint">
-                      Viewing <strong>{selectedCustomId}</strong>. Press <strong>Edit</strong> to change the script,
-                      SKILL.md, or display name.
+                      {t("skills.readonlyHint", { id: selectedCustomId })}
                     </p>
                   ) : null}
 
                   <div className="skills-lab-editor-tabs" role="tablist">
                     {(
                       [
-                        ["script", "Script"],
-                        ["manifest", "SKILL.md"],
-                        ["meta", "Details"],
+                        ["script", "skills.editor.script"],
+                        ["manifest", "skills.editor.manifest"],
+                        ["meta", "skills.editor.meta"],
                       ] as const
-                    ).map(([id, label]) => (
+                    ).map(([id, labelKey]) => (
                       <button
                         key={id}
                         type="button"
@@ -1711,7 +1756,7 @@ export function SkillsCatalogSection() {
                         className={`skills-lab-editor-tab${editorTab === id ? " is-active" : ""}`}
                         onClick={() => setEditorTab(id)}
                       >
-                        {label}
+                        {t(labelKey)}
                       </button>
                     ))}
                   </div>
@@ -1719,7 +1764,7 @@ export function SkillsCatalogSection() {
                   {editorTab === "script" ? (
                     <div className="skills-lab-editor-pane">
                       <label className="skills-domain-label">
-                        Entry file name
+                        {t("skills.entryFile")}
                         <input
                           type="text"
                           value={entryName}
@@ -1729,7 +1774,7 @@ export function SkillsCatalogSection() {
                         />
                       </label>
                       <label className="skills-domain-label">
-                        Script source
+                        {t("skills.scriptSource")}
                         <textarea
                           className="skills-lab-textarea skills-lab-textarea--code"
                           value={entryContent}
@@ -1761,51 +1806,44 @@ export function SkillsCatalogSection() {
                   {editorTab === "meta" ? (
                     <div className="skills-lab-editor-pane">
                       <label className="skills-domain-label">
-                        Display name
+                        {t("skills.displayName")}
                         <input
                           type="text"
                           value={displayName}
                           disabled={!editMode}
                           onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="My skill"
+                          placeholder={t("skills.displayNamePh")}
                         />
                       </label>
                       <label className="skills-domain-label">
-                        Skill id
+                        {t("skills.skillId")}
                         <input type="text" value={selectedCustomId} disabled readOnly />
                       </label>
                       <label className="skills-domain-label">
-                        Scope
+                        {t("skills.scopeLabel")}
                         <input type="text" value={selectedScope} disabled readOnly />
                       </label>
                       <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
-                        Id and scope cannot be changed after create. Display name is written into SKILL.md on
-                        Save.
+                        {t("skills.metaLocked")}
                       </p>
                     </div>
                   ) : null}
                 </>
               ) : (
                 <div className="skills-lab-empty-editor">
-                  <p className="muted">
-                    Select a skill from the list, then press <strong>Edit</strong> to change its script or
-                    SKILL.md.
-                  </p>
-                  <p className="muted">Or create a new skill with the form above.</p>
+                  <p className="muted">{t("skills.selectThenEdit")}</p>
+                  <p className="muted">{t("skills.orCreate")}</p>
                 </div>
               )}
             </div>
           </div>
 
           <div className="skills-lab-test">
-            <h4>Test runner</h4>
-            <p className="skills-lab-test-lead">
-              Type one line, then press <strong>Run</strong>. SoulCorp executes the script and shows a
-              JSON result below.
-            </p>
+            <h4>{t("skills.testRunner")}</h4>
+            <p className="skills-lab-test-lead">{t("skills.testLead")}</p>
 
-            <div className="skills-lab-format" aria-label="Command format explained">
-              <p className="skills-lab-format-title">Command format</p>
+            <div className="skills-lab-format" aria-label={t("skills.cmdFormat")}>
+              <p className="skills-lab-format-title">{t("skills.cmdFormat")}</p>
               <div className="skills-lab-format-example">
                 <code className="skills-lab-cmd">
                   <span className="skills-lab-tok skills-lab-tok--file">main.py</span>
@@ -1814,20 +1852,15 @@ export function SkillsCatalogSection() {
               </div>
               <ol className="skills-lab-format-steps">
                 <li>
-                  <strong className="skills-lab-tok--file">main.py</strong> — entry script of the
-                  selected skill (or a file under <code>skills/scripts/</code>)
+                  {t("skills.cmdFormatEntry", { file: "main.py" })}
                 </li>
                 <li>
-                  <strong className="skills-lab-tok--arg">notes.md</strong> — arguments (paths, URLs,
-                  flags… space-separated; quote values with spaces)
+                  {t("skills.cmdFormatArgs", { arg: "notes.md" })}
                 </li>
-                <li>
-                  <strong>Output</strong> — always JSON for the agent (<code>ok</code>,{" "}
-                  <code>skill</code>, payload fields)
-                </li>
+                <li>{t("skills.cmdFormatOut")}</li>
               </ol>
               <div className="skills-lab-examples">
-                <p className="skills-lab-format-title">Try these</p>
+                <p className="skills-lab-format-title">{t("skills.tryThese")}</p>
                 <ul className="skills-lab-example-list">
                   {(
                     [
@@ -1843,7 +1876,7 @@ export function SkillsCatalogSection() {
                         type="button"
                         className="skills-lab-example-btn"
                         onClick={() => setTestCommand(cmd)}
-                        title={`Use example: ${cmd}`}
+                        title={t("skills.useExample", { cmd })}
                       >
                         <code>{cmd}</code>
                         <span className="muted">{lang}</span>
@@ -1857,8 +1890,10 @@ export function SkillsCatalogSection() {
             {missingForEntry ? (
               <div className="hub-warning skills-lab-missing">
                 <span>
-                  Cannot run this file: <strong>{missingForEntry.label}</strong> is not installed on
-                  this machine. {missingForEntry.install_hint}
+                  {t("skills.cannotRun", {
+                    label: missingForEntry.label,
+                    hint: missingForEntry.install_hint ?? "",
+                  })}
                 </span>
                 {missingForEntry.installable ? (
                   <button
@@ -1867,7 +1902,7 @@ export function SkillsCatalogSection() {
                     disabled={runtimeBusy === missingForEntry.id}
                     onClick={() => void installRuntime(missingForEntry.id)}
                   >
-                    {runtimeBusy === missingForEntry.id ? "Installing…" : "Install now"}
+                    {runtimeBusy === missingForEntry.id ? t("skills.installing") : t("skills.installNow")}
                   </button>
                 ) : null}
                 <button
@@ -1875,13 +1910,13 @@ export function SkillsCatalogSection() {
                   className="skills-btn skills-btn--ghost"
                   onClick={() => setMainTab("runtimes")}
                 >
-                  Open Runtimes
+                  {t("skills.openRuntimes")}
                 </button>
               </div>
             ) : null}
 
             <label className="skills-lab-test-label" htmlFor="skills-lab-command">
-              Command line
+              {t("skills.commandLine")}
             </label>
             <div className="skills-lab-test-row">
               <input
@@ -1890,7 +1925,7 @@ export function SkillsCatalogSection() {
                 value={testCommand}
                 onChange={(e) => setTestCommand(e.target.value)}
                 placeholder="main.py notes.md"
-                aria-label="Test command line"
+                aria-label={t("skills.testCommandAria")}
                 spellCheck={false}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void runTest();
@@ -1902,7 +1937,7 @@ export function SkillsCatalogSection() {
                 disabled={testBusy || !testCommand.trim()}
                 onClick={() => void runTest()}
               >
-                {testBusy ? "Running…" : "Run"}
+                {testBusy ? t("skills.running") : t("skills.run")}
               </button>
             </div>
 
@@ -1910,9 +1945,15 @@ export function SkillsCatalogSection() {
               <div className="skills-code-block-wrap">
                 <div className="skills-code-block-bar">
                   <span>
-                    JSON output · {testResult.ok ? "success" : "failed"} ·{" "}
-                    {testResult.runtime || "no runtime"} · {testResult.duration_ms}ms
-                    {testResult.exit_code != null ? ` · exit ${testResult.exit_code}` : ""}
+                    {t("skills.jsonOutput", {
+                      status: testResult.ok ? t("skills.success") : t("skills.failed"),
+                      runtime: testResult.runtime || t("skills.noRuntime"),
+                      ms: testResult.duration_ms,
+                      exit:
+                        testResult.exit_code != null
+                          ? t("skills.exitCode", { code: testResult.exit_code })
+                          : "",
+                    })}
                   </span>
                   <button
                     type="button"
@@ -1921,7 +1962,7 @@ export function SkillsCatalogSection() {
                       void navigator.clipboard?.writeText(JSON.stringify(testResult, null, 2))
                     }
                   >
-                    Copy JSON
+                    {t("skills.copyJson")}
                   </button>
                 </div>
                 <pre className="skills-code-block skills-code-block--tall">
@@ -1929,11 +1970,7 @@ export function SkillsCatalogSection() {
                 </pre>
               </div>
             ) : (
-              <p className="muted skills-lab-test-hint">
-                After you press Run, the full JSON result appears here (including{" "}
-                <code>stdout</code>, <code>stderr</code>, and <code>parsed_json</code> if the script
-                printed JSON).
-              </p>
+              <p className="muted skills-lab-test-hint">{t("skills.testHint")}</p>
             )}
           </div>
         </div>
@@ -1943,21 +1980,21 @@ export function SkillsCatalogSection() {
         <div className="skills-runtimes">
           <div className="skills-lab-toolbar">
             <p className="muted" style={{ margin: 0 }}>
-              Detected interpreters for script skills. Installs are user-space only (no sudo) under app toolchains.
+              {t("skills.runtimesLead")}
             </p>
             <button type="button" className="skills-btn skills-btn--ghost" onClick={() => void loadRuntimes()}>
-              Re-check
+              {t("skills.recheck")}
             </button>
           </div>
           <table className="skills-runtime-table">
             <thead>
               <tr>
-                <th>Runtime</th>
-                <th>Status</th>
-                <th>Version</th>
-                <th>Path</th>
-                <th>Extensions</th>
-                <th>Action</th>
+                <th>{t("skills.th.runtime")}</th>
+                <th>{t("skills.th.status")}</th>
+                <th>{t("skills.th.version")}</th>
+                <th>{t("skills.th.path")}</th>
+                <th>{t("skills.th.extensions")}</th>
+                <th>{t("skills.th.action")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1968,7 +2005,7 @@ export function SkillsCatalogSection() {
                   </td>
                   <td>
                     <span className={`skills-badge${rt.available ? " skills-badge--on" : " skills-badge--lock"}`}>
-                      {rt.available ? "Ready" : "Missing"}
+                      {rt.available ? t("skills.ready") : t("skills.missing")}
                     </span>
                     <span className="muted" style={{ marginLeft: 6, fontSize: "0.72rem" }}>
                       {rt.source}
@@ -1987,7 +2024,7 @@ export function SkillsCatalogSection() {
                         disabled={runtimeBusy === rt.id}
                         onClick={() => void installRuntime(rt.id)}
                       >
-                        {runtimeBusy === rt.id ? "Installing…" : "Install"}
+                        {runtimeBusy === rt.id ? t("skills.installing") : t("skills.install")}
                       </button>
                     ) : (
                       <span className="muted">—</span>
@@ -2000,7 +2037,7 @@ export function SkillsCatalogSection() {
           {runtimeLog ? (
             <div className="skills-code-block-wrap" style={{ marginTop: "1rem" }}>
               <div className="skills-code-block-bar">
-                <span>Install log</span>
+                <span>{t("skills.installLog")}</span>
               </div>
               <pre className="skills-code-block">
                 <code>{runtimeLog}</code>

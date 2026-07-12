@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
 import { useAutopilotSnapshot } from "../../../hooks/useAutopilotSnapshot";
+import { useI18n } from "../../../i18n/I18nProvider";
+import {
+  autopilotNextAction,
+  autopilotPhaseLabel,
+  autopilotStallReason,
+  interventionActionLabel,
+  interventionKindLabel,
+} from "../../../i18n/autopilotMessages";
 import { useGameStore } from "../../../stores/gameStore";
 import { notifyScrumChanged } from "../../../utils/scrumSync";
 import { openWorkspacePage } from "../../../utils/openWorkspacePage";
@@ -27,22 +35,23 @@ interface AutopilotPipelinePanelProps {
   onJumpToSection?: (sectionId: string) => void;
 }
 
-function gateKindLabel(kind: PendingGate["kind"]): string {
+function gateKindI18nKey(kind: PendingGate["kind"]): string {
   switch (kind) {
     case "directive":
-      return "Directive";
+      return "autopilot.gate.directive";
     case "deliverable":
-      return "Deliverable";
+      return "autopilot.gate.deliverable";
     case "meeting_summary":
-      return "Meeting";
+      return "autopilot.gate.meeting";
     case "story_brief":
-      return "Brief";
+      return "autopilot.gate.brief";
     default:
       return kind;
   }
 }
 
 export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePanelProps) {
+  const { t } = useI18n();
   const settings = useGameStore((s) => s.settings);
   const setSettings = useGameStore((s) => s.setSettings);
   const setStatusMessage = useGameStore((s) => s.setStatusMessage);
@@ -114,7 +123,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
               : (latest.autopilot_intervention_mode ?? "auto"),
         });
       }
-    }, pausing ? "Autopilot paused." : "Autopilot resumed.");
+    }, pausing ? t("autopilot.msg.paused") : t("autopilot.msg.resumed"));
   };
 
   const handleFullAutopilot = async (enabled: boolean) => {
@@ -129,14 +138,13 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
         scrum_auto_schedule: enabled ? true : settings.scrum_auto_schedule,
         scrum_auto_execute: enabled ? true : settings.scrum_auto_execute,
         scrum_auto_approve: enabled ? true : settings.scrum_auto_approve,
-        // Enabling full auto also un-pauses so the toggle is meaningful.
+        // Enabling full auto also un-pauses and clears CEO gate modes so PM auto-approve runs.
         scrum_execution_paused: enabled ? false : settings.scrum_execution_paused,
-        autopilot_intervention_mode:
-          enabled && settings.autopilot_intervention_mode === "paused"
-            ? "auto"
-            : settings.autopilot_intervention_mode,
+        autopilot_intervention_mode: enabled
+          ? "auto"
+          : settings.autopilot_intervention_mode,
       });
-    }, enabled ? "Full Autopilot enabled." : "Full Autopilot disabled.");
+    }, enabled ? t("autopilot.msg.fullOn") : t("autopilot.msg.fullOff"));
   };
 
   const handleGateAction = async (
@@ -154,18 +162,18 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
         gate.directive_id ?? gate.work_node_id ?? gate.meeting_id ?? gate.id;
       await run(
         () => ceoCommentOnItem(kind, id, commentDraft.trim()),
-        "Comment saved.",
+        t("autopilot.msg.commentSaved"),
       );
       setCommentDraft("");
       return;
     }
     if (gate.kind === "directive" && gate.directive_id) {
       if (action === "approve") {
-        await run(() => ceoApproveDirective(gate.directive_id!), "Directive approved — routing next tick.");
+        await run(() => ceoApproveDirective(gate.directive_id!), t("autopilot.msg.directiveApproved"));
       } else if (action === "reject") {
         await run(
           () => ceoRejectDirective(gate.directive_id!, rejectDraft),
-          "Directive rejected.",
+          t("autopilot.msg.directiveRejected"),
         );
         setRejectDraft("");
       }
@@ -173,11 +181,11 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
     }
     if (gate.kind === "deliverable" && gate.work_node_id) {
       if (action === "approve") {
-        await run(() => ceoApproveDeliverable(gate.work_node_id!), "Deliverable approved.");
+        await run(() => ceoApproveDeliverable(gate.work_node_id!), t("autopilot.msg.deliverableApproved"));
       } else if (action === "reject") {
         await run(
           () => ceoRejectDeliverable(gate.work_node_id!, rejectDraft),
-          "Deliverable rejected — revision task queued.",
+          t("autopilot.msg.deliverableRejected"),
         );
         setRejectDraft("");
       } else if (action === "open" && gate.workspace_page_id) {
@@ -186,21 +194,21 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
       return;
     }
     if (gate.kind === "meeting_summary" && gate.meeting_id && action === "dismiss") {
-      await run(() => dismissMeetingGate(gate.meeting_id!), "Meeting summary dismissed.");
+      await run(() => dismissMeetingGate(gate.meeting_id!), t("autopilot.msg.meetingDismissed"));
     }
   };
 
   if (!snapshot && loading) {
-    return <p className="muted">Loading autopilot status…</p>;
+    return <p className="muted">{t("autopilot.loading")}</p>;
   }
 
   if (!snapshot) {
-    return <p className="muted">Complete onboarding to start Company Autopilot.</p>;
+    return <p className="muted">{t("autopilot.needOnboarding")}</p>;
   }
 
   return (
     <div className="autopilot-panel">
-      <div className="autopilot-toolbar" role="toolbar" aria-label="Autopilot controls">
+      <div className="autopilot-toolbar" role="toolbar" aria-label={t("autopilot.controlsAria")}>
         <label className="autopilot-toolbar-item autopilot-toolbar-check">
           <input
             type="checkbox"
@@ -209,14 +217,14 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             onChange={(e) => void handleFullAutopilot(e.target.checked)}
           />
           <span className="autopilot-toolbar-check-copy">
-            <strong>Full Autopilot</strong>
-            <span className="muted">All automation policies</span>
+            <strong>{t("autopilot.fullAuto")}</strong>
+            <span className="muted">{t("autopilot.fullAutoSub")}</span>
           </span>
         </label>
 
         <div className="autopilot-toolbar-item autopilot-toolbar-select">
           <span className="autopilot-toolbar-label" id="autopilot-mode-label">
-            When CEO steps in
+            {t("autopilot.whenCeoStepsIn")}
           </span>
           <select
             aria-labelledby="autopilot-mode-label"
@@ -228,9 +236,9 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
               void handleInterventionMode(e.target.value as AutopilotInterventionMode)
             }
           >
-            <option value="auto">Auto — intervene anytime</option>
-            <option value="gate_directives">Gate directives only</option>
-            <option value="gate_deliverables">Gate deliverables only</option>
+            <option value="auto">{t("autopilot.mode.auto")}</option>
+            <option value="gate_directives">{t("autopilot.mode.gateDirectives")}</option>
+            <option value="gate_deliverables">{t("autopilot.mode.gateDeliverables")}</option>
           </select>
         </div>
 
@@ -243,41 +251,52 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             aria-pressed={snapshot.execution_paused}
             title={
               snapshot.execution_paused
-                ? "Resume automated execution"
-                : "Pause all automated execution now"
+                ? t("autopilot.resume")
+                : t("autopilot.pause")
             }
           >
-            {snapshot.execution_paused ? "Resume" : "Pause"}
+            {snapshot.execution_paused ? t("autopilot.resumeShort") : t("autopilot.pauseShort")}
           </button>
         </div>
       </div>
       {snapshot.execution_paused ? (
         <p className="autopilot-paused-banner" role="status">
-          Autopilot is <strong>paused</strong> — workers and orchestrator will not advance work until
-          you press Resume.
+          {t("autopilot.pausedBanner")}
+        </p>
+      ) : null}
+      {!snapshot.execution_paused && snapshot.intervention_mode === "gate_deliverables" ? (
+        <p className="autopilot-paused-banner autopilot-gate-banner" role="status">
+          {t("autopilot.gateDeliverablesBanner")}
+        </p>
+      ) : null}
+      {!snapshot.execution_paused && snapshot.intervention_mode === "gate_directives" ? (
+        <p className="autopilot-paused-banner autopilot-gate-banner" role="status">
+          {t("autopilot.gateDirectivesBanner")}
         </p>
       ) : null}
 
       <div className="autopilot-live">
         <div className="autopilot-phase-pill">
-          <span className="autopilot-phase-label">Phase</span>
-          <strong>{snapshot.phase_label}</strong>
+          <span className="autopilot-phase-label">{t("autopilot.phase")}</span>
+          <strong>{autopilotPhaseLabel(t, snapshot.phase, snapshot.phase_label)}</strong>
           {snapshot.stall_reason ? (
-            <span className="autopilot-stall-reason">{snapshot.stall_reason}</span>
+            <span className="autopilot-stall-reason">
+              {autopilotStallReason(t, snapshot.stall_reason)}
+            </span>
           ) : null}
         </div>
-        <p className="muted autopilot-next-action">{snapshot.next_action}</p>
+        <p className="muted autopilot-next-action">{autopilotNextAction(t, snapshot.next_action, snapshot.phase)}</p>
         <div className="autopilot-metrics">
-          <span>{snapshot.counts.active_agents} agent(s) live</span>
-          <span>{snapshot.counts.in_progress_tasks} in progress</span>
-          <span>{snapshot.deliverables_this_week} delivered this week</span>
+          <span>{t("autopilot.agentsLive", { n: snapshot.counts.active_agents })}</span>
+          <span>{t("autopilot.inProgress", { n: snapshot.counts.in_progress_tasks })}</span>
+          <span>{t("autopilot.deliveredWeek", { n: snapshot.deliverables_this_week })}</span>
           {snapshot.gigs_advanced_this_week > 0 ? (
-            <span>{snapshot.gigs_advanced_this_week} gig(s) advanced</span>
+            <span>{t("autopilot.gigsAdvanced", { n: snapshot.gigs_advanced_this_week })}</span>
           ) : null}
         </div>
       </div>
 
-      <div className="autopilot-pipeline" aria-label="Autopilot pipeline">
+      <div className="autopilot-pipeline" aria-label={t("autopilot.pipelineAria")}>
         {snapshot.pipeline_steps.map((step) => (
           <button
             key={step.phase}
@@ -285,31 +304,37 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             className={`autopilot-pipeline-step${step.active ? " is-active" : ""}`}
             onClick={() => onJumpToSection?.(step.phase === "reviewing" ? "backlog" : "command")}
           >
-            <span className="autopilot-step-label">{step.label}</span>
+            <span className="autopilot-step-label">{autopilotPhaseLabel(t, step.phase, step.label)}</span>
             <span className="autopilot-step-count">{step.count}</span>
           </button>
         ))}
       </div>
 
       <section className="autopilot-needs-input">
-        <h4>Needs your input</h4>
+        <h4>{t("autopilot.needsInput")}</h4>
         {snapshot.pending_gates.length === 0 ? (
-          <p className="muted">Nothing waiting — autopilot is running.</p>
+          <p className="muted">{t("autopilot.nothingWaiting")}</p>
         ) : (
           <ul className="autopilot-gate-list">
             {snapshot.pending_gates.map((gate) => (
               <li key={gate.id} className="autopilot-gate-item">
                 <div className="autopilot-gate-head">
-                  <span className="autopilot-gate-kind">{gateKindLabel(gate.kind)}</span>
-                  <strong>{gate.title}</strong>
-                  <span className="muted">{formatTimestamp(gate.created_at)}</span>
+                  <div className="autopilot-gate-meta">
+                    <span className="autopilot-gate-kind">{t(gateKindI18nKey(gate.kind))}</span>
+                    <time className="muted autopilot-gate-time" dateTime={gate.created_at}>
+                      {formatTimestamp(gate.created_at)}
+                    </time>
+                  </div>
+                  <h5 className="autopilot-gate-title">{gate.title}</h5>
                 </div>
-                <p className="muted autopilot-gate-detail">{gate.detail}</p>
+                {gate.detail?.trim() ? (
+                  <p className="muted autopilot-gate-detail">{gate.detail}</p>
+                ) : null}
                 <div className="autopilot-gate-actions">
                   {gate.kind === "directive" ? (
                     <>
                       <button type="button" className="primary-action" disabled={busy} onClick={() => void handleGateAction(gate, "approve")}>
-                        Approve &amp; route
+                        {t("autopilot.approveRoute")}
                       </button>
                       <button
                         type="button"
@@ -321,7 +346,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                           setEditDescDraft(gate.detail);
                         }}
                       >
-                        Edit
+                        {t("common.edit")}
                       </button>
                       <button
                         type="button"
@@ -332,14 +357,14 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                           setRejectDraft("");
                         }}
                       >
-                        Reject
+                        {t("autopilot.reject")}
                       </button>
                     </>
                   ) : null}
                   {gate.kind === "deliverable" ? (
                     <>
                       <button type="button" className="primary-action" disabled={busy} onClick={() => void handleGateAction(gate, "approve")}>
-                        Approve
+                        {t("autopilot.approve")}
                       </button>
                       <button
                         type="button"
@@ -350,11 +375,11 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                           setRejectDraft("");
                         }}
                       >
-                        Reject
+                        {t("autopilot.reject")}
                       </button>
                       {gate.workspace_page_id ? (
                         <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "open")}>
-                          Open deliverable
+                          {t("autopilot.openDeliverable")}
                         </button>
                       ) : null}
                     </>
@@ -369,15 +394,15 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                           gate.meeting_id
                             ? void run(
                                 () => meetingFollowUpDirective(gate.meeting_id!),
-                                "Follow-up directive issued.",
+                                t("autopilot.msg.followUp"),
                               )
                             : undefined
                         }
                       >
-                        Add follow-up directive
+                        {t("autopilot.followUp")}
                       </button>
                       <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "dismiss")}>
-                        Dismiss
+                        {t("common.dismiss")}
                       </button>
                     </>
                   ) : null}
@@ -385,10 +410,10 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                     <>
                       {gate.workspace_page_id ? (
                         <button type="button" disabled={busy} onClick={() => void handleGateAction(gate, "open")}>
-                          Open in Workspace
+                          {t("autopilot.openWorkspace")}
                         </button>
                       ) : (
-                        <span className="muted">Autopilot preparing brief…</span>
+                        <span className="muted">{t("autopilot.preparingBrief")}</span>
                       )}
                       <button
                         type="button"
@@ -396,10 +421,10 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                         onClick={() => {
                           setSelectedGateId(gate.id);
                           setDrawerMode("edit_criteria");
-                          setCriteriaDraft("- Criterion 1\n- Criterion 2");
+                          setCriteriaDraft(t("autopilot.criteriaPlaceholder"));
                         }}
                       >
-                        Edit criteria
+                        {t("autopilot.editCriteria")}
                       </button>
                       <button
                         type="button"
@@ -408,12 +433,12 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                           gate.work_node_id
                             ? void run(
                                 () => ceoRerouteStory(gate.work_node_id!),
-                                "Story queued for re-route.",
+                                t("autopilot.msg.storyReroute"),
                               )
                             : undefined
                         }
                       >
-                        Reject &amp; re-route
+                        {t("autopilot.rejectReroute")}
                       </button>
                     </>
                   ) : null}
@@ -426,7 +451,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                       setCommentDraft("");
                     }}
                   >
-                    Comment
+                    {t("common.comment")}
                   </button>
                 </div>
               </li>
@@ -439,12 +464,12 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
         <div className="autopilot-intervention-drawer">
           <h5>
             {drawerMode === "comment"
-              ? "Comment"
+              ? t("common.comment")
               : drawerMode === "edit_directive"
-                ? "Edit directive"
+                ? t("autopilot.editDirective")
                 : drawerMode === "edit_criteria"
-                  ? "Edit acceptance criteria"
-                  : "Reject"}
+                  ? t("autopilot.editAcceptance")
+                  : t("autopilot.reject")}
             {" · "}
             {selectedGate.title}
           </h5>
@@ -453,7 +478,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             <textarea
               className="autopilot-comment-box"
               rows={3}
-              placeholder="CEO comment…"
+              placeholder={t("autopilot.commentPlaceholder")}
               value={commentDraft}
               onChange={(e) => setCommentDraft(e.target.value)}
             />
@@ -462,7 +487,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
           {drawerMode === "edit_directive" ? (
             <div className="autopilot-drawer-fields">
               <label className="field-label">
-                Title
+                {t("common.title")}
                 <input
                   type="text"
                   value={editTitleDraft}
@@ -470,7 +495,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                 />
               </label>
               <label className="field-label">
-                Description
+                {t("common.description")}
                 <textarea
                   className="autopilot-comment-box"
                   rows={4}
@@ -485,7 +510,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             <textarea
               className="autopilot-comment-box"
               rows={5}
-              placeholder="- Criterion 1&#10;- Criterion 2&#10;- Criterion 3"
+              placeholder={t("autopilot.criteriaPlaceholder")}
               value={criteriaDraft}
               onChange={(e) => setCriteriaDraft(e.target.value)}
             />
@@ -495,7 +520,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
             <textarea
               className="autopilot-comment-box"
               rows={3}
-              placeholder="Rejection reason (optional)…"
+              placeholder={t("autopilot.rejectPlaceholder")}
               value={rejectDraft}
               onChange={(e) => setRejectDraft(e.target.value)}
             />
@@ -509,7 +534,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                 disabled={busy || !commentDraft.trim()}
                 onClick={() => void handleGateAction(selectedGate, "comment")}
               >
-                Save comment
+                {t("autopilot.saveComment")}
               </button>
             ) : null}
             {drawerMode === "edit_directive" && selectedGate.directive_id ? (
@@ -525,10 +550,10 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                       editDescDraft.trim(),
                     );
                     setSelectedGateId(null);
-                  }, "Directive updated.")
+                  }, t("autopilot.msg.directiveUpdated"))
                 }
               >
-                Save edits
+                {t("autopilot.saveEdits")}
               </button>
             ) : null}
             {drawerMode === "edit_criteria" && selectedGate.work_node_id ? (
@@ -544,10 +569,10 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                   void run(async () => {
                     await ceoUpdateStoryCriteria(selectedGate.work_node_id!, criteria);
                     setSelectedGateId(null);
-                  }, "Acceptance criteria updated.");
+                  }, t("autopilot.msg.criteriaUpdated"));
                 }}
               >
-                Save criteria
+                {t("autopilot.saveCriteria")}
               </button>
             ) : null}
             {drawerMode === "reject" ? (
@@ -561,7 +586,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                   });
                 }}
               >
-                Confirm reject
+                {t("autopilot.confirmReject")}
               </button>
             ) : null}
             <button
@@ -574,7 +599,7 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
                 setRejectDraft("");
               }}
             >
-              Close
+              {t("common.close")}
             </button>
           </div>
         </div>
@@ -582,11 +607,12 @@ export function AutopilotPipelinePanel({ onJumpToSection }: AutopilotPipelinePan
 
       {snapshot.recent_interventions.length > 0 ? (
         <section className="autopilot-interventions-log">
-          <h5>Recent interventions</h5>
+          <h5>{t("autopilot.recentInterventions")}</h5>
           <ul>
             {snapshot.recent_interventions.slice().reverse().slice(0, 8).map((item) => (
               <li key={item.id}>
-                <strong>{item.action}</strong> {item.item_kind} · {formatTimestamp(item.timestamp)}
+                <strong>{interventionActionLabel(t, item.action)}</strong>{" "}
+                {interventionKindLabel(t, item.item_kind)} · {formatTimestamp(item.timestamp)}
                 {item.comment ? <span className="muted"> — {item.comment}</span> : null}
               </li>
             ))}

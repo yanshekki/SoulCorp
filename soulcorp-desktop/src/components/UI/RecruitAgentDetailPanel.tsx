@@ -3,6 +3,7 @@ import { hubFileTypeLabel } from "../../utils/candidateSoul";
 import { SoulMdEditor } from "./SoulMdEditor";
 
 import { useCompanyDepartments } from "../../hooks/useCompanyDepartments";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface RecruitAgentDetailPanelProps {
   candidate: RecruitmentCandidate | null;
@@ -10,6 +11,11 @@ interface RecruitAgentDetailPanelProps {
   role: string;
   department: string;
   soulMdContent: string;
+  /** When provided with onDisplayNameChange, shows an editable name field. */
+  displayName?: string;
+  onDisplayNameChange?: (name: string) => void;
+  /** Hide name field when parent already renders it (default true when handlers exist). */
+  showNameField?: boolean;
   onRoleChange: (role: string) => void;
   onDepartmentChange: (department: string) => void;
   onSoulChange: (content: string) => void;
@@ -21,26 +27,35 @@ export function RecruitAgentDetailPanel({
   role,
   department,
   soulMdContent,
+  displayName,
+  onDisplayNameChange,
+  showNameField,
   onRoleChange,
   onDepartmentChange,
   onSoulChange,
 }: RecruitAgentDetailPanelProps) {
+  const { t } = useI18n();
   const { departmentNames } = useCompanyDepartments();
+  const nameEditable = Boolean(onDisplayNameChange);
+  const renderNameField =
+    showNameField !== false && nameEditable && displayName !== undefined;
 
   if (!candidate) {
     return (
       <div className="recruit-agent-detail recruit-agent-detail-empty">
-        <p className="muted">Select a hub candidate above to preview their description and soul.md.</p>
+        <p className="muted">{t("recruit.emptyHint")}</p>
       </div>
     );
   }
+
+  const headerName = (displayName ?? candidate.name).trim() || candidate.name;
 
   return (
     <div className="recruit-agent-detail">
       <header className="recruit-agent-detail-header">
         <div>
-          <p className="recruit-agent-detail-eyebrow">Selected recruit</p>
-          <h4>{candidate.name}</h4>
+          <p className="recruit-agent-detail-eyebrow">{t("recruit.selected")}</p>
+          <h4>{headerName}</h4>
           <p className="recruit-agent-detail-role">
             {candidate.job_role || candidate.vibe}
             {candidate.department_fit ? ` · ${candidate.department_fit}` : ""}
@@ -54,7 +69,7 @@ export function RecruitAgentDetailPanel({
               {hubFileTypeLabel(candidate.file_type)}
             </span>
           ) : null}
-          {candidate.verified ? <span className="recruit-badge verified">Verified</span> : null}
+          {candidate.verified ? <span className="recruit-badge verified">{t("recruitment.verified")}</span> : null}
           {candidate.skills.slice(0, 4).map((skill) => (
             <span key={skill} className="recruit-badge">
               {skill}
@@ -64,13 +79,25 @@ export function RecruitAgentDetailPanel({
       </header>
 
       <section className="recruit-agent-description">
-        <h5>Description</h5>
-        <p>{candidate.headline || "No hub description provided for this soul."}</p>
+        <h5>{t("recruit.description")}</h5>
+        <p>{candidate.headline || t("recruit.noDesc")}</p>
       </section>
 
       <div className="agent-roster-recruit-fields recruit-agent-detail-fields">
+        {renderNameField ? (
+          <label className="field-label">
+            {t("recruit.displayName")}
+            <input
+              type="text"
+              value={displayName}
+              onChange={(event) => onDisplayNameChange?.(event.target.value)}
+              maxLength={64}
+              placeholder={t("recruit.namePh")}
+            />
+          </label>
+        ) : null}
         <label className="field-label">
-          Default role
+          {t("recruit.role")}
           <input
             type="text"
             value={role}
@@ -79,13 +106,17 @@ export function RecruitAgentDetailPanel({
           />
         </label>
         <label className="field-label">
-          Default department
+          {t("recruit.department")}
           <select value={department} onChange={(event) => onDepartmentChange(event.target.value)}>
-            {departmentNames.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
+            {departmentNames.length === 0 ? (
+              <option value={department}>{department || "—"}</option>
+            ) : (
+              departmentNames.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))
+            )}
           </select>
         </label>
       </div>
@@ -94,9 +125,9 @@ export function RecruitAgentDetailPanel({
         <div className="recruit-agent-soul-heading">
           <h5>soul.md</h5>
           {soulLoading ? (
-            <span className="recruit-agent-soul-status loading">Loading from hub…</span>
+            <span className="recruit-agent-soul-status loading">{t("recruit.soulLoading")}</span>
           ) : (
-            <span className="recruit-agent-soul-status ready">Editable before join</span>
+            <span className="recruit-agent-soul-status ready">{t("recruit.soulEditable")}</span>
           )}
         </div>
         {soulLoading && soulMdContent.trim().length === 0 ? (

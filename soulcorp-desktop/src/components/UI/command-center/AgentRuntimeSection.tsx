@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../../utils/tauriInvoke";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AgentRuntimeStatus,
@@ -14,6 +14,7 @@ import {
   isSubprocessRuntime,
   runtimeBinaryPlaceholder,
 } from "../../../utils/agentRuntimeCatalog";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 interface AgentRuntimeSectionProps {
   settings: GameSettings;
@@ -21,20 +22,56 @@ interface AgentRuntimeSectionProps {
   onStatusMessage: (message: string) => void;
 }
 
+type ProbeLight = "idle" | "checking" | "ok" | "error";
+
+function lightTitle(
+  status: ProbeLight,
+  runtimeLabel: string,
+  t: (key: string, params?: Record<string, string | number | undefined | null>) => string,
+): string {
+  switch (status) {
+    case "checking":
+      return t("runtime.light.testing", { label: runtimeLabel });
+    case "ok":
+      return t("runtime.light.connected", { label: runtimeLabel });
+    case "error":
+      return t("runtime.light.failed", { label: runtimeLabel });
+    default:
+      return t("runtime.light.idle", { label: runtimeLabel });
+  }
+}
+
+function StatusDot({
+  state,
+  label,
+}: {
+  state: "ok" | "error" | "warn" | "idle";
+  label: string;
+}) {
+  return (
+    <span className={`runtime-status-dot runtime-status-dot--${state}`} title={label}>
+      <span className="runtime-status-dot-light" aria-hidden="true" />
+      <span className="runtime-status-dot-label">{label}</span>
+    </span>
+  );
+}
+
 export function AgentRuntimeSection({
   settings,
   onPersist,
   onStatusMessage,
 }: AgentRuntimeSectionProps) {
+  const { t } = useI18n();
   const [catalog, setCatalog] = useState<RuntimeCatalog | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<AgentRuntimeStatus | null>(null);
   const [installedSummary, setInstalledSummary] = useState<RuntimeProbeSummary[]>([]);
   const [testing, setTesting] = useState(false);
-  const [testMessage, setTestMessage] = useState<string | null>(null);
-  const [testOk, setTestOk] = useState<boolean | null>(null);
+  const [testStatus, setTestStatus] = useState<ProbeLight>("idle");
+  const [testResult, setTestResult] = useState<AgentRuntimeTestResult | null>(null);
 
   const activeMode = settings.agent_runtime_mode ?? "llm_only";
   const subprocessSelected = isSubprocessRuntime(activeMode);
+  const runtimeLabel = runtimeStatus?.runtime_label ?? "runtime";
 
   const activeEntry = useMemo(
     () => catalog?.runtimes.find((entry) => entry.id === activeMode) ?? null,
@@ -59,6 +96,9 @@ export function AgentRuntimeSection({
   }, []);
 
   useEffect(() => {
+    // Reset live test light when switching runtime mode.
+    setTestStatus("idle");
+    setTestResult(null);
     void loadRuntimeData();
   }, [loadRuntimeData, activeMode]);
 
@@ -73,19 +113,25 @@ export function AgentRuntimeSection({
 
   const handleTest = async () => {
     setTesting(true);
-    setTestMessage(null);
-    setTestOk(null);
-    onStatusMessage(`Testing ${runtimeStatus?.runtime_label ?? "runtime"}…`);
+    setTestStatus("checking");
+    setTestResult(null);
+    onStatusMessage(`Testing ${runtimeLabel}…`);
     try {
       const result = await invoke<AgentRuntimeTestResult>("test_agent_runtime", { request: {} });
-      setTestOk(result.ok);
-      setTestMessage(result.message);
+      setTestResult(result);
+      setTestStatus(result.ok ? "ok" : "error");
       onStatusMessage(result.message);
       await loadRuntimeData();
     } catch (error) {
       const msg = String(error);
-      setTestOk(false);
-      setTestMessage(msg);
+      setTestResult({
+        ok: false,
+        transport: null,
+        preview: "",
+        message: msg,
+        duration_ms: 0,
+      });
+      setTestStatus("error");
       onStatusMessage(msg);
     } finally {
       setTesting(false);
@@ -93,11 +139,20 @@ export function AgentRuntimeSection({
   };
 
   const installedForActive = installedSummary.find((item) => item.runtime_id === activeMode);
+  const binaryOk = Boolean(runtimeStatus?.binary_available);
+  const cliOk = Boolean(runtimeStatus?.agent_command_available);
+  const gatewayOk = Boolean(runtimeStatus?.gateway_healthy);
+
+  const testMessage =
+    testStatus === "checking"
+      ? t("runtime.testRunning")
+      : testResult?.message
+        ?? t("runtime.testIdle");
 
   return (
     <div className="command-form">
       <label className="field-label">
-        Runtime mode
+        {t("runtime.mode")}
         <select
           value={activeMode}
           onChange={(e) => void onPersist({ agent_runtime_mode: e.target.value })}
@@ -106,7 +161,7 @@ export function AgentRuntimeSection({
             <optgroup key={group.category} label={group.label}>
               {group.runtimes.map((entry: RuntimeCatalogEntry) => (
                 <option key={entry.id} value={entry.id}>
-                  {entry.id === "llm_only" ? entry.label : `${entry.label} subprocess`}
+                  {entry.id === "llm_only" ? entry.label : t("runtime.subprocessSuffix", { label: entry.label })}
                 </option>
               ))}
             </optgroup>
@@ -115,30 +170,50 @@ export function AgentRuntimeSection({
       </label>
 
       {subprocessSelected && runtimeStatus ? (
-        <div className="command-runtime-status-card command-panel-block">
-          <p className="command-runtime-status-line">
-            <strong>{runtimeStatus.runtime_label}</strong>
-            <span className={runtimeStatus.binary_available ? "command-runtime-badge--ok" : "command-runtime-badge--warn"}>
-              {runtimeStatus.binary_available ? "Detected" : "Missing"}
-            </span>
-            {runtimeStatus.agent_command_available ? (
-              <span className="command-runtime-badge--ok">CLI ok</span>
+        <div
+          className={`runtime-probe-card ${binaryOk ? "runtime-probe-card--ok" : "runtime-probe-card--error"}`}
+          role="status"
+        >
+          <div className="runtime-probe-card-header">
+            <span
+              className={`provider-status-light ${
+                binaryOk ? "provider-status-light--ok" : "provider-status-light--error"
+              }`}
+              aria-hidden="true"
+            />
+            <div className="runtime-probe-card-titles">
+              <strong>{runtimeStatus.runtime_label}</strong>
+              <p className="muted runtime-probe-card-msg">{runtimeStatus.message}</p>
+            </div>
+          </div>
+          <div className="runtime-probe-dots" aria-label={t("runtime.healthAria")}>
+            <StatusDot
+              state={binaryOk ? "ok" : "error"}
+              label={binaryOk ? t("runtime.binaryOk") : t("runtime.binaryMissing")}
+            />
+            <StatusDot
+              state={cliOk ? "ok" : binaryOk ? "warn" : "idle"}
+              label={cliOk ? t("runtime.cliReady") : t("runtime.cliUnverified")}
+            />
+            {showClawOptions ? (
+              <StatusDot
+                state={gatewayOk ? "ok" : "idle"}
+                label={gatewayOk ? t("runtime.gatewayOk") : t("runtime.gatewayOff")}
+              />
             ) : null}
-            {runtimeStatus.gateway_healthy ? (
-              <span className="command-runtime-badge--ok">Gateway</span>
-            ) : null}
-          </p>
-          <p className="command-form-note">{runtimeStatus.message}</p>
+          </div>
           {activeEntry?.docs_url ? (
-            <p className="command-form-note">
-              Docs:{" "}
+            <p className="command-form-note runtime-probe-docs">
+              {t("runtime.docs")}{" "}
               <a href={activeEntry.docs_url} target="_blank" rel="noreferrer">
                 {activeEntry.docs_url}
               </a>
             </p>
           ) : null}
           {installedForActive && !installedForActive.binary_available ? (
-            <p className="command-form-note">Install `{activeEntry?.default_binary || activeMode}` or set a binary path below.</p>
+            <p className="command-form-note">
+              {t("runtime.installHint", { binary: activeEntry?.default_binary || activeMode })}
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -148,7 +223,7 @@ export function AgentRuntimeSection({
           {isCustom ? (
             <>
               <label className="field-label">
-                Custom binary path
+                {t("runtime.customBinary")}
                 <input
                   type="text"
                   value={settings.agent_runtime_custom_binary ?? ""}
@@ -157,7 +232,7 @@ export function AgentRuntimeSection({
                 />
               </label>
               <label className="field-label">
-                Adapter family
+                {t("runtime.adapterFamily")}
                 <select
                   value={settings.agent_runtime_custom_adapter ?? "legacy_stdin"}
                   onChange={(e) => void onPersist({ agent_runtime_custom_adapter: e.target.value })}
@@ -172,7 +247,7 @@ export function AgentRuntimeSection({
             </>
           ) : (
             <label className="field-label">
-              {runtimeStatus?.runtime_label ?? "Runtime"} binary path
+              {t("runtime.binaryPath", { label: runtimeStatus?.runtime_label ?? "Runtime" })}
               <input
                 type="text"
                 value={settings.openclaw_binary_path ?? ""}
@@ -184,7 +259,7 @@ export function AgentRuntimeSection({
 
           {showClawOptions ? (
             <label className="field-label">
-              Default agent id
+              {t("runtime.defaultAgentId")}
               <input
                 type="text"
                 value={settings.openclaw_default_agent_id ?? "main"}
@@ -195,15 +270,20 @@ export function AgentRuntimeSection({
           ) : null}
 
           <label className="field-label">
-            Timeout (seconds)
+            {t("runtime.timeout")}
             <input
               type="number"
               min={30}
               max={3600}
-              value={settings.openclaw_timeout_secs ?? 600}
-              onChange={(e) => void onPersist({ openclaw_timeout_secs: Number(e.target.value) })}
+              value={settings.openclaw_timeout_secs ?? 3600}
+              onChange={(e) =>
+                void onPersist({
+                  openclaw_timeout_secs: Math.min(3600, Math.max(30, Number(e.target.value) || 3600)),
+                })
+              }
             />
           </label>
+          <p className="muted command-form-note">{t("runtime.cwdNote")}</p>
 
           {showClawOptions ? (
             <>
@@ -213,7 +293,7 @@ export function AgentRuntimeSection({
                   checked={settings.openclaw_use_local ?? true}
                   onChange={(e) => void onPersist({ openclaw_use_local: e.target.checked })}
                 />
-                <span>Run embedded locally (`{activeEntry?.default_binary ?? "agent"} agent --local`)</span>
+                <span>{t("runtime.runLocal", { binary: activeEntry?.default_binary ?? "agent" })}</span>
               </label>
               <label className="checkbox-row">
                 <input
@@ -221,7 +301,7 @@ export function AgentRuntimeSection({
                   checked={settings.openclaw_prefer_gateway ?? false}
                   onChange={(e) => void onPersist({ openclaw_prefer_gateway: e.target.checked })}
                 />
-                <span>Prefer gateway when healthy (omit --local)</span>
+                <span>{t("runtime.preferGateway")}</span>
               </label>
             </>
           ) : null}
@@ -232,7 +312,7 @@ export function AgentRuntimeSection({
               checked={settings.agent_runtime_fallback_to_llm ?? true}
               onChange={(e) => void onPersist({ agent_runtime_fallback_to_llm: e.target.checked })}
             />
-            <span>Fallback to in-app LLM if subprocess fails</span>
+            <span>{t("runtime.fallbackLlm")}</span>
           </label>
 
           <label className="checkbox-row">
@@ -241,50 +321,98 @@ export function AgentRuntimeSection({
               checked={settings.agent_runtime_allow_cli_env_keys ?? false}
               onChange={(e) => void onPersist({ agent_runtime_allow_cli_env_keys: e.target.checked })}
             />
-            <span>Allow CLI to read stored API keys (e.g. XAI_API_KEY for Grok)</span>
+            <span>{t("runtime.allowCliKeys")}</span>
           </label>
 
-          <button
-            type="button"
-            className="btn primary-action"
-            disabled={testing}
-            onClick={() => void handleTest()}
+          {/* Green / red light test panel — same language as Settings → AI providers */}
+          <div
+            className={`provider-status provider-status--${testStatus} runtime-test-status`}
+            role="status"
+            aria-live="polite"
           >
-            {testing
-              ? `Testing ${runtimeStatus?.runtime_label ?? "runtime"}… (up to ~45s)`
-              : `Test ${runtimeStatus?.runtime_label ?? "runtime"}`}
-          </button>
-          {testing ? (
-            <p className="muted command-form-note" role="status">
-              Running a short smoke prompt via the CLI. Do not close this panel…
-            </p>
-          ) : null}
-          {testMessage ? (
-            <p
-              className={testOk ? "command-form-note" : "hub-warning"}
-              role="status"
-              style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+            <span
+              className={`provider-status-light provider-status-light--${testStatus}`}
+              aria-hidden="true"
+            />
+            <div className="provider-status-body">
+              <strong className="provider-status-title">
+                {lightTitle(testStatus, runtimeLabel, t)}
+              </strong>
+              <p className="provider-status-message muted">{testMessage}</p>
+              {testStatus === "ok" && testResult ? (
+                <div className="runtime-test-meta">
+                  {testResult.transport ? (
+                    <span className="hub-pill online">
+                      {t("runtime.via", {
+                        transport: t(
+                          testResult.transport === "api"
+                            ? "transport.api"
+                            : testResult.transport === "subprocess"
+                              ? "transport.subprocess"
+                              : testResult.transport === "builtin"
+                                ? "transport.builtin"
+                                : "transport.builtin",
+                        ),
+                      })}
+                    </span>
+                  ) : null}
+                  {(testResult.duration_ms ?? 0) > 0 ? (
+                    <span className="hub-pill tier">{testResult.duration_ms} ms</span>
+                  ) : null}
+                  <span className="hub-pill online">{t("runtime.pass")}</span>
+                </div>
+              ) : null}
+              {testStatus === "error" ? (
+                <div className="runtime-test-meta">
+                  <span className="hub-pill offline">{t("runtime.fail")}</span>
+                </div>
+              ) : null}
+              {testStatus === "ok" && testResult?.preview ? (
+                <pre className="runtime-test-preview" tabIndex={0}>
+                  {testResult.preview}
+                </pre>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className={testStatus === "ok" ? "secondary-action" : "primary-action"}
+              disabled={testing}
+              onClick={() => void handleTest()}
             >
-              {testOk === false ? "Test failed: " : null}
-              {testMessage}
-            </p>
-          ) : null}
+              {testing
+                ? t("runtime.testing")
+                : testStatus === "idle"
+                  ? t("runtime.testBtn", { label: runtimeLabel })
+                  : t("runtime.retestBtn", { label: runtimeLabel })}
+            </button>
+          </div>
+
           {activeMode === "grok" && !(settings.agent_runtime_allow_cli_env_keys ?? false) ? (
-            <p className="muted command-form-note">
-              Grok CLI usually needs an API key. Enable “Allow CLI to read stored API keys” above
-              (and set Grok key in Settings → AI), or export <code>XAI_API_KEY</code> in your
-              environment.
-            </p>
+            <p className="muted command-form-note">{t("runtime.grokKeyHint")}</p>
           ) : null}
         </>
       ) : null}
 
       {installedSummary.length > 0 ? (
         <details className="command-runtime-installed">
-          <summary>Installed runtimes on this machine ({installedSummary.filter((i) => i.binary_available).length})</summary>
+          <summary>
+            Installed runtimes on this machine (
+            {installedSummary.filter((i) => i.binary_available).length})
+          </summary>
           <ul className="command-runtime-installed-list">
             {installedSummary.map((item) => (
-              <li key={item.runtime_id} className={item.binary_available ? "is-available" : ""}>
+              <li
+                key={item.runtime_id}
+                className={item.binary_available ? "is-available" : "is-missing"}
+              >
+                <span
+                  className={`runtime-status-dot-light runtime-status-dot-light--inline ${
+                    item.binary_available
+                      ? "provider-status-light--ok"
+                      : "provider-status-light--error"
+                  }`}
+                  aria-hidden="true"
+                />
                 <strong>{item.runtime_label}</strong>
                 <span>{item.binary_available ? "installed" : "not found"}</span>
               </li>

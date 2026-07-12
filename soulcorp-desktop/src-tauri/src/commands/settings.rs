@@ -3,10 +3,12 @@ use crate::fate::{clamp_event_chance, sync_play_mode_side_effects};
 use crate::state::{AppState, GameSettings, PlayMode};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingsUpdate {
+    pub app_language: Option<String>,
     pub random_events_enabled: Option<bool>,
     pub play_mode: Option<PlayMode>,
     pub random_event_chance: Option<f32>,
@@ -87,18 +89,14 @@ pub struct SettingsUpdate {
 
 #[tauri::command]
 pub fn get_game_settings(state: State<'_, Mutex<AppState>>) -> Result<GameSettings, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.settings.clone())
 }
 
-#[tauri::command]
-pub fn update_game_settings(
-    update: SettingsUpdate,
-    state: State<'_, Mutex<AppState>>,
-    app: AppHandle,
-) -> Result<GameSettings, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
-
+fn apply_settings_update(state: &mut AppState, update: SettingsUpdate) {
+    if let Some(lang) = update.app_language {
+        state.settings.app_language = crate::i18n::normalize_app_language(&lang);
+    }
     if let Some(enabled) = update.random_events_enabled {
         state.settings.random_events_enabled = enabled;
     }
@@ -108,7 +106,7 @@ pub fn update_game_settings(
     if let Some(chance) = update.random_event_chance {
         state.settings.random_event_chance = clamp_event_chance(chance);
     }
-    sync_play_mode_side_effects(&mut state);
+    sync_play_mode_side_effects(state);
     if let Some(enabled) = update.god_mode_enabled {
         state.settings.god_mode_enabled = enabled;
     }
@@ -347,7 +345,7 @@ pub fn update_game_settings(
     if let Some(enabled) = update.autopilot_full_auto_enabled {
         state.settings.autopilot_full_auto_enabled = enabled;
         if enabled {
-            crate::autopilot::apply_full_autopilot_settings(&mut state, true);
+            crate::autopilot::apply_full_autopilot_settings(state, true);
         }
     }
     if let Some(mode) = update.agent_memory_compress_mode {
@@ -368,10 +366,31 @@ pub fn update_game_settings(
     if let Some(enabled) = update.agent_memory_append_after_task {
         state.settings.agent_memory_append_after_task = enabled;
     }
+}
 
-    let settings = state.settings.clone();
-    commit(app, &state)?;
-    Ok(settings)
+/// Persist settings off the UI thread.
+/// Full SQLite snapshot + worker mutex contention used to freeze the window when typing API keys.
+#[tauri::command]
+pub async fn update_game_settings(
+    update: SettingsUpdate,
+    app: AppHandle,
+) -> Result<GameSettings, String> {
+    use crate::app_log::{LogCategory, LogErr};
+    let app_for_log = app.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let state_mutex = app.state::<Mutex<AppState>>();
+        let mut state = state_mutex.lock_or_recover()?;
+        apply_settings_update(&mut state, update);
+        let settings = state.settings.clone();
+        // Skip heavy snapshot until a company exists (create flow / pre-company settings).
+        if !state.company_id.is_empty() {
+            commit(app.clone(), &state)?;
+        }
+        Ok(settings)
+    })
+    .await
+    .map_err(|e| format!("settings save task failed: {e}"))?;
+    result.log_err(&app_for_log, LogCategory::Settings, "update_game_settings")
 }
 
 #[cfg(test)]

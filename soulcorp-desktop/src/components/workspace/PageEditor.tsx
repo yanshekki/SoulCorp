@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import type { JSONContent } from "@tiptap/core";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -8,9 +8,12 @@ import {
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspacePage, WorkspacePresenceEntry } from "../../types/workspace";
 import { useWorkspaceEditorViewport } from "../../hooks/useWorkspaceEditorViewport";
+import { alertDialog, confirmDialog } from "../../utils/nativeDialog";
 import { blocksFromRichDoc, richDocFromPage } from "./blockConversion";
 import { PageEditorSidebar } from "./PageEditorSidebar";
 import { WorkspaceEmptyState } from "./WorkspaceEmptyState";
+import { useI18n } from "../../i18n/I18nProvider";
+import { useGameStore } from "../../stores/gameStore";
 
 const TipTapEditor = lazy(() =>
   import("./TipTapEditor").then((mod) => ({ default: mod.TipTapEditor })),
@@ -43,6 +46,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 export function PageEditor() {
+  const { t } = useI18n();
   const tree = useWorkspaceStore((state) => state.tree);
   const selectedPage = useWorkspaceStore((state) => state.selectedPage);
   const openingPageId = useWorkspaceStore((state) => state.openingPageId);
@@ -59,9 +63,11 @@ export function PageEditor() {
   const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
   const [presence, setPresence] = useState<WorkspacePresenceEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [translating, setTranslating] = useState(false);
   const viewportMode = useWorkspaceEditorViewport();
   const lastSavedSnapshotRef = useRef("");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appLanguage = useGameStore((state) => state.settings.app_language) ?? "en";
 
   const folderPath = useMemo(() => {
     if (!selectedPage) {
@@ -127,7 +133,7 @@ export function PageEditor() {
         setSaveError(message);
         setSaveStatus("unsaved");
         if (!auto) {
-          window.alert(`Could not save page: ${message}`);
+          void alertDialog(`Could not save page: ${message}`);
         }
       } finally {
         setSaving(false);
@@ -208,8 +214,8 @@ export function PageEditor() {
   }
 
   const deletePage = async () => {
-    const confirmed = window.confirm(
-      `Delete "${title || selectedPage.title}"? This cannot be undone.`,
+    const confirmed = await confirmDialog(
+      t("workspace.deleteConfirm", { title: title || selectedPage.title }),
     );
     if (!confirmed) {
       return;
@@ -223,6 +229,58 @@ export function PageEditor() {
       setTree(refreshed);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const translatePage = async (targetLanguage: string) => {
+    if (!selectedPage || translating || saving) {
+      return;
+    }
+    const confirmed = await confirmDialog(
+      t("workspace.translateConfirm", {
+        lang: t(`workspace.lang.${targetLanguage}`),
+      }),
+    );
+    if (!confirmed) {
+      return;
+    }
+    setTranslating(true);
+    setSaveError(null);
+    try {
+      // Flush unsaved edits first so LLM sees current text.
+      if (saveStatus === "unsaved") {
+        await savePage(true);
+      }
+      const page = await invoke<WorkspacePage>("translate_workspace_page_cmd", {
+        pageId: selectedPage.id,
+        targetLanguage,
+      });
+      setSelectedPage(page);
+      setTitle(page.title);
+      const nextDoc = richDocFromPage(
+        page.rich_doc as JSONContent | undefined,
+        page.blocks,
+      );
+      setRichDoc(nextDoc);
+      lastSavedSnapshotRef.current = pageSnapshot(page.title, nextDoc);
+      setSaveStatus("saved");
+      upsertPageSummary({
+        id: page.id,
+        title: page.title,
+        folder_id: page.folder_id,
+        last_edited_at: page.last_edited_at,
+        last_edited_by: page.last_edited_by,
+        sort_order: page.sort_order,
+      });
+      useGameStore
+        .getState()
+        .setStatusMessage(t("workspace.translateDone", { title: page.title }));
+    } catch (error) {
+      const message = String(error);
+      setSaveError(message);
+      void alertDialog(t("workspace.translateFailed", { error: message }));
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -248,10 +306,10 @@ export function PageEditor() {
 
   const saveLabel =
     saveStatus === "saving" || saving
-      ? "Saving…"
+      ? t("workspace.saving")
       : saveStatus === "unsaved"
-        ? "Unsaved"
-        : "Saved";
+        ? t("workspace.unsaved")
+        : t("workspace.saved");
 
   return (
     <div
@@ -267,24 +325,55 @@ export function PageEditor() {
           <div className="ws-editor-topbar-actions">
             {presence.length > 0 ? (
               <span className="ws-presence-pill">
-                {presence.map((entry) => entry.editor).join(", ")} viewing
+                {t("workspace.viewing", { names: presence.map((entry) => entry.editor).join(", ") })}
               </span>
             ) : null}
             <button
               type="button"
               className="ws-topbar-btn"
               onClick={() => void savePage()}
-              disabled={saving || saveStatus === "saved"}
+              disabled={saving || translating || saveStatus === "saved"}
             >
-              Save
+              {t("workspace.save")}
             </button>
+            <label className="ws-topbar-translate">
+              <span className="ws-topbar-translate-label">
+                {translating ? t("workspace.translating") : t("workspace.translate")}
+              </span>
+              <select
+                className="ws-topbar-translate-select"
+                disabled={saving || translating}
+                value=""
+                aria-label={t("workspace.translateAria")}
+                onChange={(event) => {
+                  const lang = event.target.value;
+                  event.target.value = "";
+                  if (lang) {
+                    void translatePage(lang);
+                  }
+                }}
+              >
+                <option value="" disabled>
+                  {t("workspace.translatePick")}
+                </option>
+                <option value="en">{t("workspace.lang.en")}</option>
+                <option value="zh-Hant">{t("workspace.lang.zh-Hant")}</option>
+                <option value="zh-Hans">{t("workspace.lang.zh-Hans")}</option>
+                {appLanguage ? (
+                  <option value={appLanguage}>
+                    {t("workspace.translateCompanyDefault")} (
+                    {t(`workspace.lang.${appLanguage}`)})
+                  </option>
+                ) : null}
+              </select>
+            </label>
             <button
               type="button"
               className="ws-topbar-btn ws-topbar-btn--danger"
-              disabled={saving}
+              disabled={saving || translating}
               onClick={() => void deletePage()}
             >
-              Delete
+              {t("workspace.delete")}
             </button>
             <button
               type="button"
@@ -292,7 +381,7 @@ export function PageEditor() {
               onClick={() => setSidebarOpen((open) => !open)}
               aria-pressed={sidebarOpen}
             >
-              {sidebarOpen ? "Hide panel" : "Show panel"}
+              {sidebarOpen ? t("workspace.hidePanel") : t("workspace.showPanel")}
             </button>
           </div>
         </header>
@@ -302,27 +391,33 @@ export function PageEditor() {
             <input
               className="ws-page-title"
               value={title}
-              placeholder="Untitled"
+              placeholder={t("workspace.untitled")}
               onChange={(event) => setTitle(event.target.value)}
-              aria-label="Page title"
+              aria-label={t("workspace.pageTitleAria")}
             />
             <div className="ws-page-meta">
               <span>v{selectedPage.version}</span>
               <span>·</span>
               <span>
-                Edited {formatRelativeTime(selectedPage.last_edited_at)} by{" "}
-                {selectedPage.last_edited_by}
+                {t("workspace.editedBy", {
+                  time: formatRelativeTime(selectedPage.last_edited_at),
+                  who: selectedPage.last_edited_by,
+                })}
               </span>
             </div>
             <Suspense
               fallback={
                 <div className="ws-editor-loading">
                   <span className="ws-editor-loading-spinner" aria-hidden="true" />
-                  Loading editor…
+                  {t("workspace.loadingEditor")}
                 </div>
               }
             >
-              <TipTapEditor value={richDoc} onChange={setRichDoc} />
+              <TipTapEditor
+                placeholder={t("workspace.editor.placeholder")}
+                value={richDoc}
+                onChange={setRichDoc}
+              />
             </Suspense>
           </article>
         </div>

@@ -1,5 +1,13 @@
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { checkUpdateLogged } from "../utils/pluginLog";
+import { languageFromSettings, translate } from "../i18n";
+import { useGameStore } from "../stores/gameStore";
+
+function tUpdate(key: string, params?: Record<string, string | number>): string {
+  const language = languageFromSettings(useGameStore.getState().settings);
+  return translate(language, key, params);
+}
 
 export interface UpdateProgress {
   downloaded: number;
@@ -9,7 +17,7 @@ export interface UpdateProgress {
 }
 
 export async function checkForAppUpdate(): Promise<Update | null> {
-  return check();
+  return checkUpdateLogged();
 }
 
 export async function downloadAndInstallUpdate(
@@ -23,7 +31,7 @@ export async function downloadAndInstallUpdate(
     downloaded: 0,
     contentLength: null,
     phase: "downloading",
-    message: "Downloading update…",
+    message: tUpdate("update.downloading"),
   });
 
   await update.downloadAndInstall((event) => {
@@ -34,7 +42,7 @@ export async function downloadAndInstallUpdate(
           downloaded: 0,
           contentLength,
           phase: "downloading",
-          message: "Download started…",
+          message: tUpdate("update.downloadStarted"),
         });
         break;
       case "Progress":
@@ -45,8 +53,10 @@ export async function downloadAndInstallUpdate(
           phase: "downloading",
           message:
             contentLength != null
-              ? `Downloading… ${Math.min(100, Math.round((downloaded / contentLength) * 100))}%`
-              : "Downloading…",
+              ? tUpdate("update.downloadingPct", {
+                  pct: Math.min(100, Math.round((downloaded / contentLength) * 100)),
+                })
+              : tUpdate("update.downloadingSimple"),
         });
         break;
       case "Finished":
@@ -54,7 +64,7 @@ export async function downloadAndInstallUpdate(
           downloaded,
           contentLength,
           phase: "installing",
-          message: "Installing update…",
+          message: tUpdate("update.installing"),
         });
         break;
       default:
@@ -66,7 +76,7 @@ export async function downloadAndInstallUpdate(
     downloaded,
     contentLength,
     phase: "done",
-    message: "Update installed. Restarting…",
+    message: tUpdate("update.installedRestarting"),
   });
   await relaunch();
 }

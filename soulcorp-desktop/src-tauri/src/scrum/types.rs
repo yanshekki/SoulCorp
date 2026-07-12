@@ -176,6 +176,36 @@ pub struct Directive {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionWorkspacePagePath {
+    pub title: String,
+    pub page_id: String,
+    pub md_path: String,
+}
+
+/// Absolute + logical paths so UI and Grok both know where agent notes live.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ExecutionWorkspaceInfo {
+    #[serde(default)]
+    pub company_id: String,
+    #[serde(default)]
+    pub company_workspace_root: String,
+    #[serde(default)]
+    pub agent_folder_id: String,
+    #[serde(default)]
+    pub agent_folder_name: String,
+    #[serde(default)]
+    pub agent_memory_page_id: Option<String>,
+    #[serde(default)]
+    pub agent_memory_md_path: Option<String>,
+    #[serde(default)]
+    pub page_paths: Vec<ExecutionWorkspacePagePath>,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub access_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionRun {
     pub id: String,
     pub work_node_id: String,
@@ -197,6 +227,18 @@ pub struct ExecutionRun {
     pub started_at: String,
     #[serde(default)]
     pub finished_at: Option<String>,
+    /// Full prompt body (also written to a temp file for subprocess CLIs).
+    #[serde(default)]
+    pub cli_input: Option<String>,
+    /// Human-readable command line using --prompt-file / --message-file (no full body in argv).
+    #[serde(default)]
+    pub cli_command: Option<String>,
+    /// Absolute path of the materialized prompt file (if subprocess used a temp file).
+    #[serde(default)]
+    pub cli_prompt_path: Option<String>,
+    /// Workspace dual-addressing (logical folder + absolute paths).
+    #[serde(default)]
+    pub workspace_info: Option<ExecutionWorkspaceInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

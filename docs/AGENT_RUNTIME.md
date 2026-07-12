@@ -68,6 +68,25 @@ Resolved via `supported_meeting_provider_ids()` — includes Ollama, hub, and re
 
 `agent_runtime/security.rs` constrains subprocess arguments and workspace paths for external runtimes.
 
+### CLI prompt delivery (file-first)
+
+All **subprocess** execution adapters materialize the task prompt to a temp file under
+`$TMPDIR/soulcorp-cli-{runtime}-{uuid}/prompt.md` **before** spawn. The full prompt body is
+**never** placed on argv (avoids ARG_MAX and quoting issues).
+
+| Adapter | Delivery |
+|---------|----------|
+| `grok_headless` | `--prompt-file <path>` |
+| `claw_agent_cli` | `--message-file <path>` (+ soul.md in same dir) |
+| `aider_message` | `--message-file <path>` |
+| `prompt_flag` | `--prompt-file <path>` |
+| `codex_noninteractive` / `legacy_stdin` | File written; body via **stdin** |
+
+Shared helper: `agent_runtime/prompt_file.rs` (`PromptFile` + `PromptDelivery`).  
+Debug: set `SOULCORP_KEEP_CLI_PROMPTS=1` to retain temp dirs after the run.
+
+View CLI input shows a file-based command template (`$PROMPT_FILE`) plus the prompt body.
+
 ---
 
 ## Planned / Gaps
@@ -78,6 +97,7 @@ Resolved via `supported_meeting_provider_ids()` — includes Ollama, hub, and re
 | Custom runtime plugins | Fixed adapter set |
 | Per-task runtime override | Agent/dept/global only |
 | Model fine-tune UI | Provider selection only |
+| Persist exact spawn-time `cli_prompt_path` on every run | Template path in UI today |
 
 ---
 

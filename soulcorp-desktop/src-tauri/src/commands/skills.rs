@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 fn policy_from_state(state: &AppState) -> SkillPolicy {
     SkillPolicy::from_preferences(&state.skill_preferences)
 }
@@ -37,7 +38,7 @@ pub fn list_skill_catalog(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<SkillCatalogView, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let policy = policy_from_state(&state);
     let ad = app_data(&app)?;
     let _ = crate::skills::starter_skills::ensure_starter_skills(&ad);
@@ -52,7 +53,7 @@ pub fn get_skill_pack(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<SkillPack, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
     let packs = full_catalog(&ad, ws.as_deref());
@@ -65,7 +66,7 @@ pub fn get_skill_pack(
 pub fn list_enabled_skills(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Vec<SkillSummary>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let policy = policy_from_state(&state);
     Ok(enabled_packs(&policy)
         .into_iter()
@@ -77,7 +78,7 @@ pub fn list_enabled_skills(
 pub fn get_skills_prompt_fragment(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<String, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let policy = policy_from_state(&state);
     let enabled: Vec<SkillSummary> = enabled_packs(&policy)
         .into_iter()
@@ -92,7 +93,7 @@ pub fn dispatch_skill_tool(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<SkillDispatchResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let policy = policy_from_state(&state);
     let ad = app_data(&app).ok();
     let ws = if state.company_id.is_empty() {
@@ -158,7 +159,7 @@ pub fn set_skill_pack_enabled(
         return Err("pack_id is required".into());
     }
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
     let packs = full_catalog(&ad, ws.as_deref());
@@ -232,7 +233,7 @@ pub fn update_skill_policy(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<SkillPreferences, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let prefs = &mut state.skill_preferences;
 
     if let Some(v) = update.allow_high_risk {
@@ -331,7 +332,7 @@ pub fn update_skill_policy(
 pub fn get_skill_preferences(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<SkillPreferences, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(state.skill_preferences.clone())
 }
 
@@ -350,7 +351,7 @@ pub fn get_firewall_status(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<FirewallStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let prefs = state.skill_preferences.clone();
     let policy = policy_from_state(&state);
     let ad = app_data(&app)?;
@@ -430,7 +431,7 @@ pub fn list_custom_skills(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<Vec<CustomSkillSummary>, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let ad = app_data(&app)?;
     // Seed 50 starter skills (10× sh/php/js/py/rs) into global skills once.
     let _ = crate::skills::starter_skills::ensure_starter_skills(&ad);
@@ -452,7 +453,7 @@ pub fn create_custom_skill(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<CustomSkillSummary, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let scope = SkillScope::parse(&request.scope).ok_or("scope must be company or global")?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
@@ -478,7 +479,7 @@ pub fn get_custom_skill_files(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let scope = SkillScope::parse(&request.scope).ok_or("scope must be company or global")?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
@@ -500,7 +501,7 @@ pub fn save_custom_skill_files(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let scope = SkillScope::parse(&request.scope).ok_or("scope must be company or global")?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
@@ -521,7 +522,7 @@ pub fn delete_custom_skill(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let scope = SkillScope::parse(&request.scope).ok_or("scope must be company or global")?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state);
@@ -544,7 +545,7 @@ pub fn test_skill_script(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<ScriptRunResult, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let ad = app_data(&app)?;
     let ws = workspace_for(&app, &state)
         .ok_or_else(|| "Create/open a company first (workspace required for Lab).".to_string())?;

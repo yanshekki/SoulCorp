@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 const PRO_STAKE_SOUL: f64 = 100.0;
 const VIP_STAKE_SOUL: f64 = 500.0;
 
@@ -36,7 +37,7 @@ pub struct UpgradeTierResult {
 pub fn get_tier_benefits(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<crate::tier::TierBenefits, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let tier = if state.settings.pure_local_mode {
         "local".to_string()
     } else {
@@ -50,7 +51,7 @@ pub fn check_feature_access(
     feature: String,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<FeatureAccessResult, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let tier = if state.settings.pure_local_mode {
         "local".to_string()
     } else {
@@ -85,7 +86,7 @@ pub async fn upgrade_tier(
     };
 
     let client = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         if state.settings.pure_local_mode {
             return Err("Tier upgrades require soulmd-hub connection. Disable Pure Local Mode.".to_string());
         }
@@ -139,7 +140,7 @@ pub async fn upgrade_tier(
             true,
         )
     } else {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         if state.hub.soul_balance < required_stake {
             return Err(format!(
                 "Need at least {required_stake:.0} $SOUL to upgrade to {target}. Current balance: {:.2}. Connect a Hub API key for server-side staking.",
@@ -163,7 +164,7 @@ pub async fn upgrade_tier(
     };
 
     if via_hub {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         state.hub.user_tier = tier.clone();
         state.hub.soul_balance = soul_balance;
         state.hub.soul_staked = soul_staked;
@@ -183,9 +184,7 @@ pub async fn upgrade_tier(
 
 pub fn ensure_agent_capacity(state: &AppState) -> Result<(), String> {
     if agent_limit_reached(&state.hub.user_tier, state.agents.len()) {
-        return Err(
-            "Free tier supports up to 50 agents. Upgrade to Pro for unlimited hiring.".to_string(),
-        );
+        return Err("Agent capacity limit reached for this company.".to_string());
     }
     Ok(())
 }

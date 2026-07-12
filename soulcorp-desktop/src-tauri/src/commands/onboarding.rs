@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnboardingState {
     pub company_name: String,
@@ -55,7 +56,7 @@ fn normalize_optional_field(raw: &str, max_len: usize, label: &str) -> Result<St
 
 #[tauri::command]
 pub fn get_onboarding_state(state: State<'_, Mutex<AppState>>) -> Result<OnboardingState, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let completed = state.onboarding_completed
         && !state.company_id.is_empty()
         && state.company_name.trim().len() >= 2;
@@ -78,7 +79,7 @@ pub fn complete_onboarding(
     let company_tagline = normalize_optional_field(&request.company_tagline, 120, "Tagline")?;
     let random_event_chance = clamp_event_chance(request.random_event_chance);
 
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     if state.company_id.is_empty() {
         let fresh = fresh_company_state(
             &company_name,

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../stores/gameStore";
 import type {
@@ -36,6 +36,7 @@ import {
   runtimeModeLabel,
   transportForEntry,
 } from "../../utils/agentRuntimeCatalog";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export const AGENTS_SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -54,6 +55,7 @@ interface AgentsPanelProps {
 }
 
 export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelProps) {
+  const { t } = useI18n();
   const settings = useGameStore((state) => state.settings);
   const setSettings = useGameStore((state) => state.setSettings);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
@@ -97,7 +99,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
     try {
       const view = await compressAgentMemory(memoryModalAgentId);
       setMemoryView(view);
-      setStatusMessage("memory.md compressed.");
+      setStatusMessage(t("status.memoryCompressed"));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -241,7 +243,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         delete next[agent.id];
         return next;
       });
-      setStatusMessage(`${updated.name}'s soul.md saved. AI will use the updated persona.`);
+      setStatusMessage(t("status.soulSaved", { name: updated.name }));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -334,57 +336,53 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         data-agents-section="overview"
       >
         <header className="agents-card-header agents-card-header--stacked">
-          <h3>Brain resolution</h3>
-          <p className="muted">
-            Configure meeting LLM brains per department or employee, pick the subprocess runtime
-            for sprint execution, and edit soul.md personas after hire. Token allocation lives in
-            the Tokens panel.
-          </p>
+          <h3>{t("agents.brainResolution")}</h3>
+          <p className="muted">{t("agents.brainResolutionDesc")}</p>
         </header>
 
         <div className="agents-priority-stack">
           <div className="agents-priority-layer">
-            <p className="agents-priority-layer-label">Meeting brain (dialogue)</p>
+            <p className="agents-priority-layer-label">{t("agents.meetingBrain")}</p>
             <div className="agents-priority-flow">
               <article>
-                <strong>1. Agent override</strong>
-                <span>Per-employee meeting brain</span>
+                <strong>{t("agents.priority.agent")}</strong>
+                <span>{t("agents.priority.agentDesc")}</span>
               </article>
               <span className="agents-priority-arrow" aria-hidden="true">
                 →
               </span>
               <article>
-                <strong>2. Department default</strong>
-                <span>Team-wide meeting assignment</span>
+                <strong>{t("agents.priority.dept")}</strong>
+                <span>{t("agents.priority.deptDesc")}</span>
               </article>
               <span className="agents-priority-arrow" aria-hidden="true">
                 →
               </span>
               <article>
-                <strong>3. Company default</strong>
+                <strong>{t("agents.priority.company")}</strong>
                 <span>{companyMeetingLabel}</span>
               </article>
             </div>
           </div>
           <div className="agents-priority-layer">
-            <p className="agents-priority-layer-label">Execution runtime (sprint tasks)</p>
+            <p className="agents-priority-layer-label">{t("agents.priority.execLayer")}</p>
             <div className="agents-priority-flow">
               <article>
-                <strong>1. Agent override</strong>
-                <span>Per-employee subprocess</span>
+                <strong>{t("agents.priority.agent")}</strong>
+                <span>{t("agents.priority.agentExecDesc")}</span>
               </article>
               <span className="agents-priority-arrow" aria-hidden="true">
                 →
               </span>
               <article>
-                <strong>2. Department default</strong>
-                <span>Team-wide runtime assignment</span>
+                <strong>{t("agents.priority.dept")}</strong>
+                <span>{t("agents.priority.deptExecDesc")}</span>
               </article>
               <span className="agents-priority-arrow" aria-hidden="true">
                 →
               </span>
               <article>
-                <strong>3. Company default</strong>
+                <strong>{t("agents.priority.company")}</strong>
                 <span>{companyExecutionLabel}</span>
               </article>
             </div>
@@ -394,47 +392,47 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         <div className="agents-overview-stats">
           <article>
             <strong>{departmentConfigs.length}</strong>
-            <span>Departments</span>
+            <span>{t("agents.stat.departments")}</span>
           </article>
           <article>
             <strong>{departmentMeetingOverrideCount}</strong>
-            <span>Dept meeting overrides</span>
+            <span>{t("agents.stat.deptMeetingOverrides")}</span>
           </article>
           <article>
             <strong>{departmentExecutionOverrideCount}</strong>
-            <span>Dept runtime overrides</span>
+            <span>{t("agents.stat.deptRuntimeOverrides")}</span>
           </article>
           <article>
             <strong>{agentRecords.length}</strong>
-            <span>Employees</span>
+            <span>{t("agents.stat.employees")}</span>
           </article>
           <article>
             <strong>{meetingOverrideCount}</strong>
-            <span>Agent meeting overrides</span>
+            <span>{t("agents.stat.agentMeetingOverrides")}</span>
           </article>
           <article>
             <strong>{executionOverrideCount}</strong>
-            <span>Agent runtime overrides</span>
+            <span>{t("agents.stat.agentRuntimeOverrides")}</span>
           </article>
           <article>
-            <strong>{subprocessRuntime ? "CLI" : "LLM"}</strong>
+            <strong>{subprocessRuntime ? t("agents.stat.cli") : t("agents.stat.llm")}</strong>
             <span>{companyExecutionLabel}</span>
           </article>
         </div>
 
         {settings.pure_local_mode ? (
           <p className="hub-warning">
-            Pure Local Mode forces mock dialogue for every department and agent.
+            {t("agents.pureLocalWarning")}
           </p>
         ) : (
           <p className="muted">
-            API keys in{" "}
+            {t("agents.apiKeysIn")}{" "}
             <button type="button" className="agents-inline-link" onClick={() => setActivePanel("settings")}>
-              Settings
+              {t("agents.openSettings")}
             </button>
-            . Token limits in{" "}
+            . {t("agents.tokenLimitsIn")}{" "}
             <button type="button" className="agents-inline-link" onClick={() => setActivePanel("finance")}>
-              Tokens
+              {t("agents.openTokens")}
             </button>
             .
           </p>
@@ -449,13 +447,8 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         data-agents-section="runtime"
       >
         <header className="agents-card-header agents-card-header--stacked">
-          <h3>Execution runtime (sprint tasks)</h3>
-          <p className="muted">
-            Company-wide engine for sprint task execution (OpenClaw / AI CLI / in-app LLM). This is
-            separate from Meeting brain (dialogue). When set to in-app LLM only, tasks use the
-            meeting-style LLM chain (agent → department → company default). API keys stay in
-            Settings.
-          </p>
+          <h3>{t("agents.executionRuntime")}</h3>
+          <p className="muted">{t("agents.executionRuntimeDesc")}</p>
         </header>
         <AgentRuntimeSection
           settings={settings}
@@ -484,12 +477,12 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         data-agents-section="departments"
       >
         <header className="agents-card-header">
-          <h3>Department LLM brains</h3>
-          <span className="muted">{departmentConfigs.length} departments</span>
+          <h3>{t("agents.deptBrains")}</h3>
+          <span className="muted">{t("agents.nDepartments", { count: departmentConfigs.length })}</span>
         </header>
 
         {departmentConfigs.length === 0 ? (
-          <p className="muted">No departments available yet.</p>
+          <p className="muted">{t("agents.noDepartments")}</p>
         ) : (
           <div className="agents-brain-grid">
             {departmentConfigs.map((entry) => {
@@ -532,27 +525,27 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                     </div>
                   </div>
                   <label className="field-label brain-provider-field">
-                    Meeting brain (dialogue)
+                    {t("agents.meetingBrain")}
                     <MeetingBrainPicker
                       catalog={runtimeCatalog}
                       value={meetingSelected}
-                      inheritLabel="Company default"
+                      inheritLabel={t("agents.companyDefault")}
                       disabled={settings.pure_local_mode}
                       onChange={(value) => void updateDepartmentProvider(entry.department, value)}
                     />
                   </label>
-                  <p className="muted agents-field-hint">Used for meetings and chat-style turns.</p>
+                  <p className="muted agents-field-hint">{t("agents.meetingHint")}</p>
                   <label className="field-label brain-provider-field">
-                    Execution runtime (sprint tasks)
+                    {t("agents.executionRuntime")}
                     <ExecutionRuntimePicker
                       catalog={runtimeCatalog}
                       value={executionSelected}
-                      inheritLabel="Company default"
+                      inheritLabel={t("agents.companyDefault")}
                       onChange={(value) => void updateDepartmentRuntime(entry.department, value)}
                     />
                   </label>
                   <p className="muted agents-field-hint">
-                    Used for sprint work — may be OpenClaw or another AI CLI.
+                    {t("agents.executionHint")}
                   </p>
                 </article>
               );
@@ -569,23 +562,23 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
         data-agents-section="employees"
       >
         <header className="agents-card-header">
-          <h3>Employee overrides</h3>
+          <h3>{t("agents.employeeOverrides")}</h3>
           <span className="muted">
             {debouncedEmployeeQuery.trim()
-              ? `${filteredAgentRecords.length} matches`
-              : `${agentRecords.length} agents`}
+              ? t("agents.nMatches", { count: filteredAgentRecords.length })
+              : t("agents.nAgents", { count: agentRecords.length })}
           </span>
         </header>
 
         {agentRecords.length === 0 ? (
-          <p className="muted">Hire or onboard agents before assigning individual LLM brains.</p>
+          <p className="muted">{t("agents.noAgentsHire")}</p>
         ) : (
           <>
             <SearchableListToolbar
               query={employeeSearchQuery}
               onQueryChange={setEmployeeSearchQuery}
-              placeholder="Search employees by name, role, department…"
-              ariaLabel="Search employees"
+              placeholder={t("agents.searchEmployees")}
+              ariaLabel={t("agents.searchEmployees")}
               matchCount={
                 debouncedEmployeeQuery.trim() ? filteredAgentRecords.length : undefined
               }
@@ -594,13 +587,13 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                 value: employeeSearchType,
                 onChange: setEmployeeSearchType,
                 options: EMPLOYEE_SEARCH_TYPES,
-                ariaLabel: "Filter employee search field",
-                label: "Field",
+                ariaLabel: t("agents.filterEmployeesAria"),
+                label: t("searchType.typeLabel"),
               }}
             />
             {debouncedEmployeeQuery.trim() && filteredAgentRecords.length === 0 ? (
               <p className="search-empty-hint muted">
-                No matches for &ldquo;{debouncedEmployeeQuery}&rdquo;.
+                {t("agents.noMatchesQuery", { query: debouncedEmployeeQuery })}
               </p>
             ) : null}
           <div className="agents-brain-grid agents-employee-grid">
@@ -668,9 +661,13 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                     </p>
                   </div>
                   <p className="agents-employee-meta muted">
-                    Soul: {agent.soul ? "loaded" : "draft"}
+                    {agent.soul ? t("agents.soulLoaded") : t("agents.soulDraft")}
                     {agent.soul?.hub_file_type
-                      ? ` · ${agent.soul.hub_file_type === "full_soul_folder" ? "Modular hub" : "Hub"}`
+                      ? ` · ${
+                          agent.soul.hub_file_type === "full_soul_folder"
+                            ? t("agents.hubModular")
+                            : t("agents.hubSingle")
+                        }`
                       : null}
                   </p>
                   {agent.agent_kind !== "fate" ? (
@@ -680,7 +677,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                         className="agents-soul-toggle"
                         onClick={() => void openMemoryModal(agent.id)}
                       >
-                        View memory.md
+                        {t("agents.viewMemory")}
                       </button>
                     </div>
                   ) : null}
@@ -695,7 +692,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                           )
                         }
                       >
-                        {soulExpanded ? "Hide soul.md" : "Edit soul.md"}
+                        {soulExpanded ? t("agents.hideSoul") : t("agents.editSoul")}
                       </button>
                       {soulExpanded ? (
                         <div className="agents-soul-editor-wrap">
@@ -712,35 +709,35 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                             }
                             onClick={() => void saveAgentSoul(agent)}
                           >
-                            {soulSavingId === agent.id ? "Saving…" : "Save soul.md"}
+                            {soulSavingId === agent.id ? t("common.saving") : t("agents.saveSoul")}
                           </button>
                         </div>
                       ) : null}
                     </div>
                   ) : null}
                   <label className="field-label brain-provider-field">
-                    Meeting brain (dialogue)
+                    {t("agents.meetingBrain")}
                     <MeetingBrainPicker
                       catalog={runtimeCatalog}
                       value={meetingSelected}
-                      inheritLabel="Department default"
+                      inheritLabel={t("provider.deptDefault")}
                       disabled={settings.pure_local_mode || agent.agent_kind === "fate"}
                       onChange={(value) => void updateAgentProvider(agent.id, value)}
                     />
                   </label>
-                  <p className="muted agents-field-hint">Meetings & dialogue only — not OpenClaw.</p>
+                  <p className="muted agents-field-hint">{t("agents.meetingDialogueHint")}</p>
                   <label className="field-label brain-provider-field">
-                    Execution runtime (sprint tasks)
+                    {t("agents.executionRuntime")}
                     <ExecutionRuntimePicker
                       catalog={runtimeCatalog}
                       value={executionSelected}
-                      inheritLabel="Department default"
+                      inheritLabel={t("provider.deptDefault")}
                       disabled={agent.agent_kind === "fate"}
                       onChange={(value) => void updateAgentRuntime(agent.id, value)}
                     />
                   </label>
                   <p className="muted agents-field-hint">
-                    Sprint tasks — OpenClaw / AI CLI live here.
+                    {t("agents.executionSprintHint")}
                   </p>
                   {agent.agent_kind !== "fate" ? (
                     <button
@@ -751,7 +748,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                         onNavigateSection?.("workspaces");
                       }}
                     >
-                      Browse workspace
+                      {t("agents.browseWorkspace")}
                     </button>
                   ) : null}
                 </article>
@@ -776,16 +773,13 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
             className="agents-memory-modal"
             role="dialog"
             aria-modal="true"
-            aria-label="Agent working memory"
+            aria-label={t("agents.memoryAria")}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="agents-memory-modal-header">
               <div>
-                <h3>memory.md</h3>
-                <p className="muted">
-                  Working memory (compressed while the agent works). soul.md is identity; this is
-                  short-term work context.
-                </p>
+                <h3>{t("agents.memoryMd")}</h3>
+                <p className="muted">{t("agents.memoryHint")}</p>
               </div>
               <button
                 type="button"
@@ -794,11 +788,11 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                   setMemoryView(null);
                 }}
               >
-                Close
+                {t("common.close")}
               </button>
             </header>
             {memoryLoading ? (
-              <p className="muted">Loading memory…</p>
+              <p className="muted">{t("agents.loadingMemory")}</p>
             ) : memoryView ? (
               <>
                 <p className="muted agents-memory-meta">
@@ -815,7 +809,7 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                     disabled={memoryBusy}
                     onClick={() => void handleCompressMemory()}
                   >
-                    {memoryBusy ? "Compressing…" : "Compress now"}
+                    {memoryBusy ? t("agents.compressing") : t("agents.compressNow")}
                   </button>
                   <button
                     type="button"
@@ -824,12 +818,12 @@ export function AgentsPanel({ activeSection, onNavigateSection }: AgentsPanelPro
                       setMemoryView(null);
                     }}
                   >
-                    Close
+                    {t("common.close")}
                   </button>
                 </div>
               </>
             ) : (
-              <p className="muted">No memory available.</p>
+              <p className="muted">{t("agents.noMemory")}</p>
             )}
           </div>
         </div>

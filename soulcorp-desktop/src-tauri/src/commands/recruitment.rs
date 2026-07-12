@@ -1,7 +1,7 @@
 use crate::commands::onboarding::persist_single_agent_soul;
 use crate::commands::tier::ensure_agent_capacity;
 use crate::db::persistence::{commit, commit_if_company_ready};
-use crate::token_budget::{charge_tokens, ensure_agent_wallet, ChargeContext};
+use crate::token_budget::{ensure_agent_wallet, ChargeContext};
 use crate::ai::provider::TokenUsageSource;
 use crate::hub::HubClient;
 use crate::relationships::{
@@ -19,6 +19,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecruitmentListResult {
     pub candidates: Vec<RecruitmentCandidate>,
@@ -93,6 +94,9 @@ pub struct HireCandidateRequest {
     pub soul_md_content: Option<String>,
     #[serde(default)]
     pub system_prompt_source: Option<String>,
+    /// Preferred agent display name (custom hire / seed). Falls back to soul.md title.
+    #[serde(default)]
+    pub display_name: Option<String>,
 }
 
 fn listings_to_candidates(listings: &[Value]) -> Vec<RecruitmentCandidate> {
@@ -188,19 +192,162 @@ fn bonus_recruits_from_state(state: &AppState) -> Vec<RecruitmentCandidate> {
         .collect()
 }
 
-fn merge_bonus_candidates(mut base: Vec<RecruitmentCandidate>, state: &AppState) -> Vec<RecruitmentCandidate> {
-    let bonus = bonus_recruits_from_state(state);
-    if bonus.is_empty() {
+/// Offline / pure-local starter pool (not God Mode). Mirrors frontend preset souls.
+fn local_seed_candidates() -> Vec<RecruitmentCandidate> {
+    vec![
+        RecruitmentCandidate {
+            id: "local-seed-mira".into(),
+            soul_id: None,
+            name: "Mira".into(),
+            headline: "Ships quality code and protects team focus.".into(),
+            job_role: "Senior Dev".into(),
+            skills: vec![
+                "engineering".into(),
+                "typescript".into(),
+                "code-review".into(),
+            ],
+            vibe: "focused".into(),
+            verified: true,
+            hourly_rate_usdt: 45.0,
+            soul_md_content: Some(
+                "# Mira\n\n## Personality\nFocused, analytical, dry humor, prefers clean abstractions.\n\n## Values\nShip quality code, protect team focus, document decisions.\n\n## Communication Style\nDirect and concise with occasional sarcasm.\n"
+                    .into(),
+            ),
+            file_type: Some("single_md".into()),
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: Some("Engineering".into()),
+            projected_morale_delta: None,
+        },
+        RecruitmentCandidate {
+            id: "local-seed-kai".into(),
+            soul_id: None,
+            name: "Kai".into(),
+            headline: "Builds healthy teams with honest feedback.".into(),
+            job_role: "HR Lead".into(),
+            skills: vec![
+                "hr".into(),
+                "culture".into(),
+                "recruiting".into(),
+                "facilitation".into(),
+            ],
+            vibe: "warm".into(),
+            verified: true,
+            hourly_rate_usdt: 38.0,
+            soul_md_content: Some(
+                "# Kai\n\n## Personality\nWarm, observant, emotionally intelligent facilitator.\n\n## Values\nHealthy teams, honest feedback, sustainable pace.\n\n## Communication Style\nSupportive and structured, asks clarifying questions.\n"
+                    .into(),
+            ),
+            file_type: Some("single_md".into()),
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: Some("Human Resources".into()),
+            projected_morale_delta: None,
+        },
+        RecruitmentCandidate {
+            id: "local-seed-ren".into(),
+            soul_id: None,
+            name: "Ren".into(),
+            headline: "Keeps priorities clear and execution accountable.".into(),
+            job_role: "COO".into(),
+            skills: vec![
+                "operations".into(),
+                "planning".into(),
+                "leadership".into(),
+            ],
+            vibe: "strategic".into(),
+            verified: true,
+            hourly_rate_usdt: 55.0,
+            soul_md_content: Some(
+                "# Ren\n\n## Personality\nStrategic, calm under pressure, systems thinker.\n\n## Values\nLong-term company health, clear priorities, accountable execution.\n\n## Communication Style\nExecutive summaries first, then supporting detail.\n"
+                    .into(),
+            ),
+            file_type: Some("single_md".into()),
+            compatibility_score: None,
+            skill_overlap: None,
+            department_fit: Some("Executive".into()),
+            projected_morale_delta: None,
+        },
+    ]
+}
+
+fn merge_candidate_lists(
+    mut base: Vec<RecruitmentCandidate>,
+    extras: Vec<RecruitmentCandidate>,
+) -> Vec<RecruitmentCandidate> {
+    if extras.is_empty() {
         return base;
     }
     let existing_ids: std::collections::HashSet<String> =
         base.iter().map(|candidate| candidate.id.clone()).collect();
-    for candidate in bonus.into_iter().rev() {
+    for candidate in extras.into_iter().rev() {
         if !existing_ids.contains(&candidate.id) {
             base.insert(0, candidate);
         }
     }
     base
+}
+
+fn merge_bonus_candidates(base: Vec<RecruitmentCandidate>, state: &AppState) -> Vec<RecruitmentCandidate> {
+    merge_candidate_lists(base, bonus_recruits_from_state(state))
+}
+
+/// When hub/local pool is empty, surface starter candidates + god-mode bonuses.
+fn fill_empty_candidate_pool(
+    base: Vec<RecruitmentCandidate>,
+    state: &AppState,
+) -> Vec<RecruitmentCandidate> {
+    let with_bonus = merge_bonus_candidates(base, state);
+    if with_bonus.is_empty() {
+        merge_bonus_candidates(local_seed_candidates(), state)
+    } else {
+        with_bonus
+    }
+}
+
+fn resolve_hire_display_name(
+    request: &HireCandidateRequest,
+    soul: &Option<SoulProfile>,
+) -> String {
+    if let Some(name) = request
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return name.to_string();
+    }
+    if let Some(profile) = soul {
+        let name = profile.name.trim();
+        if !name.is_empty() {
+            return name.to_string();
+        }
+    }
+    if let Some(seed_id) = request.candidate_id.strip_prefix("local-seed-") {
+        return match seed_id {
+            "mira" => "Mira".into(),
+            "kai" => "Kai".into(),
+            "ren" => "Ren".into(),
+            other => {
+                let mut chars = other.chars();
+                match chars.next() {
+                    Some(first) => format!(
+                        "{}{}",
+                        first.to_uppercase(),
+                        chars.as_str()
+                    ),
+                    None => "Local Hire".into(),
+                }
+            }
+        };
+    }
+    if request.candidate_id.starts_with("custom-") {
+        return "New Hire".into();
+    }
+    if let Some(hub_id) = request.candidate_id.strip_prefix("hub-soul-") {
+        return format!("Candidate {hub_id}");
+    }
+    request.candidate_id.clone()
 }
 
 fn team_skill_tokens(state: &AppState) -> Vec<String> {
@@ -362,15 +509,14 @@ fn enrich_candidates(state: &AppState, candidates: Vec<RecruitmentCandidate>) ->
 #[tauri::command]
 pub fn get_agent_relationship_graph(
     state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
 ) -> Result<RelationshipGraph, String> {
-    if crate::config::is_v1() {
-        return Ok(RelationshipGraph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-        });
-    }
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
+    let before = state.agent_relationships.len();
     ensure_relationship_backfill(&mut state);
+    if state.agent_relationships.len() != before {
+        commit(app, &state)?;
+    }
     Ok(build_relationship_graph(&state))
 }
 
@@ -382,7 +528,7 @@ pub async fn get_recruitment_analytics(
 ) -> Result<RecruitmentAnalytics, String> {
     let candidate_result = load_recruitment_candidates(&app_state, &app, query).await?;
     let candidates = candidate_result.candidates;
-    let state = app_state.lock().map_err(|e| e.to_string())?;
+    let state = app_state.lock_or_recover()?;
 
     let morale_values: Vec<f32> = state.agents.values().map(|agent| agent.morale).collect();
     let energy_values: Vec<f32> = state.agents.values().map(|agent| agent.energy).collect();
@@ -430,7 +576,8 @@ pub async fn get_recruitment_analytics(
         skill_gaps: compute_skill_gaps(&state, &candidates),
         agents_hired: state.stats.agents_hired,
         interviews_started: state.stats.interviews_started,
-        priority_matching: true,
+        // Legacy field: product no longer gates recruitment on Pro/VIP.
+        priority_matching: false,
         candidate_scores,
     })
 }
@@ -440,7 +587,7 @@ pub fn record_recruitment_interview(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<u32, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.stats.interviews_started += 1;
     let count = state.stats.interviews_started;
     commit(app, &state)?;
@@ -449,13 +596,11 @@ pub fn record_recruitment_interview(
 
 #[tauri::command]
 pub fn get_morale_heatmap(state: State<'_, Mutex<AppState>>) -> Result<Vec<MoraleHeatmapEntry>, String> {
-    if crate::config::is_v1() {
-        return Ok(Vec::new());
-    }
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let mut entries: Vec<MoraleHeatmapEntry> = state
         .agents
         .values()
+        .filter(|agent| !crate::fate::is_system_agent(agent))
         .map(|agent| MoraleHeatmapEntry {
             agent_id: agent.id.clone(),
             name: agent.name.clone(),
@@ -511,6 +656,16 @@ fn spawn_onboarding_meeting(state: &mut AppState, new_agent_id: &str) {
             revenue_delta: 0.0,
             notes_generated: false,
             notes_page_id: None,
+            key_points: Vec::new(),
+            decisions: Vec::new(),
+            action_items: Vec::new(),
+            risks_blockers: Vec::new(),
+            notes_write_error: None,
+            started_at: None,
+            completed_at: None,
+            story_id: None,
+            task_ids: Vec::new(),
+            directive_id: None,
         },
     );
 
@@ -522,7 +677,7 @@ async fn load_recruitment_candidates(
     query: Option<String>,
 ) -> Result<RecruitmentListResult, String> {
     let (pure_local, cached_listings) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         (
             state.settings.pure_local_mode,
             state.hub.cached_hub_soul_listings.clone(),
@@ -530,33 +685,34 @@ async fn load_recruitment_candidates(
     };
 
     if pure_local {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         return Ok(RecruitmentListResult {
             candidates: enrich_candidates(
                 &state,
-                merge_bonus_candidates(Vec::new(), &state),
+                fill_empty_candidate_pool(Vec::new(), &state),
             ),
             from_cache: true,
             message: Some(
-                "Pure Local Mode — showing locally generated candidates only.".to_string(),
+                "Pure Local Mode — showing local starter candidates. Custom hire is also available."
+                    .to_string(),
             ),
         });
     }
 
     let client = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
 
     match client.list_souls(query.as_deref(), 50).await {
         Ok(listings) if !listings.is_empty() => {
             {
-                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let mut state = app_state.lock_or_recover()?;
                 state.hub.cached_hub_soul_listings = listings.clone();
                 commit_if_company_ready(app.clone(), &state)?;
             }
             let candidates = listings_to_candidates(&listings);
-            let state = app_state.lock().map_err(|e| e.to_string())?;
+            let state = app_state.lock_or_recover()?;
             Ok(RecruitmentListResult {
                 candidates: enrich_candidates(
                     &state,
@@ -568,28 +724,41 @@ async fn load_recruitment_candidates(
         }
         Ok(_) => {
             let candidates = listings_to_candidates(&cached_listings);
-            let state = app_state.lock().map_err(|e| e.to_string())?;
+            let state = app_state.lock_or_recover()?;
+            let used_cache = !cached_listings.is_empty();
+            let filled = fill_empty_candidate_pool(candidates, &state);
+            let used_seeds = !used_cache && filled.iter().any(|c| c.id.starts_with("local-seed-"));
             Ok(RecruitmentListResult {
-                candidates: enrich_candidates(
-                    &state,
-                    merge_bonus_candidates(candidates, &state),
-                ),
-                from_cache: !cached_listings.is_empty(),
-                message: if cached_listings.is_empty() {
-                    Some("Hub returned no candidates. Sync with the hub when online.".to_string())
-                } else {
+                candidates: enrich_candidates(&state, filled),
+                from_cache: used_cache || used_seeds,
+                message: if used_cache {
                     Some("Hub returned no new candidates — showing cached listings.".to_string())
+                } else if used_seeds {
+                    Some(
+                        "Hub returned no candidates — showing local starter candidates. Custom hire is also available."
+                            .to_string(),
+                    )
+                } else {
+                    Some("Hub returned no candidates. Sync with the hub when online.".to_string())
                 },
             })
         }
         Err(error) => {
             if cached_listings.is_empty() {
-                return Err(format!(
-                    "Failed to load recruitment candidates: {error}. Sync with the hub when online."
-                ));
+                let state = app_state.lock_or_recover()?;
+                return Ok(RecruitmentListResult {
+                    candidates: enrich_candidates(
+                        &state,
+                        fill_empty_candidate_pool(Vec::new(), &state),
+                    ),
+                    from_cache: true,
+                    message: Some(format!(
+                        "Hub offline — showing local starter candidates. Last error: {error}"
+                    )),
+                });
             }
             let candidates = listings_to_candidates(&cached_listings);
-            let state = app_state.lock().map_err(|e| e.to_string())?;
+            let state = app_state.lock_or_recover()?;
             Ok(RecruitmentListResult {
                 candidates: enrich_candidates(
                     &state,
@@ -624,7 +793,7 @@ pub async fn fetch_recruitment_candidate_soul(
         .ok_or_else(|| "Only hub candidates include downloadable soul.md content.".to_string())?;
 
     let client = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
 
@@ -654,24 +823,32 @@ fn soul_profile_from_hire_request(
     Some(profile)
 }
 
+/// Cap monthly salary (token units) so hub price mis-labels cannot demand tens of millions.
+fn normalize_offered_salary(raw: f32) -> f32 {
+    // Hub sometimes stores list prices as huge "hourly" numbers; clamp to a sane monthly band.
+    if !raw.is_finite() || raw <= 0.0 {
+        return 4_000.0;
+    }
+    raw.clamp(500.0, 50_000.0)
+}
+
 #[tauri::command]
 pub async fn hire_candidate(
     request: HireCandidateRequest,
     app_state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AgentRecord, String> {
-    let onboarding_tokens = ((request.offered_salary as f64) * 0.5).round() as u32;
-    let (client, offered_salary) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
-        if onboarding_tokens > 0
-            && crate::token_budget::total_company_tokens(&state.token_economy) < onboarding_tokens as u64
-        {
-            return Err("Insufficient tokens for onboarding package.".to_string());
+    let offered_salary = normalize_offered_salary(request.offered_salary);
+    let onboarding_tokens = ((offered_salary as f64) * 0.5).round() as u32;
+    let client = {
+        let state = app_state.lock_or_recover()?;
+        let total = crate::token_budget::total_company_tokens(&state.token_economy);
+        if onboarding_tokens > 0 && total < onboarding_tokens as u64 {
+            return Err(format!(
+                "公司代幣不足：入職約需 {onboarding_tokens} tokens（目前約 {total}）。請到「代幣」頁注資，或降低開出的月薪。"
+            ));
         }
-        (
-            HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone()),
-            request.offered_salary,
-        )
+        HubClient::new(state.hub.base_url.clone(), state.hub.api_key.clone())
     };
 
     let soul = if let Some(content) = request.soul_md_content.clone() {
@@ -691,13 +868,10 @@ pub async fn hire_candidate(
     };
 
     let hired_agent = {
-    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+    let mut state = app_state.lock_or_recover()?;
     ensure_agent_capacity(&state)?;
     let agent_id = format!("agent-{}", Uuid::new_v4());
-    let name = soul
-        .as_ref()
-        .map(|profile| profile.name.clone())
-        .unwrap_or_else(|| request.candidate_id.replace("hub-soul-", "Candidate "));
+    let name = resolve_hire_display_name(&request, &soul);
 
     let department = request.department.clone();
     let soul_id = request
@@ -726,9 +900,11 @@ pub async fn hire_candidate(
 
     state.agents.insert(agent_id.clone(), record.clone());
     ensure_agent_wallet(&mut state.token_economy, &record);
+    // Company pays onboarding — never charge the empty new-hire leaf wallet.
     if onboarding_tokens > 0 {
-        charge_tokens(
+        crate::token_budget::charge_company_pool(
             &mut state,
+            onboarding_tokens,
             ChargeContext {
                 source: "hire_onboarding".into(),
                 agent_id: agent_id.clone(),
@@ -741,6 +917,8 @@ pub async fn hire_candidate(
             },
         )?;
     }
+    // Seed working budget so the hire can run tasks immediately.
+    crate::token_budget::fund_agent_for_execution(&mut state, &agent_id, 25_000);
     connect_new_agent(&mut state, &agent_id, &department);
     state.stats.agents_hired += 1;
     spawn_onboarding_meeting(&mut state, &agent_id);
@@ -756,4 +934,53 @@ pub async fn hire_candidate(
     };
     let _ = crate::commands::workspace::sync_workspace_organization_cmd(app, app_state).await;
     Ok(hired_agent)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_seed_candidates_cover_core_roles() {
+        let seeds = local_seed_candidates();
+        assert_eq!(seeds.len(), 3);
+        assert!(seeds.iter().all(|c| c.id.starts_with("local-seed-")));
+        assert!(seeds.iter().all(|c| {
+            c.soul_md_content
+                .as_ref()
+                .map(|s| s.contains("## Personality"))
+                .unwrap_or(false)
+        }));
+        assert!(seeds.iter().any(|c| c.department_fit.as_deref() == Some("Engineering")));
+        assert!(seeds.iter().any(|c| c.department_fit.as_deref() == Some("Human Resources")));
+        assert!(seeds.iter().any(|c| c.department_fit.as_deref() == Some("Executive")));
+    }
+
+    #[test]
+    fn resolve_hire_name_prefers_display_name() {
+        let request = HireCandidateRequest {
+            candidate_id: "custom-abc".into(),
+            role: "Engineer".into(),
+            department: "Engineering".into(),
+            offered_salary: 4000.0,
+            soul_md_content: None,
+            system_prompt_source: None,
+            display_name: Some("  Ada  ".into()),
+        };
+        assert_eq!(resolve_hire_display_name(&request, &None), "Ada");
+    }
+
+    #[test]
+    fn resolve_hire_name_local_seed_fallback() {
+        let request = HireCandidateRequest {
+            candidate_id: "local-seed-kai".into(),
+            role: "HR Lead".into(),
+            department: "Human Resources".into(),
+            offered_salary: 4000.0,
+            soul_md_content: None,
+            system_prompt_source: None,
+            display_name: None,
+        };
+        assert_eq!(resolve_hire_display_name(&request, &None), "Kai");
+    }
 }

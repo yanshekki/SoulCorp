@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import type { Update } from "@tauri-apps/plugin-updater";
 import {
   createContext,
@@ -28,7 +28,9 @@ import type {
   DeployStatus,
   ExportResult,
   GameSettings,
+  HubStatus,
   MeetingAiStatus,
+  ProviderCredentialProbe,
   RuntimeCatalog,
 } from "../../types/game";
 import {
@@ -41,6 +43,8 @@ import {
   downloadAndInstallUpdate,
   type UpdateProgress,
 } from "../../services/updaterClient";
+import { APP_LANGUAGES, parseAppLanguage } from "../../i18n";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export const SETTINGS_SECTIONS = [
   { id: "general", label: "General" },
@@ -59,6 +63,51 @@ interface SettingsPanelProps {
 }
 
 const SettingsActiveSectionContext = createContext<string>("general");
+
+function ProviderConnectionStatus({
+  status,
+  probe,
+  busyDisabled,
+  onTest,
+  idleHint,
+}: {
+  status: "idle" | "checking" | "ok" | "error";
+  probe: ProviderCredentialProbe | null;
+  busyDisabled?: boolean;
+  onTest: () => void;
+  idleHint?: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={`provider-status provider-status--${status}`} role="status" aria-live="polite">
+      <span className={`provider-status-light provider-status-light--${status}`} aria-hidden="true" />
+      <div className="provider-status-body">
+        <strong className="provider-status-title">
+          {status === "checking"
+            ? t("settings.probe.testing")
+            : status === "ok"
+              ? t("settings.probe.ok")
+              : status === "error"
+                ? t("settings.probe.failed")
+                : t("settings.probe.idle")}
+        </strong>
+        <p className="provider-status-message muted">
+          {probe?.message
+            ?? idleHint
+            ?? t("settings.probe.defaultHint")}
+        </p>
+      </div>
+      <button
+        type="button"
+        className="secondary-action"
+        disabled={status === "checking" || busyDisabled}
+        onClick={onTest}
+      >
+        {status === "checking" ? t("settings.probe.testingBtn") : t("settings.probe.testBtn")}
+      </button>
+    </div>
+  );
+}
 
 function SettingsCard({
   id,
@@ -96,6 +145,7 @@ function SettingsCard({
 }
 
 export function SettingsPanel({ activeSection }: SettingsPanelProps) {
+  const { t } = useI18n();
   const { activeCompanyId, companyRevision } = useCompanyScope();
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
@@ -115,6 +165,31 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
+  // Local drafts for AI credentials — never call update_game_settings on every keystroke
+  // (that serializes + commits full app state and freezes the UI under the scrum worker).
+  const [draftOpenaiKey, setDraftOpenaiKey] = useState(settings.openai_api_key ?? "");
+  const [draftGrokKey, setDraftGrokKey] = useState(settings.grok_api_key ?? "");
+  const [draftClaudeKey, setDraftClaudeKey] = useState(settings.claude_api_key ?? "");
+  const [draftDeepseekKey, setDraftDeepseekKey] = useState(settings.deepseek_api_key ?? "");
+  const [draftOpenaiUrl, setDraftOpenaiUrl] = useState(settings.openai_base_url ?? "");
+  const [draftOpenaiModel, setDraftOpenaiModel] = useState(settings.openai_model ?? "");
+  const [draftGrokUrl, setDraftGrokUrl] = useState(settings.grok_base_url ?? "");
+  const [draftGrokModel, setDraftGrokModel] = useState(settings.grok_model ?? "");
+  const [draftClaudeUrl, setDraftClaudeUrl] = useState(settings.claude_base_url ?? "");
+  const [draftClaudeModel, setDraftClaudeModel] = useState(settings.claude_model ?? "");
+  const [draftDeepseekUrl, setDraftDeepseekUrl] = useState(settings.deepseek_base_url ?? "");
+  const [draftDeepseekModel, setDraftDeepseekModel] = useState(settings.deepseek_model ?? "");
+  const [draftOllamaUrl, setDraftOllamaUrl] = useState(settings.ollama_base_url ?? "");
+  const [draftOllamaModel, setDraftOllamaModel] = useState(settings.ollama_model ?? "");
+  /** idle | checking | ok | error — green/red light after save or Test */
+  const [providerProbeStatus, setProviderProbeStatus] = useState<
+    "idle" | "checking" | "ok" | "error"
+  >("idle");
+  const [providerProbe, setProviderProbe] = useState<ProviderCredentialProbe | null>(null);
+  const [hubProbeStatus, setHubProbeStatus] = useState<"idle" | "checking" | "ok" | "error">(
+    "idle",
+  );
+  const [hubProbe, setHubProbe] = useState<ProviderCredentialProbe | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const effectiveApiProvider = effectiveApiProviderForSettings(settings.ai_provider, runtimeCatalog);
   const meetingBrainValue = legacyMeetingProviderToRegistryId(settings.ai_provider);
@@ -122,6 +197,39 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
   useEffect(() => {
     setHubUrl(hubStatus.base_url);
   }, [hubStatus.base_url]);
+
+  useEffect(() => {
+    setDraftOpenaiKey(settings.openai_api_key ?? "");
+    setDraftGrokKey(settings.grok_api_key ?? "");
+    setDraftClaudeKey(settings.claude_api_key ?? "");
+    setDraftDeepseekKey(settings.deepseek_api_key ?? "");
+    setDraftOpenaiUrl(settings.openai_base_url ?? "");
+    setDraftOpenaiModel(settings.openai_model ?? "");
+    setDraftGrokUrl(settings.grok_base_url ?? "");
+    setDraftGrokModel(settings.grok_model ?? "");
+    setDraftClaudeUrl(settings.claude_base_url ?? "");
+    setDraftClaudeModel(settings.claude_model ?? "");
+    setDraftDeepseekUrl(settings.deepseek_base_url ?? "");
+    setDraftDeepseekModel(settings.deepseek_model ?? "");
+    setDraftOllamaUrl(settings.ollama_base_url ?? "");
+    setDraftOllamaModel(settings.ollama_model ?? "");
+  }, [
+    settings.openai_api_key,
+    settings.grok_api_key,
+    settings.claude_api_key,
+    settings.deepseek_api_key,
+    settings.openai_base_url,
+    settings.openai_model,
+    settings.grok_base_url,
+    settings.grok_model,
+    settings.claude_base_url,
+    settings.claude_model,
+    settings.deepseek_base_url,
+    settings.deepseek_model,
+    settings.ollama_base_url,
+    settings.ollama_model,
+    activeCompanyId,
+  ]);
 
   useEffect(() => {
     if (!activeCompanyId) {
@@ -144,13 +252,49 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
       .catch(() => setAppVersion("1.0.0"));
   }, []);
 
+  // When opening AI providers or Meetings, auto-probe so the light reflects current key state.
+  useEffect(() => {
+    if ((activeSection !== "ai" && activeSection !== "meetings") || !activeCompanyId) {
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        void runProviderProbe(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- probe on section open / company only
+  }, [activeSection, activeCompanyId, settings.ai_provider]);
+
+  // Cloud & hub section: auto-probe hub credentials.
+  useEffect(() => {
+    if (activeSection !== "cloud" || !activeCompanyId) {
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        void runHubProbe(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- probe on section open only
+  }, [activeSection, activeCompanyId]);
+
   const checkAppUpdate = async () => {
     setUpdateBusy(true);
     setUpdateProgress({
       downloaded: 0,
       contentLength: null,
       phase: "checking",
-      message: "Checking for updates…",
+      message: t("settings.checkingUpdates"),
     });
     try {
       const update = await checkForAppUpdate();
@@ -221,10 +365,73 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
     };
   }, [activeSection]);
 
-  const updateSettings = async (patch: Partial<GameSettings>) => {
+  const runProviderProbe = async (announce = true) => {
+    setProviderProbeStatus("checking");
+    try {
+      const result = await invoke<ProviderCredentialProbe>("test_meeting_provider");
+      setProviderProbe(result);
+      setProviderProbeStatus(result.ok ? "ok" : "error");
+      if (announce) {
+        setStatusMessage(result.message);
+      }
+      return result;
+    } catch (error) {
+      const message = String(error);
+      setProviderProbe({
+        ok: false,
+        provider: effectiveApiProvider,
+        has_credentials: false,
+        message,
+      });
+      setProviderProbeStatus("error");
+      if (announce) {
+        setStatusMessage(message);
+      }
+      return null;
+    }
+  };
+
+  const runHubProbe = async (announce = true) => {
+    setHubProbeStatus("checking");
+    try {
+      const result = await invoke<ProviderCredentialProbe>("test_hub_connection");
+      setHubProbe(result);
+      setHubProbeStatus(result.ok ? "ok" : "error");
+      if (announce) {
+        setStatusMessage(result.message);
+      }
+      // Refresh hub status pill (connected flag may have updated).
+      try {
+        const status = await invoke<HubStatus>("get_hub_status");
+        setHubStatus(status);
+      } catch {
+        // non-fatal
+      }
+      return result;
+    } catch (error) {
+      const message = String(error);
+      setHubProbe({
+        ok: false,
+        provider: "soulmd-hub",
+        has_credentials: false,
+        message,
+      });
+      setHubProbeStatus("error");
+      if (announce) {
+        setStatusMessage(message);
+      }
+      return null;
+    }
+  };
+
+  const updateSettings = async (
+    patch: Partial<GameSettings>,
+    options?: { probeAfter?: boolean },
+  ) => {
     try {
       const next = await invoke<GameSettings>("update_game_settings", {
         update: {
+          app_language: patch.app_language,
           play_mode: patch.play_mode,
           random_events_enabled: patch.random_events_enabled,
           random_event_chance: patch.random_event_chance,
@@ -261,9 +468,21 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
         },
       });
       setSettings(next);
-      setStatusMessage("Settings updated.");
+      setStatusMessage(t("common.settingsUpdated"));
+      if (options?.probeAfter) {
+        await runProviderProbe(true);
+      }
     } catch (error) {
       setStatusMessage(String(error));
+      if (options?.probeAfter) {
+        setProviderProbeStatus("error");
+        setProviderProbe({
+          ok: false,
+          provider: effectiveApiProvider,
+          has_credentials: false,
+          message: String(error),
+        });
+      }
     }
   };
 
@@ -384,7 +603,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
 
   const importBackup = async () => {
     if (!restorePath.trim()) {
-      setStatusMessage("Enter the full path to a company backup JSON file.");
+      setStatusMessage(t("settings.msg.backupPath"));
       return;
     }
     try {
@@ -406,9 +625,17 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
       });
       setHubStatus(next);
       setApiKey("");
-      setStatusMessage("Hub credentials updated.");
+      setStatusMessage(t("settings.msg.hubTesting"));
+      await runHubProbe(true);
     } catch (error) {
       setStatusMessage(String(error));
+      setHubProbeStatus("error");
+      setHubProbe({
+        ok: false,
+        provider: "soulmd-hub",
+        has_credentials: false,
+        message: String(error),
+      });
     }
   };
 
@@ -418,17 +645,36 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
       <div className="settings-grid">
         <SettingsCard
           id="general"
-          title="General"
-          description="Offline-first simulation. Pure Local Mode disables all cloud calls."
+          title={t("settings.section.general")}
+          description={t("settings.card.generalDesc")}
         >
+          <label className="field-label">
+            {t("settings.language")}
+            <select
+              value={parseAppLanguage(settings.app_language)}
+              onChange={(event) =>
+                void updateSettings({ app_language: event.target.value })
+              }
+            >
+              {APP_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {t("settings.language.help")}
+          </p>
           <ul className="settings-info-list">
-            <li>Simulation, meetings, and workspace run without network access.</li>
-            <li>Pure Local Mode disables hub sync and marketplace calls.</li>
+            <li>{t("settings.general.bullet1")}</li>
+            <li>{t("settings.general.bullet2")}</li>
             <li>
-              Auto-backup writes to the local exports folder every{" "}
-              {settings.backup_interval_minutes ?? "—"} minutes.
+              {t("settings.general.bullet3", {
+                mins: settings.backup_interval_minutes ?? "—",
+              })}
             </li>
-            <li>Low power mode uses map view and slower simulation ticks.</li>
+            <li>{t("settings.general.bullet4")}</li>
           </ul>
           <label className="checkbox-row">
             <input
@@ -438,10 +684,10 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ pure_local_mode: event.target.checked })
               }
             />
-            <span>Pure Local Mode (zero cloud)</span>
+            <span>{t("settings.pureLocal")}</span>
           </label>
           <label className="field-label">
-            Auto-backup interval (minutes, 0 = off)
+            {t("settings.backupInterval")}
             <input
               type="number"
               min={0}
@@ -455,7 +701,9 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
             />
           </label>
           <div className="settings-update-row">
-            <p className="muted">Installed version: <strong>v{appVersion}</strong></p>
+            <p className="muted">
+              {t("settings.installedVersion")} <strong>v{appVersion}</strong>
+            </p>
             <div className="settings-action-row">
               <button
                 type="button"
@@ -463,7 +711,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 disabled={updateBusy}
                 onClick={() => void checkAppUpdate()}
               >
-                Check for updates
+                {t("settings.checkUpdates")}
               </button>
               {pendingUpdate ? (
                 <button
@@ -484,7 +732,11 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
         </SettingsCard>
 
         {showPlayModeSettings ? (
-          <SettingsCard id="play" title="Play mode" description="Work vs game simulation and Fate events.">
+          <SettingsCard
+            id="play"
+            title={t("settings.card.play")}
+            description={t("settings.card.playDesc")}
+          >
             <PlayModePicker
               value={{
                 playMode: settings.play_mode,
@@ -508,7 +760,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                   void updateSettings({ god_mode_enabled: event.target.checked })
                 }
               />
-              <span>Enable God Mode</span>
+              <span>{t("settings.enableGodMode")}</span>
             </label>
           </SettingsCard>
         ) : null}
@@ -516,8 +768,8 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
         {showDisplaySettings ? (
         <SettingsCard
           id="display"
-          title="Display & performance"
-          description="Visual filters and FPS-friendly options for older hardware."
+          title={t("settings.card.display")}
+          description={t("settings.card.displayDesc")}
         >
           <label className="checkbox-row">
             <input
@@ -527,7 +779,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ pixel_filter_enabled: event.target.checked })
               }
             />
-            <span>Pixel filter (pixel agents + retro look)</span>
+            <span>{t("settings.pixelFilter")}</span>
           </label>
           <label className="checkbox-row">
             <input
@@ -547,13 +799,17 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ low_power_mode: event.target.checked })
               }
             />
-            <span>Low power mode (better FPS)</span>
+            <span>{t("settings.lowPower")}</span>
           </label>
         </SettingsCard>
         ) : null}
 
         {showAudioSettings ? (
-        <SettingsCard id="audio" title="Audio" description="Music, SFX, and quick mute controls.">
+        <SettingsCard
+          id="audio"
+          title={t("settings.card.audio")}
+          description={t("settings.card.audioDesc")}
+        >
           <div className="audio-settings-quick">
             <AudioMuteButton className="audio-mute-btn audio-mute-btn-settings" showLabel />
             <button
@@ -561,7 +817,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               className="secondary-action"
               onClick={() => void setAudioMuted(true)}
             >
-              Mute all
+              {t("settings.muteAll")}
             </button>
           </div>
           <label className="checkbox-row">
@@ -572,7 +828,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void patchAudioSettings({ music_enabled: event.target.checked })
               }
             />
-            <span>Background music</span>
+            <span>{t("settings.music")}</span>
           </label>
           <label className="checkbox-row">
             <input
@@ -582,7 +838,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void patchAudioSettings({ sfx_enabled: event.target.checked })
               }
             />
-            <span>Sound effects</span>
+            <span>{t("settings.sfx")}</span>
           </label>
           <label className="field-label">
             Music volume
@@ -619,9 +875,16 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
 
         <SettingsCard
           id="cloud"
-          title="soulmd-hub connection"
-          description="Optional cloud sync and marketplace. Disabled in Pure Local Mode."
+          title={t("settings.card.cloud")}
+          description={t("settings.card.cloudDesc")}
         >
+          <ProviderConnectionStatus
+            status={hubProbeStatus}
+            probe={hubProbe}
+            busyDisabled={settings.pure_local_mode}
+            onTest={() => void runHubProbe(true)}
+            idleHint={t("settings.hubIdleHint")}
+          />
           <label className="field-label">
             Hub base URL
             <input
@@ -637,21 +900,24 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
-              placeholder="Paste hub API key"
+              placeholder={t("settings.hubKeyPh")}
               disabled={settings.pure_local_mode}
             />
           </label>
           <div className="panel-actions stacked">
             <button type="button" onClick={() => void saveHubConfig()} disabled={settings.pure_local_mode}>
-              Save hub credentials
+              {t("settings.saveHubCredentials")}
             </button>
           </div>
+          <p className="muted">
+            After save, the app live-tests hub with your key — green means accepted, red means failed.
+          </p>
         </SettingsCard>
 
         <SettingsCard
           id="ai"
-          title="AI providers"
-          description="API keys and the default company meeting brain. Execution runtime lives under Agent Brains."
+          title={t("settings.card.ai")}
+          description={t("settings.card.aiDesc")}
         >
           <label className="field-label">
             Default company meeting brain
@@ -661,12 +927,29 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               includeInherit={false}
               disabled={settings.pure_local_mode}
               onChange={(registryId) =>
-                void updateSettings({
-                  ai_provider: apiProviderIdForMeetingRegistry(registryId, runtimeCatalog),
-                })
+                void updateSettings(
+                  {
+                    ai_provider: apiProviderIdForMeetingRegistry(registryId, runtimeCatalog),
+                  },
+                  { probeAfter: true },
+                )
               }
             />
           </label>
+
+          <ProviderConnectionStatus
+            status={providerProbeStatus}
+            probe={providerProbe}
+            busyDisabled={settings.pure_local_mode}
+            onTest={() => void runProviderProbe(true)}
+            idleHint={t("settings.aiIdleHint")}
+          />
+
+          <p className="muted">
+            API key / URL / model fields save when you leave the field (blur) — not on every keystroke —
+            so the window stays responsive. After save, a live probe shows green (OK) or red (failed).
+            Autopilot stays idle until the selected cloud provider has a working key.
+          </p>
 
           <p className="muted">
             Company execution runtime (subprocess / OpenClaw / CLI) is configured in{" "}
@@ -675,7 +958,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               className="agents-inline-link"
               onClick={() => setActivePanel("agents")}
             >
-              Agent Brains → Execution runtime
+              {t("settings.openAgentBrainsRuntime")}
             </button>
             . Per-agent overrides are also set there.
           </p>
@@ -686,8 +969,15 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Ollama base URL
                 <input
                   type="url"
-                  value={settings.ollama_base_url}
-                  onChange={(event) => void updateSettings({ ollama_base_url: event.target.value })}
+                  value={draftOllamaUrl}
+                  onChange={(event) => setDraftOllamaUrl(event.target.value)}
+                  onBlur={() => {
+                    if (draftOllamaUrl !== (settings.ollama_base_url ?? "")) {
+                      void updateSettings({ ollama_base_url: draftOllamaUrl }, { probeAfter: true });
+                    } else {
+                      void runProviderProbe(false);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -695,8 +985,15 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Ollama model
                 <input
                   type="text"
-                  value={settings.ollama_model}
-                  onChange={(event) => void updateSettings({ ollama_model: event.target.value })}
+                  value={draftOllamaModel}
+                  onChange={(event) => setDraftOllamaModel(event.target.value)}
+                  onBlur={() => {
+                    if (draftOllamaModel !== (settings.ollama_model ?? "")) {
+                      void updateSettings({ ollama_model: draftOllamaModel }, { probeAfter: true });
+                    } else {
+                      void runProviderProbe(false);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -709,8 +1006,13 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 OpenAI base URL
                 <input
                   type="url"
-                  value={settings.openai_base_url}
-                  onChange={(event) => void updateSettings({ openai_base_url: event.target.value })}
+                  value={draftOpenaiUrl}
+                  onChange={(event) => setDraftOpenaiUrl(event.target.value)}
+                  onBlur={() => {
+                    if (draftOpenaiUrl !== (settings.openai_base_url ?? "")) {
+                      void updateSettings({ openai_base_url: draftOpenaiUrl }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -718,17 +1020,30 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 OpenAI API key
                 <input
                   type="password"
-                  value={settings.openai_api_key}
-                  onChange={(event) => void updateSettings({ openai_api_key: event.target.value })}
+                  value={draftOpenaiKey}
+                  onChange={(event) => setDraftOpenaiKey(event.target.value)}
+                  onBlur={() => {
+                    if (draftOpenaiKey !== (settings.openai_api_key ?? "")) {
+                      void updateSettings({ openai_api_key: draftOpenaiKey }, { probeAfter: true });
+                    } else {
+                      void runProviderProbe(true);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
+                  autoComplete="off"
                 />
               </label>
               <label className="field-label">
                 OpenAI model
                 <input
                   type="text"
-                  value={settings.openai_model}
-                  onChange={(event) => void updateSettings({ openai_model: event.target.value })}
+                  value={draftOpenaiModel}
+                  onChange={(event) => setDraftOpenaiModel(event.target.value)}
+                  onBlur={() => {
+                    if (draftOpenaiModel !== (settings.openai_model ?? "")) {
+                      void updateSettings({ openai_model: draftOpenaiModel }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -741,8 +1056,13 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Grok base URL
                 <input
                   type="url"
-                  value={settings.grok_base_url}
-                  onChange={(event) => void updateSettings({ grok_base_url: event.target.value })}
+                  value={draftGrokUrl}
+                  onChange={(event) => setDraftGrokUrl(event.target.value)}
+                  onBlur={() => {
+                    if (draftGrokUrl !== (settings.grok_base_url ?? "")) {
+                      void updateSettings({ grok_base_url: draftGrokUrl }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -750,17 +1070,30 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Grok API key
                 <input
                   type="password"
-                  value={settings.grok_api_key}
-                  onChange={(event) => void updateSettings({ grok_api_key: event.target.value })}
+                  value={draftGrokKey}
+                  onChange={(event) => setDraftGrokKey(event.target.value)}
+                  onBlur={() => {
+                    if (draftGrokKey !== (settings.grok_api_key ?? "")) {
+                      void updateSettings({ grok_api_key: draftGrokKey }, { probeAfter: true });
+                    } else {
+                      void runProviderProbe(true);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
+                  autoComplete="off"
                 />
               </label>
               <label className="field-label">
                 Grok model
                 <input
                   type="text"
-                  value={settings.grok_model}
-                  onChange={(event) => void updateSettings({ grok_model: event.target.value })}
+                  value={draftGrokModel}
+                  onChange={(event) => setDraftGrokModel(event.target.value)}
+                  onBlur={() => {
+                    if (draftGrokModel !== (settings.grok_model ?? "")) {
+                      void updateSettings({ grok_model: draftGrokModel }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -773,8 +1106,13 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Claude base URL
                 <input
                   type="url"
-                  value={settings.claude_base_url}
-                  onChange={(event) => void updateSettings({ claude_base_url: event.target.value })}
+                  value={draftClaudeUrl}
+                  onChange={(event) => setDraftClaudeUrl(event.target.value)}
+                  onBlur={() => {
+                    if (draftClaudeUrl !== (settings.claude_base_url ?? "")) {
+                      void updateSettings({ claude_base_url: draftClaudeUrl }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -782,17 +1120,30 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 Claude API key
                 <input
                   type="password"
-                  value={settings.claude_api_key}
-                  onChange={(event) => void updateSettings({ claude_api_key: event.target.value })}
+                  value={draftClaudeKey}
+                  onChange={(event) => setDraftClaudeKey(event.target.value)}
+                  onBlur={() => {
+                    if (draftClaudeKey !== (settings.claude_api_key ?? "")) {
+                      void updateSettings({ claude_api_key: draftClaudeKey }, { probeAfter: true });
+                    } else {
+                      void runProviderProbe(true);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
+                  autoComplete="off"
                 />
               </label>
               <label className="field-label">
                 Claude model
                 <input
                   type="text"
-                  value={settings.claude_model}
-                  onChange={(event) => void updateSettings({ claude_model: event.target.value })}
+                  value={draftClaudeModel}
+                  onChange={(event) => setDraftClaudeModel(event.target.value)}
+                  onBlur={() => {
+                    if (draftClaudeModel !== (settings.claude_model ?? "")) {
+                      void updateSettings({ claude_model: draftClaudeModel }, { probeAfter: true });
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -805,8 +1156,16 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 DeepSeek base URL
                 <input
                   type="url"
-                  value={settings.deepseek_base_url}
-                  onChange={(event) => void updateSettings({ deepseek_base_url: event.target.value })}
+                  value={draftDeepseekUrl}
+                  onChange={(event) => setDraftDeepseekUrl(event.target.value)}
+                  onBlur={() => {
+                    if (draftDeepseekUrl !== (settings.deepseek_base_url ?? "")) {
+                      void updateSettings(
+                        { deepseek_base_url: draftDeepseekUrl },
+                        { probeAfter: true },
+                      );
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                 />
               </label>
@@ -814,29 +1173,53 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 DeepSeek API key
                 <input
                   type="password"
-                  value={settings.deepseek_api_key}
-                  onChange={(event) => void updateSettings({ deepseek_api_key: event.target.value })}
+                  value={draftDeepseekKey}
+                  onChange={(event) => setDraftDeepseekKey(event.target.value)}
+                  onBlur={() => {
+                    if (draftDeepseekKey !== (settings.deepseek_api_key ?? "")) {
+                      void updateSettings(
+                        { deepseek_api_key: draftDeepseekKey },
+                        { probeAfter: true },
+                      );
+                    } else {
+                      void runProviderProbe(true);
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
+                  autoComplete="off"
+                  placeholder={t("settings.aiKeyPh")}
                 />
               </label>
               <label className="field-label">
                 DeepSeek model
                 <input
                   type="text"
-                  value={settings.deepseek_model}
-                  onChange={(event) => void updateSettings({ deepseek_model: event.target.value })}
+                  value={draftDeepseekModel}
+                  onChange={(event) => setDraftDeepseekModel(event.target.value)}
+                  onBlur={() => {
+                    if (draftDeepseekModel !== (settings.deepseek_model ?? "")) {
+                      void updateSettings(
+                        { deepseek_model: draftDeepseekModel },
+                        { probeAfter: true },
+                      );
+                    }
+                  }}
                   disabled={settings.pure_local_mode}
                   placeholder="deepseek-chat"
                 />
               </label>
+              <p className="muted">
+                Paste your key and leave the field (blur) to save — the light turns green if the API
+                accepts it, red if not.
+              </p>
             </>
           )}
         </SettingsCard>
 
         <SettingsCard
           id="observatory"
-          title="Observatory"
-          description="Live thought streams and activity history for agent work."
+          title={t("settings.card.observatory")}
+          description={t("settings.card.observatoryDesc")}
         >
           <label className="checkbox-row">
             <input
@@ -846,7 +1229,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ agent_activity_stream_enabled: event.target.checked })
               }
             />
-            <span>Enable live thought stream (token-level when supported)</span>
+            <span>{t("settings.liveStream")}</span>
           </label>
           <label className="checkbox-row">
             <input
@@ -856,7 +1239,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ agent_activity_persist_stream: event.target.checked })
               }
             />
-            <span>Persist stream events to company history</span>
+            <span>{t("settings.persistStream")}</span>
           </label>
           <label className="field-label">
             Max activity events retained
@@ -874,7 +1257,11 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
           </label>
         </SettingsCard>
 
-        <SettingsCard id="meetings" title="Meetings" description="Turn limits and LLM fallback behavior.">
+        <SettingsCard
+          id="meetings"
+          title={t("settings.card.meetings")}
+          description={t("settings.card.meetingsDesc")}
+        >
           <label className="field-label">
             Meeting turns per agent
             <input
@@ -895,29 +1282,32 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
                 void updateSettings({ meeting_llm_fallback: event.target.checked })
               }
             />
-            <span>Fall back to mock dialogue if live LLM fails</span>
+            <span>{t("settings.meetingFallback")}</span>
           </label>
-          <div className="panel-actions">
-            <button
-              type="button"
-              onClick={async () => {
+
+          <ProviderConnectionStatus
+            status={providerProbeStatus}
+            probe={providerProbe}
+            busyDisabled={settings.pure_local_mode}
+            onTest={() => {
+              void (async () => {
                 try {
                   const status = await invoke<MeetingAiStatus>("get_meeting_ai_status");
                   setStatusMessage(status.message);
                 } catch (error) {
                   setStatusMessage(String(error));
                 }
-              }}
-            >
-              Test meeting AI connection
-            </button>
-          </div>
+                await runProviderProbe(true);
+              })();
+            }}
+            idleHint={t("settings.meetingIdleHint")}
+          />
         </SettingsCard>
 
         <SettingsCard
           id="backup"
-          title="Backup & export"
-          description="Company backups, workspace exports, and restore."
+          title={t("settings.card.backup")}
+          description={t("settings.card.backupDesc")}
           wide
         >
           <label className="field-label">
@@ -926,7 +1316,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               type="text"
               value={restorePath}
               onChange={(event) => setRestorePath(event.target.value)}
-              placeholder="/path/to/soulcorp-backup.json"
+              placeholder={t("settings.backupPathPh")}
             />
           </label>
           <div className="panel-actions stacked settings-export-actions">
@@ -952,73 +1342,91 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               Export QC-rated Deliverables (ZIP)
             </button>
             <button type="button" onClick={() => void openExportsFolder()}>
-              Open Exports Folder
+              {t("settings.openExportsFolder")}
             </button>
             <button type="button" onClick={() => void importBackup()}>
-              Import Company Backup
+              {t("settings.importCompanyBackup")}
             </button>
           </div>
         </SettingsCard>
 
         <SettingsCard
           id="deploy"
-          title="One-click deploy"
-          description="Push your exported static site to GitHub, Vercel, or Netlify."
+          title={t("settings.card.deploy")}
+          description={t("settings.card.deployDesc")}
           wide
         >
           {deployBusy && !deployStatus ? (
-            <p className="muted">Checking deploy tooling…</p>
+            <p className="muted">{t("settings.deployChecking")}</p>
           ) : null}
           {deployStatus ? (
             <div className="deploy-status-row">
               <span className={`deploy-pill ${deployStatus.git_available ? "ready" : "missing"}`}>
-                git {deployStatus.git_available ? "ready" : "missing"}
+                {t("settings.deploy.git", {
+                  status: deployStatus.git_available
+                    ? t("settings.deploy.ready")
+                    : t("settings.deploy.missing"),
+                })}
               </span>
               <span className={`deploy-pill ${deployStatus.gh_authenticated ? "ready" : "missing"}`}>
-                gh {deployStatus.gh_authenticated ? "authenticated" : "needs login"}
+                {t("settings.deploy.gh", {
+                  status: deployStatus.gh_authenticated
+                    ? t("settings.deploy.authenticated")
+                    : t("settings.deploy.needsLogin"),
+                })}
               </span>
               <span
                 className={`deploy-pill ${deployStatus.vercel_cli_available ? "ready" : "missing"}`}
               >
-                vercel {deployStatus.vercel_cli_available ? "ready" : "missing"}
+                {t("settings.deploy.vercel", {
+                  status: deployStatus.vercel_cli_available
+                    ? t("settings.deploy.ready")
+                    : t("settings.deploy.missing"),
+                })}
               </span>
               <span
                 className={`deploy-pill ${deployStatus.netlify_cli_available ? "ready" : "missing"}`}
               >
-                netlify {deployStatus.netlify_cli_available ? "ready" : "missing"}
+                {t("settings.deploy.netlify", {
+                  status: deployStatus.netlify_cli_available
+                    ? t("settings.deploy.ready")
+                    : t("settings.deploy.missing"),
+                })}
               </span>
             </div>
           ) : null}
           {deployStatus?.last_deploy_url ? (
             <p className="last-deploy-status muted">
-              Last deploy ({deployStatus.last_deploy_provider ?? "unknown"}):{" "}
-              {deployStatus.last_deploy_url}
+              {t("settings.deploy.last", {
+                provider: deployStatus.last_deploy_provider ?? t("settings.deploy.unknown"),
+                url: deployStatus.last_deploy_url,
+              })}
               {deployStatus.last_deploy_at
                 ? ` · ${new Date(deployStatus.last_deploy_at).toLocaleString()}`
                 : null}
             </p>
           ) : null}
           <label className="field-label">
-            GitHub repo URL (optional — leave blank to create via gh)
+            {t("settings.deploy.repoUrl")}
             <input
               type="url"
               value={githubRepoUrl}
               onChange={(event) => setGithubRepoUrl(event.target.value)}
-              placeholder="https://github.com/you/soulcorp-site.git"
+              placeholder={t("settings.deployRepoPh")}
             />
           </label>
           <label className="field-label">
-            New repo name (when creating with gh)
+            {t("settings.deploy.repoName")}
             <input
               type="text"
               value={githubRepoName}
               onChange={(event) => setGithubRepoName(event.target.value)}
-              placeholder="soulcorp-company-site"
+              placeholder={t("settings.deploySitePh")}
             />
           </label>
           <div className="panel-actions stacked">
             <button type="button" onClick={() => void refreshDeployStatus()}>
-              Refresh deploy tooling
+              {t("settings.deploy.refresh")}
             </button>
             <button
               type="button"
@@ -1026,7 +1434,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               disabled={deployBusy || !deployStatus?.git_available}
               onClick={() => void pushToGithub()}
             >
-              Push to GitHub
+              {t("settings.deploy.pushGithub")}
             </button>
             <button
               type="button"
@@ -1034,7 +1442,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               disabled={deployBusy || !deployStatus?.vercel_cli_available}
               onClick={() => void pushToVercel()}
             >
-              Push to Vercel
+              {t("settings.deploy.pushVercel")}
             </button>
             <button
               type="button"
@@ -1042,7 +1450,7 @@ export function SettingsPanel({ activeSection }: SettingsPanelProps) {
               disabled={deployBusy || !deployStatus?.netlify_cli_available}
               onClick={() => void pushToNetlify()}
             >
-              Push to Netlify
+              {t("settings.deploy.pushNetlify")}
             </button>
           </div>
         </SettingsCard>

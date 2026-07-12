@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useGameStore } from "../../stores/gameStore";
@@ -8,10 +8,12 @@ import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilt
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const EVENT_PAGE_SIZE = 5;
 
 export function EventFeed() {
+  const { t } = useI18n();
   const events = useGameStore((state) => state.events);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
   const settings = useGameStore((state) => state.settings);
@@ -82,13 +84,14 @@ export function EventFeed() {
           {foresight.map((preview) => (
             <article key={preview.id} className={`event-card tone-${preview.tone} foresight-card`}>
               <strong>
-                Day {preview.expected_day}: {preview.title}
+                {t("events.dayTitle", { day: preview.expected_day, title: preview.title })}
               </strong>
               <p>{preview.description}</p>
               <span className="foresight-meta">
-                {(preview.confidence * 100).toFixed(0)}% confidence · tokens{" "}
-                {preview.cash_delta >= 0 ? "+" : ""}
-                {preview.cash_delta.toFixed(0)}
+                {t("events.foresightMeta", {
+                  pct: (preview.confidence * 100).toFixed(0),
+                  delta: `${preview.cash_delta >= 0 ? "+" : ""}${preview.cash_delta.toFixed(0)}`,
+                })}
               </span>
             </article>
           ))}
@@ -96,12 +99,12 @@ export function EventFeed() {
       ) : null}
       {events.length > 0 ? (
         <>
-          <h3>Recent Events</h3>
+          <h3>{t("events.recent")}</h3>
           <SearchableListToolbar
             query={searchQuery}
             onQueryChange={setSearchQuery}
-            placeholder="Search events…"
-            ariaLabel="Search events"
+            placeholder={t("events.searchPlaceholder")}
+            ariaLabel={t("events.searchAria")}
             matchCount={
               debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
                 ? filteredEvents.length
@@ -112,12 +115,12 @@ export function EventFeed() {
               value: searchType,
               onChange: setSearchType,
               options: EVENT_FEED_SEARCH_TYPES,
-              ariaLabel: "Filter event search field",
-              label: "Field",
+              ariaLabel: t("events.filterAria"),
+              label: t("events.filterField"),
             }}
           />
           {debouncedQuery.trim() && filteredEvents.length === 0 ? (
-            <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+            <p className="search-empty-hint muted">{t("events.noMatches", { query: debouncedQuery })}</p>
           ) : (
             <>
               {pageItems.map((event) => (
@@ -132,7 +135,7 @@ export function EventFeed() {
               <PaginationBar
                 page={safePage}
                 totalPages={totalPages}
-                label="Events"
+                label={t("events.pagination")}
                 onPageChange={setListPage}
               />
             </>

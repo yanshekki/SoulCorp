@@ -1,3 +1,4 @@
+use crate::ai::{self, ProviderCredentialProbe};
 use crate::db::persistence::commit;
 use crate::hub::{filter_gigs_for_tier, HubClient, HubGig, HubSyncPull};
 use crate::state::AppState;
@@ -6,8 +7,9 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubConfigUpdate {
     pub base_url: Option<String>,
@@ -62,8 +64,28 @@ fn hub_status_from(state: &AppState) -> HubStatus {
 
 #[tauri::command]
 pub fn get_hub_status(state: State<'_, Mutex<AppState>>) -> Result<HubStatus, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(hub_status_from(&state))
+}
+
+/// Live-test hub URL + API key for the Cloud & hub green/red light.
+#[tauri::command]
+pub async fn test_hub_connection(app: AppHandle) -> Result<ProviderCredentialProbe, String> {
+    tokio::task::spawn_blocking(move || {
+        let state_mutex = app.state::<Mutex<AppState>>();
+        let (settings, hub) = {
+            let state = state_mutex.lock_or_recover()?;
+            (state.settings.clone(), state.hub.clone())
+        };
+        let probe = ai::probe_hub_credentials(&settings, &hub);
+        // Reflect live reachability on hub.connected for the rest of the app.
+        if let Ok(mut state) = state_mutex.lock() {
+            state.hub.connected = probe.ok && probe.has_credentials && !state.settings.pure_local_mode;
+        }
+        Ok(probe)
+    })
+    .await
+    .map_err(|e| format!("hub probe task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -73,7 +95,7 @@ pub fn update_hub_config(
     app: AppHandle,
 ) -> Result<HubStatus, String> {
     {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         if let Some(base_url) = update.base_url {
             state.hub.base_url = base_url;
         }
@@ -95,7 +117,7 @@ pub async fn list_hub_gigs(
     app: AppHandle,
 ) -> Result<HubGigListResult, String> {
     let (client, tier, pure_local, cached_gigs) = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         let tier = state.hub.user_tier.clone();
         let pure_local = state.settings.pure_local_mode;
         let cached_gigs = state.hub.cached_open_gigs.clone();
@@ -116,7 +138,7 @@ pub async fn list_hub_gigs(
     } else if let Some(client) = client {
         match client.list_open_gigs().await {
             Ok(gigs) => {
-                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let mut state = app_state.lock_or_recover()?;
                 state.hub.cached_open_gigs = gigs.clone();
                 commit(app, &state)?;
                 (gigs, false, None)
@@ -154,7 +176,7 @@ pub async fn create_hub_gig(
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
     let (client, payload) = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         if state.settings.pure_local_mode {
             return Err(
                 "Pure Local Mode is enabled. Marketplace actions are local-only.".to_string(),
@@ -177,7 +199,7 @@ pub async fn create_hub_gig(
     let queued_title = request.title.clone();
     match client.create_gig(payload).await {
         Ok(response) => {
-            let mut state = app_state.lock().map_err(|e| e.to_string())?;
+            let mut state = app_state.lock_or_recover()?;
             state.sync_queue.retain(|item| {
                 item.get("type") != Some(&json!("gig_create"))
                     || item.get("title").and_then(|value| value.as_str()) != Some(queued_title.as_str())
@@ -204,7 +226,7 @@ pub async fn sync_with_hub(
     progress.emit_percent("Connecting to SoulMD Hub…", 30.0, Some("connect"));
 
     let client = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         if state.settings.pure_local_mode {
             return Err("Pure Local Mode is enabled. Cloud sync is disabled.".to_string());
         }
@@ -212,7 +234,7 @@ pub async fn sync_with_hub(
     };
 
     {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         let flush = crate::gigs::flush_pending_hub_gig_ops(&mut state);
         if flush.qc_submitted > 0
             || flush.gigs_assigned > 0
@@ -227,7 +249,7 @@ pub async fn sync_with_hub(
     }
 
     let queue = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         state.sync_queue.clone()
     };
 
@@ -240,13 +262,13 @@ pub async fn sync_with_hub(
                     .and_then(|value| value.as_u64())
                     .unwrap_or(0);
                 if processed > 0 {
-                    let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                    let mut state = app_state.lock_or_recover()?;
                     state.sync_queue.clear();
                     commit(app.clone(), &state)?;
                 }
             }
             Err(error) => {
-                let mut state = app_state.lock().map_err(|e| e.to_string())?;
+                let mut state = app_state.lock_or_recover()?;
                 let _ = crate::gigs::flush_pending_hub_gig_ops(&mut state);
                 commit(app.clone(), &state)?;
                 if !state.sync_queue.is_empty() {
@@ -263,7 +285,7 @@ pub async fn sync_with_hub(
         .map_err(|error| format!("Hub sync pull failed: {error}"))?;
 
     {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         state.hub.connected = true;
         state.hub.user_tier = pull.tier.clone();
         state.hub.soul_balance = pull.soul_balance;
@@ -273,7 +295,7 @@ pub async fn sync_with_hub(
     }
 
     let tier = {
-        let state = app_state.lock().map_err(|e| e.to_string())?;
+        let state = app_state.lock_or_recover()?;
         state.hub.user_tier.clone()
     };
     let mut pull = pull;
@@ -289,7 +311,7 @@ pub async fn fetch_soul_balance(
     app: AppHandle,
 ) -> Result<HubStatus, String> {
     let client = {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         if state.settings.pure_local_mode {
             state.hub.soul_balance = 0.0;
             state.hub.user_tier = "local".to_string();
@@ -305,7 +327,7 @@ pub async fn fetch_soul_balance(
     };
 
     if let Ok(body) = client.soul_balance().await {
-        let mut state = app_state.lock().map_err(|e| e.to_string())?;
+        let mut state = app_state.lock_or_recover()?;
         state.hub.soul_balance = body
             .get("soul_balance")
             .and_then(|v| v.as_f64())

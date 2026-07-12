@@ -17,6 +17,7 @@ import type {
 import { AGENT_WORKSPACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchField } from "./SearchField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface AgentWorkspaceBrowserProps {
   agents: AgentRecord[];
@@ -49,6 +50,7 @@ export function AgentWorkspaceBrowser({
   selectedAgentId,
   onSelectAgent,
 }: AgentWorkspaceBrowserProps) {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
 
@@ -202,14 +204,14 @@ export function AgentWorkspaceBrowser({
     if (!activeAgentId || creatingPage) {
       return;
     }
-    const title = window.prompt("New page title", "Notes");
+    const title = window.prompt(t("agentWs.newPageTitle"), t("agentWs.notesDefault"));
     if (!title?.trim()) {
       return;
     }
     setCreatingPage(true);
     try {
       const page = await createAgentWorkspacePage(activeAgentId, title.trim());
-      setStatusMessage(`Created "${page.title}" in ${activeAgent?.name ?? "agent"} workspace.`);
+      setStatusMessage(t("agentWs.created", { title: page.title, name: activeAgent?.name ?? "agent" }));
       await loadContext();
       setSelectedPageId(page.id);
       setSearchQuery("");
@@ -229,9 +231,9 @@ export function AgentWorkspaceBrowser({
         data-agents-section="workspaces"
       >
         <header className="agents-card-header">
-          <h3>Agent workspaces</h3>
+          <h3>{t("agentWs.title")}</h3>
         </header>
-        <p className="muted">Hire agents to browse per-employee workspace folders and pages.</p>
+        <p className="muted">{t("agentWs.hireFirst")}</p>
       </section>
     );
   }
@@ -243,7 +245,7 @@ export function AgentWorkspaceBrowser({
       data-agents-section="workspaces"
     >
       <header className="agents-card-header">
-        <h3>Agent workspaces</h3>
+        <h3>{t("agentWs.title")}</h3>
         <div className="agents-workspace-header-actions">
           <button
             type="button"
@@ -251,7 +253,7 @@ export function AgentWorkspaceBrowser({
             onClick={() => void loadContext()}
             disabled={loadingContext}
           >
-            {loadingContext ? "Loading…" : "Refresh"}
+            {loadingContext ? t("agentWs.loading") : t("agentWs.refresh")}
           </button>
           {activeAgent ? (
             <button
@@ -259,20 +261,17 @@ export function AgentWorkspaceBrowser({
               className="agents-workspace-action"
               onClick={() => void openAgentWorkspace(activeAgent.id, activeAgent.name)}
             >
-              Open in Workspace
+              {t("agentWs.openWorkspace")}
             </button>
           ) : null}
         </div>
       </header>
-      <p className="muted agents-workspace-subtitle">
-        Browse each agent&apos;s folder, search their docs, and preview pages before opening the
-        full editor.
-      </p>
+      <p className="muted agents-workspace-subtitle">{t("agentWs.subtitle")}</p>
 
       <div className="agents-workspace-browser">
         <aside className="agents-workspace-sidebar">
           <label className="field-label">
-            Agent
+            {t("agentWs.agent")}
             <select
               value={activeAgentId}
               onChange={(event) => handleAgentChange(event.target.value)}
@@ -287,15 +286,15 @@ export function AgentWorkspaceBrowser({
 
           {context ? (
             <p className="muted agents-workspace-stats">
-              {context.pages.length} pages · {context.files.length} files
+              {t("agentWs.stats", { pages: context.pages.length, files: context.files.length })}
             </p>
           ) : null}
 
           <SearchField
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search this agent's pages…"
-            ariaLabel="Search agent workspace"
+            placeholder={t("agentWs.searchPh")}
+            ariaLabel={t("agentWs.searchAria")}
             matchCount={
               searchQuery.trim() || searchType !== SEARCH_TYPE_ALL
                 ? listedPages.length
@@ -305,19 +304,19 @@ export function AgentWorkspaceBrowser({
               value: searchType,
               onChange: setSearchType,
               options: AGENT_WORKSPACE_SEARCH_TYPES,
-              ariaLabel: "Filter agent workspace search field",
-              label: "Field",
+              ariaLabel: t("agentWs.filterAria"),
+              label: t("agentWs.field"),
             }}
           />
 
-          <div className="agents-workspace-page-list" role="listbox" aria-label="Agent pages">
+          <div className="agents-workspace-page-list" role="listbox" aria-label={t("agentWs.pagesAria")}>
             {loadingContext ? (
-              <p className="muted">Loading folder…</p>
+              <p className="muted">{t("agentWs.loadingFolder")}</p>
             ) : listedPages.length === 0 ? (
               <p className="muted">
                 {searchQuery.trim()
-                  ? "No matching pages."
-                  : "No pages yet — create one or run a task with agent tools."}
+                  ? t("agentWs.noMatch")
+                  : t("agentWs.noPages")}
               </p>
             ) : (
               listedPages.map((page) => {
@@ -341,7 +340,7 @@ export function AgentWorkspaceBrowser({
                         ? snippet
                         : page.last_edited_by
                           ? `${page.last_edited_by} · ${formatRelativeTime(page.last_edited_at)}`
-                          : "Page"}
+                          : t("agentWs.pageMeta")}
                     </span>
                   </button>
                 );
@@ -355,23 +354,25 @@ export function AgentWorkspaceBrowser({
             disabled={!activeAgentId || creatingPage}
             onClick={() => void createPage()}
           >
-            {creatingPage ? "Creating…" : "New page"}
+            {creatingPage ? t("agentWs.creating") : t("agentWs.newPage")}
           </button>
         </aside>
 
         <div className="agents-workspace-preview">
           {!selectedPageId ? (
-            <p className="muted">Select a page to preview its content.</p>
+            <p className="muted">{t("agentWs.selectPreview")}</p>
           ) : loadingPreview ? (
-            <p className="muted">Loading preview…</p>
+            <p className="muted">{t("agentWs.loadingPreview")}</p>
           ) : pagePreview ? (
             <>
               <header className="agents-workspace-preview-header">
                 <div>
                   <h4>{pagePreview.title}</h4>
                   <p className="muted">
-                    Edited by {pagePreview.last_edited_by} ·{" "}
-                    {formatRelativeTime(pagePreview.last_edited_at)}
+                    {t("agentWs.editedBy", {
+                      who: pagePreview.last_edited_by,
+                      when: formatRelativeTime(pagePreview.last_edited_at),
+                    })}
                   </p>
                 </div>
                 <button
@@ -379,18 +380,20 @@ export function AgentWorkspaceBrowser({
                   className="secondary-action"
                   onClick={() => void openSelectedInWorkspace()}
                 >
-                  Edit in Workspace
+                  {t("agentWs.editInWorkspace")}
                 </button>
               </header>
-              <pre className="agents-workspace-preview-body">{pagePreview.text || "(empty)"}</pre>
+              <pre className="agents-workspace-preview-body">
+                {pagePreview.text || t("agentWs.emptyPage")}
+              </pre>
             </>
           ) : (
-            <p className="muted">Could not load page preview.</p>
+            <p className="muted">{t("agentWs.previewFailed")}</p>
           )}
 
           {context && context.recent_edits.length > 0 ? (
             <footer className="agents-workspace-recent">
-              <h5>Recent edits</h5>
+              <h5>{t("agentWs.recentEdits")}</h5>
               <ul>
                 {context.recent_edits.slice(0, 5).map((entry) => (
                   <li key={`${entry.page_id}-${entry.last_edited_at}`}>

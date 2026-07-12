@@ -1,9 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./tauriInvoke";
 import { audioDirector, type SfxId } from "../audio/AudioDirector";
 import { getCatalogEntry } from "../data/furnitureCatalog";
 import { useGameStore } from "../stores/gameStore";
 import type { FurnitureInstance, OfficeVisualConfig } from "../types/visualDesign";
 import type { FurnitureHit } from "../components/world/interiorScene";
+import { languageFromSettings, translate } from "../i18n";
 export type FurnitureAction =
   | "reception_hr"
   | "whiteboard_meeting"
@@ -53,20 +54,26 @@ export function sfxForFurnitureAction(action: FurnitureAction): SfxId | null {
 }
 
 export function furnitureInteractionHint(catalogId: string): string {
+  const language = languageFromSettings(useGameStore.getState().settings);
+  const t = (key: string, params?: Record<string, string | number>) =>
+    translate(language, key, params);
   const action = furnitureActionForCatalog(catalogId);
   const entry = getCatalogEntry(catalogId);
-  const label = entry?.label ?? catalogId;
+  const labelKey = entry ? `furniture.${entry.id}` : "";
+  const translated = labelKey ? t(labelKey) : catalogId;
+  const label =
+    labelKey && translated !== labelKey ? translated : (entry?.label ?? catalogId);
   switch (action) {
     case "reception_hr":
-      return `${label} — open Recruitment`;
+      return t("furniture.hint.reception", { label });
     case "whiteboard_meeting":
-      return `${label} — new Meeting Notes page`;
+      return t("furniture.hint.whiteboard", { label });
     case "equipment_info":
-      return `${label} — token usage & skills`;
+      return t("furniture.hint.equipment", { label });
     case "desk_assign":
-      return `${label} — assign agent seat`;
+      return t("furniture.hint.desk", { label });
     case "decor_buff":
-      return `${label} — morale boost zone (2m)`;
+      return t("furniture.hint.decor", { label });
     default:
       return label;
   }
@@ -111,7 +118,7 @@ async function openMeetingNotesPage(department: string): Promise<void> {
     tree.folders[0];
 
   if (!folder) {
-    useGameStore.getState().setStatusMessage("Create a workspace folder before using the whiteboard.");
+    useGameStore.getState().setStatusMessage(translate(languageFromSettings(useGameStore.getState().settings), "status.whiteboardNeedFolder"));
     return;
   }
 
@@ -129,7 +136,7 @@ async function openMeetingNotesPage(department: string): Promise<void> {
   await refreshWorkspaceTree(false);
   await useWorkspaceStore.getState().openPage(page.id);
   useGameStore.getState().setActivePanel("workspace");
-  useGameStore.getState().setStatusMessage(`Opened ${page.title} in Workspace.`);
+  useGameStore.getState().setStatusMessage(translate(languageFromSettings(useGameStore.getState().settings), "status.openedInWorkspace", { title: page.title }));
 }
 
 export async function handleFurnitureClick(hit: FurnitureHit, buildingId: string): Promise<void> {
@@ -145,7 +152,7 @@ export async function handleFurnitureClick(hit: FurnitureHit, buildingId: string
   switch (action) {
     case "reception_hr":
       state.setActivePanel("recruitment");
-      state.setStatusMessage("Reception — recruitment & morale tools.");
+      state.setStatusMessage(translate(languageFromSettings(state.settings), "status.receptionTools"));
       break;
     case "whiteboard_meeting":
       await openMeetingNotesPage(

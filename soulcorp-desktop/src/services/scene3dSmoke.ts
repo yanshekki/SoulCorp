@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { probeWebGL } from "../components/world/webglDiagnostics";
 
 type RenderStatus = "initializing" | "ready" | "failed";

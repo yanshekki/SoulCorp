@@ -19,6 +19,11 @@ export function formatWorkNodeStatus(status: WorkNodeStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
 
+/** i18n key for work node status badge (use with t()). */
+export function workNodeStatusI18nKey(status: WorkNodeStatus): string {
+  return `status.${status}`;
+}
+
 export function workNodeStatusClass(status: WorkNodeStatus): string {
   return `backlog-status backlog-status--${status}`;
 }
@@ -84,18 +89,40 @@ export function canRunTask(task: WorkNode): boolean {
 }
 
 export function runDisabledReason(task: WorkNode): string | null {
+  if (task.kind !== "task") {
+    return "Only tasks can be run";
+  }
   if (!task.assignee_agent_id) {
-    return "Assign an agent first";
+    return "Assign an agent first — Run spends tokens for that agent to write a deliverable.";
   }
   if (task.status === "done") {
-    return "Task already done";
+    return "Already done — open Workspace for the deliverable. Run only works on unfinished tasks.";
   }
   if (task.status === "in_review") {
-    return "Awaiting review";
+    return "Awaiting review — use Approve (or fix, then re-run after revision).";
   }
   if (task.status === "blocked") {
-    return "Task is blocked";
+    return "Task is blocked — unblock before running.";
   }
   return null;
+}
+
+/** Primary action label for the task row (what the gold button should do). */
+export function taskPrimaryAction(
+  task: WorkNode,
+): "run" | "approve" | "open_result" | "assign" | "blocked" | "busy" {
+  if (task.status === "done") {
+    return task.linked_workspace_page_id ? "open_result" : "blocked";
+  }
+  if (task.status === "in_review") {
+    return "approve";
+  }
+  if (task.status === "blocked") {
+    return "blocked";
+  }
+  if (!task.assignee_agent_id) {
+    return "assign";
+  }
+  return "run";
 }
 

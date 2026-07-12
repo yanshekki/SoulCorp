@@ -1,16 +1,20 @@
+import { useI18n } from "../../i18n/I18nProvider";
+
 interface WorkspaceEmptyStateProps {
   error?: string | null;
   onCreatePage?: () => void;
 }
 
 export function WorkspaceEmptyState({ error, onCreatePage }: WorkspaceEmptyStateProps) {
+  const { t } = useI18n();
+
   if (error) {
     return (
       <div className="ws-empty-state ws-empty-state--error">
         <div className="ws-empty-icon" aria-hidden="true">
           ⚠
         </div>
-        <h2>Could not open page</h2>
+        <h2>{t("workspace.empty.errorTitle")}</h2>
         <p>{error}</p>
       </div>
     );
@@ -21,31 +25,36 @@ export function WorkspaceEmptyState({ error, onCreatePage }: WorkspaceEmptyState
       <div className="ws-empty-icon" aria-hidden="true">
         📄
       </div>
-      <h2>Your company knowledge base</h2>
-      <p className="ws-empty-lead">
-        Write meeting notes, project briefs, and deliverables in a focused editor with rich
-        formatting, links, tables, and version history.
-      </p>
+      <h2>{t("workspace.empty.title")}</h2>
+      <p className="ws-empty-lead">{t("workspace.empty.lead")}</p>
       <ul className="ws-empty-features">
         <li>
-          <strong>Rich blocks</strong> — headings, tasks, quotes, code, tables
+          <strong>{t("workspace.empty.feat.blocks")}</strong>
+          {" — "}
+          {t("workspace.empty.feat.blocksDesc")}
         </li>
         <li>
-          <strong>Entity links</strong> — connect pages to projects, agents, meetings
+          <strong>{t("workspace.empty.feat.links")}</strong>
+          {" — "}
+          {t("workspace.empty.feat.linksDesc")}
         </li>
         <li>
-          <strong>Files</strong> — upload images, PDF, Office docs, archives, audio, and video
+          <strong>{t("workspace.empty.feat.files")}</strong>
+          {" — "}
+          {t("workspace.empty.feat.filesDesc")}
         </li>
         <li>
-          <strong>Auto-save</strong> — page changes persist locally as you type
+          <strong>{t("workspace.empty.feat.autosave")}</strong>
+          {" — "}
+          {t("workspace.empty.feat.autosaveDesc")}
         </li>
       </ul>
       {onCreatePage ? (
         <button type="button" className="ws-empty-cta" onClick={onCreatePage}>
-          Create your first page
+          {t("workspace.empty.cta")}
         </button>
       ) : (
-        <p className="muted">Select a page from the sidebar, or create one with the + button.</p>
+        <p className="muted">{t("workspace.empty.hint")}</p>
       )}
     </div>
   );

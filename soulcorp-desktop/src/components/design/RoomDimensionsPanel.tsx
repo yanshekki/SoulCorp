@@ -7,6 +7,7 @@ import {
 } from "../../types/visualDesign";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { OfficeArchitecturePanel } from "./OfficeArchitecturePanel";
+import { useI18n } from "../../i18n/I18nProvider";
 
 function zoneArea(room: RoomDimensions): number {
   return room.width * room.depth;
@@ -19,6 +20,7 @@ const DIM_LABELS: Record<keyof RoomDimensions, string> = {
 };
 
 export function RoomDimensionsPanel() {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const draft = useDesignStudioStore((state) => state.draft);
@@ -53,10 +55,9 @@ export function RoomDimensionsPanel() {
   return (
     <section className="design-panel design-room-panel">
       <header>
-        <h2>Room size</h2>
+        <h2>{t("design.roomSize")}</h2>
         <p className="muted">
-          Drag sliders or type meters — floor plan and 3D update together. Total area{" "}
-          <strong>{totalArea.toFixed(1)} m²</strong>
+          {t("design.roomSizeDesc", { area: totalArea.toFixed(1) })}
         </p>
       </header>
 
@@ -64,16 +65,16 @@ export function RoomDimensionsPanel() {
 
       {(
         [
-          ["Lobby", "lobby_room"],
-          ["Corridor", "corridor_room"],
-          ["Office", "room"],
+          ["design.zone.lobby", "lobby_room"],
+          ["design.zone.corridor", "corridor_room"],
+          ["design.zone.office", "room"],
         ] as const
       ).map(([label, key]) => {
         const room = config[key];
         return (
           <div key={key} className="design-slider-grid">
             <strong>
-              {label}{" "}
+              {t(label)}{" "}
               <span className="muted">({zoneArea(room).toFixed(1)} m²)</span>
             </strong>
             {(["width", "depth", "height"] as const).map((dim) => (

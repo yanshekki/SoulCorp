@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SimulationTickResult {
     pub tick: u64,
@@ -68,7 +69,7 @@ pub async fn run_simulation_tick(
     progress.emit_percent("Starting simulation tick…", 5.0, Some("start"));
 
     let snapshot = {
-        let mut state = state.lock().map_err(|e| e.to_string())?;
+        let mut state = state.lock_or_recover()?;
 
         state.tick += 1;
         reset_token_budget_periods(&mut state);
@@ -105,7 +106,7 @@ pub async fn run_simulation_tick(
             let interval_ticks = state.settings.backup_interval_minutes as u64 * 60;
             if state.tick.saturating_sub(state.last_backup_tick) >= interval_ticks {
                 if let Err(err) = write_auto_backup(&app, &state) {
-                    eprintln!("Auto-backup skipped: {err}");
+                    crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::System, "auto_backup", format!("Auto-backup skipped: {err}"), None);
                 } else {
                     state.last_backup_tick = state.tick;
                 }
@@ -130,17 +131,18 @@ pub async fn run_simulation_tick(
         }
     };
 
+    // Unlocked: never hold AppState across LLM/CLI (UI freeze).
     let scrum_note = {
-        let mut locked = state.lock().map_err(|e| e.to_string())?;
-        let note = if locked.settings.scrum_worker_enabled {
+        let worker_on = state
+            .lock_or_recover()
+            .ok()
+            .map(|s| s.settings.scrum_worker_enabled)
+            .unwrap_or(true);
+        if worker_on {
             None
         } else {
-            crate::scrum::apply_scrum_execution_tick(&mut locked, &app)
-        };
-        if note.is_some() {
-            let _ = commit_debounced(app.clone(), &locked);
+            crate::scrum::apply_scrum_execution_tick(&app)
         }
-        note
     };
 
     let event = if snapshot.try_fate_event {
@@ -148,18 +150,18 @@ pub async fn run_simulation_tick(
         let app_for_fate = app.clone();
         match tokio::task::spawn_blocking(move || {
             let mutex = app_for_fate.state::<Mutex<AppState>>();
-            let mut state = mutex.lock().map_err(|e| e.to_string())?;
+            let mut state = mutex.lock_or_recover()?;
             Ok::<_, String>(generate_and_apply_fate_event(&mut state))
         })
         .await
         {
             Ok(Ok(generated)) => generated,
             Ok(Err(error)) => {
-                eprintln!("Fate event tick failed: {error}");
+                crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::System, "fate_tick", format!("Fate event tick failed: {error}"), None);
                 None
             }
             Err(error) => {
-                eprintln!("Fate event task failed: {error}");
+                crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::System, "fate_task", format!("Fate event task failed: {error}"), None);
                 None
             }
         }
@@ -241,7 +243,7 @@ pub async fn run_simulation_tick(
                 tick_result.message = format!("{} {note}", tick_result.message);
             }
             progress.emit_percent("Saving state…", 95.0, Some("commit"));
-            let mut state = state.lock().map_err(|e| e.to_string())?;
+            let mut state = state.lock_or_recover()?;
             if outcome.pages_written > 0 {
                 state.stats.pages_created += outcome.pages_written;
             }
@@ -253,7 +255,7 @@ pub async fn run_simulation_tick(
         Err(err) => {
             tick_result.message = format!("{} Workspace update failed: {err}", tick_result.message);
             progress.emit_percent("Saving state…", 95.0, Some("commit"));
-            let state = state.lock().map_err(|e| e.to_string())?;
+            let state = state.lock_or_recover()?;
             commit_debounced(app.clone(), &state)?;
         }
     }
@@ -313,7 +315,7 @@ pub struct SimulationSnapshot {
 pub fn get_simulation_snapshot(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<SimulationSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     let agents_active = count_active_agents(&state, true);
 
     Ok(SimulationSnapshot {

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentTokenWallet, DepartmentTokenWallet, TokenBudgetPeriodType } from "../../types/game";
+import { useI18n } from "../../i18n/I18nProvider";
 
-const PERIOD_OPTIONS: { value: TokenBudgetPeriodType; label: string }[] = [
-  { value: "none", label: "No period limit" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly", label: "Yearly" },
-  { value: "custom", label: "Custom days" },
+const PERIOD_OPTIONS: { value: TokenBudgetPeriodType; labelKey: string }[] = [
+  { value: "none", labelKey: "finance.period.none" },
+  { value: "weekly", labelKey: "finance.period.weekly" },
+  { value: "monthly", labelKey: "finance.period.monthly" },
+  { value: "quarterly", labelKey: "finance.period.quarterly" },
+  { value: "yearly", labelKey: "finance.period.yearly" },
+  { value: "custom", labelKey: "finance.period.custom" },
 ];
 
 function formatTokens(value: number): string {
@@ -59,6 +60,7 @@ interface AgentTokenBudgetEditorProps {
 }
 
 export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBudgetEditorProps) {
+  const { t } = useI18n();
   const [limit, setLimit] = useState(0);
   const [periodType, setPeriodType] = useState<TokenBudgetPeriodType>("none");
   const [periodDays, setPeriodDays] = useState(30);
@@ -79,20 +81,22 @@ export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBud
   return (
     <div className="agents-token-budget">
       <div className="agents-token-stats">
-        <span>Balance {formatTokens(wallet?.balance ?? 0)}</span>
+        <span>{t("finance.budget.balance", { amount: formatTokens(wallet?.balance ?? 0) })}</span>
         <span>
-          Period {formatTokens(wallet?.period_spent ?? 0)} /{" "}
-          {(wallet?.period_limit ?? 0) > 0 ? formatTokens(wallet?.period_limit ?? 0) : "∞"}
+          {t("finance.budget.period", {
+            spent: formatTokens(wallet?.period_spent ?? 0),
+            limit: (wallet?.period_limit ?? 0) > 0 ? formatTokens(wallet?.period_limit ?? 0) : "∞",
+          })}
         </span>
-        <span>Lifetime {formatTokens(wallet?.spent ?? 0)}</span>
+        <span>{t("finance.budget.lifetime", { amount: formatTokens(wallet?.spent ?? 0) })}</span>
         {nextReset && effectiveType !== "none" ? (
-          <span className="muted">Resets {nextReset}</span>
+          <span className="muted">{t("finance.budget.resets", { when: nextReset })}</span>
         ) : null}
       </div>
 
       <div className="agents-token-budget-controls">
         <label className="field-label">
-          Period token limit (0 = unlimited)
+          {t("finance.budget.periodLimit")}
           <input
             type="number"
             min={0}
@@ -103,7 +107,7 @@ export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBud
         </label>
 
         <label className="field-label">
-          Reset cycle
+          {t("finance.budget.resetCycle")}
           <select
             value={effectiveType}
             disabled={limit === 0}
@@ -111,7 +115,7 @@ export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBud
           >
             {PERIOD_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </select>
@@ -119,7 +123,7 @@ export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBud
 
         {effectiveType === "custom" ? (
           <label className="field-label">
-            Custom period (days)
+            {t("finance.budget.customDays")}
             <input
               type="number"
               min={1}
@@ -142,8 +146,13 @@ export function AgentTokenBudgetEditor({ wallet, saving, onSave }: AgentTokenBud
             })
           }
         >
-          {saving ? "Saving…" : "Save token budget"}
+          {saving
+            ? t("finance.budget.saving")
+            : limit === 0
+              ? t("finance.budget.saveUnlimited")
+              : t("finance.budget.save")}
         </button>
+        <p className="muted tokens-alloc-hint">{t("finance.budget.hint")}</p>
       </div>
     </div>
   );

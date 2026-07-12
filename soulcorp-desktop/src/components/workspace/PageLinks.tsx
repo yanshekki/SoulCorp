@@ -1,7 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { LinkableEntity, LinkedEntity, WorkspacePage } from "../../types/workspace";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface PageLinksProps {
   page: WorkspacePage;
@@ -10,6 +11,7 @@ interface PageLinksProps {
 }
 
 export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
+  const { t } = useI18n();
   const [linkables, setLinkables] = useState<LinkableEntity[]>([]);
   const [selectedType, setSelectedType] = useState("project");
   const [selectedId, setSelectedId] = useState("");
@@ -83,8 +85,8 @@ export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
   return (
     <section className="page-links">
       <header>
-        <h3>Linked entities</h3>
-        <p className="muted">Connect this page to agents, projects, meetings, or events.</p>
+        <h3>{t("workspace.links.title")}</h3>
+        <p className="muted">{t("workspace.links.lead")}</p>
       </header>
 
       {page.linked_entities.length > 0 ? (
@@ -95,13 +97,13 @@ export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
                 {link.entity_type}: {link.title}
               </span>
               <button type="button" onClick={() => void removeLink(link)}>
-                Remove
+                {t("common.remove")}
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="muted">No links yet. Meeting notes and daily journals auto-link on save.</p>
+        <p className="muted">{t("workspace.links.empty")}</p>
       )}
 
       <div className="page-link-form">
@@ -109,13 +111,13 @@ export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
           setSelectedType(event.target.value);
           setSelectedId("");
         }}>
-          <option value="project">Project</option>
-          <option value="agent">Agent</option>
-          <option value="meeting">Meeting</option>
-          <option value="event">Event</option>
+          <option value="project">{t("workspace.links.project")}</option>
+          <option value="agent">{t("workspace.links.agent")}</option>
+          <option value="meeting">{t("workspace.links.meeting")}</option>
+          <option value="event">{t("workspace.links.event")}</option>
         </select>
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-          <option value="">Select entity...</option>
+          <option value="">{t("workspace.links.selectEntity")}</option>
           {filteredLinkables.map((item) => (
             <option key={item.id} value={item.id}>
               {item.title}
@@ -124,13 +126,13 @@ export function PageLinks({ page, onPageUpdated, onOpenPage }: PageLinksProps) {
           ))}
         </select>
         <button type="button" onClick={() => void addLink()} disabled={!selectedId}>
-          Add link
+          {t("workspace.links.add")}
         </button>
       </div>
 
       {backlinks.length > 0 && (
         <div className="page-backlinks">
-          <h4>Related pages</h4>
+          <h4>{t("workspace.links.related")}</h4>
           <ul>
             {backlinks.map((item) => (
               <li key={item.page_id}>

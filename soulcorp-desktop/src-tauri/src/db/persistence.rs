@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::database_path;
 
+use crate::lock_util::MutexExt;
 const COMMIT_DEBOUNCE_TICKS: u64 = 5;
 
 const SNAPSHOT_SQL: &str = r#"
@@ -61,7 +62,7 @@ pub fn reset_commit_debounce(company_id: &str) {
 
 pub fn commit_debounced(app: AppHandle, state: &AppState) -> Result<(), String> {
     let force = {
-        let mut guard = PENDING_COMMIT.lock().map_err(|e| e.to_string())?;
+        let mut guard = PENDING_COMMIT.lock_or_recover()?;
         let entry = guard.get_or_insert(PendingCommit {
             company_id: state.company_id.clone(),
             last_committed_tick: 0,

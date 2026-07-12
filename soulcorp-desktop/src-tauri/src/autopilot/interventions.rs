@@ -175,7 +175,7 @@ pub fn ceo_reject_deliverable(
         parent_id: parent_id.clone(),
         project_id: project_id.clone(),
         kind: WorkNodeKind::Task,
-        title: format!("Revision: {title}"),
+        title: crate::scrum::tree::revision_task_title(&title),
         description: if feedback.trim().is_empty() {
             "CEO requested revisions.".to_string()
         } else {
@@ -326,10 +326,10 @@ pub fn meeting_follow_up_directive(
             .ok_or_else(|| "Meeting not found.".to_string())?;
         (
             meeting.meeting_type.clone(),
-            meeting
-                .outcome_summary
-                .clone()
-                .unwrap_or_else(|| "Follow up on meeting action items.".to_string()),
+            meeting.outcome_summary.clone().unwrap_or_else(|| {
+                let lang = crate::i18n::language_from_settings(&state.settings);
+                crate::i18n::meeting_default_follow_up_summary(lang)
+            }),
         )
     };
     let project_id = state
@@ -339,9 +339,10 @@ pub fn meeting_follow_up_directive(
         .map(|p| p.id.clone())
         .ok_or_else(|| "No project for follow-up directive.".to_string())?;
 
+    let lang = crate::i18n::language_from_settings(&state.settings);
     let directive = crate::scrum::command_center::issue_directive_record(
         state,
-        format!("Follow-up: {meeting_type}"),
+        crate::i18n::meeting_follow_up_title(lang, &meeting_type),
         summary,
         DirectiveSource::Meeting,
         DirectiveTarget::Project,

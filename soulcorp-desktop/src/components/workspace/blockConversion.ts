@@ -17,38 +17,43 @@ export function richDocFromPage(
     return EMPTY_DOC;
   }
 
-  const content: JSONContent[] = blocks.map((block) => {
-    if (block.type === "heading") {
+  try {
+    const content: JSONContent[] = blocks.map((block) => {
+      const text = typeof block.content === "string" ? block.content : "";
+      if (block.type === "heading") {
+        return {
+          type: "heading",
+          attrs: { level: 2 },
+          content: text ? [{ type: "text", text }] : [],
+        };
+      }
+      if (block.type === "todo") {
+        return {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: Boolean(block.checked) },
+              content: [
+                {
+                  type: "paragraph",
+                  content: text ? [{ type: "text", text }] : [],
+                },
+              ],
+            },
+          ],
+        };
+      }
       return {
-        type: "heading",
-        attrs: { level: 2 },
-        content: [{ type: "text", text: block.content }],
+        type: "paragraph",
+        content: text ? [{ type: "text", text }] : [],
       };
-    }
-    if (block.type === "todo") {
-      return {
-        type: "taskList",
-        content: [
-          {
-            type: "taskItem",
-            attrs: { checked: Boolean(block.checked) },
-            content: [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: block.content }],
-              },
-            ],
-          },
-        ],
-      };
-    }
-    return {
-      type: "paragraph",
-      content: [{ type: "text", text: block.content }],
-    };
-  });
+    });
 
-  return { type: "doc", content };
+    return { type: "doc", content: content.length > 0 ? content : EMPTY_DOC.content };
+  } catch {
+    return EMPTY_DOC;
+  }
 }
 
 export function blocksFromRichDoc(doc: JSONContent): WorkspaceBlock[] {

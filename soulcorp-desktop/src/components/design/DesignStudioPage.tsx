@@ -23,8 +23,10 @@ import {
   type OfficeWorkspaceView,
 } from "./OfficeBuildToolbar";
 import { OfficeInspectorPanel } from "./OfficeInspectorPanel";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function DesignStudioPage() {
+  const { t } = useI18n();
   const category = useDesignStudioStore((state) => state.category);
   const draft = useDesignStudioStore((state) => state.draft);
   const dirty = useDesignStudioStore((state) => state.dirty);
@@ -92,7 +94,7 @@ export function DesignStudioPage() {
       setAgents(applyAgentsVisualDesign(agents, saved));
       setDirty(false);
       audioDirector.playSfx("save_success");
-      setStatusMessage("3D design saved for this company.");
+      setStatusMessage(t("status.designSaved"));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -122,7 +124,7 @@ export function DesignStudioPage() {
       setBuildings(applyBuildingsVisualDesign(buildings, saved));
       setAgents(applyAgentsVisualDesign(agents, saved));
       setDirty(false);
-      setStatusMessage(`Applied preset: ${presetId}`);
+      setStatusMessage(t("status.appliedPreset", { id: presetId }));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -175,7 +177,7 @@ export function DesignStudioPage() {
         </div>
         <div className="design-studio-header-actions">
           <button type="button" onClick={() => void reloadGameState()} disabled={saving}>
-            Reload
+            {t("common.reload")}
           </button>
           <button
             type="button"
@@ -217,7 +219,7 @@ export function DesignStudioPage() {
         <div className="design-studio-right-chrome" data-drawer-open={drawerOpen ? "true" : "false"}>
           <aside
             className={`design-studio-drawer${drawerOpen ? " open" : ""}`}
-            aria-label="Design editor"
+            aria-label={t("design.editorAria")}
             aria-hidden={!drawerOpen}
           >
             {renderDrawerContent()}
@@ -228,10 +230,10 @@ export function DesignStudioPage() {
                 type="button"
                 className="design-edit-fab"
                 onClick={() => setDrawerOpen(true)}
-                aria-label={`Open ${editorPanelLabel}`}
-                title={`Edit — ${editorPanelLabel}`}
+                aria-label={t("design.openEditor", { panel: editorPanelLabel })}
+                title={t("design.editPanel", { panel: editorPanelLabel })}
               >
-                Edit
+                {t("design.edit")}
               </button>
             ) : null}
             <button
@@ -239,8 +241,8 @@ export function DesignStudioPage() {
               className={`design-drawer-toggle${drawerOpen ? " open" : ""}`}
               onClick={() => setDrawerOpen((value) => !value)}
               aria-expanded={drawerOpen}
-              aria-label={drawerOpen ? "Hide editor panel" : "Show editor panel"}
-              title={drawerOpen ? "Hide editor" : editorPanelLabel}
+              aria-label={drawerOpen ? t("design.hideEditorPanel") : t("design.showEditorPanel")}
+              title={drawerOpen ? t("design.hideEditor") : editorPanelLabel}
             >
               {drawerOpen ? "›" : "‹"}
             </button>
@@ -253,8 +255,8 @@ export function DesignStudioPage() {
               type="button"
               className="design-studio-rail-expand-tab"
               onClick={() => setRailCollapsed(false)}
-              aria-label="Show categories and presets"
-              title="Categories & presets"
+              aria-label={t("design.showCategories")}
+              title={t("design.categoriesPresets")}
             >
               ›
             </button>
@@ -264,15 +266,15 @@ export function DesignStudioPage() {
                 type="button"
                 className="design-studio-rail-backdrop"
                 onClick={() => setRailCollapsed(true)}
-                aria-label="Hide categories and presets"
+                aria-label={t("design.hideCategories")}
               />
-              <aside className="design-studio-rail design-studio-rail--drawer" aria-label="Design categories">
+              <aside className="design-studio-rail design-studio-rail--drawer" aria-label={t("design.categoriesAria")}>
                 <button
                   type="button"
                   className="design-studio-rail-collapse-btn"
                   onClick={() => setRailCollapsed(true)}
-                  aria-label="Hide categories and presets"
-                  title="Hide categories and presets"
+                  aria-label={t("design.hideCategories")}
+                  title={t("design.hideCategories")}
                 >
                   ‹
                 </button>

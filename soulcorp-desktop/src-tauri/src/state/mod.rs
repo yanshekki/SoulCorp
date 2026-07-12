@@ -46,6 +46,9 @@ fn default_random_event_chance() -> f32 {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct GameSettings {
+    /// UI + agent document language: `en` | `zh-Hant` | `zh-Hans`.
+    #[serde(default = "crate::i18n::default_app_language")]
+    pub app_language: String,
     #[serde(default)]
     pub play_mode: PlayMode,
     pub random_events_enabled: bool,
@@ -157,7 +160,7 @@ pub struct GameSettings {
     pub agent_runtime_custom_binary: String,
     #[serde(default)]
     pub agent_runtime_custom_adapter: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub agent_runtime_allow_cli_env_keys: bool,
     #[serde(default = "default_true")]
     pub orchestrator_auto_accept_gigs: bool,
@@ -247,7 +250,7 @@ fn default_openclaw_default_agent_id() -> String {
 }
 
 fn default_openclaw_timeout_secs() -> u32 {
-    600
+    3600
 }
 
 fn default_orchestrator_max_directives() -> u32 {
@@ -353,6 +356,8 @@ impl<'de> Deserialize<'de> for GameSettings {
     {
         #[derive(Deserialize)]
         struct Helper {
+            #[serde(default = "crate::i18n::default_app_language")]
+            app_language: String,
             #[serde(default)]
             play_mode: Option<PlayMode>,
             #[serde(default = "default_true")]
@@ -473,7 +478,7 @@ impl<'de> Deserialize<'de> for GameSettings {
             agent_runtime_custom_binary: String,
             #[serde(default)]
             agent_runtime_custom_adapter: String,
-            #[serde(default)]
+            #[serde(default = "default_true")]
             agent_runtime_allow_cli_env_keys: bool,
             #[serde(default = "default_true")]
             orchestrator_auto_accept_gigs: bool,
@@ -518,6 +523,7 @@ impl<'de> Deserialize<'de> for GameSettings {
         );
 
         Ok(Self {
+            app_language: crate::i18n::normalize_app_language(&helper.app_language),
             play_mode,
             random_events_enabled,
             random_event_chance,
@@ -609,6 +615,7 @@ fn default_backup_interval() -> u32 {
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
+            app_language: crate::i18n::default_app_language(),
             play_mode: if crate::config::is_v1() {
                 PlayMode::Work
             } else {
@@ -668,11 +675,12 @@ impl Default for GameSettings {
             openclaw_use_local: true,
             openclaw_prefer_gateway: false,
             openclaw_default_agent_id: "main".to_string(),
-            openclaw_timeout_secs: 600,
+            openclaw_timeout_secs: 3600,
             agent_runtime_fallback_to_llm: true,
             agent_runtime_custom_binary: String::new(),
             agent_runtime_custom_adapter: String::new(),
-            agent_runtime_allow_cli_env_keys: false,
+            // Default on so Grok CLI receives XAI_API_KEY when Settings has a key.
+            agent_runtime_allow_cli_env_keys: true,
             orchestrator_auto_accept_gigs: true,
             orchestrator_max_active_gigs: 3,
             orchestrator_auto_start_gigs: true,
@@ -1173,6 +1181,27 @@ pub struct MeetingState {
     pub notes_generated: bool,
     #[serde(default)]
     pub notes_page_id: Option<String>,
+    /// Structured recap (filled on finalize).
+    #[serde(default)]
+    pub key_points: Vec<String>,
+    #[serde(default)]
+    pub decisions: Vec<String>,
+    #[serde(default)]
+    pub action_items: Vec<String>,
+    #[serde(default)]
+    pub risks_blockers: Vec<String>,
+    #[serde(default)]
+    pub notes_write_error: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub story_id: Option<String>,
+    #[serde(default)]
+    pub task_ids: Vec<String>,
+    #[serde(default)]
+    pub directive_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

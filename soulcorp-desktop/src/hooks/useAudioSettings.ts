@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { audioDirector } from "../audio/AudioDirector";
 import { useGameStore } from "../stores/gameStore";
 import type { GameSettings } from "../types/game";

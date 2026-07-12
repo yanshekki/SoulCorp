@@ -4,6 +4,7 @@ import { openAgentWorkspace } from "../../utils/openWorkspacePage";
 import { hasMoraleDecorNearby } from "../../utils/furnitureInteractions";
 import { normalizeOfficeVisual } from "../../utils/officeVisualNormalize";
 import { DEPARTMENT_BUILDING, deskForAgent } from "../../data/worldLayout";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface AgentDetailPanelProps {
   agentId: string;
@@ -29,6 +30,7 @@ function iconForSkill(skill: string): string {
 }
 
 export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
+  const { t } = useI18n();
   const record = useGameStore((state) =>
     state.agentRecords.find((agent) => agent.id === agentId),
   );
@@ -52,7 +54,7 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
     <aside className="agent-detail-panel" role="complementary">
       <header>
         <h3>{record.name}</h3>
-        <button type="button" onClick={() => selectAgent(null)} aria-label="Close agent panel">
+        <button type="button" onClick={() => selectAgent(null)} aria-label={t("world.closeAgent")}>
           ×
         </button>
       </header>
@@ -61,16 +63,16 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
       </p>
       <dl className="agent-detail-stats">
         <div>
-          <dt>Morale</dt>
+          <dt>{t("agentDetail.morale")}</dt>
           <dd>{(record.morale * 100).toFixed(0)}%</dd>
         </div>
         <div>
-          <dt>Status</dt>
+          <dt>{t("agentDetail.status")}</dt>
           <dd>{agent?.statusLabel ?? record.status}</dd>
         </div>
         {moraleZone ? (
           <div>
-            <dt>Zone buff</dt>
+            <dt>{t("agentDetail.zoneBuff")}</dt>
             <dd>+5% morale (decor nearby)</dd>
           </div>
         ) : null}
@@ -81,7 +83,7 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
           className="primary-action"
           onClick={() => void openAgentWorkspace(record.id, record.name)}
         >
-          Open Workspace
+          {t("world.openWorkspace")}
         </button>
         <button
           type="button"
@@ -94,14 +96,14 @@ export function AgentDetailPanel({ agentId }: AgentDetailPanelProps) {
             }, 120);
           }}
         >
-          View mind stream
+          {t("world.viewMindStream")}
         </button>
       </div>
 
       <section>
-        <h4>Skills & tools</h4>
+        <h4>{t("agentDetail.skillsTools")}</h4>
         {skills.length === 0 ? (
-          <p className="muted">No skills assigned yet.</p>
+          <p className="muted">{t("agentDetail.noSkills")}</p>
         ) : (
           <ul className="agent-skill-list">
             {skills.map((skill) => (

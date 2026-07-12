@@ -1,9 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { useEffect, useRef } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { notifyScrumChanged } from "../utils/scrumSync";
 import { hasActiveCompany } from "../utils/companyState";
+import { languageFromSettings, translate } from "../i18n";
 
 export interface WorkerTickReport {
   routed: number;
@@ -60,7 +61,7 @@ export function useScrumWorkerSync() {
       notifyScrumChanged();
       const report = event.payload;
       if (report.messages.length > 0) {
-        setStatusMessage(report.messages[report.messages.length - 1] ?? "Scrum worker updated.");
+        setStatusMessage(report.messages[report.messages.length - 1] ?? translate(languageFromSettings(useGameStore.getState().settings), "status.scrumWorkerUpdated"));
       }
 
       if (debounceRef.current) {

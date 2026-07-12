@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { reloadGameState } from "./useReloadGameState";
+import { languageFromSettings, translate } from "../i18n";
 
 export function useGameBootstrap() {
   const setOnboardingReady = useGameStore((state) => state.setOnboardingReady);
@@ -11,7 +12,7 @@ export function useGameBootstrap() {
       try {
         await reloadGameState();
       } catch (error) {
-        setStatusMessage(`Bootstrap fallback: ${String(error)}`);
+        setStatusMessage(translate(languageFromSettings(useGameStore.getState().settings), "status.bootstrapFallback", { error: String(error) }));
       } finally {
         setOnboardingReady(true);
       }

@@ -9,6 +9,7 @@ import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilt
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const ACTIVITY_PAGE_SIZE = 10;
 
@@ -32,7 +33,21 @@ function formatRelativeTime(iso: string): string {
   return date.toLocaleDateString();
 }
 
+/** Collapse stacked "Revision: Revision: …" from older re-reject bugs. */
+function displayActivityTitle(title: string): string {
+  let out = title.trim();
+  // Keep a single "Revision: " after collapsing runs.
+  out = out.replace(/(?:Revision:\s*)+/gi, "Revision: ");
+  // Avoid "Revision: Revision:" leftover edge cases
+  out = out.replace(/^(Revision:\s*)+/i, "Revision: ");
+  // If title is "Deliverable — Revision: …", keep that shape once.
+  out = out.replace(/^(Deliverable\s*[—-]\s*)(?:Revision:\s*)+/i, "$1Revision: ");
+  out = out.replace(/^(Task\s*[—-]\s*)(?:Revision:\s*)+/i, "$1Revision: ");
+  return out.trim();
+}
+
 export function AgentWorkspaceActivityFeed() {
+  const { t } = useI18n();
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
@@ -109,26 +124,24 @@ export function AgentWorkspaceActivityFeed() {
       data-agents-section="activity"
     >
       <header className="agents-card-header">
-        <h3>Workspace activity</h3>
+        <h3>{t("activity.title")}</h3>
         <button
           type="button"
           className="agents-activity-refresh"
           onClick={() => void refresh()}
           disabled={loading}
         >
-          {loading ? "Loading…" : "Refresh"}
+          {loading ? t("activity.loading") : t("activity.refresh")}
         </button>
       </header>
-      <p className="muted agents-activity-subtitle">
-        Recent pages edited by agents. Click an entry to open it in Workspace.
-      </p>
+      <p className="muted agents-activity-subtitle">{t("activity.subtitle")}</p>
 
       {entries.length > 0 ? (
         <SearchableListToolbar
           query={searchQuery}
           onQueryChange={setSearchQuery}
-          placeholder="Search activity by title, agent…"
-          ariaLabel="Search workspace activity"
+          placeholder={t("activity.searchPlaceholder")}
+          ariaLabel={t("activity.searchAria")}
           matchCount={
             debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
               ? filteredEntries.length
@@ -140,20 +153,20 @@ export function AgentWorkspaceActivityFeed() {
             value: searchType,
             onChange: setSearchType,
             options: WORKSPACE_ACTIVITY_SEARCH_TYPES,
-            ariaLabel: "Filter workspace activity search field",
-            label: "Field",
+            ariaLabel: t("activity.filterAria"),
+            label: t("searchType.typeLabel"),
           }}
         />
       ) : null}
 
       {entries.length === 0 ? (
         <p className="muted">
-          {loading
-            ? "Loading agent workspace activity…"
-            : "No agent workspace edits yet. Run a scrum task with agent tools enabled."}
+          {loading ? t("activity.loadingFeed") : t("activity.empty")}
         </p>
       ) : debouncedQuery.trim() && filteredEntries.length === 0 ? (
-        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+        <p className="search-empty-hint muted">
+          {t("events.noMatches", { query: debouncedQuery })}
+        </p>
       ) : (
         <>
           <ul className="agents-activity-feed">
@@ -164,7 +177,9 @@ export function AgentWorkspaceActivityFeed() {
                   className="agents-activity-item"
                   onClick={() => void openPage(entry)}
                 >
-                  <span className="agents-activity-title">{entry.title}</span>
+                  <span className="agents-activity-title">
+                    {displayActivityTitle(entry.title)}
+                  </span>
                   <span className="agents-activity-meta">
                     {entry.agent_name} · {formatRelativeTime(entry.last_edited_at)}
                   </span>
@@ -175,7 +190,7 @@ export function AgentWorkspaceActivityFeed() {
           <PaginationBar
             page={safePage}
             totalPages={totalPages}
-            label="Activity"
+            label={t("activity.filterLabel")}
             onPageChange={setListPage}
           />
         </>

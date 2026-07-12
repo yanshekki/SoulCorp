@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
+use crate::lock_util::MutexExt;
 const PAGE_CACHE_MAX: usize = 64;
 
 fn storage_roots() -> &'static Mutex<HashMap<String, PathBuf>> {
@@ -21,7 +22,7 @@ pub fn open_cached_storage(
     company_id: &str,
 ) -> Result<WorkspaceStorage, String> {
     let root = {
-        let mut guard = storage_roots().lock().map_err(|e| e.to_string())?;
+        let mut guard = storage_roots().lock_or_recover()?;
         guard
             .entry(company_id.to_string())
             .or_insert_with(|| company_workspace_root(app_data_dir, company_id))

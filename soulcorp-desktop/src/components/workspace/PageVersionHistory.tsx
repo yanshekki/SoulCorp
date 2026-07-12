@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { PageVersionSummary, WorkspacePage } from "../../types/workspace";
@@ -7,6 +7,7 @@ import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilt
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "../UI/PaginationBar";
 import { SearchableListToolbar } from "../UI/SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const VERSION_PAGE_SIZE = 10;
 
@@ -16,6 +17,7 @@ interface PageVersionHistoryProps {
 }
 
 export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryProps) {
+  const { t } = useI18n();
   const [versions, setVersions] = useState<PageVersionSummary[]>([]);
   const [restoring, setRestoring] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,12 +78,12 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
 
   return (
     <section className="page-version-history">
-      <h3>Version history</h3>
+      <h3>{t("workspace.versionHistory")}</h3>
       <SearchableListToolbar
         query={searchQuery}
         onQueryChange={setSearchQuery}
-        placeholder="Search versions…"
-        ariaLabel="Search version history"
+        placeholder={t("workspace.searchVersions")}
+        ariaLabel={t("workspace.searchVersionsAria")}
         matchCount={
           debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
             ? filteredVersions.length
@@ -92,12 +94,12 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
           value: searchType,
           onChange: setSearchType,
           options: VERSION_SEARCH_TYPES,
-          ariaLabel: "Filter version search field",
-          label: "Field",
+          ariaLabel: t("workspace.filterVersionAria"),
+          label: t("workspace.filterField"),
         }}
       />
       {debouncedQuery.trim() && filteredVersions.length === 0 ? (
-        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+        <p className="search-empty-hint muted">{t("workspace.noMatches", { query: debouncedQuery })}</p>
       ) : (
         <>
           <ul>
@@ -113,7 +115,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
                   disabled={restoring === entry.version}
                   onClick={() => void restore(entry.version)}
                 >
-                  {restoring === entry.version ? "Restoring..." : "Restore"}
+                  {restoring === entry.version ? t("workspace.restoring") : t("workspace.restore")}
                 </button>
               </li>
             ))}
@@ -121,7 +123,7 @@ export function PageVersionHistory({ pageId, onRestored }: PageVersionHistoryPro
           <PaginationBar
             page={safePage}
             totalPages={totalPages}
-            label="Versions"
+            label={t("workspace.versions")}
             onPageChange={setListPage}
           />
         </>

@@ -6,6 +6,7 @@ import { BACKLOG_SEARCH_TYPES } from "../../../data/searchFilterOptions";
 import { fieldsMatchQuery, tokenizeQuery } from "../../../utils/listSearch";
 import { SEARCH_TYPE_ALL } from "../../../utils/searchTypeFilters";
 import { openDepartmentWorkspace, openWorkspacePage } from "../../../utils/openWorkspacePage";
+import { useI18n } from "../../../i18n/I18nProvider";
 import { SearchableListToolbar } from "../SearchableListToolbar";
 import {
   backlogStats,
@@ -14,8 +15,14 @@ import {
   formatWorkNodeStatus,
   groupBacklogStories,
   runDisabledReason,
+  taskPrimaryAction,
   workNodeStatusClass,
+  workNodeStatusI18nKey,
 } from "./backlogUtils";
+import {
+  localizeWorkDescription,
+  localizeWorkTitle,
+} from "../../../utils/localizeWorkTitle";
 
 type AssignableAgent = Pick<AgentRecord, "id" | "name" | "role" | "department">;
 
@@ -50,18 +57,47 @@ function TaskRow({
   onExecute: (nodeId: string) => Promise<void>;
   onApprove: (nodeId: string) => Promise<void>;
 }) {
+  const { t, language } = useI18n();
   const runReason = runDisabledReason(task);
+  const primary = taskPrimaryAction(task);
+  const canRun = canRunTask(task);
+  const displayTitle = localizeWorkTitle(task.title, language);
+  const displayDesc = task.description
+    ? localizeWorkDescription(task.description, language)
+    : "";
 
   return (
-    <tr className="backlog-task-row">
+    <tr className={`backlog-task-row${busy ? " is-busy" : ""}`}>
       <td className="backlog-task-title">
-        <span className="backlog-task-name">{task.title}</span>
-        {task.description ? <span className="muted backlog-task-desc">{task.description}</span> : null}
+        <span className="backlog-task-name">{displayTitle}</span>
+        {displayDesc ? <span className="muted backlog-task-desc">{displayDesc}</span> : null}
+        {runReason && primary !== "run" ? (
+          <span className="muted backlog-task-action-hint" title={runReason}>
+            {primary === "open_result"
+              ? t("backlog.doneHint")
+              : primary === "approve"
+                ? t("backlog.reviewHint")
+                : primary === "assign"
+                  ? t("backlog.assignHint")
+                  : runReason}
+          </span>
+        ) : null}
+        {busy ? (
+          <span className="backlog-task-action-hint backlog-task-action-hint--live">
+            {t("backlog.runningHint")}
+          </span>
+        ) : null}
       </td>
       <td>
-        <span className={workNodeStatusClass(task.status)}>{formatWorkNodeStatus(task.status)}</span>
+        <span className={workNodeStatusClass(task.status)}>
+          {t(workNodeStatusI18nKey(task.status)) === workNodeStatusI18nKey(task.status)
+            ? formatWorkNodeStatus(task.status)
+            : t(workNodeStatusI18nKey(task.status))}
+        </span>
       </td>
-      <td className="backlog-task-points">{task.story_points > 0 ? `${task.story_points} pt` : "—"}</td>
+      <td className="backlog-task-points">
+        {task.story_points > 0 ? t("backlog.points", { n: task.story_points }) : "—"}
+      </td>
       <td>
         <select
           className="backlog-assign-select"
@@ -70,7 +106,7 @@ function TaskRow({
           onChange={(event) => void onAssign(task.id, event.target.value || null)}
           aria-label={`Assign ${task.title}`}
         >
-          <option value="">Unassigned</option>
+          <option value="">{t("backlog.unassigned")}</option>
           {agents.map((agent) => (
             <option key={agent.id} value={agent.id}>
               {formatAgentOptionLabel(agent)}
@@ -79,27 +115,76 @@ function TaskRow({
         </select>
       </td>
       <td className="backlog-task-actions">
-        <button
-          type="button"
-          className="primary-action"
-          disabled={busy || !canRunTask(task)}
-          title={runReason ?? "Run LLM execution"}
-          onClick={() => void onExecute(task.id)}
-        >
-          Run
-        </button>
-        {task.status === "in_review" ? (
-          <button type="button" disabled={busy} onClick={() => void onApprove(task.id)}>
-            Approve
+        {primary === "run" || primary === "assign" ? (
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy || !canRun}
+            title={
+              canRun
+                ? t("backlog.title.runDeliverable")
+                : (runReason ?? t("backlog.title.cannotRun"))
+            }
+            onClick={() => {
+              if (!canRun) {
+                return;
+              }
+              void onExecute(task.id);
+            }}
+          >
+            {busy ? t("backlog.running") : t("backlog.runAgent")}
           </button>
         ) : null}
-        {task.linked_workspace_page_id ? (
+        {primary === "approve" ? (
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy}
+            title={t("backlog.title.approve")}
+            onClick={() => void onApprove(task.id)}
+          >
+            {busy ? "…" : t("backlog.approve")}
+          </button>
+        ) : null}
+        {primary === "open_result" && task.linked_workspace_page_id ? (
+          <button
+            type="button"
+            className="primary-action"
+            disabled={busy}
+            title={t("backlog.title.openResult")}
+            onClick={() => void openWorkspacePage(task.linked_workspace_page_id!, task.title)}
+          >
+            {t("backlog.openResult")}
+          </button>
+        ) : null}
+        {primary === "blocked" ? (
+          <button
+            type="button"
+            className="primary-action"
+            disabled
+            title={runReason ?? t("backlog.title.unavailable")}
+          >
+            {task.status === "done" ? t("backlog.done") : t("backlog.blocked")}
+          </button>
+        ) : null}
+        {task.linked_workspace_page_id && primary !== "open_result" ? (
           <button
             type="button"
             disabled={busy}
+            title={t("backlog.title.openLinked")}
             onClick={() => void openWorkspacePage(task.linked_workspace_page_id!, task.title)}
           >
-            Workspace
+            {t("backlog.workspace")}
+          </button>
+        ) : null}
+        {task.status === "in_review" && task.linked_workspace_page_id ? (
+          <button
+            type="button"
+            disabled={busy}
+            title={t("backlog.title.preview")}
+            onClick={() => void openWorkspacePage(task.linked_workspace_page_id!, task.title)}
+          >
+            {t("backlog.preview")}
           </button>
         ) : null}
       </td>
@@ -161,6 +246,7 @@ function StoryCard({
   onAddTask: (storyId: string, title: string) => Promise<void>;
   forceExpanded?: boolean;
 }) {
+  const { t, language } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -169,6 +255,10 @@ function StoryCard({
     }
   }, [forceExpanded]);
   const doneCount = group.tasks.filter((task) => task.status === "done").length;
+  const storyTitle = localizeWorkTitle(group.story.title, language);
+  const storyDesc = group.story.description
+    ? localizeWorkDescription(group.story.description, language)
+    : "";
 
   return (
     <article className="backlog-story-card">
@@ -183,19 +273,24 @@ function StoryCard({
         </button>
         <div className="backlog-story-meta">
           <div className="backlog-story-title-row">
-            <h4>{group.story.title}</h4>
+            <h4>{storyTitle}</h4>
             <span className={workNodeStatusClass(group.story.status)}>
-              {formatWorkNodeStatus(group.story.status)}
+              {t(workNodeStatusI18nKey(group.story.status)) ===
+              workNodeStatusI18nKey(group.story.status)
+                ? formatWorkNodeStatus(group.story.status)
+                : t(workNodeStatusI18nKey(group.story.status))}
             </span>
             {group.story.story_points > 0 ? (
-              <span className="backlog-points-pill">{group.story.story_points} pt</span>
+              <span className="backlog-points-pill">
+                {t("backlog.points", { n: group.story.story_points })}
+              </span>
             ) : null}
           </div>
-          {group.story.description ? (
-            <p className="muted backlog-story-desc">{group.story.description}</p>
+          {storyDesc ? (
+            <p className="muted backlog-story-desc">{storyDesc}</p>
           ) : null}
           {!group.story.linked_workspace_page_id ? (
-            <p className="muted backlog-brief-pending">Autopilot preparing brief…</p>
+            <p className="muted backlog-brief-pending">{t("backlog.briefPending")}</p>
           ) : (
             <button
               type="button"
@@ -204,7 +299,7 @@ function StoryCard({
                 void openWorkspacePage(group.story.linked_workspace_page_id!, group.story.title)
               }
             >
-              Open brief
+              {t("backlog.openBrief")}
             </button>
           )}
           <p className="muted backlog-story-submeta">
@@ -221,11 +316,11 @@ function StoryCard({
             <table className="backlog-task-table">
               <thead>
                 <tr>
-                  <th scope="col">Task</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Pts</th>
-                  <th scope="col">Assignee</th>
-                  <th scope="col">Actions</th>
+                  <th scope="col">{t("backlog.col.task")}</th>
+                  <th scope="col">{t("backlog.col.status")}</th>
+                  <th scope="col">{t("backlog.col.pts")}</th>
+                  <th scope="col">{t("backlog.col.assignee")}</th>
+                  <th scope="col">{t("backlog.col.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,7 +357,7 @@ function StoryCard({
               aria-label={`Add task to ${group.story.title}`}
             />
             <button type="submit" className="primary-action" disabled={!draftTitle.trim()}>
-              Add task
+              {t("backlog.addTask")}
             </button>
           </form>
         </div>
@@ -286,11 +381,14 @@ export function BacklogTreePanel({
   onAddStory,
   onJumpToCommand,
 }: BacklogTreePanelProps) {
+  const { t } = useI18n();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [storyDrafts, setStoryDrafts] = useState<Record<string, string>>({});
   const [newStoryTitle, setNewStoryTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState(SEARCH_TYPE_ALL);
+  /** Default on: hide done tasks/stories so the tree focuses open work. */
+  const [hideCompleted, setHideCompleted] = useState(true);
   const debouncedQuery = useDebouncedValue(searchQuery);
 
   const groups = useMemo(() => groupBacklogStories(tree?.flat ?? []), [tree]);
@@ -303,51 +401,102 @@ export function BacklogTreePanel({
     forceExpanded?: boolean;
   };
 
-  const filteredGroups = useMemo((): FilteredStoryGroup[] => {
-    if (searchTokens.length === 0) {
-      return groups;
-    }
-    const storySearchEnabled =
-      searchType === SEARCH_TYPE_ALL || searchType === "story";
-    const taskSearchEnabled =
-      searchType === SEARCH_TYPE_ALL ||
-      searchType === "task" ||
-      searchType === "assignee" ||
-      searchType === "department";
+  const isDoneNode = (node: WorkNode) => node.status === "done";
 
-    return groups
+  const filteredGroups = useMemo((): FilteredStoryGroup[] => {
+    const afterSearch = (() => {
+      if (searchTokens.length === 0) {
+        return groups.map((group) => ({
+          story: group.story,
+          tasks: group.tasks,
+          forceExpanded: false as boolean | undefined,
+        }));
+      }
+      const storySearchEnabled =
+        searchType === SEARCH_TYPE_ALL || searchType === "story";
+      const taskSearchEnabled =
+        searchType === SEARCH_TYPE_ALL ||
+        searchType === "task" ||
+        searchType === "assignee" ||
+        searchType === "department";
+
+      return groups
+        .map((group): FilteredStoryGroup | null => {
+          const storyMatches =
+            storySearchEnabled &&
+            fieldsMatchQuery(storySearchFields(group.story), searchTokens);
+          const matchingTasks = taskSearchEnabled
+            ? group.tasks.filter((task) =>
+                fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
+              )
+            : [];
+          if (!storyMatches && matchingTasks.length === 0) {
+            return null;
+          }
+          return {
+            story: group.story,
+            tasks: storyMatches ? group.tasks : matchingTasks,
+            forceExpanded: matchingTasks.length > 0,
+          };
+        })
+        .filter((group): group is FilteredStoryGroup => group !== null);
+    })();
+
+    if (!hideCompleted) {
+      return afterSearch;
+    }
+
+    return afterSearch
       .map((group): FilteredStoryGroup | null => {
-        const storyMatches =
-          storySearchEnabled &&
-          fieldsMatchQuery(storySearchFields(group.story), searchTokens);
-        const matchingTasks = taskSearchEnabled
-          ? group.tasks.filter((task) =>
-              fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
-            )
-          : [];
-        if (!storyMatches && matchingTasks.length === 0) {
+        const openTasks = group.tasks.filter((task) => !isDoneNode(task));
+        // Fully completed story (story done + no open tasks): hide the whole card.
+        if (isDoneNode(group.story) && openTasks.length === 0) {
           return null;
         }
+        // Story still open/in progress but some tasks done: hide only done rows.
         return {
-          story: group.story,
-          tasks: storyMatches ? group.tasks : matchingTasks,
-          forceExpanded: matchingTasks.length > 0,
+          ...group,
+          tasks: openTasks,
         };
       })
       .filter((group): group is FilteredStoryGroup => group !== null);
-  }, [groups, searchTokens, agents, searchType]);
+  }, [groups, searchTokens, agents, searchType, hideCompleted]);
 
   const filteredOrphanTasks = useMemo(() => {
-    if (searchTokens.length === 0) {
-      return orphanTasks;
+    let list = orphanTasks;
+    if (searchTokens.length > 0) {
+      if (searchType === "story") {
+        list = [];
+      } else {
+        list = orphanTasks.filter((task) =>
+          fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
+        );
+      }
     }
-    if (searchType === "story") {
-      return [];
+    if (hideCompleted) {
+      list = list.filter((task) => !isDoneNode(task));
     }
-    return orphanTasks.filter((task) =>
-      fieldsMatchQuery(taskSearchFields(task, agents, searchType), searchTokens),
-    );
-  }, [orphanTasks, searchTokens, agents, searchType]);
+    return list;
+  }, [orphanTasks, searchTokens, agents, searchType, hideCompleted]);
+
+  const hiddenCompletedCount = useMemo(() => {
+    if (!hideCompleted) {
+      return 0;
+    }
+    let hidden = 0;
+    for (const group of groups) {
+      const openTasks = group.tasks.filter((task) => !isDoneNode(task));
+      const doneTaskCount = group.tasks.length - openTasks.length;
+      if (isDoneNode(group.story) && openTasks.length === 0) {
+        // Whole story card hidden (+ its done tasks counted once via the card).
+        hidden += 1 + doneTaskCount;
+      } else {
+        hidden += doneTaskCount;
+      }
+    }
+    hidden += orphanTasks.filter((task) => isDoneNode(task)).length;
+    return hidden;
+  }, [groups, orphanTasks, hideCompleted]);
 
   const stats = useMemo(
     () => backlogStats(filteredGroups, filteredOrphanTasks),
@@ -400,13 +549,13 @@ export function BacklogTreePanel({
     <div className="backlog-panel">
       <div className="backlog-toolbar">
         <label className="backlog-project-picker">
-          <span className="muted">Project</span>
+          <span className="muted">{t("backlog.project")}</span>
           <select
             value={selectedProjectId || project?.id || ""}
             onChange={(event) => onProjectChange(event.target.value)}
             disabled={projects.length === 0 || loading}
           >
-            {projects.length === 0 ? <option value="">No projects</option> : null}
+            {projects.length === 0 ? <option value="">{t("backlog.noProjects")}</option> : null}
             {projects.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.title}
@@ -415,11 +564,25 @@ export function BacklogTreePanel({
           </select>
         </label>
 
-        <div className="backlog-stats" aria-label="Backlog summary">
-          <span className="backlog-stat-pill">{stats.storyCount} stories</span>
-          <span className="backlog-stat-pill">{stats.taskCount} tasks</span>
-          <span className="backlog-stat-pill">{stats.storyPoints} pts</span>
+        <div className="backlog-stats" aria-label={t("backlog.summaryAria")}>
+          <span className="backlog-stat-pill">{t("backlog.storiesCount", { n: stats.storyCount })}</span>
+          <span className="backlog-stat-pill">{t("backlog.tasksCount", { n: stats.taskCount })}</span>
+          <span className="backlog-stat-pill">{t("backlog.ptsCount", { n: stats.storyPoints })}</span>
         </div>
+
+        <label className="backlog-hide-completed">
+          <input
+            type="checkbox"
+            checked={hideCompleted}
+            onChange={(event) => setHideCompleted(event.target.checked)}
+          />
+          <span>{t("backlog.hideCompleted")}</span>
+          {hideCompleted && hiddenCompletedCount > 0 ? (
+            <span className="muted backlog-hide-completed-count">
+              {t("backlog.hiddenCompletedCount", { n: hiddenCompletedCount })}
+            </span>
+          ) : null}
+        </label>
 
         {project ? (
           <button
@@ -429,7 +592,7 @@ export function BacklogTreePanel({
               void openDepartmentWorkspace(project.owner_department, `${project.title} team docs`)
             }
           >
-            Team docs
+            {t("backlog.teamDocs")}
           </button>
         ) : null}
       </div>
@@ -437,8 +600,8 @@ export function BacklogTreePanel({
       <SearchableListToolbar
         query={searchQuery}
         onQueryChange={setSearchQuery}
-        placeholder="Search stories and tasks…"
-        ariaLabel="Search backlog"
+        placeholder={t("backlog.searchPlaceholder")}
+        ariaLabel={t("backlog.searchAria")}
         matchCount={
           debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
             ? filteredItemCount
@@ -449,34 +612,53 @@ export function BacklogTreePanel({
           value: searchType,
           onChange: setSearchType,
           options: BACKLOG_SEARCH_TYPES,
-          ariaLabel: "Filter backlog search field",
-          label: "Field",
+          ariaLabel: t("backlog.filterFieldAria"),
+          label: t("searchType.typeLabel"),
         }}
       />
 
       {debouncedQuery.trim() && filteredItemCount === 0 ? (
-        <p className="search-empty-hint muted">No matches for &ldquo;{debouncedQuery}&rdquo;.</p>
+        <p className="search-empty-hint muted">{t("backlog.noMatchesQuery", { query: debouncedQuery })}</p>
       ) : null}
 
       <p className="muted backlog-hint">
-        Stories group work from routed directives. Assign an agent to each task, then Run to generate a deliverable.
-        {loading && groups.length === 0 ? " Loading project backlog…" : ""}
+        {t("backlog.hint")}
+        {loading && groups.length === 0 ? ` ${t("common.loading")}` : ""}
       </p>
 
       {/* Only block the UI when we have nothing to show yet — never unmount on soft refresh. */}
       {loading && groups.length === 0 && orphanTasks.length === 0 ? (
-        <p className="muted backlog-loading">Loading backlog…</p>
+        <p className="muted backlog-loading">{t("backlog.loading")}</p>
       ) : null}
 
       {!loading && groups.length === 0 && orphanTasks.length === 0 ? (
         <div className="backlog-empty">
-          <h4>No backlog yet</h4>
+          <h4>{t("backlog.emptyTitle")}</h4>
           <p className="muted">
-            Issue a directive in Command Center and route it to create stories — or add a story manually below.
+            {t("backlog.emptyBody")}
           </p>
           {onJumpToCommand ? (
             <button type="button" className="primary-action" onClick={onJumpToCommand}>
-              Go to Command Center
+              {t("backlog.goCommand")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!loading &&
+      groups.length + orphanTasks.length > 0 &&
+      filteredGroups.length === 0 &&
+      filteredOrphanTasks.length === 0 ? (
+        <div className="backlog-empty backlog-empty--filtered">
+          <h4>{t("backlog.allHiddenTitle")}</h4>
+          <p className="muted">{t("backlog.allHiddenBody")}</p>
+          {hideCompleted ? (
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => setHideCompleted(false)}
+            >
+              {t("backlog.showCompleted")}
             </button>
           ) : null}
         </div>
@@ -508,17 +690,17 @@ export function BacklogTreePanel({
       {filteredOrphanTasks.length > 0 ? (
         <section className="backlog-orphans">
           <header>
-            <h4>Unassigned to a story</h4>
-            <p className="muted">These tasks are missing a parent story and should be moved or recreated.</p>
+            <h4>{t("backlog.orphansTitle")}</h4>
+            <p className="muted">{t("backlog.orphansBody")}</p>
           </header>
           <table className="backlog-task-table">
             <thead>
               <tr>
-                <th scope="col">Task</th>
-                <th scope="col">Status</th>
-                <th scope="col">Pts</th>
-                <th scope="col">Assignee</th>
-                <th scope="col">Actions</th>
+                <th scope="col">{t("backlog.col.task")}</th>
+                <th scope="col">{t("backlog.col.status")}</th>
+                <th scope="col">{t("backlog.col.pts")}</th>
+                <th scope="col">{t("backlog.col.assignee")}</th>
+                <th scope="col">{t("backlog.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -543,12 +725,12 @@ export function BacklogTreePanel({
           type="text"
           value={newStoryTitle}
           onChange={(event) => setNewStoryTitle(event.target.value)}
-          placeholder="New story title"
+          placeholder={t("backlog.newStoryPlaceholder")}
           maxLength={120}
-          aria-label="New story title"
+          aria-label={t("backlog.newStoryAria")}
         />
         <button type="submit" className="primary-action" disabled={!newStoryTitle.trim() || !project}>
-          Add story
+          {t("backlog.addStory")}
         </button>
       </form>
     </div>

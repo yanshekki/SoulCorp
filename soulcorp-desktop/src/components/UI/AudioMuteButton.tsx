@@ -1,5 +1,6 @@
 import { useGameStore } from "../../stores/gameStore";
 import { setAudioMuted } from "../../hooks/useAudioSettings";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface AudioMuteButtonProps {
   className?: string;
@@ -7,6 +8,7 @@ interface AudioMuteButtonProps {
 }
 
 export function AudioMuteButton({ className = "audio-mute-btn", showLabel = false }: AudioMuteButtonProps) {
+  const { t } = useI18n();
   const settings = useGameStore((state) => state.settings);
   const musicOn = settings.music_enabled ?? true;
   const sfxOn = settings.sfx_enabled ?? true;
@@ -19,10 +21,10 @@ export function AudioMuteButton({ className = "audio-mute-btn", showLabel = fals
 
   const icon = fullyMuted ? "🔇" : partiallyMuted ? "🔉" : "🔊";
   const title = fullyMuted
-    ? "Turn sound on"
+    ? t("audio.unmute")
     : partiallyMuted
-      ? "Mute all sound"
-      : "Mute all sound";
+      ? t("audio.muteAll")
+      : t("audio.muteAll");
 
   return (
     <button
@@ -34,7 +36,7 @@ export function AudioMuteButton({ className = "audio-mute-btn", showLabel = fals
       aria-pressed={fullyMuted}
     >
       <span aria-hidden="true">{icon}</span>
-      {showLabel ? <span>{fullyMuted ? "Sound off" : "Sound on"}</span> : null}
+      {showLabel ? <span>{fullyMuted ? t("audio.soundOff") : t("audio.soundOn")}</span> : null}
     </button>
   );
 }

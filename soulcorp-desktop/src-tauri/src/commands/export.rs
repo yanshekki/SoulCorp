@@ -24,6 +24,7 @@ use tauri_plugin_opener::OpenerExt;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportResult {
     pub path: String,
@@ -85,7 +86,7 @@ pub fn export_company_backup(
     app: AppHandle,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let exports_dir = exports_dir(&app)?;
     fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
 
@@ -152,7 +153,7 @@ pub fn export_company_report_markdown(
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
     let path = {
-        let locked = app_state.lock().map_err(|e| e.to_string())?;
+        let locked = app_state.lock_or_recover()?;
         let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let markdown = build_markdown(&locked, Some(&tree), &company_name);
@@ -164,7 +165,7 @@ pub fn export_company_report_markdown(
         path
     };
 
-    let mut locked = app_state.lock().map_err(|e| e.to_string())?;
+    let mut locked = app_state.lock_or_recover()?;
     locked.stats.exports_created += 1;
     let result = ExportResult {
         path: path.to_string_lossy().to_string(),
@@ -181,7 +182,7 @@ pub fn export_company_report_html(
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
     let path = {
-        let locked = app_state.lock().map_err(|e| e.to_string())?;
+        let locked = app_state.lock_or_recover()?;
         let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let html = build_html(&locked, Some(&tree), &company_name);
@@ -193,7 +194,7 @@ pub fn export_company_report_html(
         path
     };
 
-    let mut locked = app_state.lock().map_err(|e| e.to_string())?;
+    let mut locked = app_state.lock_or_recover()?;
     locked.stats.exports_created += 1;
     let result = ExportResult {
         path: path.to_string_lossy().to_string(),
@@ -210,7 +211,7 @@ pub fn export_company_report_pdf(
     app_state: State<'_, Mutex<AppState>>,
 ) -> Result<ExportResult, String> {
     let path = {
-        let locked = app_state.lock().map_err(|e| e.to_string())?;
+        let locked = app_state.lock_or_recover()?;
         let tree = workspace_tree_for(&app, &locked)?;
         let company_name = company_name_for(&locked);
         let lines = build_pdf_lines(&locked, Some(&tree), &company_name);
@@ -222,7 +223,7 @@ pub fn export_company_report_pdf(
         path
     };
 
-    let mut locked = app_state.lock().map_err(|e| e.to_string())?;
+    let mut locked = app_state.lock_or_recover()?;
     locked.stats.exports_created += 1;
     let result = ExportResult {
         path: path.to_string_lossy().to_string(),
@@ -390,7 +391,7 @@ pub async fn export_static_site_zip(
     let zip_path = exports_dir.join(&zip_filename);
 
     let (bundle, tree, pages_dir) = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         if locked.company_id.is_empty() {
             return Err("Create a company before exporting a static site.".to_string());
         }
@@ -411,7 +412,7 @@ pub async fn export_static_site_zip(
     .await
     .map_err(|e| e.to_string())??;
 
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     locked.stats.exports_created += 1;
     let branding = if white_label {
         "white-label"
@@ -519,7 +520,7 @@ pub async fn export_workspace_markdown_zip(
     progress.emit_percent("Loading workspace tree…", 20.0, Some("tree"));
 
     let company_id = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         if locked.company_id.is_empty() {
             return Err("Create a company before exporting workspace data.".to_string());
         }
@@ -544,7 +545,7 @@ pub async fn export_workspace_markdown_zip(
     .await
     .map_err(|e| e.to_string())??;
 
-    let mut locked = state.lock().map_err(|e| e.to_string())?;
+    let mut locked = state.lock_or_recover()?;
     locked.stats.exports_created += 1;
 
     let result = ExportResult {
@@ -625,7 +626,7 @@ pub fn import_company_backup(
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let backup: CompanyBackup = serde_json::from_str(&content).map_err(|e| e.to_string())?;
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     if !backup.company_name.trim().is_empty() {
         state.company_name = backup.company_name.trim().to_string();
     }
@@ -673,7 +674,7 @@ pub fn export_qc_rated_deliverables_zip(
     let options = SimpleFileOptions::default();
 
     let (bundle, rated_count) = {
-        let locked = state.lock().map_err(|e| e.to_string())?;
+        let locked = state.lock_or_recover()?;
         let (bundle, _) = prepare_static_site_bundle(&app, &locked, &zip_filename)?;
         let rated_count = crate::static_site::qc_rated_contracts(&locked.gig_contracts).len();
         (bundle, rated_count)
@@ -691,7 +692,7 @@ pub fn export_qc_rated_deliverables_zip(
 
     zip.finish().map_err(|e| e.to_string())?;
 
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.stats.exports_created += 1;
     let result = ExportResult {
         path: zip_path.to_string_lossy().to_string(),

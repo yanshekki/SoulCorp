@@ -1,6 +1,7 @@
 import { useOfficeBuildActions } from "../../hooks/useOfficeBuildActions";
 import { useDesignStudioStore } from "../../stores/designStudioStore";
 import { useGameStore } from "../../stores/gameStore";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export type OfficeDrawerTab = "catalog" | "room" | "theme";
 export type OfficeWorkspaceView = "3d" | "split" | "plan";
@@ -17,29 +18,29 @@ interface OfficeBuildToolbarProps {
 
 const STEPS: Array<{
   id: OfficeDesignStep;
-  title: string;
-  hint: string;
+  titleKey: string;
+  hintKey: string;
   view: OfficeWorkspaceView;
   drawerTab: OfficeDrawerTab;
 }> = [
   {
     id: "size",
-    title: "1 · Room size",
-    hint: "Adjust lobby, corridor, and office zone areas",
+    titleKey: "design.step.size",
+    hintKey: "design.step.sizeHint",
     view: "plan",
     drawerTab: "room",
   },
   {
     id: "layout",
-    title: "2 · Place furniture",
-    hint: "Pick furniture · place and drag in plan or 3D · split view stays in sync",
+    titleKey: "design.step.layout",
+    hintKey: "design.step.layoutHint",
     view: "split",
     drawerTab: "catalog",
   },
   {
     id: "preview",
-    title: "3 · Preview theme",
-    hint: "Split view sync · live StartupWarm interior preview",
+    titleKey: "design.step.preview",
+    hintKey: "design.step.previewHint",
     view: "split",
     drawerTab: "theme",
   },
@@ -53,6 +54,7 @@ export function OfficeBuildToolbar({
   onDrawerTabChange,
   onDrawerOpenChange,
 }: OfficeBuildToolbarProps) {
+  const { t } = useI18n();
   const buildings = useGameStore((state) => state.buildings);
   const selectedBuildingId = useDesignStudioStore((state) => state.selectedBuildingId);
   const setSelectedBuildingId = useDesignStudioStore((state) => state.setSelectedBuildingId);
@@ -79,11 +81,11 @@ export function OfficeBuildToolbar({
   };
 
   return (
-    <header className="design-office-build-toolbar" aria-label="Office build toolbar">
+    <header className="design-office-build-toolbar" aria-label={t("design.officeBuildToolbar")}>
       <div className="design-office-toolbar-top">
         <div className="design-office-toolbar-primary">
           <label className="design-office-building-select">
-            <span className="design-office-toolbar-label">Edit office</span>
+            <span className="design-office-toolbar-label">{t("design.editOffice")}</span>
             <select
               value={buildingId}
               onChange={(event) => setSelectedBuildingId(event.target.value)}
@@ -95,12 +97,12 @@ export function OfficeBuildToolbar({
               ))}
             </select>
           </label>
-          <div className="design-office-toolbar-actions" aria-label="Build tools">
-            <button type="button" className="design-office-tool-btn" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-              ↶ Undo
+          <div className="design-office-toolbar-actions" aria-label={t("design.buildTools")}>
+            <button type="button" className="design-office-tool-btn" onClick={undo} disabled={!canUndo} title={t("design.undoTitle")}>
+              ↶ {t("design.undo")}
             </button>
-            <button type="button" className="design-office-tool-btn" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
-              ↷ Redo
+            <button type="button" className="design-office-tool-btn" onClick={redo} disabled={!canRedo} title={t("design.redoTitle")}>
+              ↷ {t("design.redo")}
             </button>
             <span className="design-office-toolbar-divider" aria-hidden />
             <button
@@ -108,25 +110,25 @@ export function OfficeBuildToolbar({
               className="design-office-tool-btn"
               onClick={rotateSelected}
               disabled={!canEditSelection}
-              title="Rotate (R)"
+              title={t("design.rotateTitle")}
             >
-              ⟳ Rotate
+              ⟳ {t("design.rotate")}
             </button>
             <button
               type="button"
               className="design-office-tool-btn"
               onClick={deleteSelected}
               disabled={!canEditSelection}
-              title="Delete"
+              title={t("design.delete")}
             >
-              ✕ Delete
+              ✕ {t("design.delete")}
             </button>
           </div>
         </div>
-        <p className="design-office-step-hint">{currentStep.hint}</p>
+        <p className="design-office-step-hint">{t(currentStep.hintKey)}</p>
       </div>
 
-      <div className="design-office-steps" role="tablist" aria-label="Office design steps">
+      <div className="design-office-steps" role="tablist" aria-label={t("design.officeSteps")}>
         {STEPS.map((step) => (
           <button
             key={step.id}
@@ -136,7 +138,7 @@ export function OfficeBuildToolbar({
             className={`design-office-step${activeStep === step.id ? " active" : ""}`}
             onClick={() => activateStep(step)}
           >
-            <span className="design-office-step-title">{step.title}</span>
+            <span className="design-office-step-title">{t(step.titleKey)}</span>
           </button>
         ))}
       </div>
@@ -146,31 +148,31 @@ export function OfficeBuildToolbar({
           <span className="design-office-building-note">
             {building.name}
             {placeCatalogId && activeStep === "layout" ? (
-              <span className="design-office-placing-badge"> · Placement mode</span>
+              <span className="design-office-placing-badge"> · {t("design.placementMode")}</span>
             ) : null}
           </span>
         ) : null}
-        <div className="design-office-view-toggle" role="group" aria-label="View mode">
+        <div className="design-office-view-toggle" role="group" aria-label={t("design.viewMode")}>
           <button
             type="button"
             className={workspaceView === "plan" ? "active" : ""}
             onClick={() => onWorkspaceViewChange("plan")}
           >
-            Plan
+            {t("design.view.plan")}
           </button>
           <button
             type="button"
             className={workspaceView === "split" ? "active" : ""}
             onClick={() => onWorkspaceViewChange("split")}
           >
-            Split
+            {t("design.view.split")}
           </button>
           <button
             type="button"
             className={workspaceView === "3d" ? "active" : ""}
             onClick={() => onWorkspaceViewChange("3d")}
           >
-            3D
+            {t("design.view.3d")}
           </button>
         </div>
       </div>

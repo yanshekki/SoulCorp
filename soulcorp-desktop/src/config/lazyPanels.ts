@@ -46,6 +46,9 @@ export const LazyMarketplacePage = lazy(() =>
 export const LazyTokensPage = lazy(() =>
   import("../components/UI/TokensPage").then((m) => ({ default: m.TokensPage })),
 );
+export const LazyLogsPage = lazy(() =>
+  import("../components/UI/LogsPage").then((m) => ({ default: m.LogsPage })),
+);
 export const LazyGameScene = lazy(() =>
   import("../components/GameScene").then((m) => ({ default: m.GameScene })),
 );
@@ -80,6 +83,8 @@ export function resolveLazyPanel(
       return LazyMarketplacePage;
     case "finance":
       return LazyTokensPage;
+    case "logs":
+      return LazyLogsPage;
     case "office":
       return showOffice3D ? LazyGameScene : null;
     default:
@@ -102,6 +107,7 @@ export const PANEL_PREFETCH: Partial<Record<SidebarPanel, () => Promise<unknown>
   recruitment: () => import("../components/UI/RecruitmentPage"),
   marketplace: () => import("../components/UI/MarketplacePage"),
   finance: () => import("../components/UI/TokensPage"),
+  logs: () => import("../components/UI/LogsPage"),
   office: () => import("../components/GameScene"),
 };
 

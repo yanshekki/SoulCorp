@@ -19,7 +19,8 @@ import type { GigContract, HubGig, TokenEconomy } from "../../types/game";
 import { MARKETPLACE_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { filterByScopedQuery, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { paginateItems } from "../../utils/pagination";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
+import { useI18n } from "../../i18n/I18nProvider";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
 
@@ -33,25 +34,32 @@ export const MARKETPLACE_SECTIONS = [
   { id: "publish", label: "Post a gig" },
 ] as const;
 
-function qcBandLabel(score: number): string {
-  if (score >= 0.9) return "Platinum";
-  if (score >= 0.75) return "Gold";
-  if (score >= 0.6) return "Silver";
-  return "Bronze";
+function qcBandKey(score: number): string {
+  if (score >= 0.9) return "marketplace.band.platinum";
+  if (score >= 0.75) return "marketplace.band.gold";
+  if (score >= 0.6) return "marketplace.band.silver";
+  return "marketplace.band.bronze";
 }
 
-function statusLabel(status: string): string {
+function qcBandCss(score: number): string {
+  if (score >= 0.9) return "platinum";
+  if (score >= 0.75) return "gold";
+  if (score >= 0.6) return "silver";
+  return "bronze";
+}
+
+function statusLabelKey(status: string): string {
   switch (status) {
     case "accepted":
-      return "Accepted";
+      return "marketplace.status.accepted";
     case "in_progress":
-      return "In progress";
+      return "marketplace.status.inProgress";
     case "in_qc":
-      return "QC review";
+      return "marketplace.status.inQc";
     case "disputed":
-      return "Disputed";
+      return "marketplace.status.disputed";
     case "completed":
-      return "Completed";
+      return "marketplace.status.completed";
     default:
       return status;
   }
@@ -63,6 +71,7 @@ interface MarketplacePanelProps {
 }
 
 export function MarketplacePanel({ activeSection, onNavigateSection }: MarketplacePanelProps) {
+  const { t } = useI18n();
   const settings = useGameStore((state) => state.settings);
   const hubStatus = useGameStore((state) => state.hubStatus);
   const tierBenefits = useGameStore((state) => state.tierBenefits);
@@ -258,7 +267,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         pending_queue_items: 0,
         last_sync_at: new Date().toISOString(),
       });
-      setStatusMessage(`Synced with hub. Tier: ${pull.tier}, $SOUL: ${pull.soul_balance.toFixed(2)}`);
+      setStatusMessage(t("marketplace.msg.synced", { tier: pull.tier, soul: pull.soul_balance.toFixed(2) }));
       await refreshContracts();
     } catch (error) {
       setStatusMessage(String(error));
@@ -267,7 +276,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
 
   const handleCreateGig = async () => {
     if (!title.trim() || !description.trim()) {
-      setStatusMessage("Title and description are required.");
+      setStatusMessage(t("marketplace.msg.titleRequired"));
       return;
     }
 
@@ -285,8 +294,8 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         typeof result.message === "string"
           ? result.message
           : result.queued
-            ? "Gig queued locally for next hub sync."
-            : "Gig submitted to hub.";
+            ? t("marketplace.msg.queued")
+            : t("marketplace.msg.submitted");
       setStatusMessage(message);
       setTitle("");
       setDescription("");
@@ -299,7 +308,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
   const handleAccept = async (gigId: number) => {
     try {
       const contract = await acceptHubGig(gigId);
-      setStatusMessage(`Accepted gig: ${contract.title}`);
+      setStatusMessage(t("marketplace.msg.accepted", { title: contract.title }));
       await refreshGigs();
       onNavigateSection?.("contracts");
     } catch (error) {
@@ -312,8 +321,8 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
       const contract = await startGigWork(contractId);
       setStatusMessage(
         simulationAutoRun
-          ? `Started work on ${contract.title}. Progress advances during simulation ticks.`
-          : `Started work on ${contract.title}. Progress advances when task deliverables complete.`,
+          ? t("marketplace.msg.startedSim", { title: contract.title })
+          : t("marketplace.msg.started", { title: contract.title }),
       );
       await refreshContracts();
     } catch (error) {
@@ -325,7 +334,10 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
     try {
       const contract = await submitGigForQc(contractId);
       setStatusMessage(
-        `Submitted ${contract.title} for QC. Score ${((contract.qc_score ?? 0) * 100).toFixed(0)}%.`,
+        t("marketplace.msg.submittedQc", {
+          title: contract.title,
+          score: ((contract.qc_score ?? 0) * 100).toFixed(0),
+        }),
       );
       await refreshContracts();
     } catch (error) {
@@ -338,7 +350,11 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
       const contract = await completeHubGig(contractId);
       await refreshFinance();
       setStatusMessage(
-        `QC approved — ${contract.title}. Net payout $${contract.payout_usdt.toFixed(2)} USDT (fee $${contract.platform_fee_usdt.toFixed(2)}).`,
+        t("marketplace.msg.qcApproved", {
+          title: contract.title,
+          payout: contract.payout_usdt.toFixed(2),
+          fee: contract.platform_fee_usdt.toFixed(2),
+        }),
       );
       await refreshContracts();
       onNavigateSection?.("history");
@@ -348,12 +364,15 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
   };
 
   const handleRejectQc = async (contractId: string) => {
-    const notes = window.prompt("QC rejection notes (optional):");
+    const notes = window.prompt(t("marketplace.prompt.qcReject"));
     if (notes === null) return;
     try {
       const contract = await rejectGigQc(contractId, notes.trim() || undefined);
       setStatusMessage(
-        `QC rejected for ${contract.title}. Revision required — ${contract.qc_notes ?? "Improve deliverable."}`,
+        t("marketplace.msg.qcRejected", {
+          title: contract.title,
+          notes: contract.qc_notes ?? t("marketplace.msg.improve"),
+        }),
       );
       await refreshContracts();
     } catch (error) {
@@ -362,11 +381,11 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
   };
 
   const handleDispute = async (contractId: string) => {
-    const notes = window.prompt("Dispute reason (optional):");
+    const notes = window.prompt(t("marketplace.prompt.dispute"));
     if (notes === null) return;
     try {
       const contract = await disputeHubGig(contractId, notes.trim() || undefined);
-      setStatusMessage(`Dispute opened for ${contract.title}. Platform mediation pending.`);
+      setStatusMessage(t("marketplace.msg.disputeOpened", { title: contract.title }));
       await refreshContracts();
     } catch (error) {
       setStatusMessage(String(error));
@@ -382,10 +401,9 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         data-marketplace-section="overview"
       >
         <header className="marketplace-card-header marketplace-card-header--stacked">
-          <h3>Marketplace overview</h3>
+          <h3>{t("marketplace.overviewTitle")}</h3>
           <p className="muted">
-            Hub connection, platform fee, and your gig pipeline at a glance. Platform fee:{" "}
-            {tierBenefits.platform_fee_percent.toFixed(0)}%.
+            {t("marketplace.overviewDesc", { fee: tierBenefits.platform_fee_percent.toFixed(0) })}
           </p>
         </header>
 
@@ -393,38 +411,34 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         (autopilotSnapshot.deliverables_this_week > 0 ||
           autopilotSnapshot.gigs_advanced_this_week > 0) ? (
           <p className="marketplace-autopilot-hint muted">
-            This week: {autopilotSnapshot.deliverables_this_week} deliverable
-            {autopilotSnapshot.deliverables_this_week === 1 ? "" : "s"} completed
-            {autopilotSnapshot.gigs_advanced_this_week > 0
-              ? ` → ${autopilotSnapshot.gigs_advanced_this_week} gig${
-                  autopilotSnapshot.gigs_advanced_this_week === 1 ? "" : "s"
-                } advanced`
-              : ""}
-            .
+            {t("marketplace.weekDeliverables", {
+              n: autopilotSnapshot.deliverables_this_week,
+              gigs:
+                autopilotSnapshot.gigs_advanced_this_week > 0
+                  ? t("marketplace.weekGigs", { n: autopilotSnapshot.gigs_advanced_this_week })
+                  : "",
+            })}
           </p>
         ) : null}
 
         <div className="hub-status-row hub-sync-status">
           <span className={`hub-pill ${hubStatus.connected ? "online" : "offline"}`}>
-            {hubStatus.connected ? "Connected" : "Offline"}
+            {hubStatus.connected ? t("marketplace.connected") : t("marketplace.offline")}
           </span>
           <span className="hub-pill tier">{hubStatus.user_tier}</span>
           <span className="hub-pill balance">${hubStatus.soul_balance.toFixed(2)} SOUL</span>
           {hubStatus.pending_queue_items > 0 ? (
-            <span className="hub-pill queue">{hubStatus.pending_queue_items} queued</span>
+            <span className="hub-pill queue">{t("marketplace.queued", { n: hubStatus.pending_queue_items })}</span>
           ) : null}
           {hubStatus.last_sync_at ? (
             <span className="hub-pill muted">
-              Synced {new Date(hubStatus.last_sync_at).toLocaleString()}
+              {t("marketplace.syncedAt", { when: new Date(hubStatus.last_sync_at).toLocaleString() })}
             </span>
           ) : null}
         </div>
 
         {settings.pure_local_mode ? (
-          <p className="hub-warning">
-            Pure Local Mode is on. Browse cached hub gigs from your last sync, or manage local
-            contracts.
-          </p>
+          <p className="hub-warning">{t("marketplace.pureLocalNote")}</p>
         ) : null}
         {gigsFromCache && gigsCacheMessage ? (
           <p className="hub-warning" role="status">
@@ -435,25 +449,25 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         <div className="analytics-grid marketplace-stats-grid">
           <article>
             <strong>{browseGigs.length}</strong>
-            <span>Open gigs</span>
+            <span>{t("marketplace.openGigs")}</span>
           </article>
           <article>
             <strong>{activeContracts.length}</strong>
-            <span>Active contracts</span>
+            <span>{t("marketplace.activeContracts")}</span>
           </article>
           <article>
             <strong>{historyContracts.length}</strong>
-            <span>Completed</span>
+            <span>{t("marketplace.completed")}</span>
           </article>
           <article>
             <strong>{tierBenefits.platform_fee_percent.toFixed(0)}%</strong>
-            <span>Platform fee</span>
+            <span>{t("marketplace.platformFee")}</span>
           </article>
         </div>
 
         <div className="marketplace-card-actions">
           <button type="button" className="secondary-action" onClick={() => void refreshGigs()} disabled={loading}>
-            {loading ? "Loading…" : "Refresh"}
+            {loading ? t("marketplace.loading") : t("marketplace.refresh")}
           </button>
           <button
             type="button"
@@ -461,7 +475,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
             onClick={() => void handleSync()}
             disabled={settings.pure_local_mode}
           >
-            Sync with hub
+            {t("marketplace.syncHub")}
           </button>
           <button
             type="button"
@@ -469,7 +483,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
             onClick={() => onNavigateSection?.("publish")}
             disabled={settings.pure_local_mode}
           >
-            Post a gig
+            {t("marketplace.postGig")}
           </button>
         </div>
       </section>
@@ -483,32 +497,32 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
       >
         <header className="marketplace-card-header">
           <div>
-            <h3>Browse gigs</h3>
+            <h3>{t("marketplace.browseTitle")}</h3>
             <p className="muted marketplace-card-subtitle">
-              Accept open contracts from soulmd-hub.
+              {t("marketplace.browseDesc")}
               {simulationAutoRun
-                ? " Progress advances during simulation ticks."
-                : " Progress advances when backlog deliverables complete."}
+                ? t("marketplace.browseDescSim")
+                : t("marketplace.browseDescBacklog")}
             </p>
           </div>
           <span className="marketplace-count-pill">
             {debouncedMarketplaceQuery.trim()
-              ? `${searchedBrowseGigs.length} matches`
-              : `${browseGigs.length} available`}
+              ? t("marketplace.matchesCount", { n: searchedBrowseGigs.length })
+              : t("marketplace.availableCount", { n: browseGigs.length })}
           </span>
         </header>
 
         <SearchableListToolbar
           query={marketplaceSearchQuery}
           onQueryChange={setMarketplaceSearchQuery}
-          placeholder="Search gigs and contracts…"
-          ariaLabel="Search marketplace"
+          placeholder={t("marketplace.searchPlaceholder")}
+          ariaLabel={t("marketplace.searchPlaceholder")}
           typeFilter={{
             value: marketplaceSearchType,
             onChange: setMarketplaceSearchType,
             options: MARKETPLACE_SEARCH_TYPES,
-            ariaLabel: "Filter marketplace search field",
-            label: "Field",
+            ariaLabel: t("marketplace.searchFieldAria"),
+            label: t("marketplace.filterField"),
           }}
         />
 
@@ -518,16 +532,16 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
             checked={executiveLoungeOnly}
             onChange={(event) => setExecutiveLoungeOnly(event.target.checked)}
           />
-          <span>Executive Lounge gigs only</span>
+          <span>{t("marketplace.executiveOnly")}</span>
         </label>
 
         {browseGigs.length === 0 ? (
           <p className="muted">
-            {loading ? "Loading gigs from hub…" : "No open gigs available. Sync with hub or post your own."}
+            {loading ? t("marketplace.loadingGigs") : t("marketplace.noGigs")}
           </p>
         ) : debouncedMarketplaceQuery.trim() && searchedBrowseGigs.length === 0 ? (
           <p className="search-empty-hint muted">
-            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+            {t("marketplace.noMatches", { query: debouncedMarketplaceQuery })}
           </p>
         ) : (
           <>
@@ -546,14 +560,14 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
                 </div>
                 <footer className="gig-card-footer">
                   <span className="gig-status-badge status-open">
-                    {gig.executive_lounge ? "Executive Lounge" : "Open"}
+                    {gig.executive_lounge ? t("marketplace.executiveLounge") : t("marketplace.openGig")}
                   </span>
                   <button
                     type="button"
                     className="primary-action"
                     onClick={() => void handleAccept(gig.gig_id)}
                   >
-                    Accept gig
+                    {t("marketplace.acceptGig")}
                   </button>
                 </footer>
               </article>
@@ -562,7 +576,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
           <PaginationBar
             page={browsePagination.safePage}
             totalPages={browsePagination.totalPages}
-            label="Browse"
+            label={t("marketplace.browsePagination")}
             onPageChange={setBrowsePage}
           />
           </>
@@ -578,23 +592,21 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
       >
         <header className="marketplace-card-header">
           <div>
-            <h3>My contracts</h3>
-            <p className="muted marketplace-card-subtitle">
-              Active work — start delivery, submit for QC, approve payouts, or open disputes.
-            </p>
+            <h3>{t("marketplace.contractsTitle")}</h3>
+            <p className="muted marketplace-card-subtitle">{t("marketplace.contractsDesc")}</p>
           </div>
           <span className="marketplace-count-pill">
             {debouncedMarketplaceQuery.trim()
-              ? `${searchedActiveContracts.length} matches`
-              : `${activeContracts.length} active`}
+              ? t("marketplace.matchesCount", { n: searchedActiveContracts.length })
+              : t("marketplace.activeCount", { n: activeContracts.length })}
           </span>
         </header>
 
         {activeContracts.length === 0 ? (
-          <p className="muted">No active contracts. Accept a gig from Browse.</p>
+          <p className="muted">{t("marketplace.noContracts")}</p>
         ) : debouncedMarketplaceQuery.trim() && searchedActiveContracts.length === 0 ? (
           <p className="search-empty-hint muted">
-            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+            {t("marketplace.noMatches", { query: debouncedMarketplaceQuery })}
           </p>
         ) : (
           <>
@@ -615,24 +627,28 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
                 {contract.qc_score != null ? (
                   <p className="gig-qc-score">
                     <span
-                      className={`qc-band-badge band-${qcBandLabel(contract.qc_score).toLowerCase()}`}
+                      className={`qc-band-badge band-${qcBandCss(contract.qc_score)}`}
                     >
-                      {qcBandLabel(contract.qc_score)}
+                      {t(qcBandKey(contract.qc_score))}
                     </span>{" "}
-                    QC score: {(contract.qc_score * 100).toFixed(0)}%
+                    {t("marketplace.qcScore", {
+                      pct: (contract.qc_score * 100).toFixed(0),
+                    })}
                     {contract.submitted_at
-                      ? ` · Submitted ${new Date(contract.submitted_at).toLocaleString()}`
+                      ? t("marketplace.submittedAt", {
+                          when: new Date(contract.submitted_at).toLocaleString(),
+                        })
                       : null}
                   </p>
                 ) : null}
                 {contract.qc_notes ? <p className="gig-qc-notes">{contract.qc_notes}</p> : null}
                 <footer className="gig-card-footer gig-card-footer-qc">
                   <span className={`gig-status-badge status-${contract.status}`}>
-                    {statusLabel(contract.status)}
+                    {(() => { const k = statusLabelKey(contract.status); return k.startsWith("marketplace.") ? t(k) : k; })()}
                   </span>
                   {contract.status === "accepted" ? (
                     <button type="button" onClick={() => void handleStart(contract.contract_id)}>
-                      Start work
+                      {t("marketplace.startWork")}
                     </button>
                   ) : null}
                   {contract.status === "in_progress" ? (
@@ -643,10 +659,10 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
                         onClick={() => void handleSubmitQc(contract.contract_id)}
                         disabled={contract.progress < 0.95}
                       >
-                        Submit for QC
+                        {t("marketplace.submitQc")}
                       </button>
                       <button type="button" onClick={() => void handleDispute(contract.contract_id)}>
-                        Dispute
+                        {t("marketplace.dispute")}
                       </button>
                     </>
                   ) : null}
@@ -657,18 +673,18 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
                         className="primary-action"
                         onClick={() => void handleComplete(contract.contract_id)}
                       >
-                        Approve QC &amp; payout
+                        {t("marketplace.approveQc")}
                       </button>
                       <button type="button" onClick={() => void handleRejectQc(contract.contract_id)}>
-                        Request revision
+                        {t("marketplace.requestRevision")}
                       </button>
                       <button type="button" onClick={() => void handleDispute(contract.contract_id)}>
-                        Dispute
+                        {t("marketplace.dispute")}
                       </button>
                     </>
                   ) : null}
                   {contract.status === "disputed" ? (
-                    <span className="muted">Awaiting platform mediation</span>
+                    <span className="muted">{t("marketplace.awaitingMediation")}</span>
                   ) : null}
                 </footer>
               </article>
@@ -677,7 +693,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
           <PaginationBar
             page={contractsPagination.safePage}
             totalPages={contractsPagination.totalPages}
-            label="Contracts"
+            label={t("marketplace.contractsPagination")}
             onPageChange={setContractsPage}
           />
           </>
@@ -693,23 +709,21 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
       >
         <header className="marketplace-card-header">
           <div>
-            <h3>Completed gigs</h3>
-            <p className="muted marketplace-card-subtitle">
-              Payout history after QC approval — budget, platform fee, and net USDT received.
-            </p>
+            <h3>{t("marketplace.historyTitle")}</h3>
+            <p className="muted marketplace-card-subtitle">{t("marketplace.historyDesc")}</p>
           </div>
           <span className="marketplace-count-pill">
             {debouncedMarketplaceQuery.trim()
-              ? `${searchedHistoryContracts.length} matches`
-              : `${historyContracts.length} completed`}
+              ? t("marketplace.matchesCount", { n: searchedHistoryContracts.length })
+              : t("marketplace.completedCount", { n: historyContracts.length })}
           </span>
         </header>
 
         {historyContracts.length === 0 ? (
-          <p className="muted">Completed gigs will appear here with payout details.</p>
+          <p className="muted">{t("marketplace.historyEmpty")}</p>
         ) : debouncedMarketplaceQuery.trim() && searchedHistoryContracts.length === 0 ? (
           <p className="search-empty-hint muted">
-            No matches for &ldquo;{debouncedMarketplaceQuery}&rdquo;.
+            {t("marketplace.noMatches", { query: debouncedMarketplaceQuery })}
           </p>
         ) : (
           <>
@@ -721,19 +735,24 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
                   <span>+${contract.payout_usdt.toFixed(2)}</span>
                 </header>
                 <p>
-                  Budget ${contract.budget_usdt.toFixed(0)} · Fee ${contract.platform_fee_usdt.toFixed(2)} ·{" "}
-                  {contract.completed_at
-                    ? new Date(contract.completed_at).toLocaleString()
-                    : "Completed"}
+                  {t("marketplace.historyLine", {
+                    budget: contract.budget_usdt.toFixed(0),
+                    fee: contract.platform_fee_usdt.toFixed(2),
+                    when: contract.completed_at
+                      ? new Date(contract.completed_at).toLocaleString()
+                      : t("marketplace.status.completed"),
+                  })}
                 </p>
-                <span className="gig-status-badge status-completed">Completed</span>
+                <span className="gig-status-badge status-completed">
+                  {t("marketplace.status.completed")}
+                </span>
               </article>
             ))}
           </div>
           <PaginationBar
             page={historyPagination.safePage}
             totalPages={historyPagination.totalPages}
-            label="History"
+            label={t("marketplace.historyPagination")}
             onPageChange={setHistoryPage}
           />
           </>
@@ -748,36 +767,34 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
         data-marketplace-section="publish"
       >
         <header className="marketplace-card-header marketplace-card-header--stacked">
-          <h3>Post a gig</h3>
-          <p className="muted">
-            Publish work to soulmd-hub. Gigs queue locally when offline and sync on next hub pull.
-          </p>
+<h3>{t("marketplace.postTitle")}</h3>
+          <p className="muted">{t("marketplace.postDesc")}</p>
         </header>
 
         <div className="gig-form marketplace-publish-form">
           <label className="field-label">
-            Title
+            {t("marketplace.gigTitle")}
             <input
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               disabled={settings.pure_local_mode}
-              placeholder="Landing page redesign"
+              placeholder={t("marketplace.gigTitlePh")}
             />
           </label>
           <label className="field-label">
-            Description
+            {t("marketplace.gigDesc")}
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={4}
               disabled={settings.pure_local_mode}
-              placeholder="Scope, deliverables, and acceptance criteria…"
+              placeholder={t("marketplace.gigDescPh")}
             />
           </label>
           <div className="marketplace-publish-fields">
             <label className="field-label">
-              Budget (USDT)
+              {t("marketplace.budget")}
               <input
                 type="number"
                 min={50}
@@ -787,7 +804,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
               />
             </label>
             <label className="field-label">
-              Required skills (comma-separated)
+              {t("marketplace.skills")}
               <input
                 type="text"
                 value={skills}
@@ -802,7 +819,7 @@ export function MarketplacePanel({ activeSection, onNavigateSection }: Marketpla
             onClick={() => void handleCreateGig()}
             disabled={settings.pure_local_mode}
           >
-            Publish gig
+            {t("marketplace.publishGig")}
           </button>
         </div>
       </section>

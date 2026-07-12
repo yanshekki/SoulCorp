@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../utils/tauriInvoke";
 import { useEffect } from "react";
 import { useGameStore } from "../stores/gameStore";
 import { useAgentActivityStore } from "../stores/agentActivityStore";

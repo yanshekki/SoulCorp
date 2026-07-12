@@ -59,9 +59,14 @@ pub struct WorkspacePage {
     pub rich_doc: Option<serde_json::Value>,
     #[serde(default)]
     pub linked_entities: Vec<LinkedEntity>,
+    /// Older page JSON on disk may omit these — default so journal/CLI context never hard-fails.
+    #[serde(default)]
     pub last_edited_at: String,
+    #[serde(default)]
     pub last_edited_by: String,
+    #[serde(default)]
     pub version: u32,
+    #[serde(default)]
     pub dirty: bool,
     #[serde(default)]
     pub sort_order: u32,

@@ -222,7 +222,7 @@ pub fn after_task_success(
     let agent_ctx = AgentContext::from_record(agent);
     if state.settings.agent_memory_append_after_task {
         if let Err(err) = append_task_memory_note(storage, &agent_ctx, task_title, summary) {
-            eprintln!("agent memory append failed: {err}");
+            crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::Workspace, "agent_memory", format!("agent memory append failed: {err}"), None);
         }
     }
 
@@ -238,7 +238,7 @@ pub fn after_task_success(
 
     if should_compress(state, &agent.id, chars) {
         if let Err(err) = compress_agent_memory(state, storage, &agent.id) {
-            eprintln!("agent memory compress failed: {err}");
+            crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::Workspace, "agent_memory", format!("agent memory compress failed: {err}"), None);
         }
     }
 }
@@ -318,29 +318,11 @@ Agent: {} ({})\n\n---\n{current}\n---\n\nReturn ONLY the rewritten markdown.",
         conversation_turns: Vec::new(),
     };
 
-    let department_providers = state.department_ai_providers.clone();
-    let agent_override = agent.ai_provider.clone();
-    match ai::chat_with_fallback_billed(
-        state,
-        BilledChatRequest {
-            request,
-            agent_id: agent.id.clone(),
-            department: agent.department.clone(),
-            source: "agent_memory_compress".into(),
-        },
-        &department_providers,
-        agent_override.as_deref(),
-    ) {
-        Ok(response) => {
-            let body = response.content.trim().to_string();
-            if body.chars().count() < 40 {
-                Ok(template_compress(current, max_chars, &agent.name))
-            } else {
-                Ok(body)
-            }
-        }
-        Err(_) => Ok(template_compress(current, max_chars, &agent.name)),
-    }
+    // Never call LLM while AppState is locked (after_task_success runs under apply lock).
+    // Template compress is fast and keeps the UI responsive; LLM compress can return later
+    // via an unlocked path if needed.
+    let _ = (request, state);
+    Ok(template_compress(current, max_chars, &agent.name))
 }
 
 fn template_compress(current: &str, max_chars: usize, agent_name: &str) -> String {

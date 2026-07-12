@@ -6,32 +6,32 @@ export const DEFAULT_EVENT_CHANCE = 0.15;
 
 export type PlayModeColumn = {
   id: PlayMode;
-  title: string;
-  tagline: string;
-  highlights: string[];
+  titleKey: string;
+  taglineKey: string;
+  highlightKeys: string[];
 };
 
 export const PLAY_MODE_COLUMNS: PlayModeColumn[] = [
   {
     id: "game",
-    title: "Game Mode",
-    tagline: "High-realism simulation with Fate weaving AI-driven office drama.",
-    highlights: [
-      "Fate appears as a visible agent in your office",
-      "Random events use your default AI API and bill tokens",
-      "Events reference your company, agents, and relationships",
-      "You choose how often Fate intervenes (5–25%)",
+    titleKey: "playMode.game.title",
+    taglineKey: "playMode.game.tagline",
+    highlightKeys: [
+      "playMode.game.h1",
+      "playMode.game.h2",
+      "playMode.game.h3",
+      "playMode.game.h4",
     ],
   },
   {
     id: "work",
-    title: "Work Mode",
-    tagline: "Zero random events — pure productivity for real tasks.",
-    highlights: [
-      "No surprise morale or token swings from Fate",
-      "Meetings, workspace, gigs, and billing run normally",
-      "Agents focus on delivery without narrative interruptions",
-      "Switch back to Game Mode anytime in Settings",
+    titleKey: "playMode.work.title",
+    taglineKey: "playMode.work.tagline",
+    highlightKeys: [
+      "playMode.work.h1",
+      "playMode.work.h2",
+      "playMode.work.h3",
+      "playMode.work.h4",
     ],
   },
 ];

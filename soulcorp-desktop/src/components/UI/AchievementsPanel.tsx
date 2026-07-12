@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -7,7 +7,19 @@ import type { Achievement, AchievementSnapshot, Ending } from "../../types/game"
 import { ACHIEVEMENT_SEARCH_TYPES } from "../../data/searchFilterOptions";
 import { filterByScopedQuery, prefilterItems, SEARCH_TYPE_ALL } from "../../utils/searchTypeFilters";
 import { SearchableListToolbar } from "./SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
+export const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  growth: "achievements.cat.growth",
+  culture: "achievements.cat.culture",
+  productivity: "achievements.cat.productivity",
+  offline: "achievements.cat.offline",
+  god_mode: "achievements.cat.god_mode",
+  chaos: "achievements.cat.chaos",
+  economic: "achievements.cat.economic",
+};
+
+/** @deprecated use CATEGORY_LABEL_KEYS + t() */
 export const CATEGORY_LABELS: Record<string, string> = {
   growth: "Growth",
   culture: "Culture",
@@ -19,9 +31,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const ACHIEVEMENT_NAV_SECTIONS = [
-  { id: "all", label: "All" },
-  ...Object.entries(CATEGORY_LABELS).map(([id, label]) => ({ id, label })),
-  { id: "endings", label: "Endings" },
+  { id: "all", labelKey: "achievements.nav.all" },
+  ...Object.entries(CATEGORY_LABEL_KEYS).map(([id, labelKey]) => ({ id, labelKey })),
+  { id: "endings", labelKey: "achievements.nav.endings" },
 ] as const;
 
 function groupByCategory(items: Achievement[]) {
@@ -51,6 +63,7 @@ function ProgressRing({ value, label }: { value: number; label: string }) {
 }
 
 function AchievementCard({ achievement }: { achievement: Achievement }) {
+  const { t } = useI18n();
   return (
     <article
       className={`achievement achievements-card${achievement.unlocked ? " unlocked" : " locked"}`}
@@ -58,13 +71,15 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
       <div className="achievements-card-head">
         <strong>{achievement.title}</strong>
         <span className={`achievements-badge${achievement.unlocked ? " unlocked" : ""}`}>
-          {achievement.unlocked ? "Unlocked" : "Locked"}
+          {achievement.unlocked ? t("achievements.unlocked") : t("achievements.locked")}
         </span>
       </div>
       <p>{achievement.description}</p>
       {achievement.unlocked && achievement.unlocked_at ? (
         <span className="achievement-date muted">
-          Unlocked {new Date(achievement.unlocked_at).toLocaleDateString()}
+          {t("achievements.unlockedAt", {
+            date: new Date(achievement.unlocked_at).toLocaleDateString(),
+          })}
         </span>
       ) : null}
     </article>
@@ -72,6 +87,7 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
 }
 
 function EndingCard({ ending }: { ending: Ending }) {
+  const { t } = useI18n();
   return (
     <article
       className={`achievement ending achievements-card achievements-ending-card${
@@ -81,13 +97,15 @@ function EndingCard({ ending }: { ending: Ending }) {
       <div className="achievements-card-head">
         <strong>{ending.title}</strong>
         <span className={`achievements-badge ending${ending.unlocked ? " unlocked" : ""}`}>
-          {ending.unlocked ? "Discovered" : "Hidden"}
+          {ending.unlocked ? t("achievements.discovered") : t("achievements.hidden")}
         </span>
       </div>
       <p>{ending.description}</p>
       {ending.unlocked && ending.unlocked_at ? (
         <span className="achievement-date muted">
-          Unlocked {new Date(ending.unlocked_at).toLocaleDateString()}
+          {t("achievements.unlockedAt", {
+            date: new Date(ending.unlocked_at).toLocaleDateString(),
+          })}
         </span>
       ) : null}
     </article>
@@ -99,6 +117,7 @@ interface AchievementsPanelProps {
 }
 
 export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
+  const { t } = useI18n();
   const { activeCompanyId, companyRevision } = useCompanyScope();
   const achievements = useGameStore((state) => state.achievements);
   const endings = useGameStore((state) => state.endings);
@@ -141,11 +160,13 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
         setAchievements(snapshot.achievements);
         setEndings(snapshot.endings);
         if (snapshot.newly_unlocked.length > 0) {
-          setStatusMessage(`Unlocked: ${snapshot.newly_unlocked.join(", ")}`);
+          setStatusMessage(
+            t("achievements.newlyUnlocked", { list: snapshot.newly_unlocked.join(", ") }),
+          );
         }
       })
       .catch((error) => setStatusMessage(String(error)));
-  }, [activeCompanyId, companyRevision, setAchievements, setEndings, setStatusMessage]);
+  }, [activeCompanyId, companyRevision, setAchievements, setEndings, setStatusMessage, t]);
 
   const unlockedCount = useMemo(
     () => achievements.filter((achievement) => achievement.unlocked).length,
@@ -216,7 +237,7 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
       const unlocked = items.filter((item) => item.unlocked).length;
       return {
         category,
-        label: CATEGORY_LABELS[category] ?? category,
+        label: CATEGORY_LABEL_KEYS[category] ?? category,
         unlocked,
         total: items.length,
         percent: items.length > 0 ? Math.round((unlocked / items.length) * 100) : 0,
@@ -237,25 +258,28 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
           <div className="achievements-summary" id="all" data-achievements-section="all">
             <ProgressRing
               value={achievementPercent}
-              label={`${unlockedCount}/${achievements.length} achievements`}
+              label={t("achievements.count", {
+                unlocked: unlockedCount,
+                total: achievements.length,
+              })}
             />
             <ProgressRing
               value={endingPercent}
-              label={`${unlockedEndings}/${endings.length} endings`}
+              label={t("achievements.endingsCount", {
+                unlocked: unlockedEndings,
+                total: endings.length,
+              })}
             />
             <div className="achievements-summary-copy">
-              <p>
-                Unlock achievements by growing the company, surviving chaos events, and mastering
-                offline play. Endings reveal alternate futures for your simulation.
-              </p>
+              <p>{t("achievements.summary")}</p>
             </div>
           </div>
 
           <SearchableListToolbar
             query={searchQuery}
             onQueryChange={setSearchQuery}
-            placeholder="Search achievements and endings…"
-            ariaLabel="Search achievements"
+            placeholder={t("achievements.searchPlaceholder")}
+            ariaLabel={t("achievements.searchAria")}
             matchCount={
               debouncedQuery.trim() || searchType !== SEARCH_TYPE_ALL
                 ? filteredAchievements.length + filteredEndings.length
@@ -266,8 +290,8 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
               value: searchType,
               onChange: setSearchType,
               options: ACHIEVEMENT_SEARCH_TYPES,
-              ariaLabel: "Filter achievement type",
-              label: "Type",
+              ariaLabel: t("achievements.filterTypeAria"),
+              label: t("achievements.type"),
             }}
           />
 
@@ -275,7 +299,7 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
           filteredAchievements.length === 0 &&
           filteredEndings.length === 0 ? (
             <p className="search-empty-hint muted">
-              No matches for &ldquo;{debouncedQuery}&rdquo;.
+              {t("achievements.noMatches", { query: debouncedQuery })}
             </p>
           ) : null}
 
@@ -283,7 +307,7 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
             {categoryProgress.map((entry) => (
               <div key={entry.category} className="achievements-category-meter">
                 <div className="achievements-category-meter-head">
-                  <span>{entry.label}</span>
+                  <span>{t(CATEGORY_LABEL_KEYS[entry.category] ?? entry.category)}</span>
                   <span className="muted">
                     {entry.unlocked}/{entry.total}
                   </span>
@@ -305,7 +329,7 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
           data-achievements-section={category}
         >
           <header className="achievements-section-header">
-            <h3>{CATEGORY_LABELS[category] ?? category}</h3>
+            <h3>{t(CATEGORY_LABEL_KEYS[category] ?? category)}</h3>
             <span className="muted">
               {items.filter((item) => item.unlocked).length}/{items.length} unlocked
             </span>
@@ -325,9 +349,9 @@ export function AchievementsPanel({ activeSection }: AchievementsPanelProps) {
           data-achievements-section="endings"
         >
           <header className="achievements-section-header">
-            <h3>Endings</h3>
+            <h3>{t("achievements.nav.endings")}</h3>
             <span className="muted">
-              {unlockedEndings}/{endings.length} discovered
+              {t("achievements.endingsDiscovered", { unlocked: unlockedEndings, total: endings.length })}
             </span>
           </header>
           <div className="achievements-grid achievements-endings-grid">

@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "../../utils/tauriInvoke";
+import { openLogged as open } from "../../utils/pluginLog";
 import { useEffect, useMemo, useState } from "react";
 import {
   createWorkspaceFolder,
@@ -19,17 +19,19 @@ import type {
   WorkspacePage,
   WorkspaceTemplate,
 } from "../../types/workspace";
+import { alertDialog, confirmDialog } from "../../utils/nativeDialog";
 import { fileKindIcon } from "../../utils/workspaceFileTypes";
+import { useI18n } from "../../i18n/I18nProvider";
 
 interface WorkspaceSection {
   id: string;
-  label: string;
+  labelKey: string;
   rootIds: string[];
 }
 
 const SECTIONS: WorkspaceSection[] = [
-  { id: "company", label: "Company", rootIds: ["folder-company"] },
-  { id: "teams", label: "Teams", rootIds: ["folder-teams"] },
+  { id: "company", labelKey: "workspace.company", rootIds: ["folder-company"] },
+  { id: "teams", labelKey: "workspace.teams", rootIds: ["folder-teams"] },
 ];
 
 function collapsedFoldersKey(companyId: string | null): string {
@@ -82,6 +84,7 @@ interface FolderTreeProps {
 }
 
 export function FolderTree({ organizeMode = false }: FolderTreeProps) {
+  const { t } = useI18n();
   const tree = useWorkspaceStore((state) => state.tree);
   const selectedPageId = useWorkspaceStore((state) => state.selectedPageId);
   const selectedFileId = useWorkspaceStore((state) => state.selectedFileId);
@@ -114,6 +117,26 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
       .then(setTemplates)
       .catch(() => setTemplates([]));
   }, []);
+
+  // Expanded folders must load page/file children; previously only toggle-expand loaded them,
+  // so default-open trees looked empty. Concurrent loads used a shared generation (fixed in store).
+  useEffect(() => {
+    for (const folder of tree.folders) {
+      if (collapsedFolders.has(folder.id)) {
+        continue;
+      }
+      if (folderChildren[folder.id] || folderChildrenLoading[folder.id]) {
+        continue;
+      }
+      void loadFolderChildren(folder.id);
+    }
+  }, [
+    tree.folders,
+    collapsedFolders,
+    folderChildren,
+    folderChildrenLoading,
+    loadFolderChildren,
+  ]);
 
   const itemsByFolder = useMemo(() => {
     const map = new Map<string, FolderItem[]>();
@@ -228,7 +251,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
   };
 
   const createSubfolder = async (folder: WorkspaceFolder) => {
-    const name = window.prompt("Team folder name");
+    const name = window.prompt(t("workspace.teamFolderPrompt"));
     if (!name?.trim()) {
       return;
     }
@@ -246,15 +269,15 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
       multiple: true,
       directory: false,
       filters: [
-        { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"] },
+        { name: t("workspace.fileFilter.images"), extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"] },
         { name: "PDF", extensions: ["pdf"] },
-        { name: "Documents", extensions: ["doc", "docx", "rtf", "odt", "txt", "md", "markdown"] },
-        { name: "Spreadsheets", extensions: ["xls", "xlsx", "csv", "ods"] },
-        { name: "Presentations", extensions: ["ppt", "pptx", "odp"] },
-        { name: "Archives", extensions: ["zip", "rar", "7z", "tar", "gz", "tgz"] },
-        { name: "Video", extensions: ["mp4", "m4v", "webm", "mov"] },
-        { name: "Audio", extensions: ["mp3", "wav", "ogg", "m4a"] },
-        { name: "Data", extensions: ["json", "yaml", "yml", "xml"] },
+        { name: t("workspace.fileFilter.documents"), extensions: ["doc", "docx", "rtf", "odt", "txt", "md", "markdown"] },
+        { name: t("workspace.fileFilter.spreadsheets"), extensions: ["xls", "xlsx", "csv", "ods"] },
+        { name: t("workspace.fileFilter.presentations"), extensions: ["ppt", "pptx", "odp"] },
+        { name: t("workspace.fileFilter.archives"), extensions: ["zip", "rar", "7z", "tar", "gz", "tgz"] },
+        { name: t("workspace.fileFilter.video"), extensions: ["mp4", "m4v", "webm", "mov"] },
+        { name: t("workspace.fileFilter.audio"), extensions: ["mp3", "wav", "ogg", "m4a"] },
+        { name: t("workspace.fileFilter.data"), extensions: ["json", "yaml", "yml", "xml"] },
       ],
     });
     if (!selected) {
@@ -275,14 +298,16 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
         await openWorkspaceItem(imported[0].id);
       }
     } catch (error) {
-      window.alert(String(error));
+      await alertDialog(String(error));
     } finally {
       setBusy(false);
     }
   };
 
   const handleDeleteFile = async (folderId: string, fileId: string, name: string) => {
-    const confirmed = window.confirm(`Delete file "${name}"? This cannot be undone.`);
+    const confirmed = await confirmDialog(
+      `Delete file "${name}"? This cannot be undone.`,
+    );
     if (!confirmed) {
       return;
     }
@@ -297,7 +322,9 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
   };
 
   const handleDeletePage = async (folderId: string, pageId: string, title: string) => {
-    const confirmed = window.confirm(`Delete page "${title}"? This cannot be undone.`);
+    const confirmed = await confirmDialog(
+      `Delete page "${title}"? This cannot be undone.`,
+    );
     if (!confirmed) {
       return;
     }
@@ -312,7 +339,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
   };
 
   const handleDeleteFolder = async (folder: WorkspaceFolder) => {
-    const confirmed = window.confirm(`Delete folder "${folder.name}"?`);
+    const confirmed = await confirmDialog(`Delete folder "${folder.name}"?`);
     if (!confirmed) {
       return;
     }
@@ -322,7 +349,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
       removeFolder(folder.id);
       await refreshFolders();
     } catch (error) {
-      window.alert(String(error));
+      await alertDialog(String(error));
     } finally {
       setBusy(false);
     }
@@ -380,7 +407,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
             </span>
             <span className="folder-row-icon">{folder.icon ?? "📂"}</span>
             <span className="folder-row-name">{folder.name}</span>
-            {isAgentFolder ? <span className="folder-row-badge">Employee</span> : null}
+            {isAgentFolder ? <span className="folder-row-badge">{t("workspace.employee")}</span> : null}
           </button>
           {organizeMode ? (
           <div className="folder-row-actions">
@@ -388,7 +415,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
               <button
                 type="button"
                 className="tiny-btn"
-                title="New subfolder"
+                title={t("workspace.newSubfolder")}
                 disabled={busy}
                 onClick={() => void createSubfolder(folder)}
               >
@@ -398,7 +425,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
             <button
               type="button"
               className="tiny-btn"
-              title="New page"
+              title={t("workspace.newPageTitle")}
               disabled={busy}
               onClick={() => void createPage(folder.id)}
             >
@@ -407,7 +434,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
             <button
               type="button"
               className="tiny-btn"
-              title="Upload files"
+              title={t("workspace.uploadFiles")}
               disabled={busy}
               onClick={() => void uploadFiles(folder.id)}
             >
@@ -416,7 +443,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
             <button
               type="button"
               className="tiny-btn"
-              title="From template"
+              title={t("workspace.fromTemplate")}
               disabled={busy}
               onClick={() =>
                 setTemplateFolderId((current) => (current === folder.id ? null : folder.id))
@@ -428,7 +455,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
               <button
                 type="button"
                 className="tiny-btn danger"
-                title="Delete folder"
+                title={t("workspace.deleteFolder")}
                 disabled={busy}
                 onClick={() => void handleDeleteFolder(folder)}
               >
@@ -442,7 +469,21 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
         {!isCollapsed ? (
           <>
             {isLoadingChildren ? (
-              <p className="ws-folder-loading muted">Loading…</p>
+              <p className="ws-folder-loading muted" style={{ paddingLeft: (depth + 1) * 12 }}>
+                {t("workspace.loading")}
+              </p>
+            ) : null}
+            {!isLoadingChildren &&
+            isLoaded &&
+            items.length === 0 &&
+            children.length === 0 &&
+            templateFolderId !== folder.id ? (
+              <p
+                className="ws-folder-empty muted"
+                style={{ paddingLeft: (depth + 1) * 12 }}
+              >
+                {isAgentFolder ? t("workspace.noPagesYet") : t("workspace.emptyFolder")}
+              </p>
             ) : null}
             {templateFolderId === folder.id ? (
               <div className="template-picker">
@@ -481,7 +522,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
                     <button
                       type="button"
                       className="tiny-btn"
-                      title="Move up"
+                      title={t("workspace.moveUp")}
                       disabled={busy || index === 0}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -493,7 +534,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
                     <button
                       type="button"
                       className="tiny-btn"
-                      title="Move down"
+                      title={t("workspace.moveDown")}
                       disabled={busy || index === items.length - 1}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -562,7 +603,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
 
     return (
       <section key={section.id} className="workspace-tree-section">
-        <h3 className="workspace-tree-section-label">{section.label}</h3>
+        <h3 className="workspace-tree-section-label">{t(section.labelKey)}</h3>
         {roots.map((folder) => renderFolder(folder))}
       </section>
     );
@@ -579,7 +620,7 @@ export function FolderTree({ organizeMode = false }: FolderTreeProps) {
       {SECTIONS.map((section) => renderSection(section))}
       {orphanRoots.length > 0 ? (
         <section className="workspace-tree-section">
-          <h3 className="workspace-tree-section-label">Other</h3>
+          <h3 className="workspace-tree-section-label">{t("workspace.other")}</h3>
           {orphanRoots.map((folder) => renderFolder(folder))}
         </section>
       ) : null}

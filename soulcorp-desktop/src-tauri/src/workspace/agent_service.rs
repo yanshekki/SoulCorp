@@ -196,9 +196,35 @@ impl<'a> AgentWorkspaceService<'a> {
         meeting_type: &str,
         messages: &[(String, String)],
         participants: &[(String, String, String)],
+        minutes: &crate::meeting::MeetingMinutes,
     ) -> Result<Vec<WorkspacePage>, String> {
-        if let Some(existing) = self.storage.find_page_linked_to_meeting(meeting_id)? {
-            return Ok(vec![existing]);
+        self.write_meeting_notes_inner(
+            day_number,
+            meeting_id,
+            meeting_type,
+            messages,
+            participants,
+            minutes,
+            false,
+        )
+    }
+
+    /// force_rewrite: update existing notes page content (for recap edit).
+    pub fn write_meeting_notes_inner(
+        &self,
+        day_number: u32,
+        meeting_id: &str,
+        meeting_type: &str,
+        messages: &[(String, String)],
+        participants: &[(String, String, String)],
+        minutes: &crate::meeting::MeetingMinutes,
+        force_rewrite: bool,
+    ) -> Result<Vec<WorkspacePage>, String> {
+        let existing = self.storage.find_page_linked_to_meeting(meeting_id)?;
+        if let Some(existing) = &existing {
+            if !force_rewrite {
+                return Ok(vec![existing.clone()]);
+            }
         }
 
         let mut created = Vec::new();
@@ -207,28 +233,101 @@ impl<'a> AgentWorkspaceService<'a> {
             .map(|(_, name, _)| name.as_str())
             .collect();
 
-        let company_page = self.storage.create_page(
-            &CreatePageRequest {
-                folder_id: "folder-projects".to_string(),
-                title: format!("Meeting Notes — {meeting_type}"),
-            },
-            "meeting-system",
-        )?;
+        let company_page = if let Some(existing) = existing {
+            existing
+        } else {
+            self.storage.create_page(
+                &CreatePageRequest {
+                    folder_id: "folder-projects".to_string(),
+                    title: format!("Meeting Notes — {meeting_type}"),
+                },
+                "meeting-system",
+            )?
+        };
 
         let mut blocks = vec![
             Block {
                 id: Uuid::new_v4().to_string(),
                 block_type: "heading".to_string(),
-                content: format!("{meeting_type} Summary"),
+                content: minutes.title.clone(),
                 checked: None,
             },
             Block {
                 id: Uuid::new_v4().to_string(),
                 block_type: "text".to_string(),
-                content: format!("Participants: {}", participant_names.join(", ")),
+                content: format!(
+                    "Day {day_number} · Participants: {}",
+                    participant_names.join(", ")
+                ),
+                checked: None,
+            },
+            Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "heading".to_string(),
+                content: "Executive summary".into(),
+                checked: None,
+            },
+            Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "text".to_string(),
+                content: minutes.outcome_summary.clone(),
                 checked: None,
             },
         ];
+
+        fn push_section(blocks: &mut Vec<Block>, title: &str, items: &[String]) {
+            if items.is_empty() {
+                return;
+            }
+            blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "heading".to_string(),
+                content: title.to_string(),
+                checked: None,
+            });
+            for item in items {
+                blocks.push(Block {
+                    id: Uuid::new_v4().to_string(),
+                    block_type: "bullet".to_string(),
+                    content: item.clone(),
+                    checked: None,
+                });
+            }
+        }
+
+        push_section(&mut blocks, "Key points", &minutes.key_points);
+        push_section(&mut blocks, "Decisions", &minutes.decisions);
+        push_section(&mut blocks, "Action items", &minutes.action_items);
+        push_section(&mut blocks, "Risks & blockers", &minutes.risks_blockers);
+
+        if !minutes.task_ids.is_empty() {
+            blocks.push(Block {
+                id: Uuid::new_v4().to_string(),
+                block_type: "heading".to_string(),
+                content: "Backlog tasks".into(),
+                checked: None,
+            });
+            for (i, tid) in minutes.task_ids.iter().enumerate() {
+                let label = minutes
+                    .action_items
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| tid.clone());
+                blocks.push(Block {
+                    id: Uuid::new_v4().to_string(),
+                    block_type: "bullet".to_string(),
+                    content: format!("{label} → task `{tid}`"),
+                    checked: None,
+                });
+            }
+        }
+
+        blocks.push(Block {
+            id: Uuid::new_v4().to_string(),
+            block_type: "heading".to_string(),
+            content: "Full transcript".into(),
+            checked: None,
+        });
 
         for (speaker, content) in messages {
             blocks.push(Block {
@@ -251,10 +350,17 @@ impl<'a> AgentWorkspaceService<'a> {
                 title: name.clone(),
             });
         }
+        for tid in &minutes.task_ids {
+            company_links.push(LinkedEntity {
+                entity_type: "work_node".to_string(),
+                id: tid.clone(),
+                title: format!("Task {tid}"),
+            });
+        }
 
         let company_updated = self.storage.update_page(&UpdatePageRequest {
             page_id: company_page.id.clone(),
-            title: None,
+            title: Some(format!("Meeting Notes — {meeting_type}")),
             blocks: Some(blocks),
             rich_doc: None,
             linked_entities: Some(company_links),
@@ -283,7 +389,20 @@ impl<'a> AgentWorkspaceService<'a> {
                     lines.push(format!("{speaker}: {content}"));
                 }
             }
-            lines.push("Action items: follow up in next sprint planning.".to_string());
+            if !minutes.action_items.is_empty() {
+                lines.push("Action items:".into());
+                for item in &minutes.action_items {
+                    lines.push(format!("- {item}"));
+                }
+            } else {
+                lines.push("Action items: follow up in next sprint planning.".to_string());
+            }
+            if !minutes.key_points.is_empty() {
+                lines.push("Key points:".into());
+                for item in minutes.key_points.iter().take(4) {
+                    lines.push(format!("- {item}"));
+                }
+            }
 
             let page = self.append_journal(&agent, &journal_title, &heading, &lines)?;
             let linked = self.storage.link_entity_to_page(
@@ -497,17 +616,66 @@ pub fn page_to_text(page: &WorkspacePage) -> String {
 }
 
 pub fn format_workspace_context_for_prompt(context: &AgentWorkspaceContext) -> String {
+    format_workspace_context_for_prompt_with_root(None, context)
+}
+
+/// Prefer this when company workspace absolute root is known (Grok CLI / View CLI input).
+pub fn format_workspace_context_for_prompt_with_root(
+    workspace_root: Option<&std::path::Path>,
+    context: &AgentWorkspaceContext,
+) -> String {
+    let root_display = workspace_root
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "(unknown company workspace root)".into());
     let mut lines = vec![
+        "## Agent workspace (filesystem)".to_string(),
+        format!("- Company workspace (CLI cwd): {root_display}"),
         format!(
-            "Agent workspace folder: {} ({} pages, {} files)",
+            "- Agent folder id: {} ({} pages, {} files)",
             context.folder_id,
             context.pages.len(),
             context.files.len()
         ),
+        format!("- Agent folder name: {}", context.agent_name),
     ];
-    for page in context.pages.iter().take(8) {
-        lines.push(format!("- {} [{}]", page.title, page.id));
+
+    if let Some(root) = workspace_root {
+        let pages_dir = root.join("pages");
+        // Prefer memory.md first if present.
+        let mut pages: Vec<_> = context.pages.iter().collect();
+        pages.sort_by(|a, b| {
+            let am = a.title == "memory.md";
+            let bm = b.title == "memory.md";
+            bm.cmp(&am).then_with(|| a.title.cmp(&b.title))
+        });
+        if let Some(mem) = pages.iter().find(|p| p.title == "memory.md") {
+            let md = pages_dir.join(format!("{}.md", mem.id));
+            lines.push(format!("- memory.md path: {}", md.display()));
+        }
+        lines.push(
+            "- Pages (open these paths if your tools support local files):".to_string(),
+        );
+        for page in pages.into_iter().take(12) {
+            let md = pages_dir.join(format!("{}.md", page.id));
+            lines.push(format!("  - {} → {}", page.title, md.display()));
+        }
+    } else {
+        for page in context.pages.iter().take(8) {
+            lines.push(format!("- {} [{}]", page.title, page.id));
+        }
     }
+
+    lines.push("## Notes for the agent".to_string());
+    lines.push(
+        "- You are NOT chrooted to the agent folder; cwd is the company workspace root.".into(),
+    );
+    lines.push(
+        "- Prefer reading memory.md and task-related pages by absolute path above.".into(),
+    );
+    lines.push(
+        "- Logical folder id is for SoulCorp Workspace UI only.".into(),
+    );
+
     if !context.recent_edits.is_empty() {
         lines.push("Recent edits:".to_string());
         for entry in context.recent_edits.iter().take(5) {
@@ -581,6 +749,18 @@ mod tests {
         let agent = sample_agent();
         service.ensure_agent_folder(&agent).expect("folder");
 
+        let minutes = crate::meeting::MeetingMinutes {
+            title: "Daily Standup — Meeting Minutes".into(),
+            meeting_type: "Daily Standup".into(),
+            participants: vec!["Alpha".into(), "Beta".into()],
+            outcome_summary: "Standup closed with clear next steps.".into(),
+            key_points: vec!["API layer shipped".into()],
+            decisions: vec!["Proceed with design review tomorrow".into()],
+            action_items: vec!["Unblock design review".into()],
+            risks_blockers: vec!["Design review blocked".into()],
+            notes_write_error: None,
+            task_ids: vec!["task-1".into()],
+        };
         let pages = service
             .write_meeting_notes(
                 3,
@@ -595,6 +775,7 @@ mod tests {
                     agent.name.clone(),
                     agent.department.clone(),
                 )],
+                &minutes,
             )
             .expect("meeting notes");
 
@@ -610,7 +791,7 @@ mod tests {
             .any(|link| link.entity_type == "meeting" && link.id == "meet-42"));
 
         let again = service
-            .write_meeting_notes(3, "meet-42", "Daily Standup", &[], &[])
+            .write_meeting_notes(3, "meet-42", "Daily Standup", &[], &[], &minutes)
             .expect("idempotent");
         assert_eq!(again.len(), 1);
         assert_eq!(again[0].id, project_page.id);

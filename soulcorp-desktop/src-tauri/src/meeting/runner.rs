@@ -43,6 +43,16 @@ pub fn run_automated_meeting(
         revenue_delta: 0.0,
         notes_generated: false,
         notes_page_id: None,
+        key_points: Vec::new(),
+        decisions: Vec::new(),
+        action_items: Vec::new(),
+        risks_blockers: Vec::new(),
+        notes_write_error: None,
+        started_at: Some(chrono::Utc::now().to_rfc3339()),
+        completed_at: None,
+        story_id: None,
+        task_ids: Vec::new(),
+        directive_id: None,
     };
 
     for agent_id in &participant_ids {
@@ -242,8 +252,14 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
         .collect::<Vec<_>>()
         .join("\n");
 
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let lang_block = crate::i18n::language_instruction(lang);
+    let meet_lang = crate::i18n::meeting_language_instruction(lang);
+
     let meeting_context = format!(
-        "Company: {}\nMeeting type: {}\nParticipants:\n{roster}\nRelationships:\n{relationship_context}\nBlocked work:\n{blocked_context}\nActive projects:\n{project_context}\nSpeak naturally in 2-4 sentences. Propose concrete next actions.",
+        "{lang_block}\n\n{meet_lang}\n\n\
+Company: {}\nMeeting type: {}\nParticipants:\n{roster}\nRelationships:\n{relationship_context}\nBlocked work:\n{blocked_context}\nActive projects:\n{project_context}\n\
+Speak as this agent in the company language only (2–4 short sentences or bullets). Propose concrete next actions.",
         state.company_name, meeting.meeting_type
     );
 
@@ -277,12 +293,17 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
 
     let user_prompt = if history.is_empty() {
         format!(
-            "{} opens the {} meeting with a concrete update about priorities and blockers.",
+            "{meet_lang}\n\n\
+{} opens the {} meeting with a concrete update about priorities and blockers. \
+Speak only in the company language. No English meta-planning.",
             speaker.name, meeting.meeting_type
         )
     } else {
         format!(
-            "Meeting transcript so far:\n{history}\n\nNow {} continues the {} meeting with a specific response that references prior points and proposes next actions.",
+            "{meet_lang}\n\n\
+Meeting transcript so far:\n{history}\n\n\
+Now {} continues the {} meeting with a specific response that references prior points and proposes next actions. \
+Speak only in the company language. No English meta-planning.",
             speaker.name, meeting.meeting_type
         )
     };
@@ -294,7 +315,7 @@ fn prepare_meeting_turn(state: &AppState, meeting: &MeetingState) -> Result<Meet
         speaker_ai_provider: speaker.ai_provider.clone(),
         department_ai_providers: state.department_ai_providers.clone(),
         chat_request: ChatRequest {
-            system_prompt: persona,
+            system_prompt: format!("{lang_block}\n\n{meet_lang}\n\n{persona}"),
             context: Some(context),
             user_prompt,
             temperature: temperature_for_meeting(&meeting.meeting_type),
@@ -321,12 +342,24 @@ fn finalize_meeting_sync(
             .get_mut(meeting_id)
             .ok_or_else(|| "Meeting not found.".to_string())?;
         meeting.completed = true;
+        let lang = crate::i18n::language_from_settings(&state.settings);
         let (progress_delta, revenue_delta, summary, spawn_project) =
-            meeting_outcome_plan(&meeting_type);
+            meeting_outcome_plan(lang, &meeting_type);
         meeting.project_progress_delta = progress_delta;
         meeting.revenue_delta = revenue_delta;
         meeting.outcome_summary = Some(if spawn_project {
-            "Strategy meeting created a new internal project and raised revenue outlook.".to_string()
+            match lang {
+                crate::i18n::AppLanguage::En => {
+                    "Strategy meeting created a new internal project and raised revenue outlook."
+                        .to_string()
+                }
+                crate::i18n::AppLanguage::ZhHant => {
+                    "策略會議已建立新內部專案並提升收入展望。".to_string()
+                }
+                crate::i18n::AppLanguage::ZhHans => {
+                    "策略会议已建立新内部项目并提升收入展望。".to_string()
+                }
+            }
         } else {
             summary
         });
@@ -355,12 +388,48 @@ fn finalize_meeting_sync(
         })
         .unwrap_or_default();
 
-    let outcome_summary = state
+    let participant_names: Vec<String> = participant_ids
+        .iter()
+        .filter_map(|id| state.agents.get(id).map(|a| a.name.clone()))
+        .collect();
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let canned = state
         .meetings
         .get(meeting_id)
         .and_then(|m| m.outcome_summary.clone())
-        .unwrap_or_else(|| "Meeting action items".to_string());
+        .unwrap_or_else(|| crate::i18n::meeting_canned_outcome(lang, &meeting_type));
 
+    let settings = state.settings.clone();
+    let hub = state.hub.clone();
+    let depts = state.department_ai_providers.clone();
+    let mut minutes = crate::meeting::build_minutes_heuristic(
+        &meeting_type,
+        &participant_names,
+        &transcript,
+        &canned,
+        lang,
+    );
+    minutes = crate::meeting::polish_minutes_detached(
+        &settings,
+        &hub,
+        &depts,
+        None,
+        "Executive",
+        &transcript,
+        minutes,
+    );
+
+    {
+        if let Some(meeting) = state.meetings.get_mut(meeting_id) {
+            meeting.outcome_summary = Some(minutes.outcome_summary.clone());
+            meeting.key_points = minutes.key_points.clone();
+            meeting.decisions = minutes.decisions.clone();
+            meeting.action_items = minutes.action_items.clone();
+            meeting.risks_blockers = minutes.risks_blockers.clone();
+        }
+    }
+
+    let outcome_summary = minutes.outcome_summary.clone();
     let combined_outcome = if transcript.is_empty() {
         outcome_summary.clone()
     } else {
@@ -378,15 +447,17 @@ fn finalize_meeting_sync(
     }
 
     state.stats.meetings_completed += 1;
-    if let Err(error) = write_meeting_notes_from_state(app, state, meeting_id) {
-        eprintln!("Failed to write automated meeting notes: {error}");
+    if let Err(error) = write_meeting_notes_from_state(app, state, meeting_id, Some(&minutes)) {
+        crate::app_log::log_global(crate::app_log::LogLevel::Error, crate::app_log::LogCategory::Meeting, "auto_meeting_notes", format!("Failed to write automated meeting notes: {error}"), None);
     }
 
     Ok(outcome_summary)
 }
 
 fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str, outcome_summary: &str) {
-    let (progress_delta, revenue_delta, _, spawn_project) = meeting_outcome_plan(meeting_type);
+    let lang = crate::i18n::language_from_settings(&state.settings);
+    let (progress_delta, revenue_delta, _, spawn_project) =
+        meeting_outcome_plan(lang, meeting_type);
 
     if let Some(project) = state.projects.iter_mut().max_by(|left, right| {
         left.priority
@@ -412,13 +483,14 @@ fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str, outc
 
     if spawn_project && state.projects.len() < 6 {
         let pm_agent_id = state.default_pm_agent_id.clone();
+        let (title, description) = crate::i18n::new_initiative_from_strategy(lang);
         state.projects.push(InternalProject {
             id: format!("proj-{}", Uuid::new_v4()),
-            title: "New initiative from strategy meeting".into(),
+            title,
             progress: 0.05,
             priority: 3,
             owner_department: "Executive".into(),
-            description: "Spawned from a strategy meeting.".into(),
+            description,
             pm_agent_id,
             active_sprint_id: None,
             default_cycle_days: 14,
@@ -426,45 +498,24 @@ fn apply_meeting_outcome_to_state(state: &mut AppState, meeting_type: &str, outc
     }
 }
 
-fn meeting_outcome_plan(meeting_type: &str) -> (f32, f64, String, bool) {
-    match meeting_type {
-        "Daily Standup" => (
-            0.03,
-            0.0,
-            "Standup aligned blockers and next actions.".to_string(),
-            false,
-        ),
-        "Project Kickoff" => (
-            0.08,
-            120.0,
-            "Kickoff boosted project momentum.".to_string(),
-            false,
-        ),
-        "Crisis Meeting" => (
-            0.02,
-            -80.0,
-            "Crisis response plan agreed under pressure.".to_string(),
-            false,
-        ),
-        "Team Building" => (
-            0.01,
-            0.0,
-            "Team building improved cross-team trust.".to_string(),
-            false,
-        ),
-        "Strategy Discussion" => (
-            0.05,
-            200.0,
-            "Strategy meeting unlocked a new initiative.".to_string(),
-            true,
-        ),
-        _ => (
-            0.04,
-            50.0,
-            "Meeting reached actionable consensus.".to_string(),
-            false,
-        ),
-    }
+fn meeting_outcome_plan(
+    lang: crate::i18n::AppLanguage,
+    meeting_type: &str,
+) -> (f32, f64, String, bool) {
+    let (progress, revenue, spawn) = match meeting_type {
+        "Daily Standup" => (0.03, 0.0, false),
+        "Project Kickoff" => (0.08, 120.0, false),
+        "Crisis Meeting" => (0.02, -80.0, false),
+        "Team Building" => (0.01, 0.0, false),
+        "Strategy Discussion" => (0.05, 200.0, true),
+        _ => (0.04, 50.0, false),
+    };
+    (
+        progress,
+        revenue,
+        crate::i18n::meeting_canned_outcome(lang, meeting_type),
+        spawn,
+    )
 }
 
 fn morale_delta_for_type(meeting_type: &str) -> f32 {

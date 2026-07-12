@@ -34,11 +34,43 @@ pub fn snapshot(store: &AgentActivityStore) -> AgentActivitySnapshot {
     }
 }
 
+/// Close zombie sessions that never finished (e.g. UI killed mid-stream).
+/// Prevents Mind stream from sitting forever on "Waiting for tokens…".
+pub fn fail_stale_active_sessions(state: &mut AppState, app: Option<&AppHandle>, max_age_secs: i64) {
+    let now = chrono::Utc::now();
+    let stale_ids: Vec<String> = state
+        .agent_activity
+        .sessions
+        .iter()
+        .filter(|s| s.status == SessionStatus::Active)
+        .filter(|s| {
+            chrono::DateTime::parse_from_rfc3339(&s.started_at)
+                .ok()
+                .map(|t| (now - t.with_timezone(&chrono::Utc)).num_seconds() > max_age_secs)
+                .unwrap_or(false)
+        })
+        .map(|s| s.id.clone())
+        .collect();
+
+    for id in stale_ids {
+        end_session(
+            state,
+            app,
+            &id,
+            SessionStatus::Failed,
+            Some("Session timed out waiting for LLM tokens.".into()),
+        );
+    }
+}
+
 pub fn start_session(
     state: &mut AppState,
     app: Option<&AppHandle>,
     params: NewSessionParams,
 ) -> String {
+    // 3 minutes is generous for a single meeting turn stream.
+    fail_stale_active_sessions(state, app, 180);
+
     let session_id = new_session_id();
     let started_at = now_iso();
     let session = AgentActivitySession {
@@ -184,6 +216,73 @@ pub fn emit_token_delta(
         metadata: json!({ "reasoning": reasoning }),
     };
     append_event(state, app, event, None);
+}
+
+/// Fire token deltas to the UI **without** holding AppState.
+/// Used while the HTTP stream runs unlocked so the window stays interactive
+/// and tokens appear as soon as the provider sends them.
+pub fn emit_token_delta_live(
+    app: Option<&AppHandle>,
+    session_id: &str,
+    agent_id: &str,
+    step: Option<&str>,
+    delta: &str,
+    reasoning: bool,
+) {
+    if delta.is_empty() {
+        return;
+    }
+    let Some(handle) = app else {
+        return;
+    };
+    let event = AgentActivityEvent {
+        id: new_event_id(),
+        session_id: session_id.to_string(),
+        agent_id: agent_id.to_string(),
+        kind: ActivityKind::TokenDelta,
+        timestamp: now_iso(),
+        step: step.map(str::to_string),
+        content_delta: Some(delta.to_string()),
+        content_full: None,
+        metadata: json!({ "reasoning": reasoning }),
+    };
+    let payload = AgentActivityPayload {
+        event,
+        session: None,
+    };
+    let _ = handle.emit(EVENT_NAME, &payload);
+}
+
+/// Push the full turn text to the UI once (covers missed deltas / non-stream paths).
+pub fn emit_content_full_live(
+    app: Option<&AppHandle>,
+    session_id: &str,
+    agent_id: &str,
+    step: Option<&str>,
+    content: &str,
+) {
+    if content.trim().is_empty() {
+        return;
+    }
+    let Some(handle) = app else {
+        return;
+    };
+    let event = AgentActivityEvent {
+        id: new_event_id(),
+        session_id: session_id.to_string(),
+        agent_id: agent_id.to_string(),
+        kind: ActivityKind::StepComplete,
+        timestamp: now_iso(),
+        step: step.map(str::to_string),
+        content_delta: None,
+        content_full: Some(content.to_string()),
+        metadata: json!({ "live_full": true }),
+    };
+    let payload = AgentActivityPayload {
+        event,
+        session: None,
+    };
+    let _ = handle.emit(EVENT_NAME, &payload);
 }
 
 pub fn emit_terminal_line(

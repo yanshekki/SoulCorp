@@ -1,12 +1,14 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { openLogged as open } from "../../utils/pluginLog";
 import { useCallback, useEffect, useState } from "react";
 import { createWorkspacePage, importWorkspaceFiles } from "../../services/workspaceClient";
 import { useWorkspaceBootstrap } from "../../hooks/useWorkspaceBootstrap";
 import { useWorkspaceSidebarResize } from "../../hooks/useWorkspaceSidebarResize";
 import { formatWorkflowStepBadge } from "../../config/navigation";
+import { useI18n } from "../../i18n/I18nProvider";
 import { useGameStore } from "../../stores/gameStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { WorkflowNextButton } from "../UI/WorkflowNextButton";
+import { alertDialog } from "../../utils/nativeDialog";
 import { WorkspaceCommandPalette } from "./WorkspaceCommandPalette";
 import { WorkspaceDatabase } from "./WorkspaceDatabase";
 import { WorkspaceMainPanel } from "./WorkspaceMainPanel";
@@ -25,6 +27,7 @@ function resolveDefaultFolderId(
 }
 
 export function WorkspaceShell() {
+  const { t } = useI18n();
   useWorkspaceBootstrap(true);
   const isLoading = useWorkspaceStore((state) => state.isLoading);
   const tree = useWorkspaceStore((state) => state.tree);
@@ -57,12 +60,12 @@ export function WorkspaceShell() {
   const quickCreatePage = useCallback(async () => {
     const targetFolderId = resolveDefaultFolderId(tree.folders);
     if (!targetFolderId) {
-      window.alert("No company folder found. Complete onboarding first.");
+      await alertDialog(t("workspace.noCompanyFolder"));
       return;
     }
     setCreating(true);
     try {
-      const page = await createWorkspacePage(targetFolderId, "Untitled Page");
+      const page = await createWorkspacePage(targetFolderId, t("workspace.untitledPage"));
       await loadFolderChildren(targetFolderId, true);
       upsertPageSummary({
         id: page.id,
@@ -81,22 +84,22 @@ export function WorkspaceShell() {
   const quickUpload = useCallback(async () => {
     const targetFolderId = resolveDefaultFolderId(tree.folders);
     if (!targetFolderId) {
-      window.alert("No company folder found. Complete onboarding first.");
+      await alertDialog(t("workspace.noCompanyFolder"));
       return;
     }
     const selected = await open({
       multiple: true,
       directory: false,
       filters: [
-        { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"] },
+        { name: t("workspace.fileFilter.images"), extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"] },
         { name: "PDF", extensions: ["pdf"] },
-        { name: "Documents", extensions: ["doc", "docx", "rtf", "odt", "txt", "md", "markdown"] },
-        { name: "Spreadsheets", extensions: ["xls", "xlsx", "csv", "ods"] },
-        { name: "Presentations", extensions: ["ppt", "pptx", "odp"] },
-        { name: "Archives", extensions: ["zip", "rar", "7z", "tar", "gz", "tgz"] },
-        { name: "Video", extensions: ["mp4", "m4v", "webm", "mov"] },
-        { name: "Audio", extensions: ["mp3", "wav", "ogg", "m4a"] },
-        { name: "Data", extensions: ["json", "yaml", "yml", "xml"] },
+        { name: t("workspace.fileFilter.documents"), extensions: ["doc", "docx", "rtf", "odt", "txt", "md", "markdown"] },
+        { name: t("workspace.fileFilter.spreadsheets"), extensions: ["xls", "xlsx", "csv", "ods"] },
+        { name: t("workspace.fileFilter.presentations"), extensions: ["ppt", "pptx", "odp"] },
+        { name: t("workspace.fileFilter.archives"), extensions: ["zip", "rar", "7z", "tar", "gz", "tgz"] },
+        { name: t("workspace.fileFilter.video"), extensions: ["mp4", "m4v", "webm", "mov"] },
+        { name: t("workspace.fileFilter.audio"), extensions: ["mp3", "wav", "ogg", "m4a"] },
+        { name: t("workspace.fileFilter.data"), extensions: ["json", "yaml", "yml", "xml"] },
       ],
     });
     if (!selected) {
@@ -117,7 +120,7 @@ export function WorkspaceShell() {
         await openWorkspaceItem(imported[0].id);
       }
     } catch (error) {
-      window.alert(String(error));
+      await alertDialog(String(error));
     } finally {
       setUploading(false);
     }
@@ -131,10 +134,8 @@ export function WorkspaceShell() {
       <header className="app-page-header workspace-page-header ws-shell-header">
         <div className="app-page-header-main">
           <p className="workflow-step-badge">{formatWorkflowStepBadge("workspace")}</p>
-          <h2>Workspace</h2>
-          <p className="muted">
-            Company docs, notes & deliverables — Projects view groups Briefs and Deliverables
-          </p>
+          <h2>{t("workspace.pageTitle")}</h2>
+          <p className="muted">{t("workspace.pageSubtitle")}</p>
         </div>
         <div className="ws-shell-header-search">
           <WorkspaceSearch onOpenResult={(itemId) => void openWorkspaceItem(itemId)} />
@@ -144,7 +145,7 @@ export function WorkspaceShell() {
           <button
             type="button"
             className="ws-shell-action-btn ws-shell-action-btn--ghost"
-            title="Command palette (⌘K)"
+            title={t("workspace.cmdPalette")}
             onClick={() => setCommandPaletteOpen(true)}
           >
             ⌘K
@@ -155,7 +156,7 @@ export function WorkspaceShell() {
             disabled={uploading || isLoading}
             onClick={() => void quickUpload()}
           >
-            {uploading ? "Uploading…" : "⬆ Upload"}
+            {uploading ? t("workspace.uploading") : t("workspace.upload")}
           </button>
           <button
             type="button"
@@ -163,7 +164,7 @@ export function WorkspaceShell() {
             disabled={creating || isLoading}
             onClick={() => void quickCreatePage()}
           >
-            {creating ? "Creating…" : "+ New page"}
+            {creating ? t("workspace.creating") : t("workspace.newPage")}
           </button>
         </div>
       </header>
@@ -172,7 +173,7 @@ export function WorkspaceShell() {
         <aside className="workspace-sidebar app-page-nav ws-nav">
           <WorkspaceDatabase />
           {isLoading ? (
-            <p className="ws-nav-loading muted">Loading workspace…</p>
+            <p className="ws-nav-loading muted">{t("workspace.shellLoading")}</p>
           ) : (
             <WorkspaceNavigator />
           )}
@@ -181,7 +182,7 @@ export function WorkspaceShell() {
           className="workspace-resizer ws-resizer"
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize workspace sidebar"
+          aria-label={t("workspace.resizeSidebar")}
           onMouseDown={(event) => startResize(event)}
         />
         <WorkspaceMainPanel />

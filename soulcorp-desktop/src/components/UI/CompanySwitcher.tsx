@@ -3,8 +3,11 @@ import { deleteCompany, switchCompany } from "../../services/companyClient";
 import { reloadGameState } from "../../hooks/useReloadGameState";
 import { useGameStore } from "../../stores/gameStore";
 import { reportLocalProgress } from "../../stores/progressStore";
+import { confirmDialog } from "../../utils/nativeDialog";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function CompanySwitcher() {
+  const { t } = useI18n();
   const companies = useGameStore((state) => state.companies);
   const activeCompanyId = useGameStore((state) => state.activeCompanyId);
   const companyName = useGameStore((state) => state.companyName);
@@ -33,7 +36,7 @@ export function CompanySwitcher() {
   const displayName =
     activeCompany?.name ||
     companyName ||
-    (companies.length > 0 ? "Select company" : "No companies");
+    (companies.length > 0 ? t("company.select") : t("company.none"));
 
   const handleSwitch = async (companyId: string) => {
     if (companyId === activeCompanyId || busy) {
@@ -41,11 +44,11 @@ export function CompanySwitcher() {
     }
     setBusy(true);
     setOpen(false);
-    reportLocalProgress("company_switch", "Switching company…", 5, "switch");
+    reportLocalProgress("company_switch", t("company.switching"), 5, "switch");
     try {
       await switchCompany(companyId);
       await reloadGameState("company_switch");
-      setStatusMessage("Switched company.");
+      setStatusMessage(t("company.switched"));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -57,7 +60,9 @@ export function CompanySwitcher() {
     if (busy || companies.length <= 1) {
       return;
     }
-    const confirmed = window.confirm(`Delete "${name}" and its local workspace data?`);
+    const confirmed = await confirmDialog(
+      t("company.deleteConfirm", { name }),
+    );
     if (!confirmed) {
       return;
     }
@@ -66,7 +71,7 @@ export function CompanySwitcher() {
     try {
       await deleteCompany(companyId);
       await reloadGameState();
-      setStatusMessage(`Deleted ${name}.`);
+      setStatusMessage(t("company.deleted", { name }));
     } catch (error) {
       setStatusMessage(String(error));
     } finally {
@@ -76,7 +81,7 @@ export function CompanySwitcher() {
 
   return (
     <div className="company-switcher" ref={rootRef}>
-      <span className="company-switcher-label">Company</span>
+      <span className="company-switcher-label">{t("company.label")}</span>
       <div className="company-switcher-control">
         <button
           type="button"
@@ -126,7 +131,7 @@ export function CompanySwitcher() {
         disabled={busy}
         onClick={() => setShowCreateCompany(true)}
       >
-        New
+        {t("common.new")}
       </button>
       {companies.length > 1 && activeCompanyId ? (
         <button
@@ -138,9 +143,7 @@ export function CompanySwitcher() {
               void handleDelete(activeCompany.id, activeCompany.name);
             }
           }}
-        >
-          Delete
-        </button>
+        >{t("common.delete")}</button>
       ) : null}
     </div>
   );

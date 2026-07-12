@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../../utils/tauriInvoke";
 import { useGameStore } from "../../../stores/gameStore";
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
 import { AgentLiveGrid } from "./AgentLiveGrid";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { ThoughtStreamPane } from "./ThoughtStreamPane";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 export const OBSERVATORY_SECTIONS = [
   { id: "overview", label: "Overview", hint: "Status & how to use" },
@@ -59,6 +60,7 @@ interface ExportResult {
 }
 
 export function ObservatoryPanel({ activeSection, onNavigateSection }: ObservatoryPanelProps) {
+  const { t } = useI18n();
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const setActivePanel = useGameStore((state) => state.setActivePanel);
@@ -146,43 +148,43 @@ export function ObservatoryPanel({ activeSection, onNavigateSection }: Observato
       <ObservatoryCard
         id="overview"
         activeSection={activeSection}
-        title="Agent Observatory"
-        description="Watch live LLM tokens, execution steps, and subprocess output while agents work. Pick a live session or history event — the mind stream opens below."
+        title={t("observatory.title")}
+        description={t("observatory.desc")}
       >
         <div className="agents-overview-stats observatory-overview-stats">
           <article>
             <strong>{kpis.active}</strong>
-            <span>Active sessions</span>
+            <span>{t("observatory.kpi.active")}</span>
           </article>
           <article>
             <strong>{kpis.streaming}</strong>
-            <span>Streaming now</span>
+            <span>{t("observatory.kpi.streaming")}</span>
           </article>
           <article>
             <strong>{kpis.meeting}</strong>
-            <span>Meeting turns</span>
+            <span>{t("observatory.kpi.meeting")}</span>
           </article>
           <article>
             <strong>{kpis.execution}</strong>
-            <span>Task runs</span>
+            <span>{t("observatory.kpi.execution")}</span>
           </article>
           <article>
             <strong>{kpis.errors}</strong>
-            <span>Errors logged</span>
+            <span>{t("observatory.kpi.errors")}</span>
           </article>
         </div>
         <div className="observatory-quick-links">
           <button type="button" className="secondary-action" onClick={() => onNavigateSection?.("live")}>
-            Jump to live
+            {t("observatory.jumpLive")}
           </button>
           <button type="button" className="secondary-action" onClick={() => setActivePanel("meeting")}>
-            Open Meeting
+            {t("observatory.openMeeting")}
           </button>
           <button type="button" className="secondary-action" onClick={() => setActivePanel("projects")}>
-            Projects & execution
+            {t("observatory.openProjects")}
           </button>
           <button type="button" className="secondary-action" onClick={() => void exportSessions()}>
-            Export sessions
+            {t("observatory.exportSessions")}
           </button>
         </div>
         {exportMessage ? <p className="muted observatory-export-status">{exportMessage}</p> : null}
@@ -191,9 +193,9 @@ export function ObservatoryPanel({ activeSection, onNavigateSection }: Observato
       <ObservatoryCard
         id="live"
         activeSection={activeSection}
-        badge="Live"
-        title="Thinking now"
-        description="Agents with an active session. Click one to open their mind stream."
+        badge={t("observatory.liveBadge")}
+        title={t("observatory.thinkingNow")}
+        description={t("observatory.thinkingDesc")}
       >
         <AgentLiveGrid onSelectAgent={handleSelectAgent} />
       </ObservatoryCard>
@@ -201,8 +203,8 @@ export function ObservatoryPanel({ activeSection, onNavigateSection }: Observato
       <ObservatoryCard
         id="history"
         activeSection={activeSection}
-        title="Session history"
-        description="Step milestones and outcomes. Token chunks are hidden here — open the mind stream for the full live text."
+        title={t("observatory.historyTitle")}
+        description={t("observatory.historyDesc")}
       >
         <ActivityTimeline onSelectSession={handleSelectSession} />
       </ObservatoryCard>
@@ -210,21 +212,24 @@ export function ObservatoryPanel({ activeSection, onNavigateSection }: Observato
       <ObservatoryCard
         id="stream"
         activeSection={activeSection}
-        badge="Stream"
-        title="Mind stream"
+        badge={t("observatory.streamBadge")}
+        title={t("observatory.mindStream")}
         description={
           selectedSession
-            ? `Watching ${selectedSession.agent_name}${
-              selectedSession.work_node_title ? ` · ${selectedSession.work_node_title}` : ""
-            }`
-            : "Select a live agent or history event to load tokens, steps, terminal output, and deliverables."
+            ? t("observatory.watching", {
+                name: selectedSession.agent_name,
+                task: selectedSession.work_node_title
+                  ? ` · ${selectedSession.work_node_title}`
+                  : "",
+              })
+            : t("observatory.selectStream")
         }
       >
         {focusAgentName ? (
           <div className="observatory-focus-bar">
-            <span className="hub-pill tier">Focused · {focusAgentName}</span>
+            <span className="hub-pill tier">{t("observatory.focused", { name: focusAgentName })}</span>
             <button type="button" className="secondary-action" onClick={clearFocus}>
-              Clear focus
+              {t("observatory.clearFocus")}
             </button>
           </div>
         ) : null}

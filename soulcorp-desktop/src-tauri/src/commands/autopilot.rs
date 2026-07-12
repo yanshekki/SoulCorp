@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
+use crate::lock_util::MutexExt;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CeoCommentRequest {
     pub item_kind: String,
@@ -57,7 +58,7 @@ pub struct CeoRerouteStoryRequest {
 
 #[tauri::command]
 pub fn get_autopilot_snapshot(state: State<'_, Mutex<AppState>>) -> Result<AutopilotSnapshot, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
+    let state = state.lock_or_recover()?;
     Ok(compute_autopilot_snapshot(&state))
 }
 
@@ -67,7 +68,7 @@ pub fn ceo_approve_directive_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_approve_directive(&mut state, &directive_id)?;
     let _ = apply_scrum_worker_tick(&mut state, &app, false);
     commit(app, &state)?;
@@ -80,7 +81,7 @@ pub fn ceo_reject_directive_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_reject_directive(&mut state, &request.item_id, &request.reason)?;
     commit(app, &state)?;
     Ok(compute_autopilot_snapshot(&state))
@@ -92,7 +93,7 @@ pub fn ceo_approve_deliverable_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     approve_deliverable_with_gate(&mut state, &work_node_id)?;
     let _ = apply_scrum_worker_tick(&mut state, &app, false);
     commit(app, &state)?;
@@ -105,7 +106,7 @@ pub fn ceo_reject_deliverable_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_reject_deliverable(&mut state, &request.item_id, &request.reason)?;
     let _ = apply_scrum_worker_tick(&mut state, &app, false);
     commit(app, &state)?;
@@ -118,7 +119,7 @@ pub fn ceo_comment_on_item_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_comment_on_item(
         &mut state,
         Some(&app),
@@ -136,7 +137,7 @@ pub fn dismiss_meeting_gate_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     dismiss_meeting_gate(&mut state, &meeting_id);
     commit(app, &state)?;
     Ok(compute_autopilot_snapshot(&state))
@@ -155,7 +156,7 @@ pub fn set_autopilot_intervention_mode(
     ) {
         return Err("Invalid intervention mode.".to_string());
     }
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     state.settings.autopilot_intervention_mode = mode.clone();
     // Legacy "paused" mode still pauses execution; other modes only change gate policy
     // and do not force resume (Pause/Resume button owns run/stop).
@@ -172,7 +173,7 @@ pub fn set_full_autopilot(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     apply_full_autopilot_settings(&mut state, request.enabled);
     commit(app, &state)?;
     Ok(compute_autopilot_snapshot(&state))
@@ -183,7 +184,7 @@ pub fn resume_autopilot(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     // Run/stop is only scrum_execution_paused — preserve CEO gate mode.
     state.settings.scrum_execution_paused = false;
     if state.settings.autopilot_intervention_mode == "paused" {
@@ -201,7 +202,7 @@ pub fn ceo_edit_directive_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_edit_directive(
         &mut state,
         &request.directive_id,
@@ -218,7 +219,7 @@ pub fn ceo_update_story_criteria_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     ceo_update_story_criteria(&mut state, &request.story_id, request.acceptance_criteria)?;
     commit(app, &state)?;
     Ok(compute_autopilot_snapshot(&state))
@@ -230,7 +231,7 @@ pub fn ceo_reroute_story_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let _ = ceo_reroute_story(&mut state, &request.story_id)?;
     let _ = apply_scrum_worker_tick(&mut state, &app, false);
     commit(app, &state)?;
@@ -243,7 +244,7 @@ pub fn meeting_follow_up_directive_cmd(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     let _ = meeting_follow_up_directive(&mut state, &meeting_id)?;
     let _ = apply_scrum_worker_tick(&mut state, &app, false);
     commit(app, &state)?;
@@ -255,7 +256,7 @@ pub fn pause_autopilot(
     state: State<'_, Mutex<AppState>>,
     app: AppHandle,
 ) -> Result<AutopilotSnapshot, String> {
-    let mut state = state.lock().map_err(|e| e.to_string())?;
+    let mut state = state.lock_or_recover()?;
     // Pause is a run/stop flag only — do not overwrite intervention gate mode
     // (avoids duplicating the "When CEO steps in" dropdown).
     state.settings.scrum_execution_paused = true;

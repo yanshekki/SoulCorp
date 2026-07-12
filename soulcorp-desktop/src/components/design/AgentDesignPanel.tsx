@@ -10,8 +10,10 @@ import {
 import { generateAgentAppearance } from "../../utils/agentAppearance";
 import { appearanceFromVisualConfig } from "../../utils/applyVisualDesign";
 import { ColorField } from "./ColorField";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export function AgentDesignPanel() {
+  const { t } = useI18n();
   const agents = useGameStore((state) => state.agents);
   const agentRecords = useGameStore((state) => state.agentRecords);
   const selectedAgentId = useDesignStudioStore((state) => state.selectedAgentId);
@@ -64,8 +66,8 @@ export function AgentDesignPanel() {
   if (!agentId || !agent) {
     return (
       <section className="design-panel">
-        <h2>Agent appearance</h2>
-        <p className="muted">Hire or seed agents first, then customize their look here.</p>
+        <h2>{t("design.agentAppearance")}</h2>
+        <p className="muted">{t("design.agentAppearanceEmpty")}</p>
       </section>
     );
   }
@@ -73,12 +75,12 @@ export function AgentDesignPanel() {
   return (
     <section className="design-panel">
       <header>
-        <h2>Agent appearance</h2>
-        <p className="muted">Design how each employee appears in the 3D campus.</p>
+        <h2>{t("design.agentAppearance")}</h2>
+        <p className="muted">{t("design.agentAppearanceDesc")}</p>
       </header>
 
       <label className="field-label">
-        Employee
+        {t("design.employee")}
         <select value={agentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
           {roster.map((item) => (
             <option key={item.id} value={item.id}>
@@ -96,55 +98,55 @@ export function AgentDesignPanel() {
             className="design-preset-card"
             onClick={() => updateConfig({ ...config, ...preset.config })}
           >
-            <strong>{preset.label}</strong>
+            <strong>{t(`design.look.${preset.id}`)}</strong>
           </button>
         ))}
       </div>
 
       <label className="field-label">
-        Hair style
+        {t("design.hairStyle")}
         <select
           value={config.hair_style}
           onChange={(event) =>
             updateConfig({ hair_style: event.target.value as DesignHairStyle })
           }
         >
-          <option value="short">Short</option>
-          <option value="bob">Bob</option>
-          <option value="spiky">Spiky</option>
-          <option value="long">Long</option>
+          <option value="short">{t("design.hair.short")}</option>
+          <option value="bob">{t("design.hair.bob")}</option>
+          <option value="spiky">{t("design.hair.spiky")}</option>
+          <option value="long">{t("design.hair.long")}</option>
         </select>
       </label>
 
       <ColorField
-        label="Skin tone"
+        label={t("design.skinTone")}
         value={config.skin_color}
         onChange={(skin_color) => updateConfig({ skin_color })}
       />
       <ColorField
-        label="Shirt"
+        label={t("design.shirt")}
         value={config.shirt_color}
         onChange={(shirt_color) => updateConfig({ shirt_color })}
       />
       <ColorField
-        label="Pants"
+        label={t("design.pants")}
         value={config.pants_color}
         onChange={(pants_color) => updateConfig({ pants_color })}
       />
       <ColorField
-        label="Hair"
+        label={t("design.hair")}
         value={config.hair_color}
         onChange={(hair_color) => updateConfig({ hair_color })}
       />
       <ColorField
-        label="Shoes"
+        label={t("design.shoes")}
         value={config.shoe_color}
         onChange={(shoe_color) => updateConfig({ shoe_color })}
       />
 
       <div className="design-slider-grid">
         <label className="field-label">
-          Height
+          {t("design.height")}
           <input
             type="range"
             min={0.85}
@@ -155,7 +157,7 @@ export function AgentDesignPanel() {
           />
         </label>
         <label className="field-label">
-          Build
+          {t("design.build")}
           <input
             type="range"
             min={0.8}
@@ -182,7 +184,7 @@ export function AgentDesignPanel() {
           });
         }}
       >
-        Randomize look
+        {t("world.randomizeLook")}
       </button>
 
       <p className="muted design-swatch-preview">

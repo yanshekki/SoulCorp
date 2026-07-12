@@ -81,7 +81,7 @@ fn accept_gig_into_state(state: &mut AppState, gig: &HubGig) -> Result<String, S
             Ok(_) => {}
             Err(err) => {
                 enqueue_gig_assign(state, gig.gig_id);
-                eprintln!("Hub assign queued for gig {}: {err}", gig.gig_id);
+                crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::Hub, "auto_accept", format!("Hub assign queued for gig {}: {err}", gig.gig_id), None);
             }
         }
     }
@@ -139,7 +139,7 @@ fn start_accepted_contract(
         let client = hub_client_from_state(state);
         if let Err(err) = blocking_start_gig(&client, gig_id) {
             crate::gigs::hub_sync::enqueue_gig_start(state, gig_id);
-            eprintln!("Hub start queued for gig {gig_id}: {err}");
+            crate::app_log::log_global(crate::app_log::LogLevel::Warn, crate::app_log::LogCategory::Hub, "auto_accept", format!("Hub start queued for gig {gig_id}: {err}"), None);
         }
     }
 

@@ -1,6 +1,9 @@
+import { useI18n } from "../../i18n/I18nProvider";
+
 export interface SearchTypeFilterOption {
   value: string;
   label: string;
+  labelKey?: string;
 }
 
 export interface SearchTypeFilterProps {
@@ -17,12 +20,14 @@ export function SearchTypeFilter({
   onChange,
   options,
   ariaLabel,
-  label = "Type",
+  label,
   className = "",
 }: SearchTypeFilterProps) {
+  const { t } = useI18n();
+  const resolvedLabel = label ?? t("searchType.typeLabel");
   return (
     <label className={`search-type-filter${className ? ` ${className}` : ""}`}>
-      <span className="search-type-filter-label">{label}</span>
+      <span className="search-type-filter-label">{resolvedLabel}</span>
       <select
         className="search-type-filter-select"
         value={value}
@@ -31,7 +36,7 @@ export function SearchTypeFilter({
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {option.labelKey ? t(option.labelKey) : option.label}
           </option>
         ))}
       </select>

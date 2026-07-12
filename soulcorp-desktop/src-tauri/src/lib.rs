@@ -17,7 +17,10 @@ mod progress;
 mod finance;
 mod token_budget;
 mod gigs;
+mod app_log;
 mod hub;
+mod i18n;
+mod lock_util;
 mod operations;
 mod relationships;
 mod report;
@@ -26,6 +29,8 @@ mod state;
 mod static_site;
 mod tier;
 mod workspace;
+
+pub use lock_util::MutexExt;
 
 use achievements::{default_achievements, default_endings};
 use db::persistence::flush_pending_commit;
@@ -42,6 +47,9 @@ const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Capture panics into app_logs (best-effort) as early as possible.
+    crate::app_log::install_panic_hook();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -60,7 +68,8 @@ pub fn run() {
             db::init_database(app.handle())?;
             let (_registry, mut state) = db::persistence::bootstrap_companies(app.handle())?;
             crate::operations::normalize_v1_operational_state(&mut state);
-            if crate::config::is_v1() && !state.company_id.is_empty() {
+            crate::operations::recover_stale_execution_on_boot(&mut state);
+            if !state.company_id.is_empty() {
                 let _ = db::persistence::commit(app.handle().clone(), &state);
             }
             // Agents and projects come from user onboarding / in-app creation only.
@@ -71,11 +80,24 @@ pub fn run() {
                 state.endings = default_endings();
             }
             app.manage(Mutex::new(state));
+            crate::app_log::set_app_handle(app.handle().clone());
+            let _ = crate::app_log::ensure_ready(app.handle());
+            crate::app_log::log_info(
+                app.handle(),
+                crate::app_log::LogCategory::System,
+                "app_setup",
+                "SoulCorp desktop started",
+            );
             commands::spawn_smoke_watchdog(app.handle().clone());
             crate::scrum::spawn_scrum_worker(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_app_logs,
+            commands::get_app_log_stats,
+            commands::clear_app_logs,
+            commands::export_app_logs,
+            commands::append_app_log,
             commands::start_local_agent,
             commands::load_agent_soul,
             commands::update_agent_soul,
@@ -88,6 +110,7 @@ pub fn run() {
             commands::get_simulation_snapshot,
             commands::get_local_queue_status,
             commands::get_hub_status,
+            commands::test_hub_connection,
             commands::update_hub_config,
             commands::list_hub_gigs,
             commands::create_hub_gig,
@@ -109,6 +132,8 @@ pub fn run() {
             commands::claim_near_tier_upgrade,
             commands::list_company_departments,
             commands::list_departments,
+            commands::generate_departments_from_projects,
+            commands::assign_org_with_ai,
             commands::get_org_chart,
             commands::create_department,
             commands::update_department,
@@ -149,6 +174,7 @@ pub fn run() {
             commands::update_department_token_budget_cmd,
             commands::update_agent_token_budget_cmd,
             commands::rebalance_token_wallets_cmd,
+            commands::update_company_pool_cmd,
             commands::estimate_meeting_turn_cost,
             commands::list_internal_projects,
             commands::list_projects,
@@ -171,6 +197,8 @@ pub fn run() {
             commands::run_work_execution,
             commands::approve_deliverable,
             commands::list_execution_runs,
+            commands::get_execution_run,
+            commands::get_execution_cli_input,
             commands::link_work_node_to_gig,
             commands::get_command_center_overview,
             commands::get_automation_status,
@@ -227,13 +255,19 @@ pub fn run() {
             commands::get_agent_relationship_graph,
             commands::get_recruitment_analytics,
             commands::record_recruitment_interview,
+            commands::suggest_recruitment_keywords_from_projects,
             commands::hire_candidate,
             commands::import_company_backup,
             commands::get_recent_events,
             commands::get_event_foresight,
             commands::get_morale_heatmap,
             commands::get_meeting_ai_status,
+            commands::test_meeting_provider,
             commands::get_active_meeting,
+            commands::list_meetings,
+            commands::get_meeting,
+            commands::update_meeting_recap,
+            commands::export_meeting_minutes,
             commands::start_meeting,
             commands::advance_meeting,
             commands::god_mode_time_warp,
@@ -269,6 +303,9 @@ pub fn run() {
             commands::delete_workspace_file,
             commands::open_workspace_file_externally,
             commands::update_workspace_page,
+            commands::translate_workspace_page_cmd,
+            commands::translate_text_content_cmd,
+            commands::translate_workspace_pages_batch_cmd,
             commands::search_workspace,
             commands::list_linkable_entities,
             commands::link_workspace_entity,
@@ -323,7 +360,7 @@ pub fn run() {
             if let RunEvent::Exit = event {
                 let _ = app_handle.save_window_state(WINDOW_STATE_FLAGS);
                 if let Some(state) = app_handle.try_state::<Mutex<AppState>>() {
-                    if let Ok(locked) = state.lock() {
+                    if let Ok(locked) = lock_util::MutexExt::lock_or_recover(&*state) {
                         let _ = flush_pending_commit(app_handle.clone(), &locked);
                     }
                 }

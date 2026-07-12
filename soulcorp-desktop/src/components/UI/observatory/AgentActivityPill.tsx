@@ -1,4 +1,5 @@
 import { useAgentActivityStore } from "../../../stores/agentActivityStore";
+import { useI18n } from "../../../i18n/I18nProvider";
 
 interface AgentActivityPillProps {
   agentId: string;
@@ -6,6 +7,7 @@ interface AgentActivityPillProps {
 }
 
 export function AgentActivityPill({ agentId, onClick }: AgentActivityPillProps) {
+  const { t } = useI18n();
   const sessions = useAgentActivityStore((state) => state.sessions);
   const active = sessions.some(
     (session) => session.agent_id === agentId && session.status === "active",
@@ -20,10 +22,10 @@ export function AgentActivityPill({ agentId, onClick }: AgentActivityPillProps) 
       type="button"
       className="observatory-live-pill"
       onClick={onClick}
-      title="Agent is thinking — open Observatory"
+      title={t("observatory.pill.thinking")}
     >
       <span className="observatory-live-dot" aria-hidden="true" />
-      LIVE
+      {t("observatory.liveBadge")}
     </button>
   );
 }

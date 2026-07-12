@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../utils/tauriInvoke";
 import { useEffect, useMemo, useState } from "react";
 import { useCompanyScope } from "../../hooks/useCompanyScope";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -9,118 +9,132 @@ import { filterByScopedQuery, prefilterItems, SEARCH_TYPE_ALL } from "../../util
 import { paginateItems } from "../../utils/pagination";
 import { PaginationBar } from "./PaginationBar";
 import { SearchableListToolbar } from "./SearchableListToolbar";
+import { useI18n } from "../../i18n/I18nProvider";
 
 const GOD_MODE_LOG_PAGE_SIZE = 20;
 
 export type GodModeCategory = "simulation" | "economy" | "agents" | "chaos";
 
-export const GOD_MODE_CATEGORIES: { id: GodModeCategory; label: string }[] = [
-  { id: "simulation", label: "Simulation" },
-  { id: "economy", label: "Economy" },
-  { id: "agents", label: "Agents" },
-  { id: "chaos", label: "Chaos" },
+export const GOD_MODE_CATEGORIES: { id: GodModeCategory; labelKey: string }[] = [
+  { id: "simulation", labelKey: "godMode.cat.simulation" },
+  { id: "economy", labelKey: "godMode.cat.economy" },
+  { id: "agents", labelKey: "godMode.cat.agents" },
+  { id: "chaos", labelKey: "godMode.cat.chaos" },
 ];
 
 type GodModeAction = {
+  id: string;
   command: string;
-  label: string;
+  labelKey: string;
+  previewKey: string;
+  riskKey: string;
   category: GodModeCategory;
-  preview: string;
-  risk: string;
   args?: Record<string, unknown>;
 };
 
 export const GOD_MODE_ACTIONS: GodModeAction[] = [
   {
+    id: "timeWarp",
     command: "god_mode_time_warp",
-    label: "Time Warp (+7 days)",
+    labelKey: "godMode.action.timeWarp",
+    previewKey: "godMode.action.timeWarp.preview",
+    riskKey: "godMode.action.timeWarp.risk",
     category: "simulation",
     args: { days: 7 },
-    preview: "Fast-forward one week. Projects advance; burn accrues.",
-    risk: "Agents may feel rushed; morale can dip slightly.",
   },
   {
+    id: "massMotivation",
     command: "god_mode_mass_motivation",
-    label: "Mass Motivation",
+    labelKey: "godMode.action.massMotivation",
+    previewKey: "godMode.action.massMotivation.preview",
+    riskKey: "godMode.action.massMotivation.risk",
     category: "agents",
-    preview: "Boost company-wide morale immediately.",
-    risk: "Raises reality debt; overuse breeds dependency.",
   },
   {
+    id: "emergencyBudget",
     command: "god_mode_emergency_budget",
-    label: "Emergency Budget (+2500 tokens)",
+    labelKey: "godMode.action.emergencyBudget",
+    previewKey: "godMode.action.emergencyBudget.preview",
+    riskKey: "godMode.action.emergencyBudget.risk",
     category: "economy",
     args: { amount: 2500 },
-    preview: "Inject tokens into the company pool.",
-    risk: "Reality debt increases; agents expect future bailouts.",
   },
   {
+    id: "divineInspiration",
     command: "god_mode_divine_inspiration",
-    label: "Divine Inspiration",
+    labelKey: "godMode.action.divineInspiration",
+    previewKey: "godMode.action.divineInspiration.preview",
+    riskKey: "godMode.action.divineInspiration.risk",
     category: "agents",
-    preview: "Temporary creativity and speed boost for all agents.",
-    risk: "Crash after effect wears off if overused.",
   },
   {
+    id: "blackSwan",
     command: "god_mode_black_swan",
-    label: "Black Swan Event",
+    labelKey: "godMode.action.blackSwan",
+    previewKey: "godMode.action.blackSwan.preview",
+    riskKey: "godMode.action.blackSwan.risk",
     category: "chaos",
-    preview: "Trigger a major random event — could help or hurt.",
-    risk: "Unpredictable cash and morale swings.",
   },
   {
+    id: "agentMutation",
     command: "god_mode_agent_mutation",
-    label: "Agent Mutation",
+    labelKey: "godMode.action.agentMutation",
+    previewKey: "godMode.action.agentMutation.preview",
+    riskKey: "godMode.action.agentMutation.risk",
     category: "agents",
     args: {},
-    preview: "Randomly shift one agent's personality traits.",
-    risk: "May break team chemistry or create drama.",
   },
   {
+    id: "realityEdit",
     command: "god_mode_reality_edit",
-    label: "Reality Edit (top project)",
+    labelKey: "godMode.action.realityEdit",
+    previewKey: "godMode.action.realityEdit.preview",
+    riskKey: "godMode.action.realityEdit.risk",
     category: "economy",
     args: {},
-    preview: "Force the top project forward or repair a setback.",
-    risk: "High reality debt; agents sense unnatural outcomes.",
   },
   {
+    id: "perfectHiring",
     command: "god_mode_perfect_hiring",
-    label: "Perfect Hiring",
+    labelKey: "godMode.action.perfectHiring",
+    previewKey: "godMode.action.perfectHiring.preview",
+    riskKey: "godMode.action.perfectHiring.risk",
     category: "economy",
-    preview: "Reveal a hidden S-tier recruitment candidate.",
-    risk: "Moderate reality cost; sets high salary expectations.",
   },
   {
+    id: "totalChaos",
     command: "god_mode_total_chaos",
-    label: "Total Chaos Mode (24h)",
+    labelKey: "godMode.action.totalChaos",
+    previewKey: "godMode.action.totalChaos.preview",
+    riskKey: "godMode.action.totalChaos.risk",
     category: "chaos",
-    preview: "All agents become unpredictable for one day.",
-    risk: "Severe morale volatility; hard to recover quickly.",
   },
   {
+    id: "resetMemory",
     command: "god_mode_reset_agent_memory",
-    label: "Reset Agent Memory",
+    labelKey: "godMode.action.resetMemory",
+    previewKey: "godMode.action.resetMemory.preview",
+    riskKey: "godMode.action.resetMemory.risk",
     category: "agents",
     args: {},
-    preview: "Wipe one agent's memory and relationships.",
-    risk: "Traumatic for the agent; trust damage across team.",
   },
   {
+    id: "forceRomance",
     command: "god_mode_force_relationship",
-    label: "Force Romance",
+    labelKey: "godMode.action.forceRomance",
+    previewKey: "godMode.action.forceRomance.preview",
+    riskKey: "godMode.action.forceRomance.risk",
     category: "agents",
     args: { relationshipType: "romance" },
-    preview: "Create an artificial romance between two agents.",
-    risk: "May spark drama or resentment if discovered.",
   },
   {
+    id: "forceRivalry",
     command: "god_mode_force_relationship",
-    label: "Force Rivalry",
+    labelKey: "godMode.action.forceRivalry",
+    previewKey: "godMode.action.forceRivalry.preview",
+    riskKey: "godMode.action.forceRivalry.risk",
     category: "agents",
     args: { relationshipType: "rivalry" },
-    preview: "Create an artificial rivalry between two agents.",
-    risk: "Can tank meeting productivity until resolved.",
   },
 ];
 
@@ -130,22 +144,19 @@ interface GodModeDisabledGateProps {
 }
 
 export function GodModeDisabledGate({ onEnable, busy }: GodModeDisabledGateProps) {
+  const { t } = useI18n();
   return (
     <div className="god-mode-disabled-gate">
       <div className="god-mode-disabled-card">
-        <h3>CEO intervention powers</h3>
-        <p className="muted">
-          God Mode lets you bend simulation rules — time warps, emergency budgets, agent mutations,
-          and more. Every action raises <strong>reality debt</strong>; agents eventually sense
-          unnatural outcomes.
-        </p>
+        <h3>{t("godMode.gateTitle")}</h3>
+        <p className="muted">{t("godMode.gateDesc")}</p>
         <ul className="god-mode-disabled-list">
-          <li>12 intervention powers across simulation, economy, agents, and chaos</li>
-          <li>Visible reality debt meter and intervention log</li>
-          <li>Consequences persist in finance, morale, and agent relationships</li>
+          <li>{t("godMode.gateItem1")}</li>
+          <li>{t("godMode.gateItem2")}</li>
+          <li>{t("godMode.gateItem3")}</li>
         </ul>
         <button type="button" className="primary-action" onClick={onEnable} disabled={busy}>
-          {busy ? "Enabling…" : "Enable God Mode"}
+          {busy ? t("godMode.enabling") : t("godMode.enable")}
         </button>
       </div>
     </div>
@@ -153,9 +164,10 @@ export function GodModeDisabledGate({ onEnable, busy }: GodModeDisabledGateProps
 }
 
 function RealityDebtMeter({ realityDebt }: { realityDebt: number }) {
+  const { t } = useI18n();
   return (
-    <div className="reality-debt-meter" aria-label="Reality debt">
-      <span>Reality debt {(realityDebt * 100).toFixed(0)}%</span>
+    <div className="reality-debt-meter" aria-label={t("godMode.realityDebt")}>
+      <span>{t("godMode.realityDebtPct", { pct: (realityDebt * 100).toFixed(0) })}</span>
       <div className="reality-debt-bar">
         <span
           className={realityDebt >= 0.35 ? "reality-debt-fill warning" : "reality-debt-fill"}
@@ -163,19 +175,20 @@ function RealityDebtMeter({ realityDebt }: { realityDebt: number }) {
         />
       </div>
       {realityDebt >= 0.35 ? (
-        <p className="muted">High debt — agents sense unnatural outcomes.</p>
+        <p className="muted">{t("godMode.highDebt")}</p>
       ) : null}
     </div>
   );
 }
 
 export function GodModePanel() {
+  const { t } = useI18n();
   const { activeCompanyId, companyRevision } = useCompanyScope();
   const setStatusMessage = useGameStore((state) => state.setStatusMessage);
   const setSimulation = useGameStore((state) => state.setSimulation);
   const setFinance = useGameStore((state) => state.setFinance);
   const [history, setHistory] = useState<GodModeLogEntry[]>([]);
-  const [selected, setSelected] = useState<string>(GOD_MODE_ACTIONS[0].label);
+  const [selected, setSelected] = useState<string>(GOD_MODE_ACTIONS[0].id);
   const [realityDebt, setRealityDebt] = useState(0);
   const [running, setRunning] = useState<string | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -202,7 +215,7 @@ export function GodModePanel() {
   }, [activeCompanyId, companyRevision]);
 
   const runAction = async (action: GodModeAction) => {
-    setRunning(action.label);
+    setRunning(action.id);
     try {
       const result = await invoke<GodModeActionResult>(action.command, action.args ?? {});
       setSimulation({ dayNumber: result.day_number });
@@ -263,7 +276,7 @@ export function GodModePanel() {
     setHistoryPage(0);
   }, [debouncedHistoryQuery, historySearchType, history.length]);
 
-  const activePreview = GOD_MODE_ACTIONS.find((action) => action.label === selected);
+  const activePreview = GOD_MODE_ACTIONS.find((action) => action.id === selected);
 
   return (
     <div className="god-mode-panel god-mode-panel--page">
@@ -276,18 +289,18 @@ export function GodModePanel() {
             }
             return (
               <section key={category.id} className="god-mode-category">
-                <h3>{category.label}</h3>
+                <h3>{t(category.labelKey)}</h3>
                 <div className="god-mode-action-grid">
                   {actions.map((action) => (
                     <article
-                      key={action.label}
-                      className={`god-mode-action-card${selected === action.label ? " selected" : ""}`}
-                      onMouseEnter={() => setSelected(action.label)}
-                      onFocus={() => setSelected(action.label)}
+                      key={action.id}
+                      className={`god-mode-action-card${selected === action.id ? " selected" : ""}`}
+                      onMouseEnter={() => setSelected(action.id)}
+                      onFocus={() => setSelected(action.id)}
                     >
                       <div className="god-mode-action-card-body">
-                        <strong>{action.label}</strong>
-                        <p className="muted">{action.preview}</p>
+                        <strong>{t(action.labelKey)}</strong>
+                        <p className="muted">{t(action.previewKey)}</p>
                       </div>
                       <button
                         type="button"
@@ -295,7 +308,7 @@ export function GodModePanel() {
                         disabled={running !== null}
                         onClick={() => void runAction(action)}
                       >
-                        {running === action.label ? "Running…" : "Execute"}
+                        {running === action.id ? t("godMode.running") : t("godMode.execute")}
                       </button>
                     </article>
                   ))}
@@ -310,29 +323,31 @@ export function GodModePanel() {
 
           {activePreview ? (
             <div className="god-mode-preview">
-              <strong>{activePreview.label}</strong>
-              <p>{activePreview.preview}</p>
-              <p className="muted">Risk: {activePreview.risk}</p>
+              <strong>{t(activePreview.labelKey)}</strong>
+              <p>{t(activePreview.previewKey)}</p>
+              <p className="muted">{t("godMode.risk", { risk: t(activePreview.riskKey) })}</p>
               <button
                 type="button"
                 className="primary-action"
                 disabled={running !== null}
                 onClick={() => void runAction(activePreview)}
               >
-                {running === activePreview.label ? "Running…" : `Execute ${activePreview.label}`}
+                {running === activePreview.id
+                  ? t("godMode.running")
+                  : t("godMode.executeNamed", { name: t(activePreview.labelKey) })}
               </button>
             </div>
           ) : null}
 
           <div className="god-mode-history">
-            <h3>Intervention Log</h3>
+            <h3>{t("godMode.interventionLog")}</h3>
             {history.length > 0 ? (
               <>
                 <SearchableListToolbar
                   query={historySearchQuery}
                   onQueryChange={setHistorySearchQuery}
-                  placeholder="Search interventions…"
-                  ariaLabel="Search intervention log"
+                  placeholder={t("godMode.searchPlaceholder")}
+                  ariaLabel={t("godMode.searchAria")}
                   matchCount={
                     debouncedHistoryQuery.trim() || historySearchType !== SEARCH_TYPE_ALL
                       ? filteredHistory.length
@@ -343,23 +358,25 @@ export function GodModePanel() {
                     value: historySearchType,
                     onChange: setHistorySearchType,
                     options: GOD_MODE_SEARCH_TYPES,
-                    ariaLabel: "Filter intervention type",
-                    label: "Type",
+                    ariaLabel: t("godMode.filterTypeAria"),
+                    label: t("godMode.filterType"),
                   }}
                 />
                 {debouncedHistoryQuery.trim() && filteredHistory.length === 0 ? (
                   <p className="search-empty-hint muted">
-                    No matches for &ldquo;{debouncedHistoryQuery}&rdquo;.
+                    {t("godMode.noMatches", { query: debouncedHistoryQuery })}
                   </p>
                 ) : null}
                 <ul>
                   {historyPageItems.map((entry) => (
                     <li key={entry.id}>
-                      <strong>Day {entry.day_number}</strong> · {entry.action.replace(/_/g, " ")}
+                      <strong>{t("godMode.logDay", { day: entry.day_number })}</strong> ·{" "}
+                      {entry.action.replace(/_/g, " ")}
                       <span className="muted"> — {entry.message}</span>
                       <span className="muted">
-                        {" "}
-                        · reality cost {(entry.reality_cost * 100).toFixed(0)}%
+                        {t("godMode.realityCost", {
+                          pct: (entry.reality_cost * 100).toFixed(0),
+                        })}
                       </span>
                     </li>
                   ))}
@@ -367,12 +384,12 @@ export function GodModePanel() {
                 <PaginationBar
                   page={historySafePage}
                   totalPages={historyTotalPages}
-                  label="Interventions"
+                  label={t("godMode.pagination")}
                   onPageChange={setHistoryPage}
                 />
               </>
             ) : (
-              <p className="muted">No interventions yet. Execute a power to begin the log.</p>
+              <p className="muted">{t("godMode.noInterventions")}</p>
             )}
           </div>
         </aside>

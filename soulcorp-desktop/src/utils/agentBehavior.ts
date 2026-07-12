@@ -6,6 +6,7 @@ import {
   DEPARTMENT_BUILDING,
   MEETING_ROOM,
 } from "../data/worldLayout";
+import { languageFromSettings, translate } from "../i18n";
 import type { AgentRecord } from "../types/game";
 import type { Agent, AgentStatus, BehaviorIntent, Building } from "../types/world";
 import { useGameStore } from "../stores/gameStore";
@@ -16,16 +17,21 @@ import { normalizeOfficeVisual } from "./officeVisualNormalize";
 import { getCampusNavGrid } from "./campusNavGrid";
 import { ensurePath, followPath } from "./pathFollower";
 
-const STATUS_LABELS: Record<BehaviorIntent, string> = {
-  commute_to_desk: "Heading to desk",
-  working: "Focused at workstation",
-  walking_to_meeting: "Walking to meeting room",
-  in_meeting: "In team meeting",
-  walking_to_break: "Walking to break area",
-  on_break: "Coffee break",
-  walking_to_plaza: "Walking to Hub Plaza",
-  visiting_plaza: "Checking marketplace board",
+const STATUS_LABEL_KEYS: Record<BehaviorIntent, string> = {
+  commute_to_desk: "agent.status.commute_to_desk",
+  working: "agent.status.working",
+  walking_to_meeting: "agent.status.walking_to_meeting",
+  in_meeting: "agent.status.in_meeting",
+  walking_to_break: "agent.status.walking_to_break",
+  on_break: "agent.status.on_break",
+  walking_to_plaza: "agent.status.walking_to_plaza",
+  visiting_plaza: "agent.status.visiting_plaza",
 };
+
+function tAgent(key: string, params?: Record<string, string | number>): string {
+  const language = languageFromSettings(useGameStore.getState().settings);
+  return translate(language, key, params);
+}
 
 function distance2D(
   a: [number, number, number],
@@ -40,9 +46,9 @@ function withY(point: [number, number, number], y = 0): [number, number, number]
 
 function statusLabelFor(intent: BehaviorIntent, role: string): string {
   if (intent === "working") {
-    return `${role} · deep work`;
+    return tAgent("agent.status.workingWithRole", { role });
   }
-  return STATUS_LABELS[intent];
+  return tAgent(STATUS_LABEL_KEYS[intent]);
 }
 
 function mapBackendStatus(status: string): AgentStatus {
@@ -288,10 +294,10 @@ export function advanceAgentBehavior(
 
   let statusLabel =
     record?.status === "throttled"
-      ? `${agent.role} · throttled (low compute)`
+      ? tAgent("agent.status.throttled", { role: agent.role })
       : statusLabelFor(intent, agent.role);
   if (moraleBoost && (intent === "working" || intent === "on_break")) {
-    statusLabel = `${statusLabel} · cozy zone`;
+    statusLabel = tAgent("agent.status.cozy", { label: statusLabel });
   }
 
   return {

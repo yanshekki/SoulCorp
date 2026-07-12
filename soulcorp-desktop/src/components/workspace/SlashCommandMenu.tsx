@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import type { SlashCommandItem } from "./slashCommands";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export interface SlashCommandMenuHandle {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean;
@@ -15,6 +16,7 @@ export const SlashCommandMenu = forwardRef<
   SlashCommandMenuHandle,
   SuggestionProps<SlashCommandItem>
 >(function SlashCommandMenu({ items, command }, ref) {
+  const { t } = useI18n();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
@@ -48,15 +50,15 @@ export const SlashCommandMenu = forwardRef<
 
   if (items.length === 0) {
     return (
-      <div className="ws-slash-menu" role="listbox" aria-label="Slash commands">
-        <p className="ws-slash-menu-empty muted">No matching blocks</p>
+      <div className="ws-slash-menu" role="listbox" aria-label={t("workspace.slash.aria")}>
+        <p className="ws-slash-menu-empty muted">{t("workspace.slash.empty")}</p>
       </div>
     );
   }
 
   return (
-    <div className="ws-slash-menu" role="listbox" aria-label="Slash commands">
-      <header className="ws-slash-menu-header">Insert block</header>
+    <div className="ws-slash-menu" role="listbox" aria-label={t("workspace.slash.aria")}>
+      <header className="ws-slash-menu-header">{t("workspace.slash.header")}</header>
       <ul className="ws-slash-menu-list">
         {items.map((item, index) => (
           <li key={item.id}>
@@ -73,8 +75,8 @@ export const SlashCommandMenu = forwardRef<
                 {item.icon}
               </span>
               <span className="ws-slash-menu-copy">
-                <strong>{item.title}</strong>
-                <span>{item.description}</span>
+                <strong>{t(item.titleKey)}</strong>
+                <span>{t(item.descriptionKey)}</span>
               </span>
             </button>
           </li>

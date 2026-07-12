@@ -1,20 +1,20 @@
 use super::run_subprocess_for_agent;
 use crate::agent_activity::ActivityRunContext;
+use crate::agent_runtime::prompt_file::PromptFile;
+use crate::agent_runtime::registry::prompt_delivery_for_adapter;
 use crate::agent_runtime::security::{self, SubprocessRequest};
-use crate::agent_runtime::task_prompt::build_compact_prompt;
-use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::agent_runtime::types::RuntimeCatalogEntry;
+use crate::agent_runtime::types::{RuntimeProbe, RuntimeResult};
 use crate::scrum::types::WorkNode;
 use crate::state::{AgentRecord, AppState, GameSettings};
-use std::fs;
 use std::path::Path;
 use std::time::Duration;
-use uuid::Uuid;
 
 pub fn probe_prompt_flag(entry: &RuntimeCatalogEntry, settings: &GameSettings) -> RuntimeProbe {
     probe_with_help(entry, settings, &["--help"])
 }
 
+/// CLIs that historically used `-p <prompt>` — now always write a temp file first.
 pub fn execute_prompt_flag(
     state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
@@ -37,23 +37,38 @@ pub fn execute_prompt_flag(
         task,
         true,
     );
-    let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt_lang(
+        task,
+        agent,
+        project_title,
+        workspace_addon.as_deref(),
+        Some(&lang_block),
+    );
+    let delivery = prompt_delivery_for_adapter(&entry.adapter);
+    let prompt_file = PromptFile::write(&entry.id, &prompt)?;
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
+
+    let mut args = prompt_file.delivery_args(&delivery);
+    if args.is_empty() {
+        // Fallback: still never put full body in argv — use stdin.
+        args = vec!["--stdin".to_string()];
+    }
+    args.extend([
+        "--output-format".to_string(),
+        "text".to_string(),
+    ]);
 
     let request = SubprocessRequest {
         binary,
-        args: vec![
-            "-p".to_string(),
-            prompt,
-            "--output-format".to_string(),
-            "text".to_string(),
-        ],
+        args,
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: None,
+        stdin: prompt_file.stdin_for(&delivery),
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
+    drop(prompt_file);
 
     finish_plain_output(entry, output)
 }
@@ -62,6 +77,7 @@ pub fn probe_codex(entry: &RuntimeCatalogEntry, settings: &GameSettings) -> Runt
     probe_with_help(entry, settings, &["--help"])
 }
 
+/// Codex: materialize prompt to file for observability; pass body via stdin (never argv).
 pub fn execute_codex(
     state: Option<&mut AppState>,
     entry: &RuntimeCatalogEntry,
@@ -84,18 +100,28 @@ pub fn execute_codex(
         task,
         true,
     );
-    let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt_lang(
+        task,
+        agent,
+        project_title,
+        workspace_addon.as_deref(),
+        Some(&lang_block),
+    );
+    let prompt_file = PromptFile::write(&entry.id, &prompt)?;
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
 
+    // File is on disk for debug/View CLI; process reads body from stdin.
     let request = SubprocessRequest {
         binary,
-        args: vec!["exec".to_string(), prompt],
+        args: vec!["exec".to_string()],
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: None,
+        stdin: Some(prompt_file.body.clone()),
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
+    drop(prompt_file);
 
     finish_plain_output(entry, output)
 }
@@ -119,9 +145,6 @@ pub fn execute_message_file(
         &entry.default_binary,
         &entry.label,
     )?;
-    let temp_dir = std::env::temp_dir().join(format!("soulcorp-msg-{}-{}", entry.id, Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-    let message_path = temp_dir.join("task.md");
     let workspace_addon = crate::scrum::agent_tools::workspace_prompt_addon(
         workspace_root,
         agent,
@@ -129,25 +152,32 @@ pub fn execute_message_file(
         task,
         true,
     );
-    let prompt = build_compact_prompt(task, agent, project_title, workspace_addon.as_deref());
-    fs::write(&message_path, prompt).map_err(|e| e.to_string())?;
+    let lang_block = crate::i18n::language_instruction(crate::i18n::language_from_settings(settings));
+    let prompt = crate::agent_runtime::task_prompt::build_compact_prompt_lang(
+        task,
+        agent,
+        project_title,
+        workspace_addon.as_deref(),
+        Some(&lang_block),
+    );
+    let delivery = prompt_delivery_for_adapter(&entry.adapter);
+    let prompt_file = PromptFile::write(&entry.id, &prompt)?;
     let timeout_secs = settings.openclaw_timeout_secs.max(30);
+
+    let mut args = prompt_file.delivery_args(&delivery);
+    args.push("--yes".to_string());
 
     let request = SubprocessRequest {
         binary,
-        args: vec![
-            "--message-file".to_string(),
-            message_path.display().to_string(),
-            "--yes".to_string(),
-        ],
+        args,
         cwd: workspace_root.map(|p| p.to_path_buf()),
-        stdin: None,
+        stdin: prompt_file.stdin_for(&delivery),
         timeout: Duration::from_secs(timeout_secs as u64),
         env_keys: vec![],
     };
     let output = run_subprocess_for_agent(state, &request, activity, &agent.id)?;
+    drop(prompt_file);
 
-    let _ = fs::remove_dir_all(&temp_dir);
     finish_plain_output(entry, output)
 }
 
@@ -217,7 +247,7 @@ fn probe_with_help(
         agent_command_available,
         gateway_healthy: false,
         message: if agent_command_available {
-            format!("{} ready — CLI detected.", entry.label)
+            format!("{} ready — CLI detected (prompt via temp file).", entry.label)
         } else {
             format!("{} binary found but CLI probe failed.", entry.label)
         },
